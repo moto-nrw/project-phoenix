@@ -40,6 +40,7 @@ type Service interface {
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)

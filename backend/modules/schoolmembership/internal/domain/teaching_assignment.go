@@ -37,7 +37,8 @@ type GroupAssignment struct {
 }
 
 type GroupAssignmentFilter struct {
-	IDs        []int64
-	GroupIDs   []int64
-	TeacherIDs []int64
+	IDs             []int64
+	GroupIDs        []int64
+	TeacherIDs      []int64
+	TeacherStaffIDs []int64
 }

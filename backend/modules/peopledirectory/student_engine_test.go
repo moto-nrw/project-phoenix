@@ -23,6 +23,12 @@ func (e *recordingEngine) ListStudentsByIDs(_ context.Context, ids []int64) ([]p
 	return nil, nil
 }
 
+func (e *recordingEngine) ListStudentNamesByIDs(_ context.Context, ids []int64) ([]peopledirectory.StudentName, error) {
+	e.calls++
+	e.student = studentCall{ids: ids}
+	return nil, nil
+}
+
 func (e *recordingEngine) ListStudentsAcrossTenantsByIDs(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
 	e.calls++
 	e.student = studentCall{ids: ids}

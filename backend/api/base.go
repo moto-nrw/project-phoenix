@@ -192,21 +192,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	var legacyFacilities interface {
 		ValidateRoomDeletion(context.Context, int64) error
 	}
-	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB: db,
-		DeletionLock: func(ctx context.Context) error {
-			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
-		},
-		DeletionGuard: func(ctx context.Context, roomID int64) error {
-			if legacyFacilities == nil {
-				return facilitiesModule.ErrRoomDeletionGuardUnavailable
-			}
-			return mapRoomDeletionError(legacyFacilities.ValidateRoomDeletion(ctx, roomID))
-		},
-		Observe: func(observation facilitiesCompose.Observation) {
-			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
+	rooms, err := composeFacilities(db, &legacyFacilities)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -231,19 +217,13 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
-			observability.ObserveAppointmentsOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, appointmentsModule.ErrorCode(observation.Err), observation.Err)
+			observability.ObserveAppointmentsOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration, appointmentsModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
-		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
-		Observe: func(observation carePlanCompose.Observation) {
-			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
+	carePlan, err := composeCarePlan(db, persons)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -295,6 +275,47 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	}
 	legacyFacilities = factory.Facilities
 	return moduleServices{services: factory, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, membership: membership}, nil
+}
+
+func composeFacilities(db *bun.DB, legacyFacilities *interface {
+	ValidateRoomDeletion(context.Context, int64) error
+}) (*facilitiesModule.Module, error) {
+	return facilitiesCompose.New(facilitiesCompose.Dependencies{
+		DB: db,
+		DeletionLock: func(ctx context.Context) error {
+			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+		},
+		DeletionGuard: func(ctx context.Context, roomID int64) error {
+			if *legacyFacilities == nil {
+				return facilitiesModule.ErrRoomDeletionGuardUnavailable
+			}
+			return mapRoomDeletionError((*legacyFacilities).ValidateRoomDeletion(ctx, roomID))
+		},
+		Observe: func(observation facilitiesCompose.Observation) {
+			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+}
+
+func composeCarePlan(db *bun.DB, persons *peopleModule.Module) (*carePlanModule.Module, error) {
+	return carePlanCompose.New(carePlanCompose.Dependencies{
+		DB: db, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+			values, err := persons.ListStudentNamesByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]carePlanCompose.StudentName, 0, len(values))
+			for _, value := range values {
+				result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+			}
+			return result, nil
+		}),
+		StudentLock: persons.LockStudent, StudentNotFound: peopleModule.ErrStudentNotFound,
+		Observe: func(observation carePlanCompose.Observation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
 }
 
 func mapRoomDeletionError(err error) error {

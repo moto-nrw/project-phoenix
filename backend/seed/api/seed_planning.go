@@ -9,6 +9,15 @@ import (
 
 type seedPlanningDemoStep struct{}
 
+type seedPlanningInstance struct {
+	ID              int64  `json:"id"`
+	Title           string `json:"title"`
+	ActivityGroupID *int64 `json:"activity_group_id"`
+	Staff           []struct {
+		StaffID int64 `json:"staff_id"`
+	} `json:"staff"`
+}
+
 func (seedPlanningDemoStep) Name() string { return "Seeding planning demo data" }
 
 func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
@@ -58,53 +67,75 @@ func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func seedPlanningException(rt *Runtime) error {
-	recurringIDs, err := recurringPlanningInstanceIDs(rt)
+	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
+	if len(staffIDs) < 4 {
+		return fmt.Errorf("planning deviation variants not materialized")
+	}
+	recurringIDs, deviationID, err := recurringPlanningInstanceIDs(rt, staffIDs[0])
 	if err != nil {
 		return err
 	}
-	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
-	if len(recurringIDs) < 3 || len(staffIDs) < 4 {
+	otherIDs := make([]int64, 0, len(recurringIDs)-1)
+	for _, id := range recurringIDs {
+		if id != deviationID {
+			otherIDs = append(otherIDs, id)
+		}
+	}
+	if len(otherIDs) < 2 {
 		return fmt.Errorf("planning deviation variants not materialized")
 	}
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/deviations", recurringIDs[0]), map[string]any{
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/deviations", otherIDs[0]), map[string]any{
 		"cancel": true, "cancel_reason": "Teamfortbildung",
 	}); err != nil {
 		return fmt.Errorf("cancel one recurring planning instance: %w", err)
 	}
-	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", recurringIDs[1])); err != nil {
+	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", otherIDs[1])); err != nil {
 		return fmt.Errorf("delete one recurring planning instance: %w", err)
 	}
-	return seedPlanningStaffDeviation(rt, recurringIDs[2], staffIDs[0], staffIDs[3])
+	return seedPlanningStaffDeviation(rt, deviationID, staffIDs[0], staffIDs[3])
 }
 
-func recurringPlanningInstanceIDs(rt *Runtime) ([]int64, error) {
+func recurringPlanningInstanceIDs(rt *Runtime, deviationStaffID int64) ([]int64, int64, error) {
 	today := todaySeedDate()
 	raw, err := rt.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", today.String(), today.AddDays(6).String()))
 	if err != nil {
-		return nil, fmt.Errorf("list recurring planning instances: %w", err)
+		return nil, 0, fmt.Errorf("list recurring planning instances: %w", err)
 	}
 	var envelope struct {
 		Data struct {
-			Instances []struct {
-				ID              int64  `json:"id"`
-				Title           string `json:"title"`
-				ActivityGroupID *int64 `json:"activity_group_id"`
-			} `json:"instances"`
+			Instances []seedPlanningInstance `json:"instances"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil, fmt.Errorf("parse recurring planning instances: %w", err)
+		return nil, 0, fmt.Errorf("parse recurring planning instances: %w", err)
 	}
+	recurringIDs, deviationID := selectRecurringPlanningInstances(envelope.Data.Instances, deviationStaffID)
+	if len(recurringIDs) < 3 {
+		return nil, 0, fmt.Errorf("fewer than three recurring planning instances materialized")
+	}
+	if deviationID == 0 {
+		return nil, 0, fmt.Errorf("no recurring planning instance belongs to deviation staff")
+	}
+	return recurringIDs, deviationID, nil
+}
+
+func selectRecurringPlanningInstances(instances []seedPlanningInstance, deviationStaffID int64) ([]int64, int64) {
 	var recurringIDs []int64
-	for _, instance := range envelope.Data.Instances {
+	var deviationID int64
+	for _, instance := range instances {
 		if instance.ID > 0 && instance.ActivityGroupID != nil && instance.Title == "Frühbetreuung" {
 			recurringIDs = append(recurringIDs, instance.ID)
+			if deviationID == 0 {
+				for _, staff := range instance.Staff {
+					if staff.StaffID == deviationStaffID {
+						deviationID = instance.ID
+						break
+					}
+				}
+			}
 		}
 	}
-	if len(recurringIDs) < 2 {
-		return nil, fmt.Errorf("fewer than two recurring planning instances materialized")
-	}
-	return recurringIDs, nil
+	return recurringIDs, deviationID
 }
 
 func seedPlanningStaffDeviation(rt *Runtime, instanceID, absentStaffID, substituteStaffID int64) error {

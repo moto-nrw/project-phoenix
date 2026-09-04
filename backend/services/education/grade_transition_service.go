@@ -680,14 +680,15 @@ func (s *GradeTransitionService) findUnmappedClasses(
 		return fmt.Errorf("failed to get distinct classes: %w", err)
 	}
 
+	counts, err := s.studentCountsByClass(ctx, allClasses)
+	if err != nil {
+		return err
+	}
 	for _, className := range allClasses {
 		if mappedClasses[className] {
 			continue
 		}
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			return fmt.Errorf("failed to count students in unmapped class %s: %w", className, err)
-		}
+		count := counts[className]
 		if count == 0 {
 			continue
 		}
@@ -1807,6 +1808,10 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 		return nil, fmt.Errorf("failed to get classes: %w", err)
 	}
 
+	counts, err := s.studentCountsByClass(ctx, classes)
+	if err != nil {
+		return nil, err
+	}
 	suggestions := make([]*SuggestedMapping, 0)
 
 	// Pattern: optional prefix, grade number, optional letter(s) — matches
@@ -1815,13 +1820,7 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 	classPattern := regexp.MustCompile(`^(.*?)(\d+)([a-zA-Z]*)$`)
 
 	for _, className := range classes {
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			// Skipping a failed count would silently drop the class from the
-			// suggestion, and an admin could create a transition that omits an
-			// affected cohort without ever seeing an error (#405 review).
-			return nil, fmt.Errorf("failed to count students in class %q: %w", className, err)
-		}
+		count := counts[className]
 		if count == 0 {
 			continue
 		}
@@ -1881,6 +1880,14 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 	})
 
 	return suggestions, nil
+}
+
+func (s *GradeTransitionService) studentCountsByClass(ctx context.Context, classes []string) (map[string]int, error) {
+	counts, err := s.transitionRepo.GetStudentCountsByClasses(ctx, classes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count students by class: %w", err)
+	}
+	return counts, nil
 }
 
 // GetHistory retrieves the history records for a transition

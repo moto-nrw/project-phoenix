@@ -26,11 +26,14 @@ const requestTableExpr = `enrollment.requests AS "request"`
 const existingStudentMatchLockClass int32 = 0x656e726c
 
 type RequestRepository struct {
+	*base.Repository[*enrollment.Request]
 	db *bun.DB
 }
 
 func NewRequestRepository(db *bun.DB) enrollment.RequestRepository {
-	return &RequestRepository{db: db}
+	repo := base.NewRepository[*enrollment.Request](db, "enrollment.requests", "Request")
+	repo.TenantScoped = true
+	return &RequestRepository{Repository: repo, db: db}
 }
 
 func (r *RequestRepository) Create(ctx context.Context, req *enrollment.Request) error {

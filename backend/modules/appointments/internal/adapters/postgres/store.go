@@ -30,30 +30,30 @@ func New(database Database) *Store {
 }
 
 type appointmentRow struct {
-	bun.BaseModel      `bun:"table:appointments,alias:appointment"`
-	ID                 int64        `bun:"id,pk,autoincrement"`
-	TenantID           int64        `bun:"tenant_id,notnull"`
-	CreatedAt          time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt          time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	OrganizerStaffID   int64        `bun:"organizer_staff_id,notnull"`
-	Title              string       `bun:"title,notnull"`
-	Description        *string      `bun:"description"`
-	Location           *string      `bun:"location"`
-	StartDate          calendarDate `bun:"start_date,notnull,type:date"`
-	EndDate            calendarDate `bun:"end_date,notnull,type:date"`
-	StartTime          time.Time    `bun:"start_time,notnull"`
-	EndTime            time.Time    `bun:"end_time,notnull"`
-	AllDay             bool         `bun:"all_day,notnull"`
-	DeliveryMode       string       `bun:"delivery_mode,notnull"`
-	OverviewVisibility string       `bun:"overview_visibility,notnull"`
-	CancelledAt        *time.Time   `bun:"cancelled_at"`
-	DeletedAt          *time.Time   `bun:"deleted_at"`
-	NotifyGuardians    bool         `bun:"notify_guardians,notnull"`
-	Revision           int          `bun:"revision,notnull"`
+	bun.BaseModel      `bun:"table:calendar.appointments,alias:appointment"`
+	ID                 int64       `bun:"id,pk,autoincrement"`
+	TenantID           int64       `bun:"tenant_id,notnull"`
+	CreatedAt          time.Time   `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt          time.Time   `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	OrganizerStaffID   int64       `bun:"organizer_staff_id,notnull"`
+	Title              string      `bun:"title,notnull"`
+	Description        *string     `bun:"description"`
+	Location           *string     `bun:"location"`
+	StartDate          domain.Date `bun:"start_date,notnull,type:date"`
+	EndDate            domain.Date `bun:"end_date,notnull,type:date"`
+	StartTime          time.Time   `bun:"start_time,notnull"`
+	EndTime            time.Time   `bun:"end_time,notnull"`
+	AllDay             bool        `bun:"all_day,notnull"`
+	DeliveryMode       string      `bun:"delivery_mode,notnull"`
+	OverviewVisibility string      `bun:"overview_visibility,notnull"`
+	CancelledAt        *time.Time  `bun:"cancelled_at"`
+	DeletedAt          *time.Time  `bun:"deleted_at"`
+	NotifyGuardians    bool        `bun:"notify_guardians,notnull"`
+	Revision           int         `bun:"revision,notnull"`
 }
 
 type targetRow struct {
-	bun.BaseModel `bun:"table:appointment_targets,alias:appointment_target"`
+	bun.BaseModel `bun:"table:calendar.appointment_targets,alias:appointment_target"`
 	ID            int64     `bun:"id,pk,autoincrement"`
 	TenantID      int64     `bun:"tenant_id,notnull"`
 	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -64,7 +64,39 @@ type targetRow struct {
 	TargetValue   *string   `bun:"target_value"`
 }
 
-type calendarDate string
+type recurrenceRuleRow struct {
+	bun.BaseModel   `bun:"table:calendar.recurrence_rules,alias:recurrence_rule"`
+	ID              int64        `bun:"id,pk,autoincrement"`
+	TenantID        int64        `bun:"tenant_id,notnull"`
+	CreatedAt       time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt       time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	AppointmentID   int64        `bun:"appointment_id,notnull"`
+	Frequency       string       `bun:"frequency,notnull"`
+	IntervalCount   int          `bun:"interval_count,notnull"`
+	Weekdays        []string     `bun:"weekdays,array"`
+	MonthDays       []int        `bun:"month_days,array"`
+	EndsOn          *domain.Date `bun:"ends_on,type:date"`
+	OccurrenceCount *int         `bun:"occurrence_count"`
+}
+
+type occurrenceOverrideRow struct {
+	bun.BaseModel  `bun:"table:calendar.appointment_occurrence_overrides,alias:appointment_occurrence_override"`
+	ID             int64        `bun:"id,pk,autoincrement"`
+	TenantID       int64        `bun:"tenant_id,notnull"`
+	CreatedAt      time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt      time.Time    `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	AppointmentID  int64        `bun:"appointment_id,notnull"`
+	OccurrenceDate domain.Date  `bun:"occurrence_date,notnull,type:date"`
+	Cancelled      bool         `bun:"cancelled,notnull"`
+	Title          *string      `bun:"title"`
+	Description    *string      `bun:"description"`
+	Location       *string      `bun:"location"`
+	StartDate      *domain.Date `bun:"start_date,type:date"`
+	EndDate        *domain.Date `bun:"end_date,type:date"`
+	StartTime      *time.Time   `bun:"start_time"`
+	EndTime        *time.Time   `bun:"end_time"`
+	AllDay         *bool        `bun:"all_day"`
+}
 
 func (s *Store) databaseForTenant(ctx context.Context, operation string) (bun.IDB, int64, error) {
 	db, tenantID, err := s.database(ctx)
@@ -106,6 +138,28 @@ func (s *Store) FindReminderCandidateForUpdate(ctx context.Context, id int64) (d
 	query = withTenant(query, "appointment", tenantID)
 	found, stats, err := scanOne(ctx, query, "lock reminder candidate")
 	return appointmentToDomain(*row), found, stats, err
+}
+
+func (s *Store) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) ([]domain.Appointment, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "lock reminder candidates")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if len(ids) == 0 {
+		return []domain.Appointment{}, domain.OperationStats{}, nil
+	}
+	rows := []appointmentRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(appointmentTable).
+		Where(`"appointment".id IN (?)`, bun.List(ids)).
+		Where(`"appointment".deleted_at IS NULL`).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".notify_guardians`).
+		OrderExpr(`"appointment".id`).
+		For("NO KEY UPDATE")
+	query = withTenant(query, "appointment", tenantID)
+	stats, err := scanAll(ctx, query, "lock reminder candidates")
+	stats.Rows = int64(len(rows))
+	return appointmentsToDomain(rows), stats, err
 }
 
 func (s *Store) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to domain.Date) ([]domain.Appointment, domain.OperationStats, error) {
@@ -255,6 +309,94 @@ func (s *Store) FindAppointmentTargets(ctx context.Context, appointmentID int64)
 	return targetsToDomain(rows), stats, err
 }
 
+func (s *Store) FindRecurrenceRule(ctx context.Context, appointmentID int64) (domain.RecurrenceRule, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "find a recurrence rule")
+	if err != nil {
+		return domain.RecurrenceRule{}, false, domain.OperationStats{}, err
+	}
+	row := new(recurrenceRuleRow)
+	query := db.NewSelect().Model(row).
+		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
+		Where(`"recurrence_rule".appointment_id = ?`, appointmentID).
+		Limit(1)
+	found, stats, err := scanOne(ctx, withTenant(query, "recurrence_rule", tenantID), "find recurrence rule")
+	return recurrenceRuleToDomain(*row), found, stats, err
+}
+
+func (s *Store) FindRecurrenceRules(ctx context.Context, appointmentIDs []int64) ([]domain.RecurrenceRule, domain.OperationStats, error) {
+	if len(appointmentIDs) == 0 {
+		return []domain.RecurrenceRule{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find recurrence rules")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []recurrenceRuleRow{}
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
+		Where(`"recurrence_rule".appointment_id IN (?)`, bun.List(appointmentIDs))
+	stats, err := scanAll(ctx, withTenant(query, "recurrence_rule", tenantID), "find recurrence rules")
+	stats.Rows = int64(len(rows))
+	return recurrenceRulesToDomain(rows), stats, err
+}
+
+func (s *Store) FindOccurrenceOverrides(ctx context.Context, appointmentIDs []int64, dates []domain.Date) ([]domain.AppointmentOccurrenceOverride, domain.OperationStats, error) {
+	if len(appointmentIDs) == 0 || len(dates) == 0 {
+		return []domain.AppointmentOccurrenceOverride{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find occurrence overrides")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []occurrenceOverrideRow{}
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".occurrence_date IN (?)`, bun.List(dates)).
+		OrderExpr(`"appointment_occurrence_override".occurrence_date, "appointment_occurrence_override".id`)
+	stats, err := scanAll(ctx, withTenant(query, "appointment_occurrence_override", tenantID), "find occurrence overrides")
+	stats.Rows = int64(len(rows))
+	return occurrenceOverridesToDomain(rows), stats, err
+}
+
+func (s *Store) FindOccurrenceOverridesByStartDates(ctx context.Context, appointmentIDs []int64, dates []domain.Date) ([]domain.AppointmentOccurrenceOverride, domain.OperationStats, error) {
+	if len(appointmentIDs) == 0 || len(dates) == 0 {
+		return []domain.AppointmentOccurrenceOverride{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find occurrence overrides by start date")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []occurrenceOverrideRow{}
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".start_date IN (?)`, bun.List(dates)).
+		OrderExpr(`"appointment_occurrence_override".start_date, "appointment_occurrence_override".id`)
+	stats, err := scanAll(ctx, withTenant(query, "appointment_occurrence_override", tenantID), "find occurrence overrides by start date")
+	stats.Rows = int64(len(rows))
+	return occurrenceOverridesToDomain(rows), stats, err
+}
+
+func (s *Store) FindCancelledOccurrenceOverrides(ctx context.Context, appointmentIDs []int64) ([]domain.AppointmentOccurrenceOverride, domain.OperationStats, error) {
+	if len(appointmentIDs) == 0 {
+		return []domain.AppointmentOccurrenceOverride{}, domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.databaseForTenant(ctx, "find cancelled occurrence overrides")
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []occurrenceOverrideRow{}
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".cancelled`).
+		OrderExpr(`"appointment_occurrence_override".occurrence_date, "appointment_occurrence_override".id`)
+	stats, err := scanAll(ctx, withTenant(query, "appointment_occurrence_override", tenantID), "find cancelled occurrence overrides")
+	stats.Rows = int64(len(rows))
+	return occurrenceOverridesToDomain(rows), stats, err
+}
+
 func (s *Store) CreateAppointment(ctx context.Context, fields domain.AppointmentFields) (domain.Appointment, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForTenant(ctx, "create an appointment")
 	if err != nil {
@@ -384,6 +526,86 @@ func (s *Store) DeleteAppointmentTargets(ctx context.Context, appointmentID int6
 	return execAny(ctx, withTenant(query, "appointment_target", tenantID), "delete appointment targets")
 }
 
+func (s *Store) CreateRecurrenceRule(ctx context.Context, rule domain.RecurrenceRule) (domain.RecurrenceRule, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "create a recurrence rule")
+	if err != nil {
+		return domain.RecurrenceRule{}, domain.OperationStats{}, err
+	}
+	row := recurrenceRuleFromDomain(rule)
+	row.TenantID = tenantID
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewInsert().Model(&row).ModelTableExpr(`calendar.recurrence_rules`).Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return domain.RecurrenceRule{}, stats, fmt.Errorf("appointments postgres: create recurrence rule: %w", err)
+	}
+	stats.Rows = 1
+	return recurrenceRuleToDomain(row), stats, nil
+}
+
+func (s *Store) DeleteRecurrenceRule(ctx context.Context, appointmentID int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "delete a recurrence rule")
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := db.NewDelete().Model((*recurrenceRuleRow)(nil)).
+		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
+		Where(`"recurrence_rule".appointment_id = ?`, appointmentID)
+	return execAny(ctx, withTenant(query, "recurrence_rule", tenantID), "delete recurrence rule")
+}
+
+func (s *Store) CreateOccurrenceOverride(ctx context.Context, override domain.AppointmentOccurrenceOverride) (domain.AppointmentOccurrenceOverride, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "create an occurrence override")
+	if err != nil {
+		return domain.AppointmentOccurrenceOverride{}, domain.OperationStats{}, err
+	}
+	row := occurrenceOverrideFromDomain(override)
+	row.TenantID = tenantID
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewInsert().Model(&row).ModelTableExpr(`calendar.appointment_occurrence_overrides`).Returning("*").Scan(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return domain.AppointmentOccurrenceOverride{}, stats, fmt.Errorf("appointments postgres: create occurrence override: %w", err)
+	}
+	stats.Rows = 1
+	return occurrenceOverrideToDomain(row), stats, nil
+}
+
+func (s *Store) DeleteOccurrenceOverrides(ctx context.Context, appointmentID int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "delete occurrence overrides")
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	query := db.NewDelete().Model((*occurrenceOverrideRow)(nil)).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id = ?`, appointmentID)
+	return execAny(ctx, withTenant(query, "appointment_occurrence_override", tenantID), "delete occurrence overrides")
+}
+
+func (s *Store) CancelOccurrence(ctx context.Context, appointmentID int64, occurrenceDate domain.Date) (bool, domain.OperationStats, error) {
+	db, tenantID, err := s.databaseForTenant(ctx, "cancel an occurrence")
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	row := &occurrenceOverrideRow{
+		TenantID: tenantID, AppointmentID: appointmentID,
+		OccurrenceDate: occurrenceDate, Cancelled: true,
+	}
+	query := db.NewInsert().Model(row).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides`).
+		On("CONFLICT (tenant_id, appointment_id, occurrence_date) DO UPDATE").
+		Set("cancelled = TRUE").
+		Set("updated_at = NOW()").
+		Where("NOT appointment_occurrence_overrides.cancelled")
+	stats, rows, err := execute(ctx, query, "cancel occurrence")
+	if err == nil && rows == 0 {
+		stats.DuplicatePreventionConflicts = 1
+	}
+	return rows > 0, stats, err
+}
+
 func applyAppointmentWindow(query *bun.SelectQuery, from, to domain.Date) *bun.SelectQuery {
 	return query.Where(`(
 		("appointment".end_date >= ? AND "appointment".start_date <= ?)
@@ -401,8 +623,8 @@ func applyAppointmentFields(row *appointmentRow, fields domain.AppointmentFields
 	row.Title = fields.Title
 	row.Description = fields.Description
 	row.Location = fields.Location
-	row.StartDate = calendarDate(fields.StartDate)
-	row.EndDate = calendarDate(fields.EndDate)
+	row.StartDate = fields.StartDate
+	row.EndDate = fields.EndDate
 	row.StartTime = fields.StartTime
 	row.EndTime = fields.EndTime
 	row.AllDay = fields.AllDay
@@ -434,6 +656,68 @@ func targetsToDomain(rows []targetRow) []domain.AppointmentTarget {
 			AppointmentID: row.AppointmentID, TargetType: row.TargetType, TargetID: row.TargetID, TargetValue: row.TargetValue})
 	}
 	return result
+}
+
+func recurrenceRuleFromDomain(value domain.RecurrenceRule) recurrenceRuleRow {
+	return recurrenceRuleRow{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, Frequency: value.Frequency, IntervalCount: value.IntervalCount,
+		Weekdays: value.Weekdays, MonthDays: value.MonthDays, EndsOn: value.EndsOn,
+		OccurrenceCount: value.OccurrenceCount,
+	}
+}
+
+func recurrenceRuleToDomain(row recurrenceRuleRow) domain.RecurrenceRule {
+	return domain.RecurrenceRule{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		AppointmentID: row.AppointmentID, Frequency: row.Frequency, IntervalCount: row.IntervalCount,
+		Weekdays: row.Weekdays, MonthDays: row.MonthDays, EndsOn: row.EndsOn,
+		OccurrenceCount: row.OccurrenceCount,
+	}
+}
+
+func recurrenceRulesToDomain(rows []recurrenceRuleRow) []domain.RecurrenceRule {
+	result := make([]domain.RecurrenceRule, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, recurrenceRuleToDomain(row))
+	}
+	return result
+}
+
+func occurrenceOverrideFromDomain(value domain.AppointmentOccurrenceOverride) occurrenceOverrideRow {
+	return occurrenceOverrideRow{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AppointmentID: value.AppointmentID, OccurrenceDate: value.OccurrenceDate, Cancelled: value.Cancelled,
+		Title: value.Title, Description: value.Description, Location: value.Location,
+		StartDate: value.StartDate, EndDate: value.EndDate,
+		StartTime: normalizedWallClockPtr(value.StartTime), EndTime: normalizedWallClockPtr(value.EndTime), AllDay: value.AllDay,
+	}
+}
+
+func occurrenceOverrideToDomain(row occurrenceOverrideRow) domain.AppointmentOccurrenceOverride {
+	return domain.AppointmentOccurrenceOverride{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		AppointmentID: row.AppointmentID, OccurrenceDate: domain.Date(row.OccurrenceDate), Cancelled: row.Cancelled,
+		Title: row.Title, Description: row.Description, Location: row.Location,
+		StartDate: row.StartDate, EndDate: row.EndDate,
+		StartTime: row.StartTime, EndTime: row.EndTime, AllDay: row.AllDay,
+	}
+}
+
+func occurrenceOverridesToDomain(rows []occurrenceOverrideRow) []domain.AppointmentOccurrenceOverride {
+	result := make([]domain.AppointmentOccurrenceOverride, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, occurrenceOverrideToDomain(row))
+	}
+	return result
+}
+
+func normalizedWallClockPtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	converted := normalizeWallClock(*value)
+	return &converted
 }
 
 func normalizeWallClock(value time.Time) time.Time {

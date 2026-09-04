@@ -1378,16 +1378,24 @@ func (s *careOfferingService) CloneCatalogForRollover(ctx context.Context, sourc
 	for _, source := range sources {
 		sourceByID[source.ID] = source
 	}
+	missingIDs := make([]int64, 0)
 	for _, offeringID := range carriedOfferingIDs {
-		if _, ok := sourceByID[offeringID]; ok {
-			continue
+		if sourceByID[offeringID] == nil {
+			missingIDs = append(missingIDs, offeringID)
 		}
-		source, findErr := s.Repo.FindByID(ctx, offeringID)
-		if findErr != nil {
-			return nil, fmt.Errorf("rollover catalog clone: load carried offering %d: %w", offeringID, findErr)
-		}
+	}
+	carried, err := s.Repo.ListByIDs(ctx, missingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover catalog clone: load carried offerings: %w", err)
+	}
+	for _, source := range carried {
 		sources = append(sources, source)
-		sourceByID[offeringID] = source
+		sourceByID[source.ID] = source
+	}
+	for _, offeringID := range missingIDs {
+		if sourceByID[offeringID] == nil {
+			return nil, fmt.Errorf("rollover catalog clone: carried offering %d not found", offeringID)
+		}
 	}
 	if err := validateCatalogGroupRuleConsistency(sources); err != nil {
 		return nil, fmt.Errorf("rollover catalog clone: %w", err)

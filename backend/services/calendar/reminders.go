@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
@@ -107,7 +108,6 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	// below.
 	fromDate := timezone.DateFromTime(from)
 	toDate := timezone.DateFromTime(to)
-
 	appointments, err := s.listGuardianReminderCandidates(ctx, toCalendarDate(fromDate), toCalendarDate(toDate))
 	if err != nil {
 		return 0, fmt.Errorf("calendar: list reminder candidates: %w", err)
@@ -115,105 +115,256 @@ func (s *service) enqueueDueAppointmentReminders(ctx context.Context, from, to t
 	if len(appointments) == 0 {
 		return 0, nil
 	}
+	due, err := s.loadDueAppointmentReminders(ctx, appointments, fromDate, toDate, from, to)
+	if err != nil || len(due) == 0 {
+		return 0, err
+	}
+	return s.enqueueReminderBatch(ctx, due, from, to, deliveries)
+}
 
+type reminderCandidateRelations struct {
+	recurrences map[int64]*calModels.RecurrenceRule
+	moved       map[int64][]*calModels.AppointmentOccurrenceOverride
+}
+
+func (s *service) loadReminderCandidateRelations(
+	ctx context.Context,
+	appointments []*calModels.Appointment,
+	from, to timezone.Date,
+) (reminderCandidateRelations, error) {
 	ids := make([]int64, 0, len(appointments))
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
-	recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(ctx, ids)
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, ids)
 	if err != nil {
-		return 0, fmt.Errorf("calendar: load reminder recurrences: %w", err)
+		return reminderCandidateRelations{}, fmt.Errorf("calendar: load reminder recurrences: %w", err)
 	}
 	recurrenceByAppointment := make(map[int64]*calModels.RecurrenceRule, len(recurrences))
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
-	movedOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndStartDates(ctx, ids, toCalendarDates(dateRange(fromDate, toDate)))
+	movedOverrides, err := s.cfg.Appointments.FindOccurrenceOverridesByStartDates(ctx, ids, toCalendarDates(dateRange(from, to)))
 	if err != nil {
-		return 0, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
+		return reminderCandidateRelations{}, fmt.Errorf("calendar: load moved reminder overrides: %w", err)
 	}
 	movedByAppointment := make(map[int64][]*calModels.AppointmentOccurrenceOverride, len(movedOverrides))
 	for _, override := range movedOverrides {
 		movedByAppointment[override.AppointmentID] = append(movedByAppointment[override.AppointmentID], override)
 	}
-	// The repository's coarse recurrence predicate cannot express the final
-	// date of every count-bounded rule (weekly and monthly rules may carry
-	// several selected days). A moved occurrence can still be due after the
-	// base count is exhausted, so retain it when its effective start is in the
-	// window; bounded recurrence expansion is capped at 366.
-	activeAppointments := appointments[:0]
+	return reminderCandidateRelations{recurrences: recurrenceByAppointment, moved: movedByAppointment}, nil
+}
+
+func eligibleReminderAppointments(
+	appointments []*calModels.Appointment,
+	relations reminderCandidateRelations,
+	from, to timezone.Date,
+) []*calModels.Appointment {
+	eligible := appointments[:0]
 	for _, appointment := range appointments {
-		rule := recurrenceByAppointment[appointment.ID]
-		if rule != nil && rule.OccurrenceCount != nil && !hasOccurrenceInWindow(appointment, rule, fromDate, toDate) && len(movedByAppointment[appointment.ID]) == 0 {
+		rule := relations.recurrences[appointment.ID]
+		if rule != nil && rule.OccurrenceCount != nil && !hasOccurrenceInWindow(appointment, rule, from, to) && len(relations.moved[appointment.ID]) == 0 {
 			continue
 		}
-		activeAppointments = append(activeAppointments, appointment)
+		eligible = append(eligible, appointment)
 	}
-	appointments = activeAppointments
+	return eligible
+}
+
+func (s *service) loadDueAppointmentReminders(
+	ctx context.Context,
+	appointments []*calModels.Appointment,
+	fromDate, toDate timezone.Date,
+	from, to time.Time,
+) ([]dueAppointmentReminder, error) {
+	relations, err := s.loadReminderCandidateRelations(ctx, appointments, fromDate, toDate)
+	if err != nil {
+		return nil, err
+	}
+	appointments = eligibleReminderAppointments(appointments, relations, fromDate, toDate)
 	if len(appointments) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	ids = ids[:0]
+	occurrencesByAppointment := reminderOccurrencesByAppointment(appointments, relations.recurrences, relations.moved, fromDate, toDate)
+	current, err := s.loadLockedReminderCandidates(ctx, appointments, occurrencesByAppointment)
+	if err != nil {
+		return nil, err
+	}
+	return collectDueAppointmentReminders(appointments, occurrencesByAppointment, current, from, to), nil
+}
+
+func (s *service) enqueueReminderBatch(
+	ctx context.Context,
+	due []dueAppointmentReminder,
+	from, to time.Time,
+	deliveries *[]reminderPushDelivery,
+) (int, error) {
+	dueIDs := dueReminderAppointmentIDs(due)
+	recipients, err := s.reachableGuardianRecipientsByAppointment(ctx, dueIDs)
+	if err != nil {
+		return 0, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
+	}
+	preferences, err := s.loadReminderAudiencePreferences(ctx, recipients)
+	if err != nil {
+		return 0, err
+	}
+	brand := s.loadReminderBrand(ctx, due[0].appointment.TenantID)
+	queued := 0
+	for _, reminder := range due {
+		count, err := s.enqueueAppointmentReminder(ctx, reminder, recipients[reminder.appointment.ID], preferences, brand, from, to, deliveries)
+		if err != nil {
+			return queued, err
+		}
+		queued += count
+	}
+	return queued, nil
+}
+
+type dueAppointmentReminder struct {
+	appointment *calModels.Appointment
+	effective   *calModels.Appointment
+	occurrence  timezone.Date
+}
+
+func collectDueAppointmentReminders(
+	appointments []*calModels.Appointment,
+	occurrences map[int64][]timezone.Date,
+	current lockedReminderCandidates,
+	from, to time.Time,
+) []dueAppointmentReminder {
+	due := make([]dueAppointmentReminder, 0)
+	for _, appointment := range appointments {
+		locked := current.appointments[appointment.ID]
+		if locked == nil {
+			continue
+		}
+		for _, occurrence := range occurrences[appointment.ID] {
+			if reminder := dueAppointmentForOccurrence(locked, occurrence, current, from, to); reminder != nil {
+				due = append(due, *reminder)
+			}
+		}
+	}
+	return due
+}
+
+func dueAppointmentForOccurrence(
+	appointment *calModels.Appointment,
+	occurrence timezone.Date,
+	current lockedReminderCandidates,
+	from, to time.Time,
+) *dueAppointmentReminder {
+	rule := current.recurrences[appointment.ID]
+	if (rule == nil && appointment.StartDate != toCalendarDate(occurrence)) || (rule != nil && !occurrenceExists(appointment, rule, occurrence)) {
+		return nil
+	}
+	override := current.overrides[appointmentOccurrenceKey(appointment.ID, occurrence)]
+	if override != nil && override.Cancelled {
+		return nil
+	}
+	effective := appointmentWithOverride(appointment, occurrence, override)
+	startsAt := occurrenceStartInstant(effective)
+	if startsAt.Before(from) || !startsAt.Before(to) {
+		return nil
+	}
+	return &dueAppointmentReminder{appointment: appointment, effective: effective, occurrence: occurrence}
+}
+
+func dueReminderAppointmentIDs(reminders []dueAppointmentReminder) []int64 {
+	ids := make([]int64, 0, len(reminders))
+	seen := make(map[int64]bool)
+	for _, reminder := range reminders {
+		appendDistinctID(&ids, seen, reminder.appointment.ID)
+	}
+	return ids
+}
+
+type lockedReminderCandidates struct {
+	appointments map[int64]*calModels.Appointment
+	recurrences  map[int64]*calModels.RecurrenceRule
+	overrides    map[string]*calModels.AppointmentOccurrenceOverride
+}
+
+func (s *service) loadLockedReminderCandidates(
+	ctx context.Context,
+	appointments []*calModels.Appointment,
+	occurrences map[int64][]timezone.Date,
+) (lockedReminderCandidates, error) {
+	ids := make([]int64, 0, len(appointments))
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
 	}
+	locked, err := s.findReminderCandidatesForUpdate(ctx, ids)
+	if err != nil {
+		return lockedReminderCandidates{}, fmt.Errorf("calendar: lock reminder candidates: %w", err)
+	}
+	lockedIDs := make([]int64, 0, len(locked))
+	byID := make(map[int64]*calModels.Appointment, len(locked))
+	for _, appointment := range locked {
+		lockedIDs = append(lockedIDs, appointment.ID)
+		byID[appointment.ID] = appointment
+	}
+	rules, err := s.cfg.Appointments.FindRecurrenceRules(ctx, lockedIDs)
+	if err != nil {
+		return lockedReminderCandidates{}, fmt.Errorf("calendar: reload reminder recurrences: %w", err)
+	}
+	rulesByID := make(map[int64]*calModels.RecurrenceRule, len(rules))
+	for _, rule := range rules {
+		rulesByID[rule.AppointmentID] = rule
+	}
+	dates := toCalendarDates(distinctReminderOccurrenceDates(lockedIDs, occurrences))
+	overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, lockedIDs, dates)
+	if err != nil {
+		return lockedReminderCandidates{}, fmt.Errorf("calendar: reload reminder overrides: %w", err)
+	}
+	overridesByKey := make(map[string]*calModels.AppointmentOccurrenceOverride, len(overrides))
+	for _, override := range overrides {
+		overridesByKey[appointmentOccurrenceKey(override.AppointmentID, toTimezoneDate(override.OccurrenceDate))] = override
+	}
+	return lockedReminderCandidates{appointments: byID, recurrences: rulesByID, overrides: overridesByKey}, nil
+}
 
-	queued := 0
+func reminderOccurrencesByAppointment(
+	appointments []*calModels.Appointment,
+	rules map[int64]*calModels.RecurrenceRule,
+	moved map[int64][]*calModels.AppointmentOccurrenceOverride,
+	from, to timezone.Date,
+) map[int64][]timezone.Date {
+	result := make(map[int64][]timezone.Date, len(appointments))
 	for _, appointment := range appointments {
-		occurrences := reminderOccurrences(appointment, recurrenceByAppointment[appointment.ID], fromDate, toDate)
-		for _, override := range movedByAppointment[appointment.ID] {
-			occurrences = append(occurrences, toTimezoneDate(override.OccurrenceDate))
+		seen := make(map[timezone.Date]bool)
+		for _, occurrence := range reminderOccurrences(appointment, rules[appointment.ID], from, to) {
+			if !seen[occurrence] {
+				seen[occurrence] = true
+				result[appointment.ID] = append(result[appointment.ID], occurrence)
+			}
 		}
-		seenOccurrences := make(map[timezone.Date]struct{}, len(occurrences))
-		for _, occurrence := range occurrences {
-			if _, seen := seenOccurrences[occurrence]; seen {
-				continue
+		for _, override := range moved[appointment.ID] {
+			occurrence := toTimezoneDate(override.OccurrenceDate)
+			if !seen[occurrence] {
+				seen[occurrence] = true
+				result[appointment.ID] = append(result[appointment.ID], occurrence)
 			}
-			seenOccurrences[occurrence] = struct{}{}
-			// The initial scan is deliberately broad and may have observed an
-			// appointment before an edit, cancellation, or occurrence cancellation
-			// committed. Re-read it under a row lock before creating an outbox row.
-			// Lifecycle writes take the same lock; whichever transaction wins, the
-			// loser sees the committed state and cannot leave a stale reminder.
-			current, err := s.findReminderCandidateForUpdate(ctx, appointment.ID)
-			if err != nil {
-				return queued, fmt.Errorf("calendar: lock reminder candidate: %w", err)
-			}
-			if current == nil {
-				continue
-			}
-			currentRule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, current.ID)
-			if err != nil {
-				return queued, fmt.Errorf("calendar: reload reminder recurrence: %w", err)
-			}
-			if (currentRule == nil && current.StartDate != toCalendarDate(occurrence)) ||
-				(currentRule != nil && !occurrenceExists(current, currentRule, occurrence)) {
-				continue
-			}
-			currentOverrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{current.ID}, []calModels.Date{toCalendarDate(occurrence)})
-			if err != nil {
-				return queued, fmt.Errorf("calendar: reload reminder override: %w", err)
-			}
-			var override *calModels.AppointmentOccurrenceOverride
-			if len(currentOverrides) > 0 {
-				override = currentOverrides[0]
-			}
-			if override != nil && override.Cancelled {
-				continue
-			}
-			effective := appointmentWithOverride(current, occurrence, override)
-			startsAt := occurrenceStartInstant(effective)
-			if startsAt.Before(from) || !startsAt.Before(to) {
-				continue
-			}
-			count, err := s.enqueueAppointmentReminder(ctx, current, effective, occurrence, from, to, deliveries)
-			if err != nil {
-				return queued, err
-			}
-			queued += count
 		}
 	}
-	return queued, nil
+	return result
+}
+
+func distinctReminderOccurrenceDates(ids []int64, occurrences map[int64][]timezone.Date) []timezone.Date {
+	seen := make(map[timezone.Date]bool)
+	dates := make([]timezone.Date, 0)
+	for _, id := range ids {
+		for _, date := range occurrences[id] {
+			if !seen[date] {
+				seen[date] = true
+				dates = append(dates, date)
+			}
+		}
+	}
+	return dates
+}
+
+func appointmentOccurrenceKey(appointmentID int64, occurrence timezone.Date) string {
+	return fmt.Sprintf("%d:%s", appointmentID, occurrence.String())
 }
 
 // reminderPushConfigured reports whether the push half of the reminder can run
@@ -303,93 +454,193 @@ func occurrenceStartInstant(appointment *calModels.Appointment) time.Time {
 	)
 }
 
+type reminderBrand struct {
+	schoolName  string
+	logoURL     string
+	motoLogoURL string
+}
+
+type reminderAudiencePreferences struct {
+	emailUnfiltered bool
+	emailAccounts   map[int64]bool
+	pushAccounts    map[int64]bool
+}
+
+func (s *service) loadReminderBrand(ctx context.Context, tenantID int64) reminderBrand {
+	return reminderBrand{
+		schoolName:  s.resolveSchoolName(ctx, tenantID),
+		logoURL:     s.resolveSchoolLogo(ctx, tenantID),
+		motoLogoURL: emailbranding.MotoLogoURL(s.cfg.ParentsURL),
+	}
+}
+
+func (s *service) loadReminderAudiencePreferences(ctx context.Context, recipients map[int64]guardianRecipients) (reminderAudiencePreferences, error) {
+	result := reminderAudiencePreferences{emailUnfiltered: s.cfg.Preferences == nil, emailAccounts: make(map[int64]bool), pushAccounts: make(map[int64]bool)}
+	accountIDs := reminderRecipientAccountIDs(recipients)
+	if s.cfg.Preferences == nil || len(accountIDs) == 0 {
+		return result, nil
+	}
+	emailAccounts, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, accountIDs)
+	if err != nil {
+		return result, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
+	}
+	result.emailAccounts = int64BoolSet(emailAccounts)
+	if s.reminderPushConfigured() {
+		pushAccounts, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, accountIDs)
+		if err != nil {
+			return result, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
+		}
+		result.pushAccounts = int64BoolSet(pushAccounts)
+	}
+	return result, nil
+}
+
+func reminderRecipientAccountIDs(recipients map[int64]guardianRecipients) []int64 {
+	ids := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, recipientSet := range recipients {
+		for _, profile := range recipientSet.profiles {
+			if profile.AccountID != nil && *profile.AccountID > 0 {
+				appendDistinctID(&ids, seen, *profile.AccountID)
+			}
+		}
+	}
+	return ids
+}
+
+func int64BoolSet(ids []int64) map[int64]bool {
+	result := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result
+}
+
+func (p reminderAudiencePreferences) emailAllowed(accountID *int64) bool {
+	return accountID == nil || *accountID <= 0 || p.emailUnfiltered || p.emailAccounts[*accountID]
+}
+
+type reminderPushAudience struct {
+	profilesByAccount map[int64][]int64
+	localeByAccount   map[int64]string
+}
+
 // enqueueAppointmentReminder queues one reminder mail per reachable guardian of
 // the appointment and reports how many rows it wrote.
 func (s *service) enqueueAppointmentReminder(
 	ctx context.Context,
-	appointment *calModels.Appointment,
-	effective *calModels.Appointment,
-	occurrence timezone.Date,
+	reminder dueAppointmentReminder,
+	recipients guardianRecipients,
+	preferences reminderAudiencePreferences,
+	brand reminderBrand,
 	from, to time.Time,
 	deliveries *[]reminderPushDelivery,
 ) (int, error) {
-	recipients, err := s.reachableGuardianRecipients(ctx, appointment.ID)
-	if err != nil {
-		return 0, fmt.Errorf("calendar: resolve reminder recipients: %w", err)
-	}
-	guardianIDs, profiles := recipients.guardianIDs, recipients.profiles
-	if len(guardianIDs) == 0 {
+	if len(recipients.guardianIDs) == 0 {
 		return 0, nil
 	}
-
-	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
-	logoURL := s.resolveSchoolLogo(ctx, appointment.TenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.cfg.ParentsURL)
-	whenText := appointmentWhenText(effective)
-	location := ""
-	if effective.Location != nil {
-		location = *effective.Location
+	queued, audience, err := s.enqueueReminderAudience(ctx, reminder, recipients, preferences, brand)
+	if err != nil {
+		return queued, err
 	}
+	if err := s.claimReminderPushAudience(ctx, reminder, audience, from, to, deliveries); err != nil {
+		return queued, err
+	}
+	s.logger().Info("appointment reminders queued",
+		slog.Int64("appointment_id", reminder.appointment.ID),
+		slog.String("occurrence_date", reminder.occurrence.String()),
+		slog.Int("recipient_count", len(audience.profilesByAccount)),
+	)
+	return queued, nil
+}
 
+func (s *service) enqueueReminderAudience(
+	ctx context.Context,
+	reminder dueAppointmentReminder,
+	recipients guardianRecipients,
+	preferences reminderAudiencePreferences,
+	brand reminderBrand,
+) (int, reminderPushAudience, error) {
 	queued := 0
-	pushProfilesByAccount := make(map[int64][]int64, len(guardianIDs))
-	pushLocaleByAccount := make(map[int64]string, len(guardianIDs))
-	seen := make(map[int64]struct{}, len(guardianIDs))
-	for _, id := range guardianIDs {
-		if _, done := seen[id]; done {
-			continue
+	audience := reminderPushAudience{
+		profilesByAccount: make(map[int64][]int64, len(recipients.guardianIDs)),
+		localeByAccount:   make(map[int64]string, len(recipients.guardianIDs)),
+	}
+	for _, profile := range uniqueReminderGuardianProfiles(recipients) {
+		inserted, err := s.enqueueReminderEmail(ctx, reminder, recipients, profile, preferences, brand)
+		if err != nil {
+			return queued, audience, err
 		}
-		seen[id] = struct{}{}
-		profile, ok := profiles[id]
-		if !ok {
-			continue
+		if inserted {
+			queued++
 		}
-		sendEmail := s.cfg.Outbox != nil && profile.Email != nil && *profile.Email != ""
-		if sendEmail && profile.AccountID != nil && *profile.AccountID > 0 && s.cfg.Preferences != nil {
-			optedIn, err := s.cfg.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
-			if err != nil {
-				return queued, fmt.Errorf("calendar: filter reminder e-mail preferences: %w", err)
-			}
-			sendEmail = len(optedIn) > 0
-		}
-		if sendEmail {
-			payload := map[string]any{
-				apptPayloadRecipient: *profile.Email, apptPayloadFirstName: profile.FirstName, apptPayloadLastName: profile.LastName,
-				apptPayloadTitle: effective.Title, apptPayloadWhen: whenText, apptPayloadLocation: location,
-				apptPayloadSchoolName: schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: logoURL, apptPayloadMotoLogoURL: motoLogoURL,
-			}
-			addGuardianDeliveryScope(payload, recipients, id)
-			row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
-				Kind:           platformModels.EmailKindAppointmentReminder,
-				Payload:        payload,
-				IdempotencyKey: appointmentReminderKey(appointment.ID, appointment.Revision, occurrence, id), RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: appointment.ID,
-			})
-			if err != nil {
-				return queued, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
-			}
-			if row.ID != 0 {
-				queued++
-			}
-		}
-		if profile.AccountID != nil && *profile.AccountID > 0 && s.reminderPushConfigured() {
-			optedIn, err := s.cfg.Preferences.FilterOptedIn(ctx, notifications.TypeParentAppointmentReminder, []int64{*profile.AccountID})
-			if err != nil {
-				return queued, fmt.Errorf("calendar: filter reminder push preferences: %w", err)
-			}
-			if len(optedIn) > 0 {
-				pushProfilesByAccount[*profile.AccountID] = append(pushProfilesByAccount[*profile.AccountID], id)
-				if profile.PortalLocale != nil {
-					pushLocaleByAccount[*profile.AccountID] = *profile.PortalLocale
-				}
+		if profile.AccountID != nil && *profile.AccountID > 0 && preferences.pushAccounts[*profile.AccountID] {
+			audience.profilesByAccount[*profile.AccountID] = append(audience.profilesByAccount[*profile.AccountID], profile.ID)
+			if profile.PortalLocale != nil {
+				audience.localeByAccount[*profile.AccountID] = *profile.PortalLocale
 			}
 		}
 	}
-	for accountID, profileIDs := range pushProfilesByAccount {
+	return queued, audience, nil
+}
+
+func uniqueReminderGuardianProfiles(recipients guardianRecipients) []*userModels.GuardianProfile {
+	profiles := make([]*userModels.GuardianProfile, 0, len(recipients.guardianIDs))
+	seen := make(map[int64]bool, len(recipients.guardianIDs))
+	for _, id := range recipients.guardianIDs {
+		if profile := recipients.profiles[id]; profile != nil && !seen[id] {
+			seen[id] = true
+			profiles = append(profiles, profile)
+		}
+	}
+	return profiles
+}
+
+func (s *service) enqueueReminderEmail(
+	ctx context.Context,
+	reminder dueAppointmentReminder,
+	recipients guardianRecipients,
+	profile *userModels.GuardianProfile,
+	preferences reminderAudiencePreferences,
+	brand reminderBrand,
+) (bool, error) {
+	if s.cfg.Outbox == nil || profile.Email == nil || *profile.Email == "" || !preferences.emailAllowed(profile.AccountID) {
+		return false, nil
+	}
+	location := ""
+	if reminder.effective.Location != nil {
+		location = *reminder.effective.Location
+	}
+	payload := map[string]any{
+		apptPayloadRecipient: *profile.Email, apptPayloadFirstName: profile.FirstName, apptPayloadLastName: profile.LastName,
+		apptPayloadTitle: reminder.effective.Title, apptPayloadWhen: appointmentWhenText(reminder.effective), apptPayloadLocation: location,
+		apptPayloadSchoolName: brand.schoolName, apptPayloadPortalURL: s.cfg.ParentsURL, apptPayloadLogoURL: brand.logoURL, apptPayloadMotoLogoURL: brand.motoLogoURL,
+	}
+	addGuardianDeliveryScope(payload, recipients, profile.ID)
+	row, err := s.cfg.Outbox.Enqueue(ctx, platformService.EnqueueRequest{
+		Kind: platformModels.EmailKindAppointmentReminder, Payload: payload,
+		IdempotencyKey:    appointmentReminderKey(reminder.appointment.ID, reminder.appointment.Revision, reminder.occurrence, profile.ID),
+		RelatedEntityType: platformModels.EmailRelatedTypeAppointment, RelatedEntityID: reminder.appointment.ID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("calendar: enqueue appointment reminder: %w", err)
+	}
+	return row.ID != 0, nil
+}
+
+func (s *service) claimReminderPushAudience(
+	ctx context.Context,
+	reminder dueAppointmentReminder,
+	audience reminderPushAudience,
+	from, to time.Time,
+	deliveries *[]reminderPushDelivery,
+) error {
+	for accountID, profileIDs := range audience.profilesByAccount {
 		claimedProfileIDs := profileIDs[:0]
 		for _, profileID := range profileIDs {
-			claimed, err := s.claimReminderPush(ctx, appointment, occurrence, profileID)
+			claimed, err := s.claimReminderPush(ctx, reminder.appointment, reminder.occurrence, profileID)
 			if err != nil {
-				return queued, fmt.Errorf("calendar: claim reminder push delivery: %w", err)
+				return fmt.Errorf("calendar: claim reminder push delivery: %w", err)
 			}
 			if claimed {
 				claimedProfileIDs = append(claimedProfileIDs, profileID)
@@ -398,24 +649,18 @@ func (s *service) enqueueAppointmentReminder(
 		if len(claimedProfileIDs) == 0 {
 			continue
 		}
-		appointmentCopy := *appointment
+		appointmentCopy := *reminder.appointment
 		*deliveries = append(*deliveries, reminderPushDelivery{
 			appointment: &appointmentCopy,
-			occurrence:  occurrence,
+			occurrence:  reminder.occurrence,
 			accountID:   accountID,
 			profileIDs:  append([]int64(nil), claimedProfileIDs...),
-			locale:      pushLocaleByAccount[accountID],
+			locale:      audience.localeByAccount[accountID],
 			from:        from,
 			to:          to,
 		})
 	}
-
-	s.logger().Info("appointment reminders queued",
-		slog.Int64("appointment_id", appointment.ID),
-		slog.String("occurrence_date", occurrence.String()),
-		slog.Int("recipient_count", len(pushProfilesByAccount)),
-	)
-	return queued, nil
+	return nil
 }
 
 func (s *service) dispatchReminderPushes(ctx context.Context, deliveries []reminderPushDelivery) error {
@@ -559,7 +804,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 				return err
 			}
 		}
-		rule, err := s.cfg.RecurrenceRepo.FindByAppointmentID(txCtx, current.ID)
+		rule, err := s.cfg.Appointments.FindRecurrenceRule(txCtx, current.ID)
 		if err != nil {
 			return fmt.Errorf("reload reminder recurrence: %w", err)
 		}
@@ -567,7 +812,7 @@ func (s *service) prepareReminderPushDispatch(ctx context.Context, delivery remi
 			(rule != nil && !occurrenceExists(current, rule, delivery.occurrence)) {
 			return nil
 		}
-		overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(txCtx, []int64{current.ID}, []calModels.Date{toCalendarDate(delivery.occurrence)})
+		overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(txCtx, []int64{current.ID}, []calModels.Date{toCalendarDate(delivery.occurrence)})
 		if err != nil {
 			return fmt.Errorf("reload reminder override: %w", err)
 		}

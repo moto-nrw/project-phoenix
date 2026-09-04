@@ -19,13 +19,18 @@ import (
 // or hand NewQueryCounter to db.WithQueryHook for a private bun clone. bun
 // never removes hooks, so a counter on a shared package DB keeps seeing every
 // later statement; Stop() at cleanup is what keeps tests from counting each
-// other. Tests that count must own their database (SetupIsolatedTestDB) or a
-// WithQueryHook clone before they run in parallel with other DB tests.
+// other. Tests that share a package DB must use CaptureQueriesForContext and
+// pass counter.Context(ctx) to the operation under test.
 type QueryCounter struct {
 	enabled atomic.Bool
 	mu      sync.Mutex
 	queries []countedQuery
+	scope   uint64
 }
+
+type queryCounterContextKey struct{}
+
+var queryCounterScopeID atomic.Uint64
 
 type countedQuery struct {
 	operation string
@@ -48,6 +53,26 @@ func CaptureQueries(tb testing.TB, db *bun.DB) *QueryCounter {
 	return c
 }
 
+// CaptureQueriesForContext attaches a counter that records only statements
+// descended from counter.Context(ctx). Use it when parallel tests share db.
+func CaptureQueriesForContext(tb testing.TB, db *bun.DB) *QueryCounter {
+	tb.Helper()
+	c := NewQueryCounter()
+	c.scope = queryCounterScopeID.Add(1)
+	db.AddQueryHook(c)
+	tb.Cleanup(c.Stop)
+	return c
+}
+
+// Context marks a request tree for a scoped counter. Values survive tenant
+// transaction wrapping.
+func (c *QueryCounter) Context(ctx context.Context) context.Context {
+	if c.scope == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, queryCounterContextKey{}, c.scope)
+}
+
 // CaptureSettingValueSelects counts config.setting_values SELECTs (#2065).
 func CaptureSettingValueSelects(db *bun.DB) func() int32 {
 	c := NewQueryCounter()
@@ -57,6 +82,9 @@ func CaptureSettingValueSelects(db *bun.DB) func() int32 {
 
 func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
 	if !c.enabled.Load() {
+		return ctx
+	}
+	if c.scope != 0 && ctx.Value(queryCounterContextKey{}) != c.scope {
 		return ctx
 	}
 	c.mu.Lock()

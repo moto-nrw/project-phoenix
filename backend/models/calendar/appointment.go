@@ -2,7 +2,6 @@ package calendar
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -36,31 +35,13 @@ const (
 	TargetTypeParentsByGroup   = appointments.TargetTypeParentsByGroup
 	TargetTypeParentsByStudent = appointments.TargetTypeParentsByStudent
 
-	RecurrenceFrequencyDaily   = "daily"
-	RecurrenceFrequencyWeekly  = "weekly"
-	RecurrenceFrequencyMonthly = "monthly"
-	RecurrenceFrequencyYearly  = "yearly"
+	RecurrenceFrequencyDaily   = appointments.RecurrenceFrequencyDaily
+	RecurrenceFrequencyWeekly  = appointments.RecurrenceFrequencyWeekly
+	RecurrenceFrequencyMonthly = appointments.RecurrenceFrequencyMonthly
+	RecurrenceFrequencyYearly  = appointments.RecurrenceFrequencyYearly
 
-	// MaxRecurrenceOccurrenceCount caps a count-bounded recurrence so occurrence
-	// expansion stays bounded (a leap-year of daily occurrences is the most a
-	// realistic appointment needs; EndsOn covers longer ranges).
-	MaxRecurrenceOccurrenceCount = 366
+	MaxRecurrenceOccurrenceCount = appointments.MaxRecurrenceOccurrenceCount
 )
-
-// validRecurrenceWeekdays holds the lowercase day names produced by
-// time.Weekday.String(). The occurrence matcher (services/calendar) compares
-// candidate.Weekday().String() lowercased against the rule's weekdays, so a
-// value outside this set silently matches nothing — reject it at validation
-// time instead of letting the appointment appear to have no occurrences.
-var validRecurrenceWeekdays = map[string]bool{
-	"monday":    true,
-	"tuesday":   true,
-	"wednesday": true,
-	"thursday":  true,
-	"friday":    true,
-	"saturday":  true,
-	"sunday":    true,
-}
 
 // Appointment is the legacy transport shape. Persistence and lifecycle rules
 // are owned by modules/appointments; this type remains while the calendar HTTP
@@ -124,79 +105,9 @@ func (a *Appointment) Validate() error {
 	return nil
 }
 
-type RecurrenceRule struct {
-	Model `bun:"schema:calendar,table:recurrence_rules"`
-	TenantModel
-
-	AppointmentID   int64    `bun:"appointment_id,notnull" json:"appointment_id"`
-	Frequency       string   `bun:"frequency,notnull" json:"frequency"`
-	IntervalCount   int      `bun:"interval_count,notnull,default:1" json:"interval_count"`
-	Weekdays        []string `bun:"weekdays,array" json:"weekdays,omitempty"`
-	MonthDays       []int    `bun:"month_days,array" json:"month_days,omitempty"`
-	EndsOn          *Date    `bun:"ends_on" json:"ends_on,omitempty"`
-	OccurrenceCount *int     `bun:"occurrence_count" json:"occurrence_count,omitempty"`
-}
-
-func (r *RecurrenceRule) Validate() error {
-	if r.AppointmentID <= 0 {
-		return errors.New("appointment_id is required")
-	}
-	switch r.Frequency {
-	case RecurrenceFrequencyDaily, RecurrenceFrequencyWeekly, RecurrenceFrequencyMonthly, RecurrenceFrequencyYearly:
-	default:
-		return errors.New("invalid recurrence frequency")
-	}
-	if r.IntervalCount <= 0 {
-		return errors.New("interval_count must be positive")
-	}
-	if r.EndsOn != nil && r.OccurrenceCount != nil {
-		return errors.New("only one recurrence end mode is allowed")
-	}
-	if r.OccurrenceCount != nil && *r.OccurrenceCount <= 0 {
-		return errors.New("occurrence_count must be positive")
-	}
-	// Bound the count so occurrence expansion (feed overlap checks, single-
-	// occurrence validation) can never scan an unbounded number of periods.
-	if r.OccurrenceCount != nil && *r.OccurrenceCount > MaxRecurrenceOccurrenceCount {
-		return errors.New("occurrence_count exceeds the maximum of 366")
-	}
-	// Normalise (lowercase) and de-duplicate weekdays: a duplicate would make the
-	// occurrence expansion emit the same date twice, exhausting occurrence_count
-	// early, and would export an invalid BYDAY=MO,MO in the RRULE.
-	if len(r.Weekdays) > 0 {
-		seen := make(map[string]bool, len(r.Weekdays))
-		deduped := make([]string, 0, len(r.Weekdays))
-		for _, weekday := range r.Weekdays {
-			normalized := strings.ToLower(strings.TrimSpace(weekday))
-			if !validRecurrenceWeekdays[normalized] {
-				return errors.New("weekdays must be valid day names (monday–sunday)")
-			}
-			if seen[normalized] {
-				continue
-			}
-			seen[normalized] = true
-			deduped = append(deduped, normalized)
-		}
-		r.Weekdays = deduped
-	}
-	// Same for month days — a duplicate day double-counts against occurrence_count.
-	if len(r.MonthDays) > 0 {
-		seen := make(map[int]bool, len(r.MonthDays))
-		deduped := make([]int, 0, len(r.MonthDays))
-		for _, day := range r.MonthDays {
-			if day < 1 || day > 31 {
-				return errors.New("month_days must be between 1 and 31")
-			}
-			if seen[day] {
-				continue
-			}
-			seen[day] = true
-			deduped = append(deduped, day)
-		}
-		r.MonthDays = deduped
-	}
-	return nil
-}
+// RecurrenceRule remains as a compatibility alias for calendar transport and
+// expansion logic. Appointments owns validation and persistence.
+type RecurrenceRule = appointments.RecurrenceRule
 
 type AppointmentRecipient struct {
 	Model `bun:"schema:calendar,table:appointment_recipients"`
@@ -252,19 +163,6 @@ type AppointmentTarget struct {
 	TargetValue   *string `bun:"target_value" json:"target_value,omitempty"`
 }
 
-type AppointmentOccurrenceOverride struct {
-	Model `bun:"schema:calendar,table:appointment_occurrence_overrides"`
-	TenantModel
-
-	AppointmentID  int64      `bun:"appointment_id,notnull" json:"appointment_id"`
-	OccurrenceDate Date       `bun:"occurrence_date,notnull" json:"occurrence_date"`
-	Cancelled      bool       `bun:"cancelled,notnull,default:false" json:"cancelled"`
-	Title          *string    `bun:"title" json:"title,omitempty"`
-	Description    *string    `bun:"description" json:"description,omitempty"`
-	Location       *string    `bun:"location" json:"location,omitempty"`
-	StartDate      *Date      `bun:"start_date" json:"start_date,omitempty"`
-	EndDate        *Date      `bun:"end_date" json:"end_date,omitempty"`
-	StartTime      *time.Time `bun:"start_time" json:"start_time,omitempty"`
-	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	AllDay         *bool      `bun:"all_day" json:"all_day,omitempty"`
-}
+// AppointmentOccurrenceOverride remains as a compatibility alias for calendar
+// transport and expansion logic. Appointments owns persistence.
+type AppointmentOccurrenceOverride = appointments.AppointmentOccurrenceOverride

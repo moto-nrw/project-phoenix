@@ -138,8 +138,8 @@ func (f fakeSupervision) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map
 	return f.groups, nil
 }
 
-func (f fakeSupervision) ListStudentsPresentInRoom(_ context.Context, roomID int64) ([]int64, error) {
-	return f.presentByRoom[roomID], nil
+func (f fakeSupervision) ListOpenVisitStudentIDsByRoom(_ context.Context) (map[int64][]int64, error) {
+	return f.presentByRoom, nil
 }
 
 // wallClock builds a time whose Hour/Minute equal the given minute-of-day. The
@@ -465,8 +465,7 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 				100: {RoomID: 10},
 				200: {RoomID: 20},
 			},
-			presentByRoom: map[int64][]int64{10: {1, 2}, 20: {2, 3}},
-		}}}
+		}, Visits: fakeSupervision{presentByRoom: map[int64][]int64{10: {1, 2}, 20: {2, 3}}}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []int64{1, 2, 3}, ids)
@@ -510,7 +509,7 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 			supervisions:  []*activeModel.GroupSupervisor{{GroupID: 100}},
 			groups:        map[int64]*activeModel.Group{100: {RoomID: 10}},
 			presentByRoom: map[int64][]int64{10: {1, 2}},
-		}},
+		}, Visits: fakeSupervision{presentByRoom: map[int64][]int64{10: {1, 2}}}},
 		}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)

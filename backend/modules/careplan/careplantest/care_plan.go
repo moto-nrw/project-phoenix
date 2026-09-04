@@ -1,6 +1,8 @@
 package careplantest
 
 import (
+	"context"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -21,6 +23,7 @@ func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {
@@ -44,6 +47,7 @@ func CareOfferingRepository(db *bun.DB) enrollmentModels.CareOfferingRepository 
 	}
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
+		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
 	if err != nil {
@@ -61,4 +65,18 @@ func newStudentDirectory(tb TB, db *bun.DB) peopledirectory.Capability {
 		tb.Fatalf("compose test People Directory: %v", err)
 	}
 	return students
+}
+
+func studentNameFinder(students peopledirectory.Capability) carePlanCompose.StudentNameFinder {
+	return carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+		values, err := students.ListStudentNamesByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]carePlanCompose.StudentName, 0, len(values))
+		for _, value := range values {
+			result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+		}
+		return result, nil
+	})
 }

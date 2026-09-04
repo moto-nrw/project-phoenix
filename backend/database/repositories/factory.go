@@ -322,10 +322,8 @@ type Factory struct {
 	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
-	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
 	CalendarAppointmentRecipient      calendarModels.AppointmentRecipientRepository
 	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
-	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
 	CalendarStaffFeedTombstone        calendarModels.StaffFeedTombstoneRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
@@ -381,6 +379,9 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
 	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
+	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
+		repository.BindCarePlan(f.carePlan)
+	}
 	f.EnrollmentDeletion = enrollment.NewDeletionRepository(f.db, f.EnrollmentOfferingAdjustment.CountForDeletion)
 	if f.students != nil {
 		f.bindGuardianDirectories(f.students)
@@ -600,7 +601,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
-		StudentCompanion:    users.NewStudentCompanionRepository(db),
+		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      active.NewPrivacyConsentRepository(db),
@@ -620,7 +621,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Staff documents (#1424) — StaffDocument is bound by
 		// bindStaffMembershipDecorators, it needs the membership owner.
-		StudentDocument: users.NewStudentDocumentRepository(db),
+		StudentDocument: nil, // bound to Care Plan below
 
 		// School file storage (#2596)
 		FileFolder:             filestore.NewFolderRepository(db),
@@ -784,10 +785,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(calendarRuntime),
 		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(calendarRuntime),
 		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(calendarRuntime),
-		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(calendarRuntime),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
 		ParentAnnouncement:                parentAnnouncement,
 		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
@@ -797,6 +796,19 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
 		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacherID}})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(assignments))
+		for _, assignment := range assignments {
+			ids = append(ids, assignment.GroupID)
+		}
+		return ids, nil
+	})
+	studentRepo.(interface {
+		BindTeacherStaffGroupIDs(func(context.Context, []int64) ([]int64, error))
+	}).BindTeacherStaffGroupIDs(func(ctx context.Context, staffIDs []int64) ([]int64, error) {
+		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherStaffIDs: staffIDs})
 		if err != nil {
 			return nil, err
 		}

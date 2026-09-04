@@ -648,6 +648,14 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 	if err != nil {
 		return nil, err
 	}
+	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	openInvitations, err := s.openInvitationsByProfile(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]*GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
@@ -656,16 +664,12 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 			continue // Skip if profile not found
 		}
 
-		// Load phone numbers for this guardian
-		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
-		if err == nil {
-			profile.PhoneNumbers = phoneNumbers
-		}
+		profile.PhoneNumbers = phonesByProfile[profile.ID]
 
 		result = append(result, &GuardianWithRelationship{
 			Profile:           profile,
 			Relationship:      rel,
-			InvitationPending: s.invitationPendingForStudent(ctx, profile, rel.StudentID),
+			InvitationPending: invitationPendingForStudent(profile, rel.StudentID, openInvitations[profile.ID]),
 		})
 	}
 
@@ -678,40 +682,28 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 // WITH an account can still have an open invitation — a pending-approval
 // role-upgrade request (#2172) — but only one anchored to this child counts,
 // so a sibling's invite never marks an unrelated row as pending.
-func (s *GuardianService) invitationPendingForStudent(ctx context.Context, profile *users.GuardianProfile, studentID int64) bool {
-	if !profile.HasAccount {
-		return s.hasOpenInvitation(ctx, profile.ID, 0)
-	}
-	return s.hasOpenInvitation(ctx, profile.ID, studentID)
-}
-
-// hasOpenInvitation reports whether the guardian profile has an invitation that
-// is neither accepted, expired, nor rejected — i.e. an outstanding invite the
-// staff UI should surface as "Einladung offen". With studentID > 0, only
-// invitations anchored to that child count. Best-effort: a lookup error is
-// treated as "no pending invite" so the guardian list still renders.
-func (s *GuardianService) hasOpenInvitation(ctx context.Context, guardianProfileID, studentID int64) bool {
-	invitations, err := s.GuardianInvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
-	if err != nil {
-		return false
-	}
-	now := time.Now()
+func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []*authModels.GuardianInvitation) bool {
 	for _, inv := range invitations {
-		if studentID > 0 && (inv.StudentID == nil || *inv.StudentID != studentID) {
-			continue
-		}
-		if inv.IsAccepted() {
-			continue
-		}
-		if !inv.ExpiresAt.IsZero() && now.After(inv.ExpiresAt) {
-			continue
-		}
-		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {
+		if profile.HasAccount && (inv.StudentID == nil || *inv.StudentID != studentID) {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// openInvitationsByProfile batches the open-invitation status used by the
+// guardian list. The repository excludes accepted, expired, and rejected rows.
+func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]*authModels.GuardianInvitation, error) {
+	byProfile := make(map[int64][]*authModels.GuardianInvitation)
+	invitations, err := s.GuardianInvitationRepo.FindOpenByGuardianProfileIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
+	}
+	for _, invitation := range invitations {
+		byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)
+	}
+	return byProfile, nil
 }
 
 // GetGuardianStudents retrieves all students for a guardian
@@ -1131,12 +1123,16 @@ func (s *GuardianService) ListGuardians(ctx context.Context, options *base.Query
 		return nil, err
 	}
 
-	// Load phone numbers for each guardian
+	profileIDs := make([]int64, 0, len(profiles))
 	for _, profile := range profiles {
-		phoneNumbers, err := s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
-		if err == nil {
-			profile.PhoneNumbers = phoneNumbers
-		}
+		profileIDs = append(profileIDs, profile.ID)
+	}
+	phonesByProfile, err := s.GuardianPhoneNumberRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
+	}
+	for _, profile := range profiles {
+		profile.PhoneNumbers = phonesByProfile[profile.ID]
 	}
 
 	return profiles, nil

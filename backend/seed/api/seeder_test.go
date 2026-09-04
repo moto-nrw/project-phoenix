@@ -623,6 +623,7 @@ func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestServer {
 	t.Helper()
 	idCounter := int64(0)
+	var planningStaffID int64
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -740,7 +741,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.URL.Path == "/api/timetable/instances" && r.Method == seedHTTPMethodGet {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"instances": []map[string]any{
-					{"id": idCounter, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
+					{"id": idCounter, "title": "Frühbetreuung", "activity_group_id": idCounter + 1, "staff": []map[string]any{{"staff_id": planningStaffID}}},
 					{"id": idCounter + 2, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
 					{"id": idCounter + 3, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
 				}},
@@ -787,6 +788,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"status": "success", "data": map[string]any{"published_at": "2026-08-31T00:00:00Z"},
 			})
 			return
+		}
+		if r.URL.Path == "/api/staff" && r.Method == seedHTTPMethodPost && planningStaffID == 0 {
+			planningStaffID = idCounter
 		}
 
 		switch r.URL.Path {

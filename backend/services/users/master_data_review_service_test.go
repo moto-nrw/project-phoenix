@@ -498,14 +498,15 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	tenantCtx := testpkg.TenantContext(chain.TenantID)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
 
-	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repos.Student.FindByID(tenantCtx, chain.StudentID)
 	require.NoError(t, err)
 	student.AllowedDepartureModes = userModels.AllowedDepartureModes{
 		userModels.PickupDayTuesday: []userModels.DepartureMode{userModels.DeparturePickup},
 	}
-	require.NoError(t, repos.Student.Update(context.Background(), student))
+	require.NoError(t, repos.Student.Update(tenantCtx, student))
 
 	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
@@ -513,7 +514,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewStaleValue)
 
-	student, err = repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err = repos.Student.FindByID(tenantCtx, chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayTuesday])
 	assert.Empty(t, student.AllowedDepartureModes[userModels.PickupDayMonday])

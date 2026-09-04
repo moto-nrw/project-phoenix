@@ -155,6 +155,27 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 	return relationships, nil
 }
 
+// FindByGuardianProfileIDs retrieves relationships for many guardian profiles
+// in a single tenant-scoped query.
+func (r *StudentGuardianRepository) FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*users.StudentGuardian, error) {
+	if len(guardianProfileIDs) == 0 {
+		return []*users.StudentGuardian{}, nil
+	}
+	var relationships []*users.StudentGuardian
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs))
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by guardian profile IDs",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	return relationships, nil
+}
+
 // ListLinkedChildrenForGuardians returns every child linked to any of the given
 // guardian profiles in ONE join query (students_guardians → students → persons),
 // projecting only id + name. This is what lets the guardian picker enrich its
