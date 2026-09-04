@@ -216,10 +216,10 @@ function DayCard({
                       Bemerkung: {slot.note}
                     </p>
                   )}
-                  {/* Korrigieren nur mit Recht und nur für echte Termine:
-                      synthetische "Ohne Zuordnung"-Zeilen tragen eine negative
-                      Kennung und haben keinen Eintrag zum Korrigieren. */}
-                  {canCorrect && !slot.instanceId.startsWith("-") && (
+                  {/* Korrigieren nur mit Recht und nach Abschluss. Der fehlende
+                      Instanzstatus synthetischer "Ohne Zuordnung"-Zeilen
+                      schließt sie ebenfalls aus. */}
+                  {canCorrect && slot.instanceStatus === "completed" && (
                     <button
                       type="button"
                       onClick={() =>
@@ -454,17 +454,15 @@ function HistoryTable({
                               </div>
                               {/* Die Bemerkung aus der Betreuung (#2898):
                                   ruhige Information unter ihrem Block, nicht
-                                  klickbar. Korrigieren ist die einzige Aktion
-                                  und nur mit Recht sichtbar; synthetische
-                                  "Ohne Zuordnung"-Zeilen tragen eine negative
-                                  Kennung und haben nichts zu korrigieren. */}
+                                  klickbar. Korrigieren ist nur mit Recht und
+                                  nach Abschluss des Termins sichtbar. */}
                               {slot.note && (
                                 <p className="mt-1 pl-4 text-gray-500 italic">
                                   Bemerkung: {slot.note}
                                 </p>
                               )}
                               {canCorrect &&
-                                !slot.instanceId.startsWith("-") && (
+                                slot.instanceStatus === "completed" && (
                                   <button
                                     type="button"
                                     onClick={() =>

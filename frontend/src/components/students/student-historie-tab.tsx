@@ -11,6 +11,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { getCachedSession } from "~/lib/session-cache";
 import {
   formatAttendanceSlotStatus,
+  type ActivityInstanceStatus,
   type AttendanceSlotStatus,
 } from "~/lib/attendance-history-helpers";
 import { createLogger } from "~/lib/logger";
@@ -42,6 +43,7 @@ interface AttendanceHistoryDay {
   visits: AttendanceVisitEntry[];
   slots?: Array<{
     instance_id: string;
+    instance_status?: ActivityInstanceStatus;
     title: string;
     start_time: string;
     end_time: string;
@@ -281,11 +283,10 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                           Bemerkung: {slot.note}
                         </p>
                       ) : null}
-                      {/* Korrigieren nur mit Recht und nur für echte Termine:
-                          synthetische "Ohne Zuordnung"-Zeilen tragen eine
-                          negative Kennung und haben keinen Eintrag, den man
-                          korrigieren könnte. */}
-                      {canCorrect && !slot.instance_id.startsWith("-") ? (
+                      {/* Korrigieren nur mit Recht und nach Abschluss. Der
+                          fehlende Instanzstatus synthetischer
+                          "Ohne Zuordnung"-Zeilen schließt sie ebenfalls aus. */}
+                      {canCorrect && slot.instance_status === "completed" ? (
                         <button
                           type="button"
                           onClick={() =>

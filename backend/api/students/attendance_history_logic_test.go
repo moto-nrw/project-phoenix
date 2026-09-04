@@ -660,6 +660,7 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 		Date:      date,
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+		Status:    schedule.InstanceStatusCompleted,
 	}
 	instance.ID = math.MaxInt64
 
@@ -671,7 +672,26 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	require.Len(t, days, 1)
 	payload, err := json.Marshal(days[0].Slots[0])
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"instance_id":"9223372036854775807","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
+	assert.JSONEq(t, `{"instance_id":"9223372036854775807","instance_status":"completed","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
+}
+
+func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: date, Status: schedule.InstanceStatusActive,
+	}
+	instance.ID = 203
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+		Instance:   instance,
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
+	}}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	assert.Equal(t, schedule.InstanceStatusActive, days[0].Slots[0].InstanceStatus)
 }
 
 // The free remark is written in the live roster and, before #2898, was

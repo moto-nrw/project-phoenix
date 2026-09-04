@@ -12,6 +12,8 @@ export interface BackendAttendanceHistoryResponse {
 }
 
 export type AttendanceSlotStatus = "expected" | "present" | "absent";
+export type ActivityInstanceStatus =
+  "planned" | "active" | "completed" | "cancelled";
 
 interface BackendAttendanceHistoryDay {
   date: string;
@@ -40,6 +42,7 @@ interface BackendAttendanceSession {
 
 interface BackendAttendanceSlot {
   instance_id: string;
+  instance_status?: ActivityInstanceStatus;
   title: string;
   start_time: string;
   end_time: string;
@@ -103,6 +106,7 @@ interface AttendanceSession {
 
 interface AttendanceSlot {
   instanceId: string;
+  instanceStatus: ActivityInstanceStatus | null;
   title: string;
   startTime: string;
   endTime: string;
@@ -181,6 +185,7 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
 function mapAttendanceSlot(slot: BackendAttendanceSlot): AttendanceSlot {
   return {
     instanceId: slot.instance_id,
+    instanceStatus: slot.instance_status ?? null,
     title: slot.title,
     startTime: slot.start_time,
     endTime: slot.end_time,

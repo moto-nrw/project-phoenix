@@ -743,6 +743,7 @@ describe("StudentRoomHistoryPage", () => {
         slots: [
           {
             instance_id: "501",
+            instance_status: "completed",
             title: "Fußball-AG",
             start_time: "14:00",
             end_time: "15:00",
@@ -774,6 +775,7 @@ describe("StudentRoomHistoryPage", () => {
         slots: [
           {
             instance_id: "501",
+            instance_status: "completed",
             title: "Fußball-AG",
             start_time: "14:00",
             end_time: "15:00",
@@ -805,6 +807,7 @@ describe("StudentRoomHistoryPage", () => {
         slots: [
           {
             instance_id: "501",
+            instance_status: "completed",
             title: "Fußball-AG",
             start_time: "14:00",
             end_time: "15:00",
@@ -847,6 +850,40 @@ describe("StudentRoomHistoryPage", () => {
       await waitFor(() => {
         expect(screen.getAllByText("Korrigieren").length).toBeGreaterThan(0);
       });
+    });
+
+    it("bietet Korrigieren nur für abgeschlossene Termine an", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "501",
+            instance_status: "planned",
+            title: "Geplante AG",
+            start_time: "14:00",
+            end_time: "15:00",
+            status: "expected",
+            is_unplanned: false,
+          },
+        ],
+      };
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["schedules:manage"] },
+        },
+      } as unknown as ReturnType<typeof useSession>);
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+
+      await waitFor(() => {
+        expect(screen.getByText("Geplante AG")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Korrigieren")).not.toBeInTheDocument();
     });
 
     // Beobachtete Sitzungen, die keinem geplanten Block zugeordnet werden
