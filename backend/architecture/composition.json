@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        672
+        654
       ],
       "tables": []
     },
