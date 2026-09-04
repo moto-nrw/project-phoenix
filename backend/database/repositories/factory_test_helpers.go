@@ -45,5 +45,6 @@ func NewStudentScheduleRepositories(db *bun.DB) StudentScheduleRepositories {
 		PickupSchedule:   repositories.StudentPickupSchedule,
 		PickupException:  repositories.StudentPickupException,
 		PickupNote:       repositories.StudentPickupNote,
+		StatusDay:        repositories.StudentStatusDay,
 	}
 }

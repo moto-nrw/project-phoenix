@@ -830,7 +830,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
 	factory.bindDefaultFacilities(db)
-	carePlan, err := NewCarePlan(db, factory.students)
+	carePlan, err := NewCarePlan(db, factory.students, factory.InstanceStudent)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
 	}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,17 +16,17 @@ type archiveStudentDirectory struct {
 	calls     []string
 }
 
-func (d *archiveStudentDirectory) ListEnrolledStudents(context.Context) ([]peopledirectory.Student, error) {
+func (d *archiveStudentDirectory) ListEnrolledStudents(context.Context) ([]StatusStudent, error) {
 	return nil, nil
 }
 
-func (d *archiveStudentDirectory) ListStudentsWithStatusFlag(context.Context, string) ([]peopledirectory.Student, error) {
+func (d *archiveStudentDirectory) ListStudentsWithStatusFlag(context.Context, string) ([]StatusStudent, error) {
 	d.listCalls++
 	d.calls = append(d.calls, "list")
 	if d.listCalls == 1 {
-		return []peopledirectory.Student{{ID: 2}, {ID: 1}}, nil
+		return []StatusStudent{{ID: 2}, {ID: 1}}, nil
 	}
-	return []peopledirectory.Student{}, nil
+	return []StatusStudent{}, nil
 }
 
 func (d *archiveStudentDirectory) ClearStudentStatusFlags(context.Context, []int64, string) (int64, error) {

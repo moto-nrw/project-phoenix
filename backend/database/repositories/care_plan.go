@@ -12,6 +12,7 @@ import (
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
@@ -19,18 +20,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func NewCarePlan(db *bun.DB, students peopledirectory.Capability) (careplan.Capability, error) {
-	if students == nil {
-		return nil, errors.New("compose Care Plan: People Directory capability is required")
+func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots scheduleModels.InstanceStudentRepository) (careplan.Capability, error) {
+	if students == nil || slots == nil {
+		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	statusStudents, ok := students.(carePlanCompose.StatusStudentDirectory)
-	if !ok {
-		return nil, errors.New("compose Care Plan: People Directory status-flag capability is required")
+	statusStudents, err := CarePlanStatusStudents(students)
+	if err != nil {
+		return nil, err
 	}
 	studentLock, studentNotFound := CareStudentLock(students)
-	return carePlanCompose.New(carePlanCompose.Dependencies{
+	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanLegacy.NewAmbientDatabase(db),
 		StatusStudents: statusStudents,
+		StatusSlots:    CarePlanStatusSlots(slots),
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := students.ListStudentNamesByID(ctx, ids)
 			if err != nil {
@@ -44,6 +46,74 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability) (careplan.Capa
 		}),
 		StudentLock: studentLock, StudentNotFound: studentNotFound,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if repository, ok := slots.(*scheduleRepo.InstanceStudentRepository); ok {
+		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
+	}
+	return capability, nil
+}
+
+type statusStudentDirectory struct {
+	students peopledirectory.Capability
+	flags    peopledirectory.StudentStatusFlagCapability
+}
+
+func CarePlanStatusStudents(students peopledirectory.Capability) (carePlanCompose.StatusStudentDirectory, error) {
+	statusFlags, ok := students.(peopledirectory.StudentStatusFlagCapability)
+	if !ok {
+		return nil, errors.New("compose Care Plan: People Directory status-flag capability is required")
+	}
+	return statusStudentDirectory{students: students, flags: statusFlags}, nil
+}
+
+func (d statusStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]carePlanCompose.StatusStudent, error) {
+	students, err := d.students.ListEnrolledStudents(ctx)
+	return statusStudents(students), err
+}
+
+func (d statusStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]carePlanCompose.StatusStudent, error) {
+	students, err := d.flags.ListStudentsWithStatusFlag(ctx, status)
+	return statusStudents(students), err
+}
+
+func (d statusStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
+	return d.flags.ClearStudentStatusFlags(ctx, ids, status)
+}
+
+func (d statusStudentDirectory) LockStudent(ctx context.Context, id int64) error {
+	return d.students.LockStudent(ctx, id)
+}
+
+func statusStudents(values []peopledirectory.Student) []carePlanCompose.StatusStudent {
+	result := make([]carePlanCompose.StatusStudent, 0, len(values))
+	for _, value := range values {
+		result = append(result, carePlanCompose.StatusStudent{
+			ID: value.ID, TenantID: value.TenantID, Status: value.Status,
+			Sick: value.Sick, SickSince: value.SickSince, Excused: value.Excused, ExcusedSince: value.ExcusedSince,
+		})
+	}
+	return result
+}
+
+type statusSlotDirectory struct {
+	repository scheduleModels.InstanceStudentRepository
+}
+
+func CarePlanStatusSlots(repository scheduleModels.InstanceStudentRepository) carePlanCompose.StatusSlotDirectory {
+	if repository == nil {
+		return nil
+	}
+	return statusSlotDirectory{repository: repository}
+}
+
+func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {
+	return d.repository.ApplyStatusDay(ctx, studentID, carePlanLegacy.ScheduleDate(date), statusDayID, substatus)
+}
+
+func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
+	return d.repository.ReleaseStatusDay(ctx, statusDayID)
 }
 
 // BindCarePlan replaces the bootstrap adapters with the observed Care Plan
@@ -70,10 +140,10 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.StudentPickupSchedule = NewPickupScheduleRepository(capability)
 	f.StudentPickupException = NewPickupExceptionRepository(capability)
 	f.StudentPickupNote = NewPickupNoteRepository(capability)
-	f.ExcusedAbsenceRequest = carePlanLegacy.NewExcusedAbsenceRequestRepository(capability)
-	f.CareScheduleChangeRequest = carePlanLegacy.NewCareScheduleChangeRequestRepository(capability)
-	f.StudentDataChangeRequest = carePlanLegacy.NewStudentDataChangeRequestRepository(capability)
-	f.StudentStatusDay = carePlanLegacy.NewStudentStatusDayRepository(capability)
+	f.ExcusedAbsenceRequest = NewExcusedAbsenceRequestRepository(capability)
+	f.CareScheduleChangeRequest = NewCareScheduleChangeRequestRepository(capability)
+	f.StudentDataChangeRequest = NewStudentDataChangeRequestRepository(capability)
+	f.StudentStatusDay = NewStudentStatusDayRepository(capability)
 	f.CareOffering = carePlanLegacy.NewCareOfferingRepository(capability)
 	f.OfferingChangeRequest = carePlanLegacy.NewOfferingChangeRepository(capability, f.students)
 	companion := carePlanLegacy.NewCompanionRepository(capability)

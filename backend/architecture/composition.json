@@ -39,7 +39,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        655
+        659
       ],
       "tables": []
     },
@@ -14855,7 +14855,7 @@
       "declaration": "TestMasterDataReview_ListHistoryScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        124
       ],
       "tables": []
     },
@@ -31841,22 +31841,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 362,
+          "line": 366,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 465,
+          "line": 469,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 531,
+          "line": 535,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1023,
+          "line": 1027,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -31866,7 +31866,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 655,
+          "line": 659,
           "declaration": "New"
         }
       ]
@@ -31881,7 +31881,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 528,
+          "line": 532,
           "declaration": "type API"
         },
         {

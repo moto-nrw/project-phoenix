@@ -8,7 +8,6 @@ import (
 )
 
 type StatusDayStore interface {
-	BindCarePlan(careplan.Capability)
 	FindStudentStatusDay(context.Context, int64, bool) (careplan.StudentStatusDay, bool, RequestStoreStats, error)
 	ListStudentStatusDays(context.Context, careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, RequestStoreStats, error)
 	CountStudentStatusDays(context.Context, *careplan.StudentScheduleQueryOptions) (int, RequestStoreStats, error)
