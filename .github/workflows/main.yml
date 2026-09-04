@@ -270,6 +270,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check environment key sync
         run: ./scripts/env-check.sh
+      - name: Check pinned pnpm contract
+        run: |
+          expected=$(jq -r '[.packages[] | select(startswith("pnpm_10@"))] | if length == 1 then .[0] | split("@")[1] else empty end' devbox.json)
+          if [[ -z "$expected" ]]; then
+            echo "::error file=devbox.json::Expected exactly one pnpm_10@<version> package"
+            exit 1
+          fi
+          locked=$(jq -r --arg package "pnpm_10@$expected" '.packages[$package].version // empty' devbox.lock)
+          if [[ "$locked" != "$expected" ]]; then
+            echo "::error file=devbox.lock::pnpm lock version $locked does not match Devbox pin $expected"
+            exit 1
+          fi
+          for manifest in package.json frontend/package.json; do
+            actual=$(jq -r '(.packageManager // "") | sub("^pnpm@"; "") | split("+")[0]' "$manifest")
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error file=$manifest::packageManager version $actual does not match Devbox pin $expected"
+              exit 1
+            fi
+          done
       - name: Block unencrypted secrets
         run: |
           failed=false

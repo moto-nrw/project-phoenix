@@ -17,7 +17,7 @@ var (
 	linterCIPattern    = regexp.MustCompile(`(?m)^\s+version: v([0-9]+\.[0-9]+\.[0-9]+)\s*(?:#.*)?$`)
 )
 
-var supportedDevboxSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
+var supportedToolchainSystems = []string{"aarch64-darwin", "aarch64-linux", "x86_64-linux"}
 
 func TestToolchainPinsRatchet(t *testing.T) {
 	t.Parallel()
@@ -197,7 +197,7 @@ func assertDevboxLock(t *testing.T, path string, declared map[string]string) {
 			t.Errorf("%s does not resolve %s@%s", path, name, version)
 			continue
 		}
-		for _, system := range supportedDevboxSystems {
+		for _, system := range supportedToolchainSystems {
 			if _, ok := entry.Systems[system]; !ok {
 				t.Errorf("%s has no %s resolution for %s@%s", path, system, name, version)
 			}
