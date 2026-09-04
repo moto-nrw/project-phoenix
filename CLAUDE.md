@@ -258,7 +258,7 @@ Deployed environments (staging, production) use **SOPS-encrypted env files** tra
 Key rules:
 1. **Edit only with the SOPS CLI** (`sops environments/staging.sops.env`) — never hand-edit encrypted values. Share the age private key via 1Password/Signal, never Slack/email. CI uses the same key as the `SOPS_AGE_KEY` GitHub secret (plus `STAGING_SSH_*` / `PRODUCTION_SSH_*` deploy secrets; deploy-failure emails go to the `DEPLOY_NOTIFY_EMAILS` repository *variable*).
 2. **Both `.sops.env` files must have identical keys**, and `.env.example` must stay in sync (minus the dev-only vars whitelisted in `env-check.sh`: `COMPOSE_BAKE`, `DB_DEBUG`, `TEST_DB_*`, Docker build flags, host-port overrides) — `env-check.sh` enforces this.
-3. **Shared `.env` on the server** — all services load the same `.env` via `env_file:`; use the compose `environment:` block for per-service overrides (e.g. `PORT: 3000` for frontend vs backend's `PORT=8080`).
+3. **Service environment allowlists** — the shared `.env` supplies Compose interpolation only. Each deployed service receives explicit variables; `migrate` alone receives the privileged DSN. See `docs/runtime-environment-boundaries.md` before changing deployment environments or maintenance jobs.
 4. Server layout: `~/{staging,production}/` (`.env`, `docker-compose.yml`, `.deploy-state`) + `~/backups/{env}/` (pg_dump retention: 3 staging, 7 production).
 5. Deploy triggers: push to `development` → staging, push to `main` → production.
 
