@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -118,6 +120,20 @@ type ClassDayReport struct {
 	EnrollmentKnown bool           `json:"enrollment_known"`
 	Totals          ClassDayTotals `json:"totals"`
 	Rows            []ClassDayRow  `json:"rows"`
+	// ClassArrivalException is the class-wide arrival day exception of the
+	// date (#2962/#2970), whoever entered it. The per-child arrival times
+	// above already carry it; this is the one line the class view shows on
+	// top: "Heute kommt die Klasse um 12:45 Uhr (Unterricht fällt aus)".
+	ClassArrivalException *ClassDayArrivalException `json:"class_arrival_exception,omitempty"`
+}
+
+// ClassDayArrivalException is the class-wide arrival day exception as the
+// class view shows it.
+type ClassDayArrivalException struct {
+	ArrivalTime string `json:"arrival_time"`
+	Reason      string `json:"reason,omitempty"`
+	// Origin is "ogs" or "school": which portal entered it.
+	Origin string `json:"origin"`
 }
 
 // classDayWeekdayKey maps a calendar date onto the report day keys used by
@@ -470,6 +486,12 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	}
 	report := buildClassDayReport(schoolClass, date, strings.Join(phaseNames, ", "), rosterRows, facts)
 	report.EnrollmentKnown = len(phases) > 0
+	if weekday != "" {
+		report.ClassArrivalException, err = s.classDayArrivalException(ctx, schoolClass, date)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if !report.EnrollmentKnown {
 		// Without a covering phase the stays/leaves split is unknowable —
 		// zero the counters so no consumer can print "alle gehen nach Hause".
@@ -538,6 +560,48 @@ func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs [
 		}
 	}
 	return nil
+}
+
+// ClassArrivalExceptionReader is the slice of the arrival schedule service
+// the class day view reads the class-wide day exception from (#2962).
+type ClassArrivalExceptionReader interface {
+	ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]*scheduleModel.ClassArrivalException, error)
+}
+
+// classDayArrivalException loads the class-wide arrival day exception of the
+// date (#2962), nil when there is none. It is read from the exception rows
+// rather than derived from the children's effective times: the line belongs
+// to the class, and it stays visible on a day no enrolled child has care.
+func (s *reportService) classDayArrivalException(ctx context.Context, schoolClass string, date timezone.Date) (*ClassDayArrivalException, error) {
+	if s.ClassArrivalExceptions == nil {
+		return nil, nil
+	}
+	rows, err := s.ClassArrivalExceptions.ListClassArrivalExceptions(ctx, schoolClass, date, date)
+	if err != nil {
+		// A deployment without the exception repository still serves the
+		// sheet; the exception line is an extra, not the report.
+		if errors.Is(err, scheduleService.ErrClassArrivalExceptionNotConfigured) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("class day report: load class arrival exception: %w", err)
+	}
+	for _, row := range rows {
+		if row == nil || row.Date != date {
+			continue
+		}
+		out := &ClassDayArrivalException{
+			ArrivalTime: row.ArrivalTime.Format("15:04"),
+			Origin:      row.Origin,
+		}
+		if out.Origin == "" {
+			out.Origin = scheduleModel.ClassArrivalExceptionOriginOGS
+		}
+		if row.Reason != nil {
+			out.Reason = strings.TrimSpace(*row.Reason)
+		}
+		return out, nil
+	}
+	return nil, nil
 }
 
 // applyClassDayPickup records one student's pickup facts for the day: the

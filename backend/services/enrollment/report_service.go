@@ -285,6 +285,10 @@ type ReportServiceConfig struct {
 	// StudentStatusDayRepo); no other report path consumes them.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// ClassArrivalExceptions supplies the class-wide arrival day exception
+	// (#2962) the class day view shows as one line on top (#2970).
+	// Optional: nil serves the sheet without that line.
+	ClassArrivalExceptions ClassArrivalExceptionReader
 	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
 	// class roster and the class day view append to the Klassenverband.
 	// Optional: nil (older tests, report paths that never show class lists)

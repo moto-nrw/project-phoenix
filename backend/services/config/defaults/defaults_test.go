@@ -436,6 +436,31 @@ func TestClassArrivalExceptionEditorsSetting(t *testing.T) {
 	}, def.Options.Static)
 }
 
+// TestSchoolPortalWriteScopeSetting pins what a Lehrkraft may write through
+// moto schule (#2970): nothing unless the school opens the class arrival
+// exception, right under the OGS-side editors setting.
+func TestSchoolPortalWriteScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeySchoolPortalWriteScope)
+	require.NotNil(t, def, "operations.school_portal_write_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.SchoolPortalWriteScopeNone, def.Default, "new schools keep moto schule read-only")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
+		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+	}, def.Options.Static)
+
+	editors := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
+	require.NotNil(t, editors)
+	assert.Greater(t, def.SortOrder, editors.SortOrder, "sits directly under the OGS-side editors setting")
+}
+
 func TestOrganizationSetupSettings(t *testing.T) {
 	t.Parallel()
 

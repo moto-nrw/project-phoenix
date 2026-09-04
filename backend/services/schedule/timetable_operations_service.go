@@ -86,6 +86,10 @@ type TimetableOperationsService interface {
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
+	// EarliestPlannedBlockStartForClass returns the "HH:MM" start of the
+	// first non-cancelled block of the date that addresses the school class,
+	// "" when there is none (#2970).
+	EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
 }
 
 // PlannedNowScopePast flips PlannedNow to the complement of its default

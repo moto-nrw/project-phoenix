@@ -301,6 +301,12 @@ const (
 	ResourceClassDay = "class_day"
 
 	ClassDayRead = ResourceClassDay + ":read"
+	// ClassDayArrivalExceptionWrite lets a Lehrkraft set the class-wide
+	// arrival day exception (#2962) for her assigned classes through "moto
+	// schule" (#2970). The permission opens the door; the school's setting
+	// operations.school_portal_write_scope decides whether it is unlocked,
+	// and the education.class_teachers assignment decides for which class.
+	ClassDayArrivalExceptionWrite = ResourceClassDay + ":arrival_exception_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates
