@@ -3856,6 +3856,10 @@ func (m *mockDeviceRepoWithFind) FindByID(ctx context.Context, id interface{}) (
 	return nil, nil
 }
 
+func (m *mockDeviceRepoWithFind) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+	return m.FindByID(ctx, id)
+}
+
 // ---------------------------------------------------------------------------
 // Soft-delete guard tests: verify that methods reject soft-deleted schools
 // ---------------------------------------------------------------------------
