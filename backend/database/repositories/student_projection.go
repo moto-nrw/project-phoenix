@@ -31,9 +31,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	}); ok {
 		repo.BindStudentDirectory(activitiesStudentDirectory{students})
 	}
-	if repo, ok := f.StudentEnrollment.(*activitiesRepo.StudentEnrollmentRepository); ok {
-		repo.BindStudentDirectory(activitiesStudentDirectory{students})
-	}
 	if repo, ok := f.RequestChildOffering.(*enrollmentRepo.RequestChildOfferingRepository); ok {
 		repo.BindStudentDirectory(enrollmentStudentDirectory{students})
 	}

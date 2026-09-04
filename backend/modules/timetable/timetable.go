@@ -40,6 +40,9 @@ var (
 	ErrPlannedSupervisorNotFound     = errors.New("planned activity supervisor not found")
 	ErrInvalidPlannedSupervisor      = errors.New("invalid planned activity supervisor")
 	ErrInvalidPlannedSupervisorQuery = errors.New("invalid planned activity supervisor query")
+	ErrStudentEnrollmentNotFound     = errors.New("student activity enrollment not found")
+	ErrInvalidStudentEnrollment      = errors.New("invalid student activity enrollment")
+	ErrInvalidStudentEnrollmentQuery = errors.New("invalid student activity enrollment query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -138,6 +141,7 @@ type ScheduleCapability interface {
 type Query interface {
 	ScheduleQuery
 	PlannedSupervisorQuery
+	StudentEnrollmentQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -154,6 +158,7 @@ type Query interface {
 type Command interface {
 	ScheduleCommand
 	PlannedSupervisorCommand
+	StudentEnrollmentCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -392,6 +397,77 @@ func (m *Module) CloseOpenPlannedSupervisors(ctx context.Context, groupID int64,
 	return m.engine.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validUntil)
 }
 
+func (m *Module) FindStudentEnrollment(ctx context.Context, id int64) (StudentEnrollment, error) {
+	if id <= 0 {
+		return StudentEnrollment{}, m.reject("find_student_enrollment", ErrInvalidStudentEnrollmentQuery)
+	}
+	return m.engine.FindStudentEnrollment(ctx, id)
+}
+
+func (m *Module) ListStudentEnrollments(ctx context.Context, filter StudentEnrollmentFilter) ([]StudentEnrollment, error) {
+	if hasInvalidID(filter.StudentIDs) || hasInvalidID(filter.ActivityGroupIDs) || filter.Limit < 0 || filter.Offset < 0 ||
+		(filter.ActiveOn != nil && !validDate(*filter.ActiveOn)) {
+		return nil, m.reject("list_student_enrollments", ErrInvalidStudentEnrollmentQuery)
+	}
+	return m.engine.ListStudentEnrollments(ctx, filter)
+}
+
+func (m *Module) CreateStudentEnrollment(ctx context.Context, input StudentEnrollmentInput) (StudentEnrollment, error) {
+	if !validStudentEnrollment(input) {
+		return StudentEnrollment{}, m.reject("create_student_enrollment", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.CreateStudentEnrollment(ctx, input)
+}
+
+func (m *Module) UpdateStudentEnrollment(ctx context.Context, id int64, input StudentEnrollmentInput) (StudentEnrollment, error) {
+	if id <= 0 || !validStudentEnrollment(input) {
+		return StudentEnrollment{}, m.reject("update_student_enrollment", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.UpdateStudentEnrollment(ctx, id, input)
+}
+
+func (m *Module) DeleteStudentEnrollment(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_student_enrollment", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.DeleteStudentEnrollment(ctx, id)
+}
+
+func (m *Module) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error) {
+	if studentID <= 0 || requestChildID <= 0 || hasInvalidID(groupIDs) {
+		return 0, m.reject("backfill_student_enrollment_source", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.BackfillStudentEnrollmentSource(ctx, studentID, requestChildID, groupIDs)
+}
+
+func (m *Module) DeleteStudentEnrollmentsBySource(ctx context.Context, studentID, requestChildID int64) (int64, error) {
+	if studentID <= 0 || requestChildID <= 0 {
+		return 0, m.reject("delete_student_enrollments_by_source", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.DeleteStudentEnrollmentsBySource(ctx, studentID, requestChildID)
+}
+
+func (m *Module) CapActiveStudentEnrollments(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	if groupID <= 0 || !validDate(validUntil) {
+		return 0, m.reject("cap_active_student_enrollments", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.CapActiveStudentEnrollments(ctx, groupID, validUntil)
+}
+
+func (m *Module) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, validUntil string) error {
+	if id <= 0 || !validDate(validUntil) {
+		return m.reject("set_student_enrollment_valid_until", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.SetStudentEnrollmentValidUntil(ctx, id, validUntil)
+}
+
+func (m *Module) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
+	if groupID <= 0 || (periodID != nil && *periodID <= 0) || !validDate(validUntil) {
+		return m.reject("close_open_student_enrollments", ErrInvalidStudentEnrollment)
+	}
+	return m.engine.CloseOpenStudentEnrollments(ctx, groupID, periodID, validUntil)
+}
+
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
 	normalized, err := normalizeGroupTargets(groupID, targets)
 	if err != nil {
@@ -582,6 +658,34 @@ func normalizePlannedSupervisor(input *PlannedSupervisorInput) bool {
 	}
 	return (input.ValidFrom == "" || validDate(input.ValidFrom)) &&
 		(input.ValidUntil == nil || validDate(*input.ValidUntil))
+}
+
+func validStudentEnrollment(input StudentEnrollmentInput) bool {
+	if input.StudentID <= 0 || input.ActivityGroupID <= 0 || !validDate(input.ValidFrom) ||
+		(input.ValidUntil != nil && !validDate(*input.ValidUntil)) ||
+		(input.CalendarPeriodID != nil && *input.CalendarPeriodID <= 0) ||
+		(input.EnrollmentRequestChildID != nil && *input.EnrollmentRequestChildID <= 0) ||
+		(input.Weekday != nil && !validWeekday(*input.Weekday)) {
+		return false
+	}
+	if input.AttendanceStatus != nil && !validAttendanceStatus(*input.AttendanceStatus) {
+		return false
+	}
+	seen := make(map[int]struct{}, len(input.SelectedWeekdays))
+	for _, weekday := range input.SelectedWeekdays {
+		if !validWeekday(weekday) {
+			return false
+		}
+		if _, exists := seen[weekday]; exists {
+			return false
+		}
+		seen[weekday] = struct{}{}
+	}
+	return true
+}
+
+func validAttendanceStatus(value string) bool {
+	return value == AttendancePresent || value == AttendanceAbsent || value == AttendanceExcused || value == AttendanceUnknown
 }
 
 func invalidCareExitRemovals(removals []CareExitEnrollmentRemoval) bool {

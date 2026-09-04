@@ -289,6 +289,63 @@ func (e engine) CloseOpenPlannedSupervisors(ctx context.Context, groupID int64, 
 	return mapError(e.service.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validUntil))
 }
 
+func (e engine) FindStudentEnrollment(ctx context.Context, id int64) (timetable.StudentEnrollment, error) {
+	value, err := e.service.FindStudentEnrollment(ctx, id)
+	return studentEnrollmentToPublic(value), mapError(err)
+}
+
+func (e engine) ListStudentEnrollments(ctx context.Context, filter timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
+	values, err := e.service.ListStudentEnrollments(ctx, domain.StudentEnrollmentFilter{
+		StudentIDs: filter.StudentIDs, ActivityGroupIDs: filter.ActivityGroupIDs, ActiveOn: filter.ActiveOn,
+		Limit: filter.Limit, Offset: filter.Offset, OrderByValidFrom: filter.OrderByValidFrom, OrderByGroupName: filter.OrderByGroupName,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.StudentEnrollment, 0, len(values))
+	for _, value := range values {
+		result = append(result, studentEnrollmentToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateStudentEnrollment(ctx context.Context, input timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, error) {
+	value, err := e.service.CreateStudentEnrollment(ctx, studentEnrollmentFields(input))
+	return studentEnrollmentToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateStudentEnrollment(ctx context.Context, id int64, input timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, error) {
+	value, err := e.service.UpdateStudentEnrollment(ctx, id, studentEnrollmentFields(input))
+	return studentEnrollmentToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteStudentEnrollment(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteStudentEnrollment(ctx, id))
+}
+
+func (e engine) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error) {
+	rows, err := e.service.BackfillStudentEnrollmentSource(ctx, studentID, requestChildID, groupIDs)
+	return rows, mapError(err)
+}
+
+func (e engine) DeleteStudentEnrollmentsBySource(ctx context.Context, studentID, requestChildID int64) (int64, error) {
+	rows, err := e.service.DeleteStudentEnrollmentsBySource(ctx, studentID, requestChildID)
+	return rows, mapError(err)
+}
+
+func (e engine) CapActiveStudentEnrollments(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	rows, err := e.service.CapActiveStudentEnrollments(ctx, groupID, validUntil)
+	return rows, mapError(err)
+}
+
+func (e engine) SetStudentEnrollmentValidUntil(ctx context.Context, id int64, validUntil string) error {
+	return mapError(e.service.SetStudentEnrollmentValidUntil(ctx, id, validUntil))
+}
+
+func (e engine) CloseOpenStudentEnrollments(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
+	return mapError(e.service.CloseOpenStudentEnrollments(ctx, groupID, periodID, validUntil))
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -505,6 +562,20 @@ func plannedSupervisorFields(value timetable.PlannedSupervisorInput) domain.Plan
 		ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil, CalendarPeriodID: value.CalendarPeriodID, Weekday: value.Weekday}
 }
 
+func studentEnrollmentToPublic(value domain.StudentEnrollment) timetable.StudentEnrollment {
+	return timetable.StudentEnrollment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID, ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil,
+		CalendarPeriodID: value.CalendarPeriodID, EnrollmentRequestChildID: value.EnrollmentRequestChildID,
+		SelectedWeekdays: value.SelectedWeekdays, AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
+}
+
+func studentEnrollmentFields(value timetable.StudentEnrollmentInput) domain.StudentEnrollmentFields {
+	return domain.StudentEnrollmentFields{StudentID: value.StudentID, ActivityGroupID: value.ActivityGroupID,
+		ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil, CalendarPeriodID: value.CalendarPeriodID,
+		EnrollmentRequestChildID: value.EnrollmentRequestChildID, SelectedWeekdays: value.SelectedWeekdays,
+		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -525,6 +596,8 @@ func mapError(err error) error {
 		return timetable.ErrScheduleNotFound
 	case errors.Is(err, domain.ErrPlannedSupervisorNotFound):
 		return timetable.ErrPlannedSupervisorNotFound
+	case errors.Is(err, domain.ErrStudentEnrollmentNotFound):
+		return timetable.ErrStudentEnrollmentNotFound
 	default:
 		return err
 	}

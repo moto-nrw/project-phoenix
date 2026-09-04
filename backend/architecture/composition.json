@@ -1105,7 +1105,7 @@
       "declaration": "TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        196
+        197
       ],
       "tables": []
     },
@@ -1115,7 +1115,7 @@
       "declaration": "TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        373
+        375
       ],
       "tables": []
     },
@@ -1125,7 +1125,7 @@
       "declaration": "TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        309
       ],
       "tables": []
     },
@@ -1135,7 +1135,7 @@
       "declaration": "TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        231
+        232
       ],
       "tables": []
     },
@@ -1255,47 +1255,6 @@
     },
     {
       "scope": "test",
-      "file": "api/timetable/templates_series_test.go",
-      "declaration": "TestUpdateTemplate_SeriesRosterFromReachesPredecessor",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        168
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/templates_split_test.go",
-      "declaration": "TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        603
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/templates_split_test.go",
-      "declaration": "TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        484,
-        544
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/templates_test.go",
-      "declaration": "TestGetTemplateExposesProtectedStudentWeekdays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1150
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/timetable/templates_test.go",
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
@@ -1304,20 +1263,6 @@
         1948
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/templates_test.go",
-      "declaration": "TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1003,
-        1011
-      ],
-      "tables": [
-        "activities.student_enrollments",
-        "activities.supervisors"
-      ]
     },
     {
       "scope": "test",
@@ -1336,16 +1281,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         132
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/templates_test.go",
-      "declaration": "createCapacityEnrollment",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1746
       ],
       "tables": []
     },
@@ -3271,142 +3206,20 @@
     {
       "scope": "test",
       "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        604
-      ],
-      "tables": [
-        "enrollment.request_children"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_CapActiveByGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        560
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
       "declaration": "TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        716
+        724
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Create",
+      "declaration": "studentEnrollmentRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        109
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Create_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        206
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        334
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        667
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Delete_NonExistent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        777
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_FindActiveByStudentIDs",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        433
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        221
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_FindByStudentID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        394
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        360
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        247
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/student_enrollment_repository_test.go",
-      "declaration": "TestStudentEnrollmentRepository_Update_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        319
+        27
       ],
       "tables": []
     },
@@ -9514,7 +9327,7 @@
       "declaration": "TestActivityService_EnrollStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        641
+        642
       ],
       "tables": []
     },
@@ -9524,8 +9337,8 @@
       "declaration": "TestActivityService_SetCategoryShiftTypeLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3008,
-        3009
+        3010,
+        3011
       ],
       "tables": []
     },
@@ -9535,7 +9348,7 @@
       "declaration": "setupActivityService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -9555,7 +9368,7 @@
       "declaration": "TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRosterRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        63
       ],
       "tables": [
         "users.students"
@@ -10104,8 +9917,7 @@
       "declaration": "TestGradeTransitionService_Apply_ReconcilesFutureRosters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38,
-        39
+        37
       ],
       "tables": [
         "activities.student_enrollments",
@@ -10119,7 +9931,6 @@
       "declaration": "newRosterReconcilingTransitionService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        386,
         387
       ],
       "tables": []
@@ -10680,7 +10491,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1164
+        1163
       ],
       "tables": []
     },
@@ -10690,7 +10501,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1292
+        1291
       ],
       "tables": []
     },
@@ -10700,7 +10511,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1370
+        1369
       ],
       "tables": []
     },
@@ -10710,7 +10521,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        893
+        892
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -10722,8 +10533,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1206,
-        1258
+        1205,
+        1257
       ],
       "tables": [
         "activities.student_enrollments",
@@ -10736,8 +10547,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        941,
-        959
+        940,
+        958
       ],
       "tables": []
     },
@@ -10747,9 +10558,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1021,
-        1042,
-        1048
+        1020,
+        1041,
+        1047
       ],
       "tables": []
     },
@@ -10759,21 +10570,9 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1414
+        1413
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/offering_source_service_test.go",
-      "declaration": "TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        467
-      ],
-      "tables": [
-        "activities.student_enrollments"
-      ]
     },
     {
       "scope": "test",
@@ -10781,7 +10580,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1077
+        1076
       ],
       "tables": [
         "activities.student_enrollments"
@@ -10793,7 +10592,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2319
+        2318
       ],
       "tables": []
     },
@@ -10803,7 +10602,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1324
+        1323
       ],
       "tables": []
     },
@@ -10823,7 +10622,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1486
+        1485
       ],
       "tables": []
     },
@@ -13481,36 +13280,6 @@
     {
       "scope": "test",
       "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_SplitAppliesRequestedSourceChange",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        639
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        541
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        715
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
       "declaration": "TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -13596,21 +13365,11 @@
     },
     {
       "scope": "test",
-      "file": "services/schedule/template_split_service_test.go",
-      "declaration": "createProtectedSplitEnrollment",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        208
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/schedule/template_weekday_roster_integration_test.go",
       "declaration": "TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        238
+        245
       ],
       "tables": []
     },
@@ -13620,7 +13379,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        802
+        809
       ],
       "tables": []
     },
@@ -13630,8 +13389,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        892,
-        894
+        901
       ],
       "tables": []
     },
@@ -13641,7 +13399,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods",
       "target": "database/repositories.NewFactory",
       "lines": [
-        961
+        968
       ],
       "tables": [
         "activities.groups",
@@ -13654,29 +13412,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments",
       "target": "database/repositories.NewFactory",
       "lines": [
-        731,
-        740,
-        742
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        562
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        635
+        749
       ],
       "tables": []
     },
@@ -13686,7 +13422,17 @@
       "declaration": "makeWeekdayRosterScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1022
+        1029
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/template_weekday_roster_integration_test.go",
+      "declaration": "ownedStudentEnrollmentRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        56
       ],
       "tables": []
     },
@@ -13969,7 +13715,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        625
+        626
       ],
       "tables": [
         "users.students"
@@ -13981,7 +13727,7 @@
       "declaration": "TestCareLifecycle_CancelOnlyBeforeItTakesEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        396
+        397
       ],
       "tables": []
     },
@@ -13991,7 +13737,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        713
+        714
       ],
       "tables": [
         "schedule.instance_students"
@@ -14003,7 +13749,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        466
+        467
       ],
       "tables": [
         "users.students"
@@ -14015,7 +13761,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        840
+        842
       ],
       "tables": []
     },
@@ -14047,7 +13793,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        494
+        495
       ],
       "tables": [
         "users.students"
@@ -14059,7 +13805,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        910
       ],
       "tables": [
         "users.students"
@@ -14071,7 +13817,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        583
+        584
       ],
       "tables": [
         "users.students"
@@ -14093,7 +13839,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        660
       ],
       "tables": [
         "users.students"

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	activities "github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,6 +61,7 @@ func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRost
 	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{stays.ID, graduating.ID}))
 
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	seam := &graduatingEnrollmentRepo{
 		StudentEnrollmentRepository: repos.StudentEnrollment,
 		afterFirstRead: func() {

@@ -92,4 +92,9 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		supervisors = personSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, persons: f.students}
 	}
 	f.ActivitySupervisor = supervisors
+	enrollments := activitiesModels.StudentEnrollmentRepository(timetableStudentEnrollmentRepository{timetable: capability, students: f.students})
+	if f.peopleDirectoryBound {
+		enrollments = personStudentEnrollmentRepository{StudentEnrollmentRepository: enrollments, persons: f.students}
+	}
+	f.StudentEnrollment = enrollments
 }

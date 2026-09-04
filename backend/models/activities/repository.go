@@ -294,6 +294,11 @@ type StudentEnrollmentRepository interface {
 	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
 }
 
+// StudentEnrollmentQueryOptions and StudentEnrollmentDate keep legacy
+// compatibility adapters from importing lower-layer query/date packages.
+type StudentEnrollmentQueryOptions = base.QueryOptions
+type StudentEnrollmentDate = timezone.Date
+
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
 // Grouped into a struct (rather than positional params) because the field
 // count grew past what's readable positionally once Zielgruppe/calendar

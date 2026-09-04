@@ -464,10 +464,9 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	// A successor segment of the same series with the carried legacy-fed row —
 	// the shapes a split writes. The legacy link still points at the
 	// predecessor, only the lineage connects it to the successor.
-	repoFactory := repositories.NewFactory(env.db)
 	successor := createCareOfferingTemplateGroup(t, env.db, "LineageNachfolger")
 	successor.SeriesRootID = &predecessor.ID
-	require.NoError(t, repoFactory.ActivityGroup.Update(testpkg.Ctx(t), successor))
+	require.NoError(t, env.repos.ActivityGroup.Update(testpkg.Ctx(t), successor))
 	createCareOfferingTemplateSchedule(t, env.db, successor.ID, activitiesModels.WeekdayMonday, &period.ID)
 
 	carried := predecessorRows[0]
@@ -481,7 +480,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 		SelectedWeekdays:         carried.SelectedWeekdays,
 	}
 	carriedRow.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.StudentEnrollment.Create(testpkg.Ctx(t), carriedRow))
+	require.NoError(t, env.repos.StudentEnrollment.Create(testpkg.Ctx(t), carriedRow))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.student_enrollments").

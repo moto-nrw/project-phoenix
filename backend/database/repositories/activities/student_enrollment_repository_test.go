@@ -22,6 +22,13 @@ import (
 // Setup Helpers
 // ============================================================================
 
+func studentEnrollmentRepository(t *testing.T, db *bun.DB) activities.StudentEnrollmentRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.StudentEnrollment
+}
+
 // createEnrollment is a helper to create an enrollment without validation
 func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enrollmentDate time.Time, status *string) *activities.StudentEnrollment {
 	t.Helper()
@@ -106,7 +113,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates enrollment with valid data", func(t *testing.T) {
@@ -165,7 +172,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 
 	})
 
-	t.Run("creates enrollment with explicit tenant outside tenant context", func(t *testing.T) {
+	t.Run("rejects explicit tenant outside tenant context", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "ExplicitTenant", "Student", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "ExplicitTenantGroup")
 
@@ -177,8 +184,9 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment.SetTenantID(testpkg.Tenant(t))
 
 		err := repo.Create(context.Background(), enrollment)
-		require.NoError(t, err)
-		assert.NotZero(t, enrollment.ID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "tenant ID is required")
+		assert.Zero(t, enrollment.ID)
 
 	})
 
@@ -203,7 +211,7 @@ func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when enrollment is nil", func(t *testing.T) {
@@ -218,7 +226,7 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing enrollment", func(t *testing.T) {
@@ -244,7 +252,7 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates enrollment attendance status", func(t *testing.T) {
@@ -278,7 +286,7 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 		assert.Contains(t, err.Error(), "duplicates")
 	})
 
-	t.Run("updates with explicit tenant when context has no tenant", func(t *testing.T) {
+	t.Run("rejects update with explicit tenant when context has no tenant", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoTenant", "Update", "1a")
 		group := testpkg.CreateTestActivityGroup(t, db, "NoTenantUpdateGroup")
 
@@ -287,12 +295,12 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 		status := activities.AttendanceExcused
 		enrollment.AttendanceStatus = &status
 		err := repo.Update(context.Background(), enrollment)
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "tenant ID is required")
 
 		found, err := repo.FindByID(ctx, enrollment.ID)
 		require.NoError(t, err)
-		require.NotNil(t, found.AttendanceStatus)
-		assert.Equal(t, activities.AttendanceExcused, *found.AttendanceStatus)
+		assert.Nil(t, found.AttendanceStatus)
 	})
 
 	t.Run("returns error when no row is updated", func(t *testing.T) {
@@ -316,7 +324,7 @@ func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when enrollment is nil", func(t *testing.T) {
@@ -331,7 +339,7 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing enrollment", func(t *testing.T) {
@@ -357,7 +365,7 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all enrollments", func(t *testing.T) {
@@ -391,7 +399,7 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds enrollments for a student", func(t *testing.T) {
@@ -430,7 +438,7 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 	onDate := timezone.NewDate(2026, time.September, 15)
 	validFrom := timezone.NewDate(2026, time.September, 1)
@@ -557,7 +565,7 @@ func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	activeStudent := testpkg.CreateTestStudent(t, db, "CapActive", "Open", "1a")
@@ -601,7 +609,7 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "BackfillSource", "Student", "1a")
@@ -664,7 +672,7 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "DeleteSource", "Student", "1a")
@@ -714,6 +722,7 @@ func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
+	repoFactory.BindTimetable(timetabletest.New(t, db))
 	repo := repoFactory.StudentEnrollment
 	ctx := testpkg.Ctx(t)
 
@@ -774,7 +783,7 @@ func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentEnrollment
+	repo := studentEnrollmentRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent enrollment", func(t *testing.T) {

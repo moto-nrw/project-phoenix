@@ -538,7 +538,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 
 	// One source-fed row (provenance-tagged, phase-bounded, the shape the
 	// decision fan-out writes) and one manual row.
-	repos := repositories.NewFactory(s.db)
+	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
 	sourcedUntil := s.period.EndDate.AddDays(1)
 	sourced := &activitiesModels.StudentEnrollment{
@@ -551,7 +551,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+	require.NoError(t, enrollments.Create(s.ctx, sourced))
 	manual := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
@@ -559,7 +559,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, manual))
+	require.NoError(t, enrollments.Create(s.ctx, manual))
 
 	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
 		TemplateID:       result.TemplateID,
@@ -636,7 +636,7 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	// offering link, so ANY reconciliation removes it — its survival therefore
 	// tells apart the plain carry-over (unchanged rule, see the inheritance
 	// test) from the resync a changed rule must trigger.
-	repos := repositories.NewFactory(s.db)
+	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
 	sourcedUntil := s.period.EndDate.AddDays(1)
 	sourced := &activitiesModels.StudentEnrollment{
@@ -649,7 +649,7 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+	require.NoError(t, enrollments.Create(s.ctx, sourced))
 
 	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
 		TemplateID:                result.TemplateID,
@@ -712,7 +712,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	require.NoError(t, err)
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
-	repos := repositories.NewFactory(s.db)
+	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
 	sourcedUntil := s.period.EndDate.AddDays(1)
 	sourced := &activitiesModels.StudentEnrollment{
@@ -725,7 +725,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday},
 	}
 	sourced.SetTenantID(s.tenantID)
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, sourced))
+	require.NoError(t, enrollments.Create(s.ctx, sourced))
 	manual := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
@@ -733,7 +733,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)
-	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, manual))
+	require.NoError(t, enrollments.Create(s.ctx, manual))
 
 	split, err := s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
 		TemplateID:                    result.TemplateID,

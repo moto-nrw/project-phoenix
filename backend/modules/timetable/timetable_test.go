@@ -174,6 +174,56 @@ func (e *recordingEngine) CloseOpenPlannedSupervisors(context.Context, int64, *i
 	return nil
 }
 
+func (e *recordingEngine) FindStudentEnrollment(context.Context, int64) (timetable.StudentEnrollment, error) {
+	e.calls++
+	return timetable.StudentEnrollment{}, nil
+}
+
+func (e *recordingEngine) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
+	e.calls++
+	return []timetable.StudentEnrollment{}, nil
+}
+
+func (e *recordingEngine) CreateStudentEnrollment(context.Context, timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, error) {
+	e.calls++
+	return timetable.StudentEnrollment{}, nil
+}
+
+func (e *recordingEngine) UpdateStudentEnrollment(context.Context, int64, timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, error) {
+	e.calls++
+	return timetable.StudentEnrollment{}, nil
+}
+
+func (e *recordingEngine) DeleteStudentEnrollment(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) BackfillStudentEnrollmentSource(context.Context, int64, int64, []int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) CapActiveStudentEnrollments(context.Context, int64, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) SetStudentEnrollmentValidUntil(context.Context, int64, string) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CloseOpenStudentEnrollments(context.Context, int64, *int64, string) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets
@@ -296,6 +346,28 @@ func TestModuleValidatesPlannedSupervisorBoundary(t *testing.T) {
 	_, err = module.CreatePlannedSupervisor(ctx, timetable.PlannedSupervisorInput{StaffID: 1, GroupID: 2, Weekday: &weekday})
 	require.NoError(t, err)
 	assert.Equal(t, &weekday, engine.supervisor.Weekday)
+}
+
+func TestModuleValidatesStudentEnrollmentBoundary(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: 1, ActivityGroupID: 2, ValidFrom: "not-a-date",
+	})
+	require.ErrorIs(t, err, timetable.ErrInvalidStudentEnrollment)
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: 1, ActivityGroupID: 2, ValidFrom: "2026-09-01", SelectedWeekdays: []int{2, 2},
+	})
+	require.ErrorIs(t, err, timetable.ErrInvalidStudentEnrollment)
+	_, err = module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{0}})
+	require.ErrorIs(t, err, timetable.ErrInvalidStudentEnrollmentQuery)
+	assert.Zero(t, engine.calls)
+	assert.Equal(t, []string{
+		"create_student_enrollment", "create_student_enrollment", "list_student_enrollments",
+	}, engine.rejections)
 }
 
 func TestSystemActivityNamesAreExact(t *testing.T) {

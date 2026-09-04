@@ -539,9 +539,14 @@ func scanAll(ctx context.Context, query *bun.SelectQuery, operation string) (dom
 
 func classifyWriteError(operation string, err error, stats *domain.OperationStats) error {
 	var postgresError pgdriver.Error
-	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == domain.CategoryNameActiveIndex {
-		stats.DuplicatePreventionConflicts++
-		return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
+	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() {
+		switch postgresError.Field('n') {
+		case domain.CategoryNameActiveIndex:
+			stats.DuplicatePreventionConflicts++
+			return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
+		case domain.StudentEnrollmentActiveIndex:
+			stats.DuplicatePreventionConflicts++
+		}
 	}
 	return fmt.Errorf("timetable postgres: %s: %w", operation, err)
 }

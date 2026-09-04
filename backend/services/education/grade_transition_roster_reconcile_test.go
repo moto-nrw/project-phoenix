@@ -15,6 +15,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,10 +34,12 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
+	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		repositories.NewFactory(db).InstanceStudent,
-		repositories.NewFactory(db).StudentEnrollment,
+		repos.InstanceStudent,
+		repos.StudentEnrollment,
 		nil,
 	)
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -381,10 +384,12 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationService.GradeTransitionService {
 	t.Helper()
 
+	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		repositories.NewFactory(db).InstanceStudent,
-		repositories.NewFactory(db).StudentEnrollment,
+		repos.InstanceStudent,
+		repos.StudentEnrollment,
 		nil,
 		func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) },
 	)

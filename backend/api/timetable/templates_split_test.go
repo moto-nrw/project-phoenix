@@ -20,7 +20,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -481,7 +480,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	beforeGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
-	beforeEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
+	beforeEnrollments, err := s.enrollments.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	beforeSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
@@ -541,7 +540,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 		assert.Equal(t, beforeSchedules[i].Weekday, afterSchedules[i].Weekday)
 		assert.Equal(t, beforeSchedules[i].TimeframeID, afterSchedules[i].TimeframeID)
 	}
-	afterEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
+	afterEnrollments, err := s.enrollments.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, enrollmentIDs(beforeEnrollments), enrollmentIDs(afterEnrollments))
 	afterSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
@@ -600,7 +599,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 		assert.Nil(t, schedule.ValidUntil)
 	}
 
-	enrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, split.NewTemplateID)
+	enrollments, err := s.enrollments.FindByGroupID(s.ctx, split.NewTemplateID)
 	require.NoError(t, err)
 	activeEnrollments := 0
 	for _, enrollment := range enrollments {

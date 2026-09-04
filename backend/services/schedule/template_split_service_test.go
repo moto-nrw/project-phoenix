@@ -205,7 +205,7 @@ func createProtectedSplitEnrollment(
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	row.SetTenantID(s.tenantID)
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, row))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, row))
 	return row
 }
 

@@ -14,6 +14,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services"
 	activities "github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -639,6 +640,7 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 
 		// The model no longer defaults ValidFrom (#586); the service must set it.
 		repoFactory := repositories.NewFactory(db)
+		repoFactory.BindTimetable(timetabletest.New(t, db))
 		enrollments, err := repoFactory.StudentEnrollment.FindByGroupID(ctx, group.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, enrollments)

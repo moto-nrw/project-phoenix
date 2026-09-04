@@ -51,6 +51,13 @@ type weekdayRosterScenario struct {
 	cleanup     []func()
 }
 
+func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
+	t.Helper()
+	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
+	return repos.StudentEnrollment
+}
+
 func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *testing.T) {
 	t.Parallel()
 
@@ -559,7 +566,7 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 		ValidFrom:        monday.AddDays(-30),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
 	update := scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
@@ -632,7 +639,7 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 		ValidFrom:        monday.AddDays(-30),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
 	update := scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
@@ -728,7 +735,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		ValidFrom:        monday.AddDays(-30),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 	inconsistentWeekday := activitiesModels.WeekdayTuesday
 	inconsistentProtected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
@@ -737,7 +744,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 		Weekday:          &inconsistentWeekday,
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, inconsistentProtected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, inconsistentProtected))
 
 	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
@@ -889,7 +896,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 		ValidFrom:        monday.AddDays(-30),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
 	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)

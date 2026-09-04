@@ -326,6 +326,7 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 
 	student := testpkg.CreateTestStudent(t, db, "Ella", "Vogt", "2b")
 	group := testpkg.CreateTestActivityGroup(t, db, "Fußball")
@@ -711,6 +712,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	repos := repositories.NewFactory(db)
+	repos.BindTimetable(timetabletest.New(t, db))
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Plan", "Verantwortlich")

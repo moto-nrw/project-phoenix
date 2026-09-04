@@ -23,7 +23,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -165,7 +164,7 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d", s.newID), body)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	rows, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, s.oldID)
+	rows, err := s.enrollments.FindByGroupID(s.ctx, s.oldID)
 	require.NoError(t, err)
 	weekdays := make([]int, 0, 2)
 	for _, row := range rows {

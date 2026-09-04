@@ -49,6 +49,16 @@ type Store interface {
 	CapActivePlannedSupervisors(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetPlannedSupervisorValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
 	CloseOpenPlannedSupervisors(context.Context, int64, *int64, string) (domain.OperationStats, error)
+	FindStudentEnrollment(context.Context, int64) (domain.StudentEnrollment, bool, domain.OperationStats, error)
+	ListStudentEnrollments(context.Context, domain.StudentEnrollmentFilter) ([]domain.StudentEnrollment, domain.OperationStats, error)
+	CreateStudentEnrollment(context.Context, domain.StudentEnrollmentFields) (domain.StudentEnrollment, domain.OperationStats, error)
+	UpdateStudentEnrollment(context.Context, int64, domain.StudentEnrollmentFields) (domain.StudentEnrollment, bool, domain.OperationStats, error)
+	DeleteStudentEnrollment(context.Context, int64) (domain.OperationStats, error)
+	BackfillStudentEnrollmentSource(context.Context, int64, int64, []int64) (int64, domain.OperationStats, error)
+	DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, domain.OperationStats, error)
+	CapActiveStudentEnrollments(context.Context, int64, string) (int64, domain.OperationStats, error)
+	SetStudentEnrollmentValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
+	CloseOpenStudentEnrollments(context.Context, int64, *int64, string) (domain.OperationStats, error)
 }
 
 type Transaction interface {
