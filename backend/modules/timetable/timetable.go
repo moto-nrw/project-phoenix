@@ -22,21 +22,24 @@ const (
 )
 
 var (
-	ErrCategoryNotFound          = errors.New("activity category not found")
-	ErrInvalidCategory           = errors.New("invalid activity category")
-	ErrInvalidCareExitEnrollment = errors.New("invalid care-exit activity enrollment")
-	ErrUnknownCategoryIDs        = errors.New("one or more category IDs do not exist in this tenant")
-	ErrSystemCategoryProtected   = errors.New("Systemkategorie kann nicht bearbeitet oder archiviert werden") //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrSystemCategoryName        = errors.New("Dieser Name ist für eine Systemkategorie reserviert")          //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrCategoryNameExists        = errors.New("Eine Kategorie mit diesem Namen existiert bereits")            //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrCategoryArchived          = errors.New("Archivierte Kategorie muss zuerst wiederhergestellt werden")   //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrGroupNotFound             = errors.New("activity group not found")
-	ErrInvalidGroup              = errors.New("invalid activity group")
-	ErrInvalidGroupQuery         = errors.New("invalid activity group query")
-	ErrInvalidGroupTarget        = errors.New("invalid activity group target")
-	ErrScheduleNotFound          = errors.New("activity schedule not found")
-	ErrInvalidSchedule           = errors.New("invalid activity schedule")
-	ErrInvalidScheduleQuery      = errors.New("invalid activity schedule query")
+	ErrCategoryNotFound              = errors.New("activity category not found")
+	ErrInvalidCategory               = errors.New("invalid activity category")
+	ErrInvalidCareExitEnrollment     = errors.New("invalid care-exit activity enrollment")
+	ErrUnknownCategoryIDs            = errors.New("one or more category IDs do not exist in this tenant")
+	ErrSystemCategoryProtected       = errors.New("Systemkategorie kann nicht bearbeitet oder archiviert werden") //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrSystemCategoryName            = errors.New("Dieser Name ist für eine Systemkategorie reserviert")          //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrCategoryNameExists            = errors.New("Eine Kategorie mit diesem Namen existiert bereits")            //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrCategoryArchived              = errors.New("Archivierte Kategorie muss zuerst wiederhergestellt werden")   //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrGroupNotFound                 = errors.New("activity group not found")
+	ErrInvalidGroup                  = errors.New("invalid activity group")
+	ErrInvalidGroupQuery             = errors.New("invalid activity group query")
+	ErrInvalidGroupTarget            = errors.New("invalid activity group target")
+	ErrScheduleNotFound              = errors.New("activity schedule not found")
+	ErrInvalidSchedule               = errors.New("invalid activity schedule")
+	ErrInvalidScheduleQuery          = errors.New("invalid activity schedule query")
+	ErrPlannedSupervisorNotFound     = errors.New("planned activity supervisor not found")
+	ErrInvalidPlannedSupervisor      = errors.New("invalid planned activity supervisor")
+	ErrInvalidPlannedSupervisorQuery = errors.New("invalid planned activity supervisor query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -134,6 +137,7 @@ type ScheduleCapability interface {
 
 type Query interface {
 	ScheduleQuery
+	PlannedSupervisorQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -149,6 +153,7 @@ type Query interface {
 
 type Command interface {
 	ScheduleCommand
+	PlannedSupervisorCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -308,6 +313,83 @@ func (m *Module) CapScheduleValidUntil(ctx context.Context, groupID int64, valid
 		return 0, m.reject("cap_schedule_valid_until", ErrInvalidSchedule)
 	}
 	return m.engine.CapScheduleValidUntil(ctx, groupID, validUntil)
+}
+
+func (m *Module) FindPlannedSupervisor(ctx context.Context, id int64) (PlannedSupervisor, error) {
+	if id <= 0 {
+		return PlannedSupervisor{}, m.reject("find_planned_supervisor", ErrInvalidPlannedSupervisorQuery)
+	}
+	return m.engine.FindPlannedSupervisor(ctx, id)
+}
+
+func (m *Module) ListPlannedSupervisors(ctx context.Context, filter PlannedSupervisorFilter) ([]PlannedSupervisor, error) {
+	if hasInvalidID(filter.GroupIDs) || (filter.StaffID != nil && *filter.StaffID <= 0) {
+		return nil, m.reject("list_planned_supervisors", ErrInvalidPlannedSupervisorQuery)
+	}
+	return m.engine.ListPlannedSupervisors(ctx, filter)
+}
+
+func (m *Module) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]PlannedSupervisionBlocker, error) {
+	if staffID <= 0 {
+		return nil, m.reject("list_planned_supervision_blockers", ErrInvalidPlannedSupervisorQuery)
+	}
+	return m.engine.ListPlannedSupervisionBlockers(ctx, staffID)
+}
+
+func (m *Module) CreatePlannedSupervisor(ctx context.Context, input PlannedSupervisorInput) (PlannedSupervisor, error) {
+	if !normalizePlannedSupervisor(&input) {
+		return PlannedSupervisor{}, m.reject("create_planned_supervisor", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.CreatePlannedSupervisor(ctx, input)
+}
+
+func (m *Module) UpdatePlannedSupervisor(ctx context.Context, id int64, input PlannedSupervisorInput) (PlannedSupervisor, error) {
+	if id <= 0 || !normalizePlannedSupervisor(&input) {
+		return PlannedSupervisor{}, m.reject("update_planned_supervisor", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.UpdatePlannedSupervisor(ctx, id, input)
+}
+
+func (m *Module) DeletePlannedSupervisor(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_planned_supervisor", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.DeletePlannedSupervisor(ctx, id)
+}
+
+func (m *Module) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("set_primary_planned_supervisor", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.SetPrimaryPlannedSupervisor(ctx, id)
+}
+
+func (m *Module) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error) {
+	if staffID <= 0 {
+		return 0, m.reject("delete_planned_supervisors_by_staff", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.DeletePlannedSupervisorsByStaff(ctx, staffID)
+}
+
+func (m *Module) CapActivePlannedSupervisors(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	if groupID <= 0 || !validDate(validUntil) {
+		return 0, m.reject("cap_active_planned_supervisors", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.CapActivePlannedSupervisors(ctx, groupID, validUntil)
+}
+
+func (m *Module) SetPlannedSupervisorValidUntil(ctx context.Context, id int64, validUntil string) error {
+	if id <= 0 || !validDate(validUntil) {
+		return m.reject("set_planned_supervisor_valid_until", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.SetPlannedSupervisorValidUntil(ctx, id, validUntil)
+}
+
+func (m *Module) CloseOpenPlannedSupervisors(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
+	if groupID <= 0 || (periodID != nil && *periodID <= 0) || !validDate(validUntil) {
+		return m.reject("close_open_planned_supervisors", ErrInvalidPlannedSupervisor)
+	}
+	return m.engine.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validUntil)
 }
 
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {
@@ -491,6 +573,14 @@ func normalizeSchedule(input *ScheduleInput) bool {
 		return false
 	}
 	return (input.ValidFrom == nil || validDate(*input.ValidFrom)) &&
+		(input.ValidUntil == nil || validDate(*input.ValidUntil))
+}
+
+func normalizePlannedSupervisor(input *PlannedSupervisorInput) bool {
+	if input.StaffID <= 0 || input.GroupID <= 0 || (input.Weekday != nil && !validWeekday(*input.Weekday)) {
+		return false
+	}
+	return (input.ValidFrom == "" || validDate(input.ValidFrom)) &&
 		(input.ValidUntil == nil || validDate(*input.ValidUntil))
 }
 

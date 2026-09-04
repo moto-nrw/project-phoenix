@@ -1290,7 +1290,7 @@
       "declaration": "TestGetTemplateExposesProtectedStudentWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1148
+        1150
       ],
       "tables": []
     },
@@ -1300,8 +1300,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1945,
-        1946
+        1947,
+        1948
       ],
       "tables": []
     },
@@ -1311,8 +1311,8 @@
       "declaration": "TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1001,
-        1009
+        1003,
+        1011
       ],
       "tables": [
         "activities.student_enrollments",
@@ -1325,7 +1325,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        121
+        122
       ],
       "tables": []
     },
@@ -1335,7 +1335,7 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        131
+        132
       ],
       "tables": []
     },
@@ -1345,7 +1345,7 @@
       "declaration": "createCapacityEnrollment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1744
+        1746
       ],
       "tables": []
     },
@@ -3264,7 +3264,7 @@
       "declaration": "TestPlannedActivitySupervisorsCarryTheirStaffMember",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        21
       ],
       "tables": []
     },
@@ -3412,123 +3412,11 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_query_budget_test.go",
-      "declaration": "TestSupervisorPlannedFindByStaffIDQueryBudget",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        16
-      ],
-      "tables": [
-        "activities.supervisors"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Create",
+      "declaration": "plannedSupervisorRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Create_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        90
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        170
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_DeleteByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        192
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Delete_NonExistent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        421
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_FindByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        248
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        226
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_SetPrimary",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        394
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        131
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/activities/supervisor_planned_repository_test.go",
-      "declaration": "TestSupervisorPlannedRepository_Update_WithNil",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        155
+        21
       ],
       "tables": []
     },
@@ -13722,7 +13610,7 @@
       "declaration": "TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        237
+        238
       ],
       "tables": []
     },
@@ -13732,7 +13620,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        800
+        802
       ],
       "tables": []
     },
@@ -13742,8 +13630,8 @@
       "declaration": "TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster",
       "target": "database/repositories.NewFactory",
       "lines": [
-        889,
-        891
+        892,
+        894
       ],
       "tables": []
     },
@@ -13753,7 +13641,7 @@
       "declaration": "TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods",
       "target": "database/repositories.NewFactory",
       "lines": [
-        958
+        961
       ],
       "tables": [
         "activities.groups",
@@ -13766,9 +13654,9 @@
       "declaration": "TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments",
       "target": "database/repositories.NewFactory",
       "lines": [
-        729,
-        738,
-        740
+        731,
+        740,
+        742
       ],
       "tables": []
     },
@@ -13778,7 +13666,7 @@
       "declaration": "TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        562
       ],
       "tables": []
     },
@@ -13788,7 +13676,7 @@
       "declaration": "TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        633
+        635
       ],
       "tables": []
     },
@@ -13798,7 +13686,7 @@
       "declaration": "makeWeekdayRosterScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1018
+        1022
       ],
       "tables": []
     },
@@ -14704,7 +14592,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        47
       ],
       "tables": []
     },

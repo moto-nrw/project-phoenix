@@ -670,7 +670,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActivityGroup:      activities.NewGroupRepository(db),
 		ActivityCategory:   activities.NewCategoryRepository(db),
 		ActivitySchedule:   nil, // bound to Timetable below
-		ActivitySupervisor: activities.NewSupervisorPlannedRepository(db),
+		ActivitySupervisor: nil, // bound to Timetable below
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories

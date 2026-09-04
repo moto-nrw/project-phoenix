@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ func TestPlannedActivitySupervisorsCarryTheirStaffMember(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
 
 	staff := testpkg.CreateTestStaff(t, db, "Geplante", "Betreuung")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Geplantes Angebot")

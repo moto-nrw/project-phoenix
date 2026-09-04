@@ -72,6 +72,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.ActivityGroup)
 		assert.NotNil(t, factory.ActivityCategory)
 		assert.Nil(t, factory.ActivitySchedule, "schedule persistence requires the timetable owner binding")
+		assert.Nil(t, factory.ActivitySupervisor, "supervisor persistence requires the timetable owner binding")
 		factory.BindTimetable(timetabletest.New(t, db))
 		assert.NotNil(t, factory.ActivitySchedule)
 		assert.NotNil(t, factory.ActivitySupervisor)

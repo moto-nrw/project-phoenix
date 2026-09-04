@@ -51,7 +51,7 @@ func attachSplitServiceWithValidator(
 		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
 		ScheduleRepo:               s.schedules,
 		EnrollmentRepo:             s.enrollments,
-		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),
+		SupervisorRepo:             s.supervisors,
 		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
 		Materialization:            mat,
@@ -483,7 +483,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	beforeSchedules := templateSchedules(t, s, created.TemplateID)
 	beforeEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
-	beforeSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	beforeSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 
 	updateName := fmt.Sprintf("Tpl-Update-Rollback-%d", time.Now().UnixNano())
@@ -544,7 +544,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	afterEnrollments, err := repositories.NewFactory(s.db).StudentEnrollment.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, enrollmentIDs(beforeEnrollments), enrollmentIDs(afterEnrollments))
-	afterSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	afterSupervisors, err := s.supervisors.FindByGroupID(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, supervisorIDs(beforeSupervisors), supervisorIDs(afterSupervisors))
 }
@@ -615,7 +615,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	}
 	assert.Equal(t, 2, activeEnrollments)
 
-	supervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, split.NewTemplateID)
+	supervisors, err := s.supervisors.FindByGroupID(s.ctx, split.NewTemplateID)
 	require.NoError(t, err)
 	activeSupervisors := 0
 	for _, supervisor := range supervisors {

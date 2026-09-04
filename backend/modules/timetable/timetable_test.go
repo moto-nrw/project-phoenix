@@ -18,6 +18,7 @@ type recordingEngine struct {
 	template   timetable.TemplateUpdate
 	offering   timetable.OfferingSourceInput
 	targets    []timetable.GroupTargetInput
+	supervisor timetable.PlannedSupervisorInput
 	calls      int
 	rejections []string
 }
@@ -115,6 +116,62 @@ func (e *recordingEngine) DeleteSchedulesByGroup(context.Context, int64) error {
 func (e *recordingEngine) CapScheduleValidUntil(context.Context, int64, string) (int64, error) {
 	e.calls++
 	return 0, nil
+}
+
+func (e *recordingEngine) FindPlannedSupervisor(context.Context, int64) (timetable.PlannedSupervisor, error) {
+	e.calls++
+	return timetable.PlannedSupervisor{}, nil
+}
+
+func (e *recordingEngine) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
+	e.calls++
+	return []timetable.PlannedSupervisor{}, nil
+}
+
+func (e *recordingEngine) ListPlannedSupervisionBlockers(context.Context, int64) ([]timetable.PlannedSupervisionBlocker, error) {
+	e.calls++
+	return []timetable.PlannedSupervisionBlocker{}, nil
+}
+
+func (e *recordingEngine) CreatePlannedSupervisor(_ context.Context, input timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, error) {
+	e.calls++
+	e.supervisor = input
+	return timetable.PlannedSupervisor{}, nil
+}
+
+func (e *recordingEngine) UpdatePlannedSupervisor(context.Context, int64, timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, error) {
+	e.calls++
+	return timetable.PlannedSupervisor{}, nil
+}
+
+func (e *recordingEngine) DeletePlannedSupervisor(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) SetPrimaryPlannedSupervisor(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeletePlannedSupervisorsByStaff(context.Context, int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) CapActivePlannedSupervisors(context.Context, int64, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) SetPlannedSupervisorValidUntil(context.Context, int64, string) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CloseOpenPlannedSupervisors(context.Context, int64, *int64, string) error {
+	e.calls++
+	return nil
 }
 
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
@@ -223,6 +280,22 @@ func TestModuleNormalizesCategoryWrites(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(17), updated.ID)
 	assert.Equal(t, "Sport", engine.update.Name)
+}
+
+func TestModuleValidatesPlannedSupervisorBoundary(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.CreatePlannedSupervisor(ctx, timetable.PlannedSupervisorInput{StaffID: 1, GroupID: 2, ValidFrom: "not-a-date"})
+	require.ErrorIs(t, err, timetable.ErrInvalidPlannedSupervisor)
+	assert.Zero(t, engine.calls)
+
+	weekday := 7
+	_, err = module.CreatePlannedSupervisor(ctx, timetable.PlannedSupervisorInput{StaffID: 1, GroupID: 2, Weekday: &weekday})
+	require.NoError(t, err)
+	assert.Equal(t, &weekday, engine.supervisor.Weekday)
 }
 
 func TestSystemActivityNamesAreExact(t *testing.T) {

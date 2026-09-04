@@ -38,6 +38,17 @@ type Store interface {
 	DeleteSchedule(context.Context, int64) (domain.OperationStats, error)
 	DeleteSchedulesByGroup(context.Context, int64) (domain.OperationStats, error)
 	CapScheduleValidUntil(context.Context, int64, string) (int64, domain.OperationStats, error)
+	FindPlannedSupervisor(context.Context, int64) (domain.PlannedSupervisor, bool, domain.OperationStats, error)
+	ListPlannedSupervisors(context.Context, domain.PlannedSupervisorFilter) ([]domain.PlannedSupervisor, domain.OperationStats, error)
+	ListPlannedSupervisionBlockers(context.Context, int64) ([]domain.PlannedSupervisionBlocker, domain.OperationStats, error)
+	CreatePlannedSupervisor(context.Context, domain.PlannedSupervisorFields) (domain.PlannedSupervisor, domain.OperationStats, error)
+	UpdatePlannedSupervisor(context.Context, int64, domain.PlannedSupervisorFields) (domain.PlannedSupervisor, bool, domain.OperationStats, error)
+	DeletePlannedSupervisor(context.Context, int64) (domain.OperationStats, error)
+	SetPrimaryPlannedSupervisor(context.Context, int64) (bool, domain.OperationStats, error)
+	DeletePlannedSupervisorsByStaff(context.Context, int64) (int64, domain.OperationStats, error)
+	CapActivePlannedSupervisors(context.Context, int64, string) (int64, domain.OperationStats, error)
+	SetPlannedSupervisorValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
+	CloseOpenPlannedSupervisors(context.Context, int64, *int64, string) (domain.OperationStats, error)
 }
 
 type Transaction interface {

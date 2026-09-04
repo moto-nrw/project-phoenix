@@ -8,6 +8,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// SupervisorQueryOptions and SupervisorDate keep the temporary compatibility
+// repository contract self-contained while callers migrate to Timetable.
+type SupervisorQueryOptions = base.QueryOptions
+type SupervisorDate = timezone.Date
+
 // SupervisorPlanned represents a staff member assigned to supervise an activity group
 type SupervisorPlanned struct {
 	base.Model `bun:"schema:activities,table:supervisors"`
@@ -56,4 +61,13 @@ func (sp *SupervisorPlanned) SetPrimary() {
 // SetNotPrimary marks this supervisor as not the primary supervisor
 func (sp *SupervisorPlanned) SetNotPrimary() {
 	sp.IsPrimary = false
+}
+
+func (sp *SupervisorPlanned) ValidityDateStrings() (string, *string) {
+	return sp.ValidFrom.String(), scheduleDateString(sp.ValidUntil)
+}
+
+func (sp *SupervisorPlanned) SetValidityDateStrings(validFrom string, validUntil *string) {
+	sp.ValidFrom = timezone.Date(validFrom)
+	sp.ValidUntil = scheduleDate(validUntil)
 }

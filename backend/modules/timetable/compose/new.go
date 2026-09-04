@@ -224,6 +224,71 @@ func (e engine) CapScheduleValidUntil(ctx context.Context, groupID int64, validU
 	return rows, mapError(err)
 }
 
+func (e engine) FindPlannedSupervisor(ctx context.Context, id int64) (timetable.PlannedSupervisor, error) {
+	value, err := e.service.FindPlannedSupervisor(ctx, id)
+	return plannedSupervisorToPublic(value), mapError(err)
+}
+
+func (e engine) ListPlannedSupervisors(ctx context.Context, filter timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
+	values, err := e.service.ListPlannedSupervisors(ctx, domain.PlannedSupervisorFilter{GroupIDs: filter.GroupIDs, StaffID: filter.StaffID})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.PlannedSupervisor, 0, len(values))
+	for _, value := range values {
+		result = append(result, plannedSupervisorToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]timetable.PlannedSupervisionBlocker, error) {
+	values, err := e.service.ListPlannedSupervisionBlockers(ctx, staffID)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.PlannedSupervisionBlocker, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.PlannedSupervisionBlocker(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreatePlannedSupervisor(ctx context.Context, input timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, error) {
+	value, err := e.service.CreatePlannedSupervisor(ctx, plannedSupervisorFields(input))
+	return plannedSupervisorToPublic(value), mapError(err)
+}
+
+func (e engine) UpdatePlannedSupervisor(ctx context.Context, id int64, input timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, error) {
+	value, err := e.service.UpdatePlannedSupervisor(ctx, id, plannedSupervisorFields(input))
+	return plannedSupervisorToPublic(value), mapError(err)
+}
+
+func (e engine) DeletePlannedSupervisor(ctx context.Context, id int64) error {
+	return mapError(e.service.DeletePlannedSupervisor(ctx, id))
+}
+
+func (e engine) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) error {
+	return mapError(e.service.SetPrimaryPlannedSupervisor(ctx, id))
+}
+
+func (e engine) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error) {
+	rows, err := e.service.DeletePlannedSupervisorsByStaff(ctx, staffID)
+	return rows, mapError(err)
+}
+
+func (e engine) CapActivePlannedSupervisors(ctx context.Context, groupID int64, validUntil string) (int64, error) {
+	rows, err := e.service.CapActivePlannedSupervisors(ctx, groupID, validUntil)
+	return rows, mapError(err)
+}
+
+func (e engine) SetPlannedSupervisorValidUntil(ctx context.Context, id int64, validUntil string) error {
+	return mapError(e.service.SetPlannedSupervisorValidUntil(ctx, id, validUntil))
+}
+
+func (e engine) CloseOpenPlannedSupervisors(ctx context.Context, groupID int64, periodID *int64, validUntil string) error {
+	return mapError(e.service.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validUntil))
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -429,6 +494,17 @@ func scheduleFields(value timetable.ScheduleInput) domain.ScheduleFields {
 	}
 }
 
+func plannedSupervisorToPublic(value domain.PlannedSupervisor) timetable.PlannedSupervisor {
+	return timetable.PlannedSupervisor{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		StaffID: value.StaffID, GroupID: value.GroupID, IsPrimary: value.IsPrimary, ValidFrom: value.ValidFrom,
+		ValidUntil: value.ValidUntil, CalendarPeriodID: value.CalendarPeriodID, Weekday: value.Weekday}
+}
+
+func plannedSupervisorFields(value timetable.PlannedSupervisorInput) domain.PlannedSupervisorFields {
+	return domain.PlannedSupervisorFields{StaffID: value.StaffID, GroupID: value.GroupID, IsPrimary: value.IsPrimary,
+		ValidFrom: value.ValidFrom, ValidUntil: value.ValidUntil, CalendarPeriodID: value.CalendarPeriodID, Weekday: value.Weekday}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -447,6 +523,8 @@ func mapError(err error) error {
 		return timetable.ErrGroupNotFound
 	case errors.Is(err, domain.ErrScheduleNotFound):
 		return timetable.ErrScheduleNotFound
+	case errors.Is(err, domain.ErrPlannedSupervisorNotFound):
+		return timetable.ErrPlannedSupervisorNotFound
 	default:
 		return err
 	}

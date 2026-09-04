@@ -212,7 +212,11 @@ type ScheduleRepository interface {
 
 // SupervisorPlannedRepository defines operations for managing activity supervisors
 type SupervisorPlannedRepository interface {
-	base.Repository[*SupervisorPlanned]
+	Create(context.Context, *SupervisorPlanned) error
+	FindByID(context.Context, any) (*SupervisorPlanned, error)
+	Update(context.Context, *SupervisorPlanned) error
+	Delete(context.Context, any) error
+	List(context.Context, *SupervisorQueryOptions) ([]*SupervisorPlanned, error)
 
 	// ListPlannedSupervisionBlockers returns planned activity supervisions
 	// as caregiver-capability blocker rows.

@@ -39,6 +39,7 @@ type templateSetup struct {
 	res         *Resource
 	schedules   activitiesModel.ScheduleRepository
 	enrollments activitiesModel.StudentEnrollmentRepository
+	supervisors activitiesModel.SupervisorPlannedRepository
 	db          *bun.DB
 	ctx         context.Context
 	roomID      int64
@@ -158,6 +159,7 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 		res:         res,
 		schedules:   repoFactory.ActivitySchedule,
 		enrollments: repoFactory.StudentEnrollment,
+		supervisors: repoFactory.ActivitySupervisor,
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,
@@ -1015,7 +1017,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
@@ -1023,7 +1025,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
 	globalSupervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
 	updateBody["calendar_period_id"] = periodA.ID
@@ -1761,7 +1763,7 @@ func createCapacitySupervisor(
 		CalendarPeriodID: periodID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, supervisor))
+	require.NoError(t, s.supervisors.Create(s.ctx, supervisor))
 }
 
 func setCapacityScheduleWindow(

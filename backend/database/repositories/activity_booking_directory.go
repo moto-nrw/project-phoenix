@@ -4,6 +4,7 @@ import (
 	"context"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -83,4 +84,12 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		groups:               f.schoolStructure,
 	}
 	f.ActivitySchedule = timetableActivityScheduleRepository{timetable: capability}
+	var supervisors activitiesModels.SupervisorPlannedRepository = timetableActivitySupervisorRepository{timetable: capability}
+	if f.schoolMembership != nil {
+		supervisors = staffSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, membership: f.schoolMembership}
+	}
+	if f.peopleDirectoryBound {
+		supervisors = personSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, persons: f.students}
+	}
+	f.ActivitySupervisor = supervisors
 }

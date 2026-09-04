@@ -16,6 +16,13 @@ import (
 // Setup Helpers
 // ============================================================================
 
+func plannedSupervisorRepository(t *testing.T, db *bun.DB) activities.SupervisorPlannedRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.ActivitySupervisor
+}
+
 // createSupervisor is a helper to create a supervisor planned record
 func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimary bool) *activities.SupervisorPlanned {
 	t.Helper()
@@ -46,7 +53,7 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates supervisor with valid data", func(t *testing.T) {
@@ -87,7 +94,7 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
@@ -102,7 +109,7 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing supervisor", func(t *testing.T) {
@@ -128,7 +135,7 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisor primary status", func(t *testing.T) {
@@ -152,7 +159,7 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
@@ -167,7 +174,7 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
@@ -189,7 +196,7 @@ func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Supervisor")
@@ -223,7 +230,7 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all supervisors", func(t *testing.T) {
@@ -245,7 +252,7 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors by staff ID", func(t *testing.T) {
@@ -391,7 +398,7 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
@@ -418,11 +425,20 @@ func TestSupervisorPlannedRepository_Delete_NonExistent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivitySupervisor
+	repo := plannedSupervisorRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent supervisor", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
 		require.NoError(t, err)
 	})
+}
+
+func TestSupervisorPlannedRepository_BlockersRejectMismatchedTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repo := plannedSupervisorRepository(t, db)
+
+	_, err := repo.ListPlannedSupervisionBlockers(testpkg.Ctx(t), 1, testpkg.Tenant(t)+1)
+	require.ErrorContains(t, err, "tenant context does not match requested tenant")
 }
