@@ -16,12 +16,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewUnobservedTimetable constructs the same owner for legacy tests and CLI
-// roots. The HTTP root supplies its observed capability to NewFactory.
-func NewUnobservedTimetable(db *bun.DB) timetable.Capability {
-	return NewUnobservedTimetableDependencies(db).Capability
-}
-
 type TimetableDependencies struct {
 	Capability timetable.Capability
 	Students   peopledirectory.Capability

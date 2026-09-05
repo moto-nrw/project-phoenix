@@ -27,7 +27,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableInstanceStudentRepository{timetable: NewUnobservedTimetable(db)}
+	slots := timetableInstanceStudentRepository{timetable: NewUnobservedTimetableDependencies(db).Capability}
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

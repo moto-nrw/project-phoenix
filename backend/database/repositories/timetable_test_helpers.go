@@ -73,7 +73,7 @@ type TimetableTestRepositories struct {
 }
 
 func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
-	bookings := NewUnobservedTimetable(db)
+	bookings := NewUnobservedTimetableDependencies(db).Capability
 	var now func() time.Time
 	if len(clocks) > 0 {
 		now = clocks[0]
