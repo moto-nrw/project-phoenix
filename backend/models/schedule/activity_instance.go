@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -159,10 +158,19 @@ func (i *ActivityInstance) Validate() error {
 	if i.ListKind != nil && *i.ListKind == "" {
 		i.ListKind = nil
 	}
-	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+	if i.ListKind != nil && !isValidInstanceListKind(*i.ListKind) {
 		return errors.New("invalid list kind")
 	}
 	return nil
+}
+
+func isValidInstanceListKind(kind string) bool {
+	switch kind {
+	case "", "edge_hours", "learning_time", "activity", "mensa":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsValidInstanceStatus returns true if s is one of the four permitted
