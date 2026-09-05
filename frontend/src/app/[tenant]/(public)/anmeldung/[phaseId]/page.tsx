@@ -31,7 +31,7 @@ interface PageProps {
 
 /**
  * Per-phase enrollment form page. The parent picks a phase on the
- * landing page (`/enroll`); this page renders the form scoped to that
+ * landing page (`/anmeldung`); this page renders the form scoped to that
  * phase. The form fetches its own schema + offerings using the phaseId,
  * and posts to /api/enrollment/{tenantSlug}/submit with phase_id set.
  *
@@ -138,7 +138,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
-            <PublicEnrollmentBackLink href="/enroll">
+            <PublicEnrollmentBackLink href="/anmeldung">
               {t("backToPicker")}
             </PublicEnrollmentBackLink>
             <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">

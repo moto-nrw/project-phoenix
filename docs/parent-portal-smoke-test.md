@@ -212,7 +212,7 @@ Run these steps after the PR 9 smoke test passes.
 
 1. Log in at `http://parents.localhost:3000/parents/login`.
 2. From the dashboard, click **+ Neue Anmeldung** (top-right).
-3. URL should change to `/parents/enroll`. The page lists every (school, open
+3. URL should change to `/parents/anmeldung`. The page lists every (school, open
    phase) pair the parent could submit a new enrollment to.
 4. Schools where the parent already has a child show a green
    **"Bereits ein Kind angemeldet"** badge and appear at the top of the list.
@@ -223,7 +223,7 @@ in the admin UI under Anmeldungen → Phasen.
 
 ### Step 10 — Embedded form + autofill
 
-1. Click any phase card. URL becomes `/parents/enroll/{slug}/{phaseId}`.
+1. Click any phase card. URL becomes `/parents/anmeldung/{slug}/{phaseId}`.
 2. The same form the public path uses appears, but **guardian fields are
    prefilled** (first name, last name, email, primary phone if set on the
    guardian profile in that school).
@@ -238,7 +238,7 @@ returns 200 (DevTools → Network).
 ### Step 11 — Authenticated submit + skip-invite
 
 1. Fill in any missing required fields (DOB, consents) and submit.
-2. The browser routes to `/enroll/status/{token}?submitted=1` (the public
+2. The browser routes to `/anmeldung/status/{token}?submitted=1` (the public
    status URL the form generates — same as the public path).
 3. Inspect the resulting `enrollment.requests` row:
    ```bash

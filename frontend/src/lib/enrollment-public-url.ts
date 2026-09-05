@@ -40,7 +40,9 @@ export function buildEnrollmentPublicUrl(
       : null);
   if (!loc || !tenantSlug) return "";
 
-  const path = phaseId ? `/enroll/${encodeURIComponent(phaseId)}` : "/enroll";
+  const path = phaseId
+    ? `/anmeldung/${encodeURIComponent(phaseId)}`
+    : "/anmeldung";
   const inSubdomainMode = loc.hostname.startsWith(`${tenantSlug}.`);
 
   if (inSubdomainMode) {

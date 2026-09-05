@@ -191,7 +191,7 @@ function PhaseRow({
   // (#1663).
   return (
     <Link
-      href={`/parents/enroll/${encodeURIComponent(
+      href={`/parents/anmeldung/${encodeURIComponent(
         phase.school_subdomain,
       )}/${encodeURIComponent(phase.phase_id)}`}
       aria-label={`${t("openPhase")}: ${phase.phase_name}`}

@@ -183,8 +183,8 @@ export function Header() {
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (
-      matchesPathPrefix(pathname, "/parents/enroll") ||
-      matchesPathPrefix(pathname, "/enroll")
+      matchesPathPrefix(pathname, "/parents/anmeldung") ||
+      matchesPathPrefix(pathname, "/anmeldung")
     )
       return tParentNav("enroll");
     return null;

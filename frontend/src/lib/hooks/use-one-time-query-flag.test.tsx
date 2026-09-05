@@ -16,12 +16,12 @@ function setLocation(path: string) {
 describe("useOneTimeQueryFlag", () => {
   beforeEach(() => {
     mockSearch.value = "";
-    setLocation("/enroll/status/tok");
+    setLocation("/anmeldung/status/tok");
   });
 
   it("returns false when the flag is absent and leaves the URL alone", () => {
     mockSearch.value = "duplicate_warning=1";
-    setLocation("/enroll/status/tok?duplicate_warning=1");
+    setLocation("/anmeldung/status/tok?duplicate_warning=1");
 
     const { result } = renderHook(() => useOneTimeQueryFlag("submitted"));
 
@@ -31,18 +31,18 @@ describe("useOneTimeQueryFlag", () => {
 
   it("returns true and strips the flag from the URL", () => {
     mockSearch.value = "submitted=1";
-    setLocation("/enroll/status/tok?submitted=1");
+    setLocation("/anmeldung/status/tok?submitted=1");
 
     const { result } = renderHook(() => useOneTimeQueryFlag("submitted"));
 
     expect(result.current).toBe(true);
     expect(window.location.search).toBe("");
-    expect(window.location.pathname).toBe("/enroll/status/tok");
+    expect(window.location.pathname).toBe("/anmeldung/status/tok");
   });
 
   it("keeps other query params and the hash when stripping", () => {
     mockSearch.value = "submitted=1&duplicate_warning=1";
-    setLocation("/enroll/status/tok?submitted=1&duplicate_warning=1#top");
+    setLocation("/anmeldung/status/tok?submitted=1&duplicate_warning=1#top");
 
     const { result } = renderHook(() => useOneTimeQueryFlag("submitted"));
 
@@ -53,7 +53,7 @@ describe("useOneTimeQueryFlag", () => {
 
   it("stays true after the URL rewrite for the lifetime of the component", () => {
     mockSearch.value = "submitted=1";
-    setLocation("/enroll/status/tok?submitted=1");
+    setLocation("/anmeldung/status/tok?submitted=1");
 
     const { result, rerender } = renderHook(() =>
       useOneTimeQueryFlag("submitted"),
@@ -67,7 +67,7 @@ describe("useOneTimeQueryFlag", () => {
 
   it("is false on a fresh mount once the flag is gone from the URL", () => {
     mockSearch.value = "";
-    setLocation("/enroll/status/tok");
+    setLocation("/anmeldung/status/tok");
 
     const { result } = renderHook(() => useOneTimeQueryFlag("submitted"));
 

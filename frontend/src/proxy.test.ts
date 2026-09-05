@@ -690,7 +690,7 @@ describe("proxy", () => {
     it("localizes tenant-prefixed enrollment paths on tenant subdomains", () => {
       const res = proxy(
         makeRequest(
-          `http://${TENANT_SUBDOMAIN_HOST}/school-a/enroll/phase-1`,
+          `http://${TENANT_SUBDOMAIN_HOST}/school-a/anmeldung/phase-1`,
           TENANT_SUBDOMAIN_HOST,
         ),
       );
@@ -770,7 +770,7 @@ describe("proxy", () => {
     it("localizes tenant-prefixed enrollment paths on the bare domain", () => {
       const res = proxy(
         makeRequest(
-          `http://localhost:3000/school-a/enroll/phase-1`,
+          `http://localhost:3000/school-a/anmeldung/phase-1`,
           "localhost:3000",
         ),
       );
@@ -791,6 +791,78 @@ describe("proxy", () => {
       );
 
       expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBeNull();
+    });
+  });
+
+  // Elternbriefe und E-Mails, die vor der Umbenennung verschickt wurden,
+  // zeigen weiter auf /enroll. Der Proxy muss sie auf jedem Host, der die
+  // Anmeldung ausliefert, auf /anmeldung umleiten (#2829).
+  describe("legacy /enroll links", () => {
+    const TENANT_SUBDOMAIN_HOST = "school-a.localhost:3000";
+
+    it("redirects the enrollment landing page on a tenant subdomain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enroll`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe("/anmeldung");
+    });
+
+    it("keeps phase and query string when redirecting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enroll/phase-1?ref=brief`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const location = new URL(res.headers.get("location")!);
+      expect(res.status).toBe(308);
+      expect(location.pathname).toBe("/anmeldung/phase-1");
+      expect(location.search).toBe("?ref=brief");
+    });
+
+    it("redirects the status link on the parents host", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/enroll/status/tok`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe(
+        "/anmeldung/status/tok",
+      );
+    });
+
+    it("redirects tenant-prefixed paths on the bare domain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/school-a/enroll/phase-1`,
+          "localhost:3000",
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe(
+        "/school-a/anmeldung/phase-1",
+      );
+    });
+
+    it("leaves unrelated paths alone", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enrollment-phases`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
     });
   });
 

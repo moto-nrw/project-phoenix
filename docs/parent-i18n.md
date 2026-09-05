@@ -3,8 +3,8 @@
 Project Phoenix localizes only parent-facing paths in the first stage:
 
 - `/parents/*`
-- public enrollment at `/enroll/{phaseId}`
-- authenticated parent enrollment at `/parents/enroll/{slug}/{phaseId}`
+- public enrollment at `/anmeldung/{phaseId}`
+- authenticated parent enrollment at `/parents/anmeldung/{slug}/{phaseId}`
 
 The staff/tenant portal and operator portal stay German. Shared components must
 therefore opt into localized copy explicitly. For example,
