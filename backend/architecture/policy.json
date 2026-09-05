@@ -9973,78 +9973,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.to.care-plan-adapter",
-      "description": "Legacy composition installs the Care Plan compatibility adapters.",
-      "scopes": ["production"],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
-    },
-    {
-      "id": "root-composition.to.care-plan-adapter",
-      "description": "The production root supplies ambient database resolution to Care Plan.",
-      "scopes": ["production"],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
-    },
-    {
-      "id": "care-plan.adapter.public",
-      "description": "The compatibility adapter delegates to the Care Plan facade.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.adapter.people-public",
-      "description": "The offering-change compatibility adapter resolves person search through People Directory.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.adapter.people-postgres",
-      "description": "The compatibility adapter preserves legacy repository errors.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.enrollment-domain",
-      "description": "The compatibility adapter preserves legacy enrollment contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "enrollment",
-      "target_role": "domain"
-    },
-    {
-      "id": "care-plan.adapter.transaction-domain",
-      "description": "The compatibility adapter preserves legacy database error and queue filter contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "care-plan.adapter.legacy-date",
-      "description": "The compatibility adapter maps legacy calendar-date values at its boundary.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
       "id": "care-plan.postgres.public",
       "description": "Care Plan Postgres adapters use the owner facade vocabulary.",
       "scopes": ["production"],
@@ -10072,41 +10000,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-plan.adapter.transaction-postgres",
-      "description": "The compatibility adapter joins the ambient database transaction.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.parent-postgres",
-      "description": "The compatibility adapter supplies runtime composition to legacy Care Plan repositories.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.orm-sql",
-      "description": "The compatibility adapter accepts the concrete Bun database from composition.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "care-plan.adapter.compose",
-      "description": "The compatibility adapter supplies ambient database resolution to Care Plan composition.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "care-plan.testsupport.public",
       "description": "Care Plan test support exposes the owner facade.",
       "scopes": ["production"],
@@ -10123,15 +10016,6 @@
       "source_role": "test-support",
       "target_owner": "care-plan",
       "target_role": "compose"
-    },
-    {
-      "id": "care-plan.testsupport.adapter",
-      "description": "Care Plan test support exposes compatibility contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "test-support",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
     },
     {
       "id": "care-plan.testsupport.enrollment-domain",
