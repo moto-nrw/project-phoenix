@@ -9,14 +9,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const linkStatus = vi.hoisted(() => ({ pending: false }));
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
-const router = vi.hoisted(() => ({
-  back: vi.fn(),
-  forward: vi.fn(),
-  prefetch: vi.fn(),
-  push: vi.fn(),
-  refresh: vi.fn(),
-  replace: vi.fn(),
-}));
+type RouterMock = Pick<
+  AppRouterInstance,
+  "back" | "forward" | "prefetch" | "push" | "refresh" | "replace"
+>;
+const router = vi.hoisted(
+  () =>
+    ({
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+      push: vi.fn(),
+      refresh: vi.fn(),
+      replace: vi.fn(),
+    }) satisfies RouterMock,
+);
 
 vi.mock("next/link", () => ({
   useLinkStatus: () => linkStatus,
