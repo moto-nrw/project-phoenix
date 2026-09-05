@@ -6,8 +6,9 @@ import { StudentCardPageSkeleton } from "~/components/students/student-card-skel
 export function StudentSearchPageSkeleton() {
   return (
     <StudentCardPageSkeleton
-      label="Alle Kinder werden geladen"
+      label="Kinder werden geladen"
       testId="students-search-skeleton"
+      title="Alle Kinder"
     />
   );
 }

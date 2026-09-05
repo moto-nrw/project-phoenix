@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -41,7 +40,7 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, scope.TenantID, "Track metadata")
-	repos := repositories.NewFactory(db)
+	repos := mustTimetableTestRepositories(db)
 	track := &scheduleModel.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 3}
 	require.NoError(t, repos.PlanningTrack.Create(scope.Context(), track))
 	_, err := db.NewUpdate().Table("activities.groups").

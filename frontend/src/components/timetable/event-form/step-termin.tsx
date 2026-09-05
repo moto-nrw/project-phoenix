@@ -7,6 +7,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { PlanningTrack } from "~/lib/planning-track-api";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import {
   timetableRequiredMark,
@@ -155,7 +156,11 @@ export function StepTermin({
                   >
                     <span
                       className="text-sm font-semibold"
-                      style={{ color: isActive ? color : "#374151" }}
+                      style={{
+                        color: isActive
+                          ? color
+                          : MOTO_COLOR_PALETTE.neutral.strong,
+                      }}
                     >
                       {option.label}
                     </span>

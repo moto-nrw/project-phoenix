@@ -67,6 +67,11 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { LogoutModal } from "~/components/ui/logout-modal";
+import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
+import { RefreshButton } from "./header/refresh-button";
+import { Bell, Eye } from "lucide-react";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -584,6 +589,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
+  // Unter lg gibt es keine Shell-Kopfzeile mehr (Eltern-App-Muster), also
+  // auch keinen Avatar mit Profilmenü: Profil und Abmelden wohnen hier im
+  // „Mehr"-Menü, wie in der Eltern-App.
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [staffPreviewModalOpen, setStaffPreviewModalOpen] = useState(false);
 
   // Refs for sliding indicator
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -606,7 +616,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   } = useOptionalSupervision();
 
   // Get shell auth mode
-  const { mode } = useShellAuth();
+  const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =
+    useShellAuth();
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
@@ -1018,7 +1029,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     {/* Gruppenüberschrift wie in der Seitenleiste; die
                         Start- und Fußzeilen stehen ohne. */}
                     {group.label && (
-                      <p className="px-1 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
+                      <p className="px-1 text-xs font-semibold tracking-wider text-gray-500 uppercase">
                         {group.label}
                       </p>
                     )}
@@ -1081,11 +1092,115 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   </div>
                 ))}
               </div>
+              {(mode === "teacher" ||
+                mode === "operator" ||
+                isSessionExpired ||
+                canStartStaffPreview) && (
+                <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                  {isSessionExpired ? (
+                    <p className="bg-moto-red-soft text-moto-red-strong rounded-xl px-4 py-3 text-sm font-medium">
+                      Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut
+                      an.
+                    </p>
+                  ) : null}
+                  {mode !== "parent" ? <RefreshButton drawer /> : null}
+                  {mode === "teacher" ? (
+                    <ButtonLink
+                      href={tenantPath("/reminders")}
+                      onClick={closeOverflowMenu}
+                      variant="ghost"
+                      size="touch"
+                      className="w-full justify-start gap-3 px-4"
+                    >
+                      <Bell
+                        className="h-5 w-5 text-gray-600"
+                        aria-hidden="true"
+                      />
+                      <span className="text-base font-medium">
+                        Erinnerungen
+                      </span>
+                    </ButtonLink>
+                  ) : null}
+                  {mode === "teacher" && canStartStaffPreview ? (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        closeOverflowMenu();
+                        setStaffPreviewModalOpen(true);
+                      }}
+                      variant="ghost"
+                      size="touch"
+                      className="w-full justify-start gap-3 px-4"
+                    >
+                      <Eye
+                        className="h-5 w-5 text-gray-600"
+                        aria-hidden="true"
+                      />
+                      <span className="text-base font-medium">
+                        Ansicht eines Mitarbeitenden
+                      </span>
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+              {/* Konto-Zeilen wie im „Mehr"-Menü der Eltern-App: ohne
+                  Shell-Kopfzeile gibt es mobil keinen Avatar mehr, Profil
+                  und Abmelden brauchen deshalb hier einen Platz. */}
+              <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                {profileUrl ? (
+                  <ButtonLink
+                    href={
+                      mode === "teacher" ? tenantPath(profileUrl) : profileUrl
+                    }
+                    onClick={closeOverflowMenu}
+                    variant={isActiveRoute(profileUrl) ? "surface" : "ghost"}
+                    size="touch"
+                    className="w-full justify-start gap-3 px-4"
+                  >
+                    <MobileNavIcon
+                      item={{ iconKey: "profile" }}
+                      active={isActiveRoute(profileUrl)}
+                      className="h-5 w-5 text-gray-600"
+                    />
+                    <span className="text-base font-medium">Profil</span>
+                  </ButtonLink>
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={() => {
+                    closeOverflowMenu();
+                    setLogoutModalOpen(true);
+                  }}
+                  variant="ghost"
+                  size="touch"
+                  className="w-full justify-start gap-3 px-4"
+                >
+                  <MobileNavIcon
+                    item={{ iconKey: "profile", concept: "logout" }}
+                    active={false}
+                    className="h-5 w-5 text-gray-600"
+                  />
+                  <span className="text-base font-medium text-gray-900">
+                    Abmelden
+                  </span>
+                </Button>
+              </div>
             </div>
             <div className="pb-8" />
           </div>
         </DrawerContent>
       </Drawer>
+
+      <LogoutModal
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+      />
+      {mode === "teacher" && canStartStaffPreview ? (
+        <StaffPreviewModal
+          isOpen={staffPreviewModalOpen}
+          onClose={() => setStaffPreviewModalOpen(false)}
+        />
+      ) : null}
 
       {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav

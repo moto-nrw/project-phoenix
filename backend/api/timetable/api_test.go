@@ -12,9 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -1502,7 +1503,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewGuardianProfileTestRepository(db)
 	email := fmt.Sprintf("period-delete-rollback-%d@test.local", time.Now().UnixNano())
 	profile := &users.GuardianProfile{
 		FirstName:              "Period",
@@ -1563,7 +1564,7 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 		require.NoError(t, cleanupErr)
 	})
 
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewGuardianProfileTestRepository(db)
 	email := fmt.Sprintf("period-care-conflict-rollback-%d@test.local", time.Now().UnixNano())
 	profile := &users.GuardianProfile{
 		FirstName:              "CarePeriod",

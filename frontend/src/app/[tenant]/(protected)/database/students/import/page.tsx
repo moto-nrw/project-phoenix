@@ -8,6 +8,8 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -456,71 +458,71 @@ export default function StudentImportPage() {
         ? `${childCountLabel(stats.existing)} aktualisieren`
         : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0
+          ? `${stats.errors} ${stats.errors === 1 ? "Fehler" : "Fehler"}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Noch keine Datei gewählt";
+
   if (status === "loading") {
     return (
-      <SkeletonRegion label="Kinder-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <TenantPage title="Kinder importieren" stats={statusLine} back>
+        <SkeletonRegion label="Kinder-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </TenantPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
+    <TenantPage title="Kinder importieren" stats={statusLine} back>
       {/* Info Section */}
-      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <Info
-              className="text-moto-blue-strong h-6 w-6"
-              aria-hidden="true"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              Import-Anleitung
-            </h3>
-            <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
-              <li>
-                Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
-                TT.MM.JJJJ oder TT.MM.JJ
-              </li>
-              <li>
-                Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
-                Erziehungsberechtigte. Das Blatt „Hinweise" erklärt jede Spalte
-              </li>
-              <li>Speichern Sie die ausgefüllte Datei</li>
-              <li>
-                Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-              </li>
-              <li>Bestätigen Sie den Import</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <SectionCard title="Import-Anleitung" icon={Info}>
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
+          <li>
+            Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
+            oder TT.MM.JJ
+          </li>
+          <li>
+            Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+            Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
+          </li>
+          <li>Speichern Sie die ausgefüllte Datei</li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
         <div className="relative">
           <Alert type="error" message={error} />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Download Template Button */}
-      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 1: Vorlage herunterladen
-        </h3>
+      <SectionCard title="Vorlage herunterladen" icon={Download}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -571,13 +573,9 @@ export default function StudentImportPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 2: Was soll der Import tun?
-        </h3>
+      <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>
         <SegmentedControl
           items={IMPORT_MODE_ITEMS}
           value={mode}
@@ -590,7 +588,7 @@ export default function StudentImportPage() {
           Bekannt ist eine Zeile über Vorname, Nachname und Klasse. Bei
           Klassenwechsel über die RFID-Karte oder den Geburtstag.
         </p>
-      </div>
+      </SectionCard>
 
       {/* Upload Section */}
       <UploadSection
@@ -620,18 +618,8 @@ export default function StudentImportPage() {
           />
 
           {/* Data List */}
-          <div className="moto-content-surface overflow-hidden rounded-xl border shadow-sm">
-            <div className="border-b border-gray-100 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <ListChecks
-                  className="h-5 w-5 text-gray-600"
-                  aria-hidden="true"
-                />
-                Schritt 4: Datenvorschau
-              </h3>
-            </div>
-
-            <div className="space-y-2 p-3">
+          <SectionCard title="Datenvorschau" icon={ListChecks}>
+            <div className="space-y-2">
               {previewData.map((student, idx) => (
                 <StudentRowCard
                   key={student.row}
@@ -652,31 +640,35 @@ export default function StudentImportPage() {
                 />
               ))}
             </div>
-          </div>
+          </SectionCard>
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
 
           {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-            <button
+          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className="flex-1"
               onClick={resetForm}
-              className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              onClick={() => void handleImport()}
+              variant="success"
+              size="md"
+              className="flex-1"
               disabled={stats.errors > 0 || isImporting || isLoading}
-              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
+              onClick={() => void handleImport()}
             >
-              {isImporting ? "Importiere..." : importLabel}
-            </button>
+              {isImporting ? "Wird importiert…" : importLabel}
+            </Button>
           </div>
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }

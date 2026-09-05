@@ -306,12 +306,12 @@ describe("SettingsCategory collapsible (#2830)", () => {
     expect(getByText("A, B, C und 2 weitere")).toBeDefined();
   });
 
-  it("filterQuery keeps only matching settings and shows the kicker", () => {
+  it("filterQuery keeps only matching settings and shows the tab label", () => {
     const { getByText, queryByText } = renderWithProviders(
       <SettingsCategory
         category={makeCategory()}
         filterQuery="name"
-        kicker="Betrieb"
+        tabLabel="Betrieb"
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,

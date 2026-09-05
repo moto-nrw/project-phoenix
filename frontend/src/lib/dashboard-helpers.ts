@@ -213,7 +213,8 @@ export function getActivityStatusColor(
     case "ending_soon":
       return "bg-moto-orange";
     default:
-      return "bg-gray-500";
+      // Unbekannt = LOCATION_COLORS.UNKNOWN (#78716C)
+      return "bg-moto-stone";
   }
 }
 
@@ -226,6 +227,7 @@ export function getGroupStatusColor(status: ActiveGroupInfo["status"]): string {
     case "preparing":
       return "bg-moto-blue";
     default:
-      return "bg-gray-500";
+      // Unbekannt = LOCATION_COLORS.UNKNOWN (#78716C)
+      return "bg-moto-stone";
   }
 }

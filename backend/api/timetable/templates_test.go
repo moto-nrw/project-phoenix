@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -115,7 +114,7 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 
 func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t, clocks...)
+	db, serviceFactory := testutil.SetupTimetableModule(t, clocks...)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -125,7 +124,7 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 	staffB := testpkg.CreateTestStaff(t, db, "Tpl", fmt.Sprintf("StaffB-%d", suffix))
 	studentA := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentA-%d", suffix), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := mustTimetableTestRepositories(db)
 
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db, clocks...),
@@ -992,7 +991,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, periodBEnrollment))
+	require.NoError(t, mustTimetableTestRepositories(s.db).StudentEnrollment.Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
@@ -1000,7 +999,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
 	globalEnrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, globalEnrollment))
+	require.NoError(t, mustTimetableTestRepositories(s.db).StudentEnrollment.Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
@@ -1139,7 +1138,7 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 	}
 	protected.SetTenantID(tenant.FromContext(s.ctx))
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, mustTimetableTestRepositories(s.db).StudentEnrollment.Create(s.ctx, protected))
 
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
@@ -1735,7 +1734,7 @@ func createCapacityEnrollment(
 		SelectedWeekdays: selectedWeekdays,
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, enrollment))
+	require.NoError(t, mustTimetableTestRepositories(s.db).StudentEnrollment.Create(s.ctx, enrollment))
 }
 
 func createCapacitySupervisor(
@@ -1936,8 +1935,8 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
-	stRepo := repositories.NewFactory(s.db).ShiftType
-	catRepo := repositories.NewFactory(s.db).ActivityCategory
+	stRepo := mustTimetableTestRepositories(s.db).ShiftType
+	catRepo := mustTimetableTestRepositories(s.db).ActivityCategory
 	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(s.ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })

@@ -268,7 +268,7 @@ describe("ActivitiesPage", () => {
     expect(screen.getByText("Schach")).toBeInTheDocument();
     expect(screen.getByText("Kunst")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Schach/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Schach öffnen" }));
 
     const modal = screen.getByTestId("activity-management-modal");
     expect(modal).toBeInTheDocument();
@@ -313,9 +313,11 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     const buttons = screen.getAllByLabelText("Aktivität erstellen");
-    const lastButton = buttons[buttons.length - 1];
-    if (lastButton) {
-      fireEvent.click(lastButton);
+    expect(buttons).toHaveLength(1);
+    const button = buttons[0];
+    expect(button).toHaveClass("md:hidden");
+    if (button) {
+      fireEvent.click(button);
     }
 
     expect(screen.getByTestId("quick-create-modal")).toBeInTheDocument();
@@ -347,9 +349,11 @@ describe("ActivitiesPage", () => {
       mutate: mockMutate,
     } as never);
 
-    render(<ActivitiesPage />);
+    const { container } = render(<ActivitiesPage />);
 
-    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage) statt aus einem
+    // eigenen Seitenskelett.
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",
@@ -365,9 +369,9 @@ describe("ActivitiesPage", () => {
       mutate: mockMutate,
     } as never);
 
-    render(<ActivitiesPage />);
+    const { container } = render(<ActivitiesPage />);
 
-    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",
@@ -532,7 +536,7 @@ describe("ActivitiesPage modal interactions", () => {
     render(<ActivitiesPage />);
 
     // Open modal
-    fireEvent.click(screen.getByRole("button", { name: /Schach/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Schach öffnen" }));
     expect(screen.getByTestId("activity-management-modal")).toBeInTheDocument();
 
     // Trigger close (using the success button which internally closes)

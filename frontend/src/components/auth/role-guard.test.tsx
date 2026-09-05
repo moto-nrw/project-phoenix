@@ -84,6 +84,26 @@ describe("RoleGuard", () => {
     expect(screen.queryByText("Admin Content")).not.toBeInTheDocument();
   });
 
+  it("renders the permission state without a second page heading when embedded", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roles: ["user"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="adminOnly" embedded>
+        <div>Admin Content</div>
+      </RoleGuard>,
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Kein Zugriff" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
+  });
+
   it("renders children for caregiver on staffOnly", () => {
     mockUseSession.mockReturnValue({
       data: { user: { roles: ["user"], token: "tok" } },

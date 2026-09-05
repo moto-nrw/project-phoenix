@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -34,8 +35,8 @@ func init() {
 
 // testContext holds shared test dependencies.
 type testContext struct {
+	services services.RoomsTestModule
 	db       *bun.DB
-	services *services.Factory
 	resource *Resource
 	router   chi.Router
 }
@@ -47,7 +48,7 @@ type testContext struct {
 func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupRoomsModule(t)
 
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
@@ -76,8 +77,8 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	}, db, slog.Default())
 
 	return &testContext{
-		db:       db,
 		services: svc,
+		db:       db,
 		resource: resource,
 		router:   resource.Router(),
 	}

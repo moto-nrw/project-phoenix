@@ -10,6 +10,51 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { StrictMode } from "react";
 
+// Vaul (SlideOver) rendert in jsdom nichts: das Panel, in dem die
+// Anmeldephasen jetzt bearbeitet werden, bliebe im Test leer. Derselbe Ersatz
+// wie in components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 const mocks = vi.hoisted(() => ({
   createCareOffering: vi.fn(),
   createLateInvite: vi.fn(),
@@ -1529,10 +1574,12 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Bearbeiten" }),
     );
-    const form = screen
-      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
-      .closest("form");
-    expect(form).not.toBeNull();
+    // Das Bearbeiten-Formular steht im SlideOver neben der Liste; die
+    // Überschrift trägt jetzt der Panelkopf, nicht mehr das Formular.
+    const form = document
+      .querySelector<HTMLInputElement>('input[name="name"]')
+      ?.closest("form");
+    expect(form).toBeTruthy();
     fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
@@ -1681,10 +1728,12 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Bearbeiten" }),
     );
-    const form = screen
-      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
-      .closest("form");
-    expect(form).not.toBeNull();
+    // Das Bearbeiten-Formular steht im SlideOver neben der Liste; die
+    // Überschrift trägt jetzt der Panelkopf, nicht mehr das Formular.
+    const form = document
+      .querySelector<HTMLInputElement>('input[name="name"]')
+      ?.closest("form");
+    expect(form).toBeTruthy();
     fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
     fireEvent.click(
       await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
@@ -2048,7 +2097,11 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     expect(await screen.findByText("Schuljahr 2026/27")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Neue Anmeldephase" }));
+    // Die Aktion liegt jetzt im Seitenkopf und rendert dort responsiv zweimal
+    // (mobile Kopfzeile und Desktop-Zeile).
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+    );
     fireEvent.change(inputByName("name"), {
       target: { value: "Sommerferien" },
     });
@@ -2133,7 +2186,7 @@ describe("PhasesEditor", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
     );
-    fireEvent.change(inputByName("name"), {
+    fireEvent.change(await waitForInputByName("name"), {
       target: { value: "   " },
     });
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
@@ -2198,8 +2251,10 @@ describe("PhasesEditor", () => {
       await screen.findByRole("menuitem", { name: "Manuelle Anmeldung" }),
     );
 
+    // Die manuelle Anmeldung laeuft seit der Dialog-Diaet als SlideOver; im
+    // Vaul-Mock traegt das Panel keine dialog-Rolle, deshalb der Titel.
     expect(
-      await screen.findByRole("dialog", {
+      await screen.findByRole("heading", {
         name: "Kind manuell über Anmeldung freigeben",
       }),
     ).toBeInTheDocument();
@@ -2658,7 +2713,7 @@ describe("EnrollmentFormEditor", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Speichert..." }),
+      await screen.findByRole("button", { name: "Speichert…" }),
     ).toBeDisabled();
 
     await act(async () => {
@@ -2671,7 +2726,7 @@ describe("EnrollmentFormEditor", () => {
       );
     });
     expect(
-      screen.queryByRole("button", { name: "Speichert..." }),
+      screen.queryByRole("button", { name: "Speichert…" }),
     ).not.toBeInTheDocument();
   });
 

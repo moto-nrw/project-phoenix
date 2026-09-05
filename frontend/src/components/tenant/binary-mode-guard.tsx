@@ -1,6 +1,6 @@
 "use client";
 
-import { notFound } from "next/navigation";
+import { FeatureOffPage } from "~/components/ui/feature-off-page";
 import { usePresenceMode } from "~/lib/tenant-context";
 
 /**
@@ -25,10 +25,21 @@ import { usePresenceMode } from "~/lib/tenant-context";
  * loads. A wrapper component centralises the decision and keeps the gate
  * next to the route boundary.
  */
-export function BinaryModeGuard({ children }: { children: React.ReactNode }) {
+export function BinaryModeGuard({
+  children,
+  title = "Nicht eingeschaltet",
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   const mode = usePresenceMode();
   if (mode === "binary") {
-    notFound();
+    return (
+      <FeatureOffPage
+        title={title}
+        description="Ihre Schule erfasst nur, ob ein Kind da ist oder nicht. Räume und Aktivitäten werden dabei nicht geführt."
+      />
+    );
   }
   return <>{children}</>;
 }

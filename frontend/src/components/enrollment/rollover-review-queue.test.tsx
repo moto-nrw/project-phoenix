@@ -20,6 +20,10 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
   };
 });
 
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: () => null,
+}));
+
 import { RolloverReviewQueue } from "./rollover-review-queue";
 import type { ReviewQueueItem } from "~/lib/enrollment-phase-api";
 
@@ -58,7 +62,7 @@ describe("RolloverReviewQueue", () => {
 
   it("renders items with localised review reason", async () => {
     mockListReview.mockResolvedValueOnce([makeItem()]);
-    render(<RolloverReviewQueue phaseID="77" phaseName="Schuljahr 2027" />);
+    render(<RolloverReviewQueue phaseID="77" />);
 
     await waitFor(() => {
       expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
@@ -68,8 +72,6 @@ describe("RolloverReviewQueue", () => {
       screen.getByText(/Klassenstufe über der Höchstgrenze/),
     ).toBeInTheDocument();
     expect(screen.getByText(/anna@example\.com/)).toBeInTheDocument();
-    // Header carries the phase name when supplied.
-    expect(screen.getByText(/Schuljahr 2027/)).toBeInTheDocument();
   });
 
   it("falls back to the raw review reason when no label exists", async () => {
@@ -88,9 +90,7 @@ describe("RolloverReviewQueue", () => {
     render(<RolloverReviewQueue phaseID="77" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Aktuell keine offenen Einträge in der Prüfliste/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeInTheDocument();
     });
   });
 
@@ -119,9 +119,7 @@ describe("RolloverReviewQueue", () => {
 
     // Empty state surfaces after the reload returns [].
     await waitFor(() => {
-      expect(
-        screen.getByText(/Aktuell keine offenen Einträge in der Prüfliste/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeInTheDocument();
     });
   });
 

@@ -11,6 +11,49 @@ const { mockExportPlan, mockToastError, mockToastSuccess } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
 }));
 
+// Vaul (SlideOver) rendert in jsdom nichts: der Export-Dialog bliebe im Test
+// leer. Derselbe Ersatz wie in components/ui/slide-over.test.tsx.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("~/lib/plan-export-api", async () => {
   const actual = await vi.importActual<typeof import("~/lib/plan-export-api")>(
     "~/lib/plan-export-api",
@@ -129,10 +172,10 @@ describe("PlanExportModal", () => {
     renderModal({ isWeekOnScreen: false });
 
     expect(
-      screen.getByRole("tab", { name: "Einzelne Woche" }),
+      screen.getByRole("button", { name: "Einzelne Woche" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Angezeigte Woche" }),
+      screen.queryByRole("button", { name: "Angezeigte Woche" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Woche vom 27\.07\.2026 bis 31\.07\.2026/),
@@ -142,7 +185,7 @@ describe("PlanExportModal", () => {
   it("refuses a range beyond the eight-week cap instead of failing server-side", async () => {
     renderModal();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Mehrere Wochen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mehrere Wochen" }));
     fireEvent.change(screen.getByLabelText("Von"), {
       target: { value: "2026-07-27" },
     });

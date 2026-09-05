@@ -22,6 +22,8 @@
  * Abwesenheit-mit-Ersatz vor quittiert vor abgesagt.
  */
 
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import {
   CoverageIndicator,
@@ -247,9 +249,9 @@ export function VertretungDayList({
     return (
       <div className={containerClassName}>
         {filter}
-        <p className="p-4 text-sm text-gray-500">
-          Keine Termine an diesem Tag.
-        </p>
+        <div className="px-4 py-2">
+          <EmptyState variant="compact" title="Keine Termine an diesem Tag" />
+        </div>
       </div>
     );
   }
@@ -271,14 +273,17 @@ export function VertretungDayList({
     <div className={containerClassName}>
       {filter}
       {!gapsAvailable && (
-        <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
-          Störungslage konnte nicht vollständig geprüft werden
-        </p>
+        <div className="border-b border-gray-200 p-3">
+          <Alert
+            type="warning"
+            message="Störungslage konnte nicht vollständig geprüft werden"
+          />
+        </div>
       )}
       {gapsAvailable && disturbed.length === 0 && (
-        <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
-          Keine Störungen an diesem Tag
-        </p>
+        <div className="border-b border-gray-200 px-3 py-2">
+          <EmptyState variant="compact" title="Keine Störungen an diesem Tag" />
+        </div>
       )}
       <VertretungRowList
         rows={visibleRows}

@@ -4,7 +4,9 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Button } from "./button";
 import { Modal } from "./modal";
 
-// Shared destructive-confirmation shell for the operator drill-in modals.
+// Shared destructive-confirmation shell for every destructive action in the
+// product. BAUARTEN-SPEC Bauart 2 Regel 6: Löschen ist portalweit dieses
+// Bauteil — kein window.confirm, kein eigenes Löschmodal je Domäne.
 // Two gate modes capture both flows we need today:
 //
 //   - twoStep: first click flips to a second confirm button. Used for delete
@@ -64,7 +66,7 @@ export function ConfirmDeleteModal({
   loading,
   error,
   confirmLabel = "Endgültig löschen",
-  loadingLabel = "Wird gelöscht...",
+  loadingLabel = "Wird gelöscht…",
 }: ConfirmDeleteModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [textInput, setTextInput] = useState("");
@@ -165,14 +167,14 @@ export function ConfirmDeleteModal({
             value={textInput}
             onChange={(event) => setTextInput(event.target.value)}
             placeholder={gate.placeholder}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF3130] focus:ring-1 focus:ring-[#FF3130] focus:outline-none"
+            className="focus:border-moto-red focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
             autoComplete="off"
           />
         </div>
       )}
 
       {error && (
-        <div className="mt-3 rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+        <div className="bg-moto-red/10 text-moto-red-strong mt-3 rounded-lg px-3 py-2 text-sm">
           {error}
         </div>
       )}

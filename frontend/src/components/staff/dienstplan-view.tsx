@@ -12,6 +12,7 @@ import { CalendarPeriodModal } from "~/components/timetable/calendar-period-moda
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
+import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import {
   ShiftEditModal,
   type ShiftEditMode,
@@ -21,7 +22,9 @@ import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -43,8 +46,6 @@ import {
   formatWeekLabel,
 } from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
-
-import { DienstplanGridSkeleton } from "./dienstplan-skeleton";
 
 const logger = createLogger({ component: "DienstplanView" });
 
@@ -275,16 +276,13 @@ function DienstplanContent() {
 
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
   // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
-  // Hinweis statt eines Rasters zeigen. Kein Artwork, kein Marketing-Ton.
-  const noStaffEmptyState = (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <p className="text-sm font-semibold text-gray-900">
-        Noch keine Mitarbeitenden angelegt
-      </p>
-      <p className="max-w-md text-sm leading-relaxed text-gray-600">
-        Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im
-        Dienstplan.
-      </p>
+  // Hinweis statt eines Rasters zeigen. Er kommt aus dem Gerüst (`empty`),
+  // nicht aus einer eigenen Karte im Inhalt.
+  const noStaffEmpty = {
+    title: "Noch keine Mitarbeitenden angelegt",
+    description:
+      "Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im Dienstplan.",
+    action: (
       <Button
         type="button"
         variant="outline"
@@ -293,43 +291,34 @@ function DienstplanContent() {
       >
         Zu den Mitarbeitenden
       </Button>
-    </div>
-  );
+    ),
+  };
 
-  // Inhaltsbereich als Zustandskaskade, damit die PlanningContextBar (oben)
-  // IMMER sichtbar bleibt — auch beim Daten-Laden und im Fehlerfall. Reihenfolge:
-  // Fehler → Laden → keine Mitarbeitenden → Ansicht. Fehler- und Ladezustand
-  // gelten für BEIDE Ansichten (K1/K2): ein fehlgeschlagener Staff-/Overview-Load
-  // darf im Halbjahr nicht mehr als Leerzustand erscheinen, und beim Laden zeigt
-  // der Inhaltsbereich das Grid-Skeleton statt die ganze Seite zu verwerfen.
-  let content: ReactNode;
-  if (scheduleError) {
-    content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="space-y-3">
-          <Alert
-            type="error"
-            message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
-          />
-          <button
-            type="button"
-            onClick={retryLoad}
-            className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
+  // Laden, Fehler und Leerzustand gehören dem Gerüst (Bauart 3 Regel 5): die
+  // Kopfkarte mit der Zeitnavigation bleibt stehen, der Inhaltsbereich wird
+  // ersetzt. Ein fehlgeschlagener Staff-/Overview-Load ist `error`, nie
+  // `empty` — auch nicht in der Halbjahres-Sicht.
+  const pageLoading = showSkeleton || scheduleLoading;
+  const pageError = scheduleError
+    ? {
+        message:
+          "Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden.",
+        action: (
+          <Button type="button" variant="outline" size="md" onClick={retryLoad}>
             Erneut laden
-          </button>
-        </div>
-      </div>
-    );
-  } else if (showSkeleton || scheduleLoading) {
-    content = <DienstplanGridSkeleton />;
-  } else if (sortedStaff.length === 0) {
-    content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        {noStaffEmptyState}
-      </div>
-    );
-  } else if (view === "halbjahr") {
+          </Button>
+        ),
+      }
+    : null;
+  const pageEmpty =
+    !pageError && !pageLoading && sortedStaff.length === 0
+      ? noStaffEmpty
+      : null;
+
+  // Der Inhalt wird nur gerendert, wenn das Gerüst ihn durchlässt — bei
+  // Laden, Fehler oder Leerzustand ersetzt `TenantPage` ihn vollständig.
+  let content: ReactNode;
+  if (view === "halbjahr") {
     // Halbjahres-Sicht (Personen × Kalenderwochen, docs/05 Abschnitt 3). Der
     // Leerzustand "Kein Planungszeitraum" lebt in der Grid-Komponente selbst.
     content = (
@@ -354,12 +343,13 @@ function DienstplanContent() {
           />
         )}
         {allShifts.length === 0 && (
-          // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
-          // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
-          // Raster, keine Alert-Box.
-          <p className="text-sm text-gray-500">
-            In dieser Woche sind keine Schichten geplant.
-          </p>
+          // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in der
+          // Woche. Als Hinweis aus dem Kit, nicht als freier Satz über dem
+          // Raster — Meldungen sind im Portal überall Alerts.
+          <Alert
+            type="info"
+            message="In dieser Woche sind keine Schichten geplant."
+          />
         )}
         <DienstplanResourceGrid
           staff={sortedStaff}
@@ -394,101 +384,117 @@ function DienstplanContent() {
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <PlanningContextBar
-        title="Dienstplan"
-        onPrevious={() => goToWeek(-7)}
-        onNext={() => goToWeek(7)}
-        previousLabel="Vorherige Woche"
-        nextLabel="Nächste Woche"
-        dateLabel={weekLabel}
-        onToday={isOnCurrentWeek ? undefined : goToToday}
-        viewSwitcher={
-          // Ohne schedules:read gibt es nur die Wochenansicht — ein
-          // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
-          canViewHalbjahr ? (
-            <Tabs
-              value={view}
-              onValueChange={(v) => setView(v as DienstplanView)}
-            >
-              <TabsList variant="default">
-                <TabsTrigger value="woche">Woche</TabsTrigger>
-                <TabsTrigger value="halbjahr">Halbjahr</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          ) : undefined
-        }
-        actions={
-          // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
-          // zweizeilig um und schob zusammen mit dem Ansichtsumschalter die
-          // ganze Zeile aus dem Viewport. EIN Button je Aktion mit
-          // ausgeblendetem Label statt zweier Breakpoint-Varianten — das
-          // `aria-label` hält sie für Screenreader und Tests unter demselben
-          // Namen auffindbar.
-          <>
-            {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
-                Exportseite, weil der Export immer die Woche meint, die gerade
-                auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
-            {canExportPlan && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                aria-label="Dienstplan drucken oder exportieren"
-                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-                onClick={() => setExportOpen(true)}
-              >
-                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  Drucken
-                </span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              aria-label="Schichtarten verwalten"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              onClick={() => setManageOpen(true)}
-              disabled={Boolean(shiftTypesError)}
-            >
-              <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Schichtarten verwalten
-              </span>
-            </Button>
-          </>
-        }
-      >
-        {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
-            damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
-            sichtbar, wechselbar und verwaltbar ist. */}
-        <PeriodSwitcherDropdown
-          periods={periods ?? []}
-          weekDays={weekDayDates}
-          isLoading={showSkeleton || periodsLoading}
-          onCreate={() => {
-            setEditingPeriod(null);
-            setPeriodModalOpen(true);
-          }}
-          onEdit={(period) => {
-            setEditingPeriod(period);
-            setPeriodModalOpen(true);
-          }}
-          onSelect={(period) =>
-            updateUrlParams({
-              d: firstSchoolDayInPeriod(
-                period.startDate,
-                period.endDate,
-                period.startDate,
-              ),
-            })
-          }
-        />
-      </PlanningContextBar>
+  // Statuszeile der Kopfkarte: der angezeigte Zeitraum und die Zahlen, die
+  // die Fläche ohnehin geladen hat. In der Halbjahres-Sicht steht die
+  // Wochenzahl nicht, weil dort keine einzelne Woche zu sehen ist.
+  // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
+  // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
+  // auf dem Telefon eine Zeile, die nichts sagte.
+  const statusLine = [
+    view === "woche"
+      ? `${allShifts.length} ${allShifts.length === 1 ? "Dienst" : "Dienste"}`
+      : null,
+    `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
+  return (
+    <TenantPage
+      title="Dienstplan"
+      stats={statusLine}
+      statsLoading={pageLoading}
+      // Struktur-Skelett statt der generischen Karten: ein Wochenraster lädt
+      // nicht wie eine Kartenliste.
+      loading={pageLoading ? <DienstplanGridSkeleton /> : false}
+      error={pageError}
+      empty={pageEmpty}
+      actions={
+        // Unter sm gibt das Gerüst jeder Textaktion eine volle Zeile; ein
+        // Knopf ohne Beschriftung wäre dort ein schwarzer Balken mit einem
+        // einsamen Symbol. Deshalb trägt der Knopf sein Label auf jeder
+        // Breite.
+        <>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setManageOpen(true)}
+            disabled={Boolean(shiftTypesError)}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
+            <span className="whitespace-nowrap">Schichtarten verwalten</span>
+          </Button>
+          {/* Drucken/Exportieren (#2079) meint immer die Woche, die gerade auf
+              dem Bildschirm steht -- deshalb hier und nicht auf der zentralen
+              Exportseite. Im Menü, weil neben dem Titel eine sichtbare Aktion
+              steht und nicht zwei. */}
+          {canExportPlan && (
+            <OverflowMenu
+              items={[
+                {
+                  label: "Drucken oder exportieren",
+                  icon: <Printer className="h-4 w-4" aria-hidden />,
+                  onClick: () => setExportOpen(true),
+                },
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          )}
+        </>
+      }
+      searchSlot={
+        <PlanningContextBar
+          onPrevious={() => goToWeek(-7)}
+          onNext={() => goToWeek(7)}
+          previousLabel="Vorherige Woche"
+          nextLabel="Nächste Woche"
+          dateLabel={weekLabel}
+          onToday={isOnCurrentWeek ? undefined : goToToday}
+          viewSwitcher={
+            // Ohne schedules:read gibt es nur die Wochenansicht — ein
+            // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
+            canViewHalbjahr ? (
+              <SegmentedControl
+                ariaLabel="Ansicht"
+                value={view}
+                onChange={(next) => setView(next as DienstplanView)}
+                items={[
+                  { value: "woche", label: "Woche" },
+                  { value: "halbjahr", label: "Halbjahr" },
+                ]}
+              />
+            ) : undefined
+          }
+        >
+          {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
+              damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
+              sichtbar, wechselbar und verwaltbar ist. */}
+          <PeriodSwitcherDropdown
+            periods={periods ?? []}
+            weekDays={weekDayDates}
+            isLoading={showSkeleton || periodsLoading}
+            onCreate={() => {
+              setEditingPeriod(null);
+              setPeriodModalOpen(true);
+            }}
+            onEdit={(period) => {
+              setEditingPeriod(period);
+              setPeriodModalOpen(true);
+            }}
+            onSelect={(period) =>
+              updateUrlParams({
+                d: firstSchoolDayInPeriod(
+                  period.startDate,
+                  period.endDate,
+                  period.startDate,
+                ),
+              })
+            }
+          />
+        </PlanningContextBar>
+      }
+    >
       {content}
 
       {modal && (
@@ -563,7 +569,7 @@ function DienstplanContent() {
           }}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

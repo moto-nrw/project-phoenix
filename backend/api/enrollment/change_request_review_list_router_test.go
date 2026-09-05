@@ -45,7 +45,8 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
 	var accountID int64

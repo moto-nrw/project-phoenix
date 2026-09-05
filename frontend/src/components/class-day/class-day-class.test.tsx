@@ -121,6 +121,9 @@ describe("classArrivalExceptionLine", () => {
 });
 
 describe("ClassDayClass", () => {
+  // Die Ansicht zeigt am Wochenende „Kein Schultag“ statt der Klassenliste.
+  // Ohne feste Uhr sind diese Fälle samstags und sonntags rot, deshalb ein
+  // fester Montag.
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");

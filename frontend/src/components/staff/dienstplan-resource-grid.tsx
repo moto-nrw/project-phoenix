@@ -765,12 +765,13 @@ export function DienstplanResourceGrid({
                 {capacityByDay.get(mobileColumn.key) ?? 0}
               </span>
             </div>
+            <div className="border-t border-gray-200 px-3 py-2">
+              <PlanLegend
+                entries={legendEntries}
+                aria-label="Legende Schichtarten und Zustände"
+              />
+            </div>
           </div>
-          <PlanLegend
-            className="mt-3 px-1"
-            entries={legendEntries}
-            aria-label="Legende Schichtarten und Zustände"
-          />
         </div>
       ) : (
         <div>
@@ -806,11 +807,12 @@ export function DienstplanResourceGrid({
               />
             }
             ariaLabel="Dienstplan-Wochenansicht"
-          />
-          <PlanLegend
-            className="mt-3 px-1"
-            entries={legendEntries}
-            aria-label="Legende Schichtarten und Zustände"
+            legend={
+              <PlanLegend
+                entries={legendEntries}
+                aria-label="Legende Schichtarten und Zustände"
+              />
+            }
           />
         </div>
       )}
