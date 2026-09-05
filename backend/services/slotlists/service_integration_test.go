@@ -32,6 +32,7 @@ import (
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
@@ -751,7 +752,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	row.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(f.db).Create(ctx, row))
+	require.NoError(t, newBoundInstanceStudentRepository(f.db).Create(ctx, row))
 
 	result, err := f.svc.BuildList(ctx, slotlists.Params{
 		Date:     listDate,
@@ -971,7 +972,7 @@ func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, planned.Slots, 1)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(f.db)
+	isRepo := newBoundInstanceStudentRepository(f.db)
 	rows, err := isRepo.FindByInstanceID(ctx, planned.Slots[0].InstanceID)
 	require.NoError(t, err)
 	patchedRow := false
@@ -3035,11 +3036,58 @@ func toEnrollmentDirectoryStudent(student *userModels.Student) enrollmentRepo.Di
 	return row
 }
 
-func newBoundInstanceStudentRepository(db *bun.DB) *scheduleRepo.InstanceStudentRepository {
-	repo := scheduleRepo.NewInstanceStudentRepository(db).(*scheduleRepo.InstanceStudentRepository)
-	repo.BindStudentDirectory(legacyStudentDirectory{students: usersRepo.NewStudentRepository(db)})
-	return repo
+type slotListInstanceStudents struct {
+	repository timetabletest.InstanceStudents
 }
+
+func newBoundInstanceStudentRepository(db *bun.DB) slotListInstanceStudents {
+	return slotListInstanceStudents{repository: timetabletest.NewInstanceStudents(slotListTestTB{}, db)}
+}
+
+func (r slotListInstanceStudents) Create(ctx context.Context, value *scheduleModels.InstanceStudent) error {
+	created, err := r.repository.Create(ctx, slotListInstanceStudent(value))
+	if err == nil {
+		value.ID = created.ID
+	}
+	return err
+}
+
+func (r slotListInstanceStudents) Update(ctx context.Context, value *scheduleModels.InstanceStudent) error {
+	_, err := r.repository.Update(ctx, slotListInstanceStudent(value))
+	return err
+}
+
+func (r slotListInstanceStudents) FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error) {
+	return r.FindByInstanceIDs(ctx, []int64{instanceID})
+}
+
+func (r slotListInstanceStudents) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error) {
+	values, err := r.repository.ListByInstanceIDs(ctx, instanceIDs)
+	result := make([]*scheduleModels.InstanceStudent, 0, len(values))
+	for _, value := range values {
+		row := &scheduleModels.InstanceStudent{InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
+			Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
+			CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
+			ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+		row.ID, row.CreatedAt, row.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
+		row.SetTenantID(value.TenantID)
+		result = append(result, row)
+	}
+	return result, err
+}
+
+func slotListInstanceStudent(value *scheduleModels.InstanceStudent) timetabletest.InstanceStudent {
+	return timetabletest.InstanceStudent{ID: value.ID, InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID,
+		Status: value.Status, Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt,
+		CheckedOutAt: value.CheckedOutAt, IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled,
+		ManualStatusAt: value.ManualStatusAt, StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+}
+
+type slotListTestTB struct{}
+
+func (slotListTestTB) Helper() {}
+
+func (slotListTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 func newBoundRequestChildOfferingRepository(db *bun.DB) *enrollmentRepo.RequestChildOfferingRepository {
 	repo := enrollmentRepo.NewRequestChildOfferingRepository(db).(*enrollmentRepo.RequestChildOfferingRepository)

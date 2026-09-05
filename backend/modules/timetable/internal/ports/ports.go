@@ -117,10 +117,36 @@ type Store interface {
 	ListInstanceStudents(context.Context, domain.InstanceStudentFilter) ([]domain.InstanceStudent, domain.OperationStats, error)
 	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
 	ListParallelStudentPresence(context.Context, int64, string, []int64) ([]domain.ParallelPresence, domain.OperationStats, error)
+	ListStudentInstanceRefsBefore(context.Context, string) ([]domain.StudentInstanceRef, domain.OperationStats, error)
+	ListScheduledInstancesForStudent(context.Context, int64, string, string) ([]domain.ScheduledInstanceRow, domain.OperationStats, error)
+	HasPlannedStudentSlots(context.Context, string, string) (bool, domain.OperationStats, error)
+	ListPlannedStudentIDs(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
+	ListPartialAbsenceBlocks(context.Context, int64, string, time.Time, bool, []int64) ([]domain.PartialAbsenceBlock, domain.OperationStats, error)
 	CreateInstanceStudent(context.Context, domain.InstanceStudentFields) (domain.InstanceStudent, domain.OperationStats, error)
 	UpdateInstanceStudent(context.Context, int64, domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error)
 	DeleteInstanceStudent(context.Context, int64) (domain.OperationStats, error)
 	DeleteInstanceStudentsByInstance(context.Context, int64) (domain.OperationStats, error)
+	UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, domain.OperationStats, error)
+	UpdateAttendanceFromCheckinBatch(context.Context, []domain.InstanceStudentKey, time.Time) (domain.OperationStats, error)
+	UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) (domain.OperationStats, error)
+	UpdateAttendanceCheckoutBatch(context.Context, []domain.InstanceStudentKey, time.Time) (domain.OperationStats, error)
+	CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (domain.InstanceStudent, domain.OperationStats, error)
+	ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, domain.OperationStats, error)
+	UpdateAttendanceFields(context.Context, int64, domain.AttendanceFieldPatch) (domain.OperationStats, error)
+	BulkUpdateStatus(context.Context, int64, string, string, []int64) (int64, domain.OperationStats, error)
+	MarkNotScheduled(context.Context, []domain.StudentInstanceRef) (domain.OperationStats, error)
+	MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []domain.StudentInstanceRef) (domain.OperationStats, error)
+	CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int64, domain.OperationStats, error)
+	ApplyStatusDay(context.Context, int64, string, int64, string, time.Time) (int64, domain.OperationStats, error)
+	ReleaseStatusDay(context.Context, int64, int64, *domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
+	ApplyActiveStatusDaysForInstance(context.Context, int64, []domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
+	ApplyPartialAbsence(context.Context, domain.PickupException, bool, time.Time) (int64, domain.OperationStats, error)
+	ReleasePartialAbsence(context.Context, int64, int64, *domain.StudentStatusDay, time.Time) (int64, domain.OperationStats, error)
+	ApplyActivePartialAbsencesForInstance(context.Context, int64, string, []domain.PickupException, time.Time) (int64, domain.OperationStats, error)
+	ArchivePlannedInstanceStudents(context.Context, int64, []int64, string, string, string) (int64, domain.OperationStats, error)
+	ListRosterRemovalCareDays(context.Context, int64, []int64, string) ([]domain.CareDay, domain.OperationStats, error)
+	ConsumeRosterRemovals(context.Context, int64, []int64) ([]domain.RosterRemoval, domain.OperationStats, error)
+	InsertRestoredInstanceStudents(context.Context, []domain.InstanceStudentFields) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {
@@ -129,6 +155,22 @@ type Transaction interface {
 
 type StudentDirectory interface {
 	ListEnrolledStudents(context.Context) ([]domain.TargetStudent, domain.OperationStats, error)
+}
+
+type CarePlanDirectory interface {
+	FindPickupException(context.Context, int64) (*domain.PickupException, error)
+	ListPickupExceptions(context.Context, domain.PickupExceptionFilter) ([]domain.PickupException, error)
+	FindStudentStatusDay(context.Context, int64, bool) (*domain.StudentStatusDay, error)
+	ListStudentStatusDays(context.Context, domain.StudentStatusDayFilter) ([]domain.StudentStatusDay, error)
+}
+
+type CareDayLocker interface {
+	LockStudentAndExceptionDay(context.Context, int64, string) error
+	LockExceptionDay(context.Context, int64, string) error
+}
+
+type RoomDirectory interface {
+	LockRoomsByID(context.Context, []int64) ([]domain.RoomRef, domain.OperationStats, error)
 }
 
 type Observation struct {

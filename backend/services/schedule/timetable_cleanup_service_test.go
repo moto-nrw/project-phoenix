@@ -14,6 +14,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -137,13 +138,25 @@ func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
+		testInstanceStudents(db),
 		repos.DataDeletion,
 		repos.DeviationEvent,
 		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
 	)
 }
+
+func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(scheduleTestTB{}, db))
+	return factory.InstanceStudent
+}
+
+type scheduleTestTB struct{}
+
+func (scheduleTestTB) Helper() {}
+
+func (scheduleTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 // --- Tests ---
 
@@ -277,7 +290,7 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		testInstanceStudents(f.db),
 		repos.DataDeletion,
 		repos.DeviationEvent,
 		newStubSettingsService(true, nil, 30, nil),
@@ -530,7 +543,7 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		testInstanceStudents(f.db),
 		&failingAuditRepo{err: errors.New("simulated audit failure")},
 		nil,
 		nil,

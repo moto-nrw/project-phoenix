@@ -29,7 +29,7 @@ func timetableDataWithArrivalBaseline(
 ) *scheduleService.TimetableDataService {
 	t.Helper()
 	return scheduleService.NewTimetableDataService(scheduleService.TimetableDataDependencies{
-		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(env.db),
+		InstanceStudentRepo:   env.repos.InstanceStudent,
 		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(env.db),
 		ActivityScheduleRepo:  env.repos.ActivitySchedule,

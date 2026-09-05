@@ -1843,6 +1843,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetable/compose/httpadapter",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/timetable/compose/httpintegration",
       "owner": "timetable-activities",
       "role": "compose",

@@ -1,4 +1,4 @@
-package compose
+package httpadapter
 
 import (
 	"github.com/go-chi/render"

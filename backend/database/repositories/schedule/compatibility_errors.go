@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -20,6 +21,44 @@ type ActivityExceptionDate = timezone.Date
 type ActivityInstanceDate = timezone.Date
 type InstanceStaffDate = timezone.Date
 type InstanceStudentDate = timezone.Date
+
+type PickupExceptionProjection struct {
+	ID            int64
+	StudentID     int64
+	ExceptionDate string
+	ExcusedFrom   *time.Time
+	ExcusedAuto   bool
+}
+
+type PickupExceptionFilter struct {
+	IDs        []int64
+	StudentIDs []int64
+	Date       string
+	From       string
+}
+
+type StudentStatusDayProjection struct {
+	ID        int64
+	StudentID int64
+	Date      string
+	Status    string
+}
+
+type StudentStatusDayFilter struct {
+	IDs        []int64
+	StudentIDs []int64
+	Date       string
+	From       string
+	ActiveOnly bool
+	LatestOnly bool
+}
+
+type PickupExceptionDirectory interface {
+	FindPickupException(context.Context, int64) (*PickupExceptionProjection, error)
+	ListPickupExceptions(context.Context, PickupExceptionFilter) ([]PickupExceptionProjection, error)
+	FindStudentStatusDay(context.Context, int64, bool) (*StudentStatusDayProjection, error)
+	ListStudentStatusDays(context.Context, StudentStatusDayFilter) ([]StudentStatusDayProjection, error)
+}
 
 func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
 	return timezone.ParseDate(value)

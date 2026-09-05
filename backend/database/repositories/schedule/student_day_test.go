@@ -23,7 +23,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := instanceStudentRepository(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
 
@@ -124,7 +124,7 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := instanceStudentRepository(t, db)
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
@@ -236,7 +236,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := instanceStudentRepository(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Mila", fmt.Sprintf("HP-%d", time.Now().UnixNano()), "2b")
 
@@ -313,7 +313,7 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *t
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	repo := instanceStudentRepository(t, db)
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("HPC-%d", time.Now().UnixNano()), "4c")

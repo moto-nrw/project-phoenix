@@ -556,6 +556,17 @@ func scanAll(ctx context.Context, query *bun.SelectQuery, operation string) (dom
 	return stats, nil
 }
 
+func scanAllInto(ctx context.Context, query *bun.SelectQuery, destination any, operation string) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err := query.Scan(ctx, destination)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("timetable postgres: %s: %w", operation, err)
+	}
+	return stats, nil
+}
+
 func classifyWriteError(operation string, err error, stats *domain.OperationStats) error {
 	var postgresError pgdriver.Error
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() {

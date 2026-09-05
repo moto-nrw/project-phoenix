@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -107,7 +108,16 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	f.ActivityInstance = instances
 	f.InstanceIdempotency = instances
 	f.InstanceStaff = timetableInstanceStaffRepository{timetable: capability}
-	f.InstanceStudent = timetableInstanceStudentRepository{InstanceStudentRepository: f.InstanceStudent, timetable: capability}
+	instanceStudents, ok := f.InstanceStudent.(*timetableInstanceStudentProxy)
+	if !ok {
+		panic("repository factory: instance student owner proxy is unavailable")
+	}
+	instanceStudents.Bind(capability)
+	if f.carePlan != nil {
+		f.InstanceStudent.(interface {
+			BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+		}).BindCarePlan(pickupExceptionDirectory{query: f.carePlan})
+	}
 }
 
 func (f *Factory) decorateActivityGroups(groups activitiesModels.GroupRepository) activitiesModels.GroupRepository {

@@ -23,11 +23,13 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB       *bun.DB
 	Students StudentDirectory
+	Rooms    timetable.RoomDirectory
+	CareDays timetable.CareDayLocker
 	Observe  func(Observation)
 }
 
 func New(dependencies Dependencies) (*timetable.Module, error) {
-	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.CareDays == nil || dependencies.Observe == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -35,9 +37,62 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students},
+	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.CareDays,
 		func() string { return timezone.TodayDate().String() }, observe)
 	return timetable.NewModule(engine{service: service, observe: observe}), nil
+}
+
+type roomDirectory struct{ query timetable.RoomDirectory }
+
+func (d roomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]domain.RoomRef, domain.OperationStats, error) {
+	values, err := d.query.LockRoomsByID(ctx, ids)
+	result := make([]domain.RoomRef, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.RoomRef(value))
+	}
+	return result, domain.OperationStats{}, err
+}
+
+type carePlanDirectory struct{ query timetable.CarePlanDirectory }
+
+func (e engine) BindCarePlan(directory timetable.CarePlanDirectory) {
+	e.service.BindCarePlan(carePlanDirectory{query: directory})
+}
+
+func (d carePlanDirectory) FindPickupException(ctx context.Context, id int64) (*domain.PickupException, error) {
+	value, err := d.query.FindPickupException(ctx, id)
+	if value == nil || err != nil {
+		return nil, err
+	}
+	result := domain.PickupException(*value)
+	return &result, nil
+}
+
+func (d carePlanDirectory) ListPickupExceptions(ctx context.Context, filter domain.PickupExceptionFilter) ([]domain.PickupException, error) {
+	values, err := d.query.ListPickupExceptions(ctx, timetable.PickupExceptionFilter(filter))
+	result := make([]domain.PickupException, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.PickupException(value))
+	}
+	return result, err
+}
+
+func (d carePlanDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*domain.StudentStatusDay, error) {
+	value, err := d.query.FindStudentStatusDay(ctx, id, activeOnly)
+	if value == nil || err != nil {
+		return nil, err
+	}
+	result := domain.StudentStatusDay(*value)
+	return &result, nil
+}
+
+func (d carePlanDirectory) ListStudentStatusDays(ctx context.Context, filter domain.StudentStatusDayFilter) ([]domain.StudentStatusDay, error) {
+	values, err := d.query.ListStudentStatusDays(ctx, timetable.StudentStatusDayFilter(filter))
+	result := make([]domain.StudentStatusDay, 0, len(values))
+	for _, value := range values {
+		result = append(result, domain.StudentStatusDay(value))
+	}
+	return result, err
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -721,6 +776,145 @@ func (e engine) DeleteInstanceStudentsByInstance(ctx context.Context, instanceID
 	return mapError(e.service.DeleteInstanceStudentsByInstance(ctx, instanceID))
 }
 
+func (e engine) UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error) {
+	updated, err := e.service.UpdateAttendanceFromCheckin(ctx, instanceID, studentID, checkedInAt)
+	return updated, mapError(err)
+}
+
+func (e engine) UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []timetable.InstanceStudentKey, checkedInAt time.Time) error {
+	return mapError(e.service.UpdateAttendanceFromCheckinBatch(ctx, domainInstanceStudentKeys(keys), checkedInAt))
+}
+
+func (e engine) UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error {
+	return mapError(e.service.UpdateAttendanceCheckout(ctx, instanceID, studentID, checkedOutAt))
+}
+
+func (e engine) UpdateAttendanceCheckoutBatch(ctx context.Context, keys []timetable.InstanceStudentKey, checkedOutAt time.Time) error {
+	return mapError(e.service.UpdateAttendanceCheckoutBatch(ctx, domainInstanceStudentKeys(keys), checkedOutAt))
+}
+
+func (e engine) CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (timetable.InstanceStudent, error) {
+	value, err := e.service.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, checkedInAt)
+	return instanceStudentToPublic(value), mapError(err)
+}
+
+func (e engine) ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error) {
+	updated, err := e.service.ReconcileAttendanceInterval(ctx, instanceID, studentID, previousCheckIn, previousCheckOut, updatedCheckIn, updatedCheckOut)
+	return updated, mapError(err)
+}
+
+func (e engine) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) ([]timetable.StudentInstanceRef, error) {
+	values, err := e.service.ListStudentInstanceRefsBefore(ctx, cutoff)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.StudentInstanceRef, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.StudentInstanceRef(value))
+	}
+	return result, nil
+}
+
+func (e engine) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]timetable.ScheduledInstanceRow, error) {
+	values, err := e.service.ListScheduledInstancesForStudent(ctx, studentID, from, to)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.ScheduledInstanceRow, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.ScheduledInstanceRow{
+			Instance: activityInstanceToPublic(value.Instance), Attendance: instanceStudentToPublic(value.Attendance),
+		})
+	}
+	return result, nil
+}
+
+func (e engine) HasPlannedStudentSlots(ctx context.Context, from, to string) (bool, error) {
+	result, err := e.service.HasPlannedStudentSlots(ctx, from, to)
+	return result, mapError(err)
+}
+
+func (e engine) ListPlannedStudentIDs(ctx context.Context, studentIDs []int64, date string) ([]int64, error) {
+	result, err := e.service.ListPlannedStudentIDs(ctx, studentIDs, date)
+	return result, mapError(err)
+}
+
+func (e engine) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time) ([]timetable.PartialAbsenceBlock, error) {
+	values, err := e.service.ListPartialAbsenceBlocks(ctx, studentID, date, from)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.PartialAbsenceBlock, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.PartialAbsenceBlock(value))
+	}
+	return result, nil
+}
+
+func (e engine) UpdateAttendanceFields(ctx context.Context, id int64, patch timetable.AttendanceFieldPatch) error {
+	return mapError(e.service.UpdateAttendanceFields(ctx, id, domain.AttendanceFieldPatch(patch)))
+}
+
+func (e engine) BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string, excludedStudentIDs []int64) (int, error) {
+	rows, err := e.service.BulkUpdateStatus(ctx, instanceID, fromStatus, toStatus, excludedStudentIDs)
+	return rows, mapError(err)
+}
+
+func (e engine) MarkNotScheduled(ctx context.Context, refs []timetable.StudentInstanceRef) error {
+	return mapError(e.service.MarkNotScheduled(ctx, domainStudentInstanceRefs(refs)))
+}
+
+func (e engine) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, exclusions []timetable.StudentInstanceRef) error {
+	return mapError(e.service.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, updatedAt, domainStudentInstanceRefs(exclusions)))
+}
+
+func (e engine) CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error) {
+	rows, err := e.service.CloseOpenCheckoutsByActiveGroupIDs(ctx, activeGroupIDs, checkedOutAt)
+	return rows, mapError(err)
+}
+
+func (e engine) ApplyStatusDay(ctx context.Context, studentID int64, date string, statusDayID int64, substatus string) (int, error) {
+	rows, err := e.service.ApplyStatusDay(ctx, studentID, date, statusDayID, substatus)
+	return rows, mapError(err)
+}
+
+func (e engine) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
+	rows, err := e.service.ReleaseStatusDay(ctx, statusDayID)
+	return rows, mapError(err)
+}
+
+func (e engine) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	rows, err := e.service.ApplyActiveStatusDaysForInstance(ctx, instanceID, date)
+	return rows, mapError(err)
+}
+
+func (e engine) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	rows, err := e.service.ApplyPartialAbsence(ctx, pickupExceptionID)
+	return rows, mapError(err)
+}
+
+func (e engine) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	rows, err := e.service.ReleasePartialAbsence(ctx, pickupExceptionID)
+	return rows, mapError(err)
+}
+
+func (e engine) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	rows, err := e.service.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+	return rows, mapError(err)
+}
+
+func (e engine) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string, at time.Time) (int, error) {
+	currentDate := timezone.DateFromTime(at).String()
+	currentClock := at.In(timezone.Berlin).Format("15:04:05")
+	rows, err := e.service.ArchivePlannedInstanceStudents(ctx, transitionID, studentIDs, from, currentDate, currentClock)
+	return rows, mapError(err)
+}
+
+func (e engine) RestoreArchivedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string) (int, error) {
+	rows, err := e.service.RestoreArchivedInstanceStudents(ctx, transitionID, studentIDs, from)
+	return rows, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -1034,6 +1228,22 @@ func instanceStudentToPublic(value domain.InstanceStudent) timetable.InstanceStu
 		Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt, CheckedOutAt: value.CheckedOutAt,
 		IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled, ManualStatusAt: value.ManualStatusAt,
 		StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+}
+
+func domainInstanceStudentKeys(keys []timetable.InstanceStudentKey) []domain.InstanceStudentKey {
+	result := make([]domain.InstanceStudentKey, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, domain.InstanceStudentKey(key))
+	}
+	return result
+}
+
+func domainStudentInstanceRefs(refs []timetable.StudentInstanceRef) []domain.StudentInstanceRef {
+	result := make([]domain.StudentInstanceRef, 0, len(refs))
+	for _, ref := range refs {
+		result = append(result, domain.StudentInstanceRef(ref))
+	}
+	return result
 }
 
 func mapError(err error) error {

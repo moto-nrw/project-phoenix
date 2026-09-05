@@ -127,6 +127,79 @@ func TestModuleInstanceStudentFailuresAndRollback(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestModuleOwnsInstanceStudentPresenceMutations(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	fixture := newOwnedActivityInstanceFixture(t, db, "student-presence")
+	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-06", "08:00:00", "Presence")
+	student := testpkg.CreateTestStudent(t, db, "Owner", "Presence", "3a")
+	row := createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID, timetable.InstanceAttendanceExpected)
+	checkedIn := time.Date(2027, 11, 6, 8, 15, 0, 0, time.UTC)
+
+	updated, err := module.UpdateAttendanceFromCheckin(ctx, instance.ID, student.ID, checkedIn)
+	require.NoError(t, err)
+	assert.True(t, updated)
+	checkedOut := checkedIn.Add(time.Hour)
+	require.NoError(t, module.UpdateAttendanceCheckout(ctx, instance.ID, student.ID, checkedOut))
+	reconciledOut := checkedOut.Add(15 * time.Minute)
+	updated, err = module.ReconcileAttendanceInterval(ctx, instance.ID, student.ID, checkedIn, &checkedOut, checkedIn, &reconciledOut)
+	require.NoError(t, err)
+	assert.True(t, updated)
+	stored, err := module.FindInstanceStudent(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.CheckedOutAt)
+	assert.WithinDuration(t, reconciledOut, *stored.CheckedOutAt, time.Second)
+}
+
+func TestModuleOwnsInstanceStudentBatchAndUnplannedPresence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	fixture := newOwnedActivityInstanceFixture(t, db, "student-batch")
+	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-07", "08:00:00", "Batch")
+	first := testpkg.CreateTestStudent(t, db, "Owner", "Batch", "3a")
+	walkIn := testpkg.CreateTestStudent(t, db, "Owner", "WalkIn", "3a")
+	row := createOwnedInstanceStudent(t, module, ctx, instance.ID, first.ID, timetable.InstanceAttendanceExpected)
+	checkedIn := time.Date(2027, 11, 7, 8, 10, 0, 0, time.UTC)
+	keys := []timetable.InstanceStudentKey{{InstanceID: instance.ID, StudentID: first.ID}}
+
+	require.NoError(t, module.UpdateAttendanceFromCheckinBatch(ctx, keys, checkedIn))
+	require.NoError(t, module.UpdateAttendanceCheckoutBatch(ctx, keys, checkedIn.Add(time.Hour)))
+	walkInRow, err := module.CreateUnplannedPresentIfAbsent(ctx, instance.ID, walkIn.ID, checkedIn)
+	require.NoError(t, err)
+	assert.True(t, walkInRow.IsUnplanned)
+	stored, err := module.FindInstanceStudent(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.CheckedOutAt)
+}
+
+func TestModuleOwnsInstanceStudentDayReads(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	log := &observationLog{}
+	module, ctx := buildModule(t, db, log.record), testpkg.Ctx(t)
+	fixture := newOwnedActivityInstanceFixture(t, db, "student-day")
+	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-08", "08:00:00", "Day")
+	student := testpkg.CreateTestStudent(t, db, "Owner", "Day", "3a")
+	attendance := createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID, timetable.InstanceAttendanceExpected)
+
+	rows, err := module.ListScheduledInstancesForStudent(ctx, student.ID, "2027-11-08", "2027-11-08")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, instance.ID, rows[0].Instance.ID)
+	assert.Equal(t, attendance.ID, rows[0].Attendance.ID)
+	hasPlanned, err := module.HasPlannedStudentSlots(ctx, "2027-11-08", "2027-11-08")
+	require.NoError(t, err)
+	assert.True(t, hasPlanned)
+	studentIDs, err := module.ListPlannedStudentIDs(ctx, []int64{student.ID}, "2027-11-08")
+	require.NoError(t, err)
+	assert.Equal(t, []int64{student.ID}, studentIDs)
+	assert.EqualValues(t, 1, observedOperation(log.seen, "list_scheduled_instances_for_student").Stats.Queries)
+	assert.EqualValues(t, 1, observedOperation(log.seen, "has_planned_student_slots").Stats.Queries)
+	assert.EqualValues(t, 1, observedOperation(log.seen, "list_planned_student_ids").Stats.Queries)
+}
+
 func TestInstanceStudentListQueryBudgetStaysFlat(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/stretchr/testify/assert"
 )

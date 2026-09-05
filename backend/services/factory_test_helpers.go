@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -90,7 +91,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 		return ownerCapabilities{}, err
 	}
 	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db, Students: timetableStudents(persons), Observe: func(timetableCompose.Observation) {},
+		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: schedule.TimetableCareDayLocker(db), Observe: func(timetableCompose.Observation) {},
 	})
 	if err != nil {
 		return ownerCapabilities{}, err
@@ -99,6 +100,17 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
 		membership: membership, calendar: calendar, timetable: timetableCapability,
 	}, nil
+}
+
+func timetableRooms(rooms facilitiesModule.Query) timetable.RoomDirectory {
+	return timetable.RoomDirectoryFunc(func(ctx context.Context, ids []int64) ([]timetable.RoomRef, error) {
+		values, err := rooms.LockRoomsByID(ctx, ids)
+		result := make([]timetable.RoomRef, 0, len(values))
+		for _, value := range values {
+			result = append(result, timetable.RoomRef{ID: value.ID, TenantID: value.TenantID})
+		}
+		return result, err
+	})
 }
 
 func timetableStudents(students peopledirectory.StudentQuery) timetableCompose.StudentDirectory {

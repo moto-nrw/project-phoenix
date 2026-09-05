@@ -9,7 +9,6 @@ import (
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -122,7 +121,7 @@ func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, ti
 	return TimetableCleanupRepositories{
 		Instance:  timetableActivityInstanceRepository{timetable: timetableCapability},
 		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
-		Student:   scheduleRepo.NewInstanceStudentRepository(db), Deletion: RouteDataDeletionWrites(deletions, command),
+		Student:   timetableInstanceStudentRepository{timetable: timetableCapability}, Deletion: RouteDataDeletionWrites(deletions, command),
 		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }

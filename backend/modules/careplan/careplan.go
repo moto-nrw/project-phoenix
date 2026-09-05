@@ -239,11 +239,20 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	CareDayLocker
 }
 
 type engine interface {
 	Query
 	Command
+	CareDayLocker
+}
+
+// CareDayLocker exposes the Care Plan owner's canonical lock order to other
+// owners that change effective care for one child-day.
+type CareDayLocker interface {
+	LockStudentAndExceptionDay(context.Context, int64, string) error
+	LockExceptionDay(context.Context, int64, string) error
 }
 
 type Module struct{ engine engine }
@@ -253,6 +262,14 @@ func NewModule(engine engine) *Module {
 		panic("care plan: engine is required")
 	}
 	return &Module{engine: engine}
+}
+
+func (m *Module) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return m.engine.LockStudentAndExceptionDay(ctx, studentID, date)
+}
+
+func (m *Module) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return m.engine.LockExceptionDay(ctx, studentID, date)
 }
 
 func (m *Module) FindCareOffering(ctx context.Context, id int64) (CareOffering, error) {

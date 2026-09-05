@@ -43,9 +43,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	if repo, ok := f.ParentEnrollablePhase.(*parentRepo.EnrollablePhaseRepository); ok {
 		repo.BindStudentDirectory(parentStudentDirectory{students})
 	}
-	if repo, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
-		repo.BindStudentDirectory(scheduleStudentDirectory{students: students, commands: commands})
-	}
 	if repo, ok := f.GradeTransition.(*educationRepo.GradeTransitionRepository); ok {
 		repo.BindStudentDirectory(educationStudentDirectory{students: students, commands: commands})
 	}

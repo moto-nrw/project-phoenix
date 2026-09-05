@@ -663,7 +663,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
-		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
+		InstanceStudent:           newTimetableInstanceStudentProxy(),
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
@@ -867,6 +867,15 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	})
+	rooms, err := NewFacilities(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose timetable rooms: %v", err))
+	}
+	timetableCapability, err := NewTimetable(db, factory.students, rooms, factory.carePlan)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: compose timetable: %v", err))
+	}
+	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

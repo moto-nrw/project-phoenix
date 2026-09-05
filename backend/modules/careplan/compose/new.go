@@ -66,7 +66,10 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 		dependencies.Observe(observation)
 	})
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
-	module := careplan.NewModule(engine{service: service, requests: postgres.NewRequestStore(store), statusDays: statusDays, observe: dependencies.Observe, people: dependencies.People})
+	module := careplan.NewModule(engine{
+		service: service, requests: postgres.NewRequestStore(store), statusDays: statusDays,
+		observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
+	})
 	return module, nil
 }
 
@@ -111,6 +114,15 @@ type engine struct {
 	statusDays StatusDayStore
 	observe    func(Observation)
 	people     StudentNameFinder
+	database   *bun.DB
+}
+
+func (e engine) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return careplanning.LockStudentAndExceptionDay(ctx, e.database, studentID, date)
+}
+
+func (e engine) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return careplanning.LockExceptionDay(ctx, e.database, studentID, date)
 }
 
 func (e engine) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, error) {

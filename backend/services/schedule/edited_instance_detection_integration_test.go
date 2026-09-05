@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -275,7 +274,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			s.extraCleanups = append(s.extraCleanups, func() {
 			})
 
-			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			studentRepo := testInstanceStudents(s.db)
 			before, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
 			require.NoError(t, err)
 			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, before.Status)
@@ -330,7 +329,7 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 			defer s.runCleanup(t)
 			inst := materializeSingleInstance(t, s)
-			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			studentRepo := testInstanceStudents(s.db)
 			row, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
 			require.NoError(t, err)
 			tc.apply(row)

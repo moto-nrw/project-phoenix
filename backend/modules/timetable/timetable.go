@@ -224,6 +224,7 @@ type Capability interface {
 
 type engine interface {
 	Capability
+	BindCarePlan(CarePlanDirectory)
 	ObserveRejection(string, time.Duration, error)
 }
 
@@ -234,6 +235,13 @@ func NewModule(engine engine) *Module {
 		panic("timetable: engine is required")
 	}
 	return &Module{engine: engine}
+}
+
+func (m *Module) BindCarePlan(directory CarePlanDirectory) {
+	if directory == nil {
+		panic("timetable: care plan directory is required")
+	}
+	m.engine.BindCarePlan(directory)
 }
 
 func (m *Module) FindCategory(ctx context.Context, id int64) (Category, error) {
@@ -973,6 +981,178 @@ func (m *Module) DeleteInstanceStudentsByInstance(ctx context.Context, instanceI
 		return m.reject("delete_instance_students_by_instance", ErrInvalidInstanceStudent)
 	}
 	return m.engine.DeleteInstanceStudentsByInstance(ctx, instanceID)
+}
+
+func (m *Module) UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error) {
+	if !validInstanceStudentAttendanceMutation(instanceID, studentID, checkedInAt) {
+		return false, m.reject("update_attendance_from_checkin", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateAttendanceFromCheckin(ctx, instanceID, studentID, checkedInAt)
+}
+
+func (m *Module) UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []InstanceStudentKey, checkedInAt time.Time) error {
+	if !validInstanceStudentKeys(keys) || checkedInAt.IsZero() {
+		return m.reject("update_attendance_from_checkin_batch", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateAttendanceFromCheckinBatch(ctx, keys, checkedInAt)
+}
+
+func (m *Module) UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error {
+	if !validInstanceStudentAttendanceMutation(instanceID, studentID, checkedOutAt) {
+		return m.reject("update_attendance_checkout", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateAttendanceCheckout(ctx, instanceID, studentID, checkedOutAt)
+}
+
+func (m *Module) UpdateAttendanceCheckoutBatch(ctx context.Context, keys []InstanceStudentKey, checkedOutAt time.Time) error {
+	if !validInstanceStudentKeys(keys) || checkedOutAt.IsZero() {
+		return m.reject("update_attendance_checkout_batch", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateAttendanceCheckoutBatch(ctx, keys, checkedOutAt)
+}
+
+func (m *Module) CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (InstanceStudent, error) {
+	if !validInstanceStudentAttendanceMutation(instanceID, studentID, checkedInAt) {
+		return InstanceStudent{}, m.reject("create_unplanned_present_if_absent", ErrInvalidInstanceStudent)
+	}
+	return m.engine.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, checkedInAt)
+}
+
+func (m *Module) ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error) {
+	if !validInstanceStudentAttendanceMutation(instanceID, studentID, previousCheckIn) || updatedCheckIn.IsZero() {
+		return false, m.reject("reconcile_attendance_interval", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ReconcileAttendanceInterval(ctx, instanceID, studentID, previousCheckIn, previousCheckOut, updatedCheckIn, updatedCheckOut)
+}
+
+func validInstanceStudentAttendanceMutation(instanceID, studentID int64, at time.Time) bool {
+	return instanceID > 0 && studentID > 0 && !at.IsZero()
+}
+
+func (m *Module) ListStudentInstanceRefsBefore(ctx context.Context, cutoff string) ([]StudentInstanceRef, error) {
+	if !validDate(cutoff) {
+		return nil, m.reject("list_student_instance_refs_before", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListStudentInstanceRefsBefore(ctx, cutoff)
+}
+
+func (m *Module) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]ScheduledInstanceRow, error) {
+	if studentID <= 0 || !validDate(from) || !validDate(to) || from > to {
+		return nil, m.reject("list_scheduled_instances_for_student", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListScheduledInstancesForStudent(ctx, studentID, from, to)
+}
+
+func (m *Module) HasPlannedStudentSlots(ctx context.Context, from, to string) (bool, error) {
+	if !validDate(from) || !validDate(to) || from > to {
+		return false, m.reject("has_planned_student_slots", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.HasPlannedStudentSlots(ctx, from, to)
+}
+
+func (m *Module) ListPlannedStudentIDs(ctx context.Context, studentIDs []int64, date string) ([]int64, error) {
+	if hasInvalidID(studentIDs) || !validDate(date) {
+		return nil, m.reject("list_planned_student_ids", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListPlannedStudentIDs(ctx, studentIDs, date)
+}
+
+func (m *Module) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time) ([]PartialAbsenceBlock, error) {
+	if studentID <= 0 || !validDate(date) || from.IsZero() {
+		return nil, m.reject("list_partial_absence_blocks", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListPartialAbsenceBlocks(ctx, studentID, date, from)
+}
+
+func (m *Module) UpdateAttendanceFields(ctx context.Context, id int64, patch AttendanceFieldPatch) error {
+	if id <= 0 || !validAttendanceFieldPatch(patch) {
+		return m.reject("update_attendance_fields", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateAttendanceFields(ctx, id, patch)
+}
+
+func (m *Module) BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string, excludedStudentIDs []int64) (int, error) {
+	if instanceID <= 0 || !validInstanceAttendanceStatus(fromStatus) || !validInstanceAttendanceStatus(toStatus) || hasInvalidID(excludedStudentIDs) {
+		return 0, m.reject("bulk_update_attendance_status", ErrInvalidInstanceStudent)
+	}
+	return m.engine.BulkUpdateStatus(ctx, instanceID, fromStatus, toStatus, excludedStudentIDs)
+}
+
+func (m *Module) MarkNotScheduled(ctx context.Context, refs []StudentInstanceRef) error {
+	if !validStudentInstanceRefs(refs) {
+		return m.reject("mark_attendance_not_scheduled", ErrInvalidInstanceStudent)
+	}
+	return m.engine.MarkNotScheduled(ctx, refs)
+}
+
+func (m *Module) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, exclusions []StudentInstanceRef) error {
+	if hasInvalidID(activeGroupIDs) || !validStudentInstanceRefs(exclusions) || updatedAt.IsZero() {
+		return m.reject("mark_expected_absent_by_active_groups", ErrInvalidInstanceStudent)
+	}
+	return m.engine.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, updatedAt, exclusions)
+}
+
+func (m *Module) CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error) {
+	if hasInvalidID(activeGroupIDs) || checkedOutAt.IsZero() {
+		return 0, m.reject("close_open_checkouts_by_active_groups", ErrInvalidInstanceStudent)
+	}
+	return m.engine.CloseOpenCheckoutsByActiveGroupIDs(ctx, activeGroupIDs, checkedOutAt)
+}
+
+func (m *Module) ApplyStatusDay(ctx context.Context, studentID int64, date string, statusDayID int64, substatus string) (int, error) {
+	if studentID <= 0 || statusDayID <= 0 || !validDate(date) || !validInstanceAttendanceSubstatus(substatus) {
+		return 0, m.reject("apply_status_day", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ApplyStatusDay(ctx, studentID, date, statusDayID, substatus)
+}
+
+func (m *Module) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
+	if statusDayID <= 0 {
+		return 0, m.reject("release_status_day", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ReleaseStatusDay(ctx, statusDayID)
+}
+
+func (m *Module) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	if instanceID <= 0 || !validDate(date) {
+		return 0, m.reject("apply_active_status_days_for_instance", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ApplyActiveStatusDaysForInstance(ctx, instanceID, date)
+}
+
+func (m *Module) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	if pickupExceptionID <= 0 {
+		return 0, m.reject("apply_partial_absence", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ApplyPartialAbsence(ctx, pickupExceptionID)
+}
+
+func (m *Module) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	if pickupExceptionID <= 0 {
+		return 0, m.reject("release_partial_absence", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ReleasePartialAbsence(ctx, pickupExceptionID)
+}
+
+func (m *Module) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	if instanceID <= 0 || !validDate(date) {
+		return 0, m.reject("apply_active_partial_absences_for_instance", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+}
+
+func (m *Module) ArchivePlannedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string, at time.Time) (int, error) {
+	if transitionID <= 0 || hasInvalidID(studentIDs) || !validDate(from) || at.IsZero() {
+		return 0, m.reject("archive_planned_instance_students", ErrInvalidInstanceStudent)
+	}
+	return m.engine.ArchivePlannedInstanceStudents(ctx, transitionID, studentIDs, from, at)
+}
+
+func (m *Module) RestoreArchivedInstanceStudents(ctx context.Context, transitionID int64, studentIDs []int64, from string) (int, error) {
+	if transitionID <= 0 || hasInvalidID(studentIDs) || !validDate(from) {
+		return 0, m.reject("restore_archived_instance_students", ErrInvalidInstanceStudent)
+	}
+	return m.engine.RestoreArchivedInstanceStudents(ctx, transitionID, studentIDs, from)
 }
 
 func invalidActivityInstanceWeekdays(weekdays []int) bool {

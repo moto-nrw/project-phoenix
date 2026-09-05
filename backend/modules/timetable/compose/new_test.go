@@ -34,7 +34,7 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 		observe = observers[0]
 	}
 	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Observe: observe})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), Observe: observe})
 	require.NoError(t, err)
 	return module
 }
@@ -492,7 +492,7 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
 	})
-	module, err := New(Dependencies{DB: db, Students: students, Observe: func(Observation) {}})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), Observe: func(Observation) {}})
 	require.NoError(t, err)
 	class := "2b"
 	insertGroupTarget(t, db, testpkg.Tenant(t), group.ID, timetable.TargetGroupTypeSchoolClass, &class)
@@ -501,6 +501,17 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{member.ID}, studentIDs[group.ID])
 	assert.NotContains(t, studentIDs[group.ID], nonMember.ID)
+}
+
+func testCareDays() timetable.CareDayLocker {
+	return timetable.NewCareDayLocker(
+		func(context.Context, int64, string) error { return nil },
+		func(context.Context, int64, string) error { return nil },
+	)
+}
+
+func testRooms() timetable.RoomDirectory {
+	return timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) { return nil, nil })
 }
 
 func insertGroupTarget(t *testing.T, db *bun.DB, tenantID, groupID int64, targetType string, schoolClass *string) {

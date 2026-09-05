@@ -49,7 +49,9 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if err != nil {
 		return nil, err
 	}
-	if repository, ok := slots.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := slots.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	return capability, nil
@@ -165,7 +167,9 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
 	}
-	if repository, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := f.InstanceStudent.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
