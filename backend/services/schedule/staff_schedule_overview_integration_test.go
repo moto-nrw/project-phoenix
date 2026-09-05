@@ -356,7 +356,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.CalendarPeriod.Create(localCtx, period))
-	validFrom := friday
+	validFrom := activitiesModel.Date(friday)
 	localSchedule := &activitiesModel.Schedule{
 		Weekday: activitiesModel.WeekdayMonday, ActivityGroupID: localGroup.ID,
 		CalendarPeriodID: &period.ID, ValidFrom: &validFrom,

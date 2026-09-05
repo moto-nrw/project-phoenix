@@ -93,7 +93,7 @@ func (r *seriesMockEnrollmentRepo) Create(_ context.Context, row *activitiesMode
 	return nil
 }
 
-func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64, _ timezone.Date) error {
+func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64, _ activitiesModel.Date) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -135,7 +135,7 @@ func (r *seriesMockSupervisorRepo) Create(_ context.Context, row *activitiesMode
 	return nil
 }
 
-func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64, _ timezone.Date) error {
+func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64, _ activitiesModel.Date) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -162,12 +162,12 @@ func seriesMockGroup(id int64) *activitiesModel.Group {
 }
 
 func seriesMockSchedule(groupID int64, from timezone.Date, until *timezone.Date) *activitiesModel.Schedule {
-	start := from
+	start := activitiesModel.Date(from)
 	return &activitiesModel.Schedule{
 		Weekday:         activitiesModel.WeekdayMonday,
 		ActivityGroupID: groupID,
 		ValidFrom:       &start,
-		ValidUntil:      until,
+		ValidUntil:      activityDatePtr(until),
 	}
 }
 
@@ -233,9 +233,9 @@ func TestReconcileSeriesPredecessorRoster_CreatesBoundedRows(t *testing.T) {
 		t.Context(), seriesMockInput(), seriesMockTenantID, nil))
 
 	require.Len(t, enrollments.created, 1)
-	assert.Equal(t, seriesMockAnchor(), enrollments.created[0].ValidFrom)
+	assert.Equal(t, activitiesModel.Date(seriesMockAnchor()), enrollments.created[0].ValidFrom)
 	require.NotNil(t, enrollments.created[0].ValidUntil)
-	assert.Equal(t, seriesMockUntil(), *enrollments.created[0].ValidUntil)
+	assert.Equal(t, activitiesModel.Date(seriesMockUntil()), *enrollments.created[0].ValidUntil)
 	require.NotNil(t, enrollments.created[0].Weekday)
 	assert.Equal(t, activitiesModel.WeekdayMonday, *enrollments.created[0].Weekday)
 	require.Len(t, supervisors.created, 1)
@@ -439,8 +439,8 @@ func seriesMockEnrollmentRow(id int64, from timezone.Date, until *timezone.Date,
 	row := &activitiesModel.StudentEnrollment{
 		StudentID:        seriesMockStudent,
 		ActivityGroupID:  seriesMockOldID,
-		ValidFrom:        from,
-		ValidUntil:       until,
+		ValidFrom:        activitiesModel.Date(from),
+		ValidUntil:       activityDatePtr(until),
 		CalendarPeriodID: periodID,
 	}
 	row.ID = id
@@ -451,8 +451,8 @@ func seriesMockSupervisorRow(id int64, from timezone.Date, until *timezone.Date,
 	row := &activitiesModel.SupervisorPlanned{
 		StaffID:          seriesMockStaff,
 		GroupID:          seriesMockOldID,
-		ValidFrom:        from,
-		ValidUntil:       until,
+		ValidFrom:        activitiesModel.Date(from),
+		ValidUntil:       activityDatePtr(until),
 		CalendarPeriodID: periodID,
 	}
 	row.ID = id

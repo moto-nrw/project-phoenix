@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // CategoryRepository defines operations for managing activity categories
@@ -222,7 +220,7 @@ type SupervisorPlannedRepository interface {
 	// CloseOpenByGroupAndPeriod closes the open planned supervisions of a
 	// group for the given calendar period (NULL period matches rows without
 	// one) by setting valid_until.
-	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom Date) error
 
 	// FindByStaffID finds all supervisions for a specific staff member
 	FindByStaffID(ctx context.Context, staffID int64) ([]*SupervisorPlanned, error)
@@ -244,11 +242,11 @@ type SupervisorPlannedRepository interface {
 	// Rows starting on/after the cap are deleted because they have no interval
 	// left; begun rows are ended at validUntil. Bounded rows are left to their
 	// owning workflow. Returns the total number changed.
-	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil Date) (int64, error)
 
 	// SetValidUntilByID closes exactly one supervision without writing the
 	// rest of a potentially partial read model back to the database.
-	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
+	SetValidUntilByID(ctx context.Context, id int64, validUntil Date) error
 }
 
 type PlannedSupervisionBlocker struct {
@@ -265,14 +263,14 @@ type StudentEnrollmentRepository interface {
 	// CloseOpenByGroupAndPeriod closes the open enrollments of a group for
 	// the given calendar period (NULL period matches rows without one) by
 	// setting valid_until.
-	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom Date) error
 
 	// FindByStudentID finds all enrollments for a specific student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentEnrollment, error)
 
 	// FindActiveByStudentIDs finds active enrollments for a batch of students
 	// on the given date. valid_until is exclusive.
-	FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*StudentEnrollment, error)
+	FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate Date) ([]*StudentEnrollment, error)
 
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
@@ -291,16 +289,16 @@ type StudentEnrollmentRepository interface {
 	// starting on/after the cap are deleted because they have no interval left;
 	// begun rows are ended at validUntil. Bounded rows are left to their owning
 	// workflow. Returns the total number changed.
-	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil Date) (int64, error)
 
 	// SetValidUntilByID closes exactly one enrollment without writing the
 	// rest of a potentially partial read model back to the database.
-	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
+	SetValidUntilByID(ctx context.Context, id int64, validUntil Date) error
 }
 
 // StudentEnrollmentDate keeps legacy compatibility adapters from importing
 // the lower-layer calendar-date package.
-type StudentEnrollmentDate = timezone.Date
+type StudentEnrollmentDate = Date
 
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
 // Grouped into a struct (rather than positional params) because the field
@@ -489,9 +487,9 @@ const (
 // which a recurring template actually runs. OccurrenceDate is a calendar day,
 // not an instant; valid_until fields are evaluated as exclusive boundaries.
 type TemplateCapacityOccurrence struct {
-	TemplateID       int64         `bun:"template_id"`
-	CalendarPeriodID int64         `bun:"calendar_period_id"`
-	OccurrenceDate   timezone.Date `bun:"occurrence_date"`
-	EnrollmentCount  int           `bun:"enrollment_count"`
-	SupervisorCount  int           `bun:"supervisor_count"`
+	TemplateID       int64 `bun:"template_id"`
+	CalendarPeriodID int64 `bun:"calendar_period_id"`
+	OccurrenceDate   Date  `bun:"occurrence_date"`
+	EnrollmentCount  int   `bun:"enrollment_count"`
+	SupervisorCount  int   `bun:"supervisor_count"`
 }

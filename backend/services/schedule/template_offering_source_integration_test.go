@@ -281,7 +281,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
 		Scan(s.ctx))
 	require.Len(t, sourced, 1)
-	assert.Equal(t, newStart, sourced[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(newStart), sourced[0].ValidFrom,
 		"offering-derived roster must follow the pulled-forward schedule boundary")
 }
 
@@ -540,11 +540,11 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	// decision fan-out writes) and one manual row.
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
 	sourced := &activitiesModels.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                s.period.StartDate,
+		ValidFrom:                activitiesModels.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
@@ -555,7 +555,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	manual := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)
@@ -595,7 +595,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	assert.NotNil(t, byStudent[s.students[0]].EnrollmentRequestChildID)
 	require.NotNil(t, byStudent[s.students[1]])
 	require.NotNil(t, byStudent[s.students[1]].ValidUntil)
-	assert.Equal(t, monday, *byStudent[s.students[1]].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(monday), *byStudent[s.students[1]].ValidUntil)
 }
 
 // A split request may change the source rule itself (#2147 review round 14):
@@ -638,11 +638,11 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	// test) from the resync a changed rule must trigger.
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
 	sourced := &activitiesModels.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                s.period.StartDate,
+		ValidFrom:                activitiesModels.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
@@ -714,11 +714,11 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 
 	enrollments := ownedStudentEnrollmentRepository(t, s.db)
 	childID := createSplitRequestChild(t, s, s.students[0])
-	sourcedUntil := s.period.EndDate.AddDays(1)
+	sourcedUntil := activitiesModels.Date(s.period.EndDate.AddDays(1))
 	sourced := &activitiesModels.StudentEnrollment{
 		StudentID:                s.students[0],
 		ActivityGroupID:          result.TemplateID,
-		ValidFrom:                s.period.StartDate,
+		ValidFrom:                activitiesModels.Date(s.period.StartDate),
 		ValidUntil:               &sourcedUntil,
 		CalendarPeriodID:         &s.period.ID,
 		EnrollmentRequestChildID: &childID,
@@ -729,7 +729,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	manual := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[1],
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.period.ID,
 	}
 	manual.SetTenantID(s.tenantID)

@@ -878,7 +878,7 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 	wednesday := monday.AddDays(2)
 	nextMonday := monday.AddDays(7)
 	groupID, periodID, pattern := int64(91), int64(92), 0
-	validFrom, validUntil := wednesday, nextMonday
+	validFrom, validUntil := activitiesModel.Date(wednesday), activitiesModel.Date(nextMonday)
 	schedules := &fakeActivityScheduleReader{rows: []*activitiesModel.Schedule{{
 		ActivityGroupID: groupID,
 		ValidFrom:       &validFrom,

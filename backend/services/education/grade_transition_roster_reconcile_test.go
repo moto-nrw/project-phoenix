@@ -82,7 +82,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       validFrom,
+		ValidFrom:       activitiesModel.Date(validFrom),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -180,7 +180,7 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: enrolledGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -326,7 +326,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -518,7 +518,7 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -603,7 +603,7 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)

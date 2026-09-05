@@ -3163,8 +3163,8 @@ func studentEnrollmentFromCareDraft(
 	row := &activities.StudentEnrollment{
 		StudentID:                studentID,
 		ActivityGroupID:          draft.activityGroupID,
-		ValidFrom:                validFrom,
-		ValidUntil:               &validUntil,
+		ValidFrom:                activities.Date(validFrom),
+		ValidUntil:               enrollmentActivityDatePtr(&validUntil),
 		CalendarPeriodID:         draft.calendarPeriodID,
 		EnrollmentRequestChildID: &requestChildID,
 	}

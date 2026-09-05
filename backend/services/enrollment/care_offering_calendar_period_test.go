@@ -291,7 +291,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	rootSchedules, err := repos.ActivitySchedule.FindByGroupID(fixture.ctx, root.ID)
 	require.NoError(t, err)
 	require.Len(t, rootSchedules, 1)
-	rootSchedules[0].ValidUntil = &fixture.phase.ServiceStartDate
+	rootSchedules[0].ValidUntil = activityDatePtr(&fixture.phase.ServiceStartDate)
 	require.NoError(t, repos.ActivitySchedule.Update(fixture.ctx, rootSchedules[0]))
 
 	seriesRootID := root.ID
@@ -312,7 +312,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 		ActivityGroupID:  successor.ID,
 		WeekPattern:      0,
 		CalendarPeriodID: &successorPeriod.ID,
-		ValidFrom:        &fixture.phase.ServiceStartDate,
+		ValidFrom:        activityDatePtr(&fixture.phase.ServiceStartDate),
 	}
 	successorSchedule.SetTenantID(fixture.tenantID)
 	require.NoError(t, repos.ActivitySchedule.Create(fixture.ctx, successorSchedule))

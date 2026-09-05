@@ -595,7 +595,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	require.Len(t, schedules, 2)
 	for _, schedule := range schedules {
 		require.NotNil(t, schedule.ValidFrom, "editing the successor must not erase its split start")
-		assert.Equal(t, effective, *schedule.ValidFrom)
+		assert.Equal(t, activitiesModel.Date(effective), *schedule.ValidFrom)
 		assert.Nil(t, schedule.ValidUntil)
 	}
 
@@ -605,7 +605,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	for _, enrollment := range enrollments {
 		if enrollment.ValidUntil == nil {
 			activeEnrollments++
-			assert.Equal(t, effective, enrollment.ValidFrom,
+			assert.Equal(t, activitiesModel.Date(effective), enrollment.ValidFrom,
 				"successor roster must inherit the split start, not the period start")
 			continue
 		}
@@ -620,7 +620,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	for _, supervisor := range supervisors {
 		if supervisor.ValidUntil == nil {
 			activeSupervisors++
-			assert.Equal(t, effective, supervisor.ValidFrom,
+			assert.Equal(t, activitiesModel.Date(effective), supervisor.ValidFrom,
 				"successor supervision must inherit the split start")
 			continue
 		}
@@ -660,7 +660,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	require.Len(t, after, 2, "inconsistent schedules must not be deleted")
 	assert.Equal(t, []int64{before[0].ID, before[1].ID}, []int64{after[0].ID, after[1].ID})
 	require.NotNil(t, after[0].ValidFrom)
-	assert.Equal(t, inconsistentFrom, *after[0].ValidFrom)
+	assert.Equal(t, activitiesModel.Date(inconsistentFrom), *after[0].ValidFrom)
 	assert.Nil(t, after[1].ValidFrom)
 
 	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)

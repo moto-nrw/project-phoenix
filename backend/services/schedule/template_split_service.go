@@ -709,10 +709,10 @@ func (s *TemplateSplitService) capSplitSource(
 	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
 		return &ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
-	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, effectiveDate); err != nil {
+	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
 		return &ScheduleError{Op: "split template: cap enrollments", Err: err}
 	}
-	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, effectiveDate); err != nil {
+	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
 		return &ScheduleError{Op: "split template: cap supervisors", Err: err}
 	}
 	if _, err := s.capBoundedSegmentEnrollments(ctx, enrollments, sourceValidUntil, effectiveDate); err != nil {
@@ -821,11 +821,11 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: cap schedules", Err: err}
 	}
-	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, old.ID, in.EffectiveDate)
+	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, old.ID, activitiesModel.Date(in.EffectiveDate))
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: cap enrollments", Err: err}
 	}
-	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, old.ID, in.EffectiveDate)
+	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, old.ID, activitiesModel.Date(in.EffectiveDate))
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: cap supervisors", Err: err}
 	}
@@ -1216,14 +1216,14 @@ func (s *TemplateSplitService) loadSegmentRosterCandidates(
 
 	activeEnrollments := make([]*activitiesModel.StudentEnrollment, 0, len(enrollments))
 	for _, e := range enrollments {
-		if e != nil && validityWindowsOverlap(e.ValidFrom, e.ValidUntil, effectiveDate, segmentValidUntil) &&
+		if e != nil && validityWindowsOverlap(timezone.Date(e.ValidFrom), timezoneDatePtr(e.ValidUntil), effectiveDate, segmentValidUntil) &&
 			(enrollmentIsProtected(e) || enrollmentBelongsToSegmentRoster(e, segmentValidUntil)) {
 			activeEnrollments = append(activeEnrollments, e)
 		}
 	}
 	activeSupervisors := make([]*activitiesModel.SupervisorPlanned, 0, len(supervisors))
 	for _, sp := range supervisors {
-		if sp != nil && validityWindowsOverlap(sp.ValidFrom, sp.ValidUntil, effectiveDate, segmentValidUntil) &&
+		if sp != nil && validityWindowsOverlap(timezone.Date(sp.ValidFrom), timezoneDatePtr(sp.ValidUntil), effectiveDate, segmentValidUntil) &&
 			supervisorBelongsToSegmentRoster(sp, segmentValidUntil) {
 			activeSupervisors = append(activeSupervisors, sp)
 		}
@@ -1238,7 +1238,7 @@ func enrollmentBelongsToSegmentRoster(row *activitiesModel.StudentEnrollment, se
 	if row.ValidUntil == nil {
 		return true
 	}
-	return optionalDatesEqual(row.ValidUntil, segmentValidUntil)
+	return optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil)
 }
 
 func enrollmentIsProtected(row *activitiesModel.StudentEnrollment) bool {
@@ -1246,7 +1246,7 @@ func enrollmentIsProtected(row *activitiesModel.StudentEnrollment) bool {
 }
 
 func supervisorBelongsToSegmentRoster(row *activitiesModel.SupervisorPlanned, segmentValidUntil *timezone.Date) bool {
-	return row.ValidUntil == nil || optionalDatesEqual(row.ValidUntil, segmentValidUntil)
+	return row.ValidUntil == nil || optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil)
 }
 
 func (s *TemplateSplitService) capBoundedSegmentEnrollments(
@@ -1260,14 +1260,14 @@ func (s *TemplateSplitService) capBoundedSegmentEnrollments(
 	}
 	var changed int64
 	for _, row := range rows {
-		if enrollmentIsProtected(row) || row.ValidUntil == nil || !optionalDatesEqual(row.ValidUntil, segmentValidUntil) {
+		if enrollmentIsProtected(row) || row.ValidUntil == nil || !optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil) {
 			continue
 		}
 		if !row.ValidFrom.Before(capAt) {
 			if err := s.deps.EnrollmentRepo.Delete(ctx, row.ID); err != nil {
 				return changed, &ScheduleError{Op: "cap segment: delete future enrollment", Err: err}
 			}
-		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, capAt); err != nil {
+		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(capAt)); err != nil {
 			return changed, &ScheduleError{Op: "cap segment: close enrollment", Err: err}
 		}
 		changed++
@@ -1286,14 +1286,14 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 	}
 	var changed int64
 	for _, row := range rows {
-		if row.ValidUntil == nil || !optionalDatesEqual(row.ValidUntil, segmentValidUntil) {
+		if row.ValidUntil == nil || !optionalDatesEqual(timezoneDatePtr(row.ValidUntil), segmentValidUntil) {
 			continue
 		}
 		if !row.ValidFrom.Before(capAt) {
 			if err := s.deps.SupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return changed, &ScheduleError{Op: "cap segment: delete future supervisor", Err: err}
 			}
-		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, capAt); err != nil {
+		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(capAt)); err != nil {
 			return changed, &ScheduleError{Op: "cap segment: close supervisor", Err: err}
 		}
 		changed++
@@ -1412,7 +1412,7 @@ func (s *TemplateSplitService) createSuccessorSchedules(
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
 	for _, weekday := range in.Weekdays {
 		tfID := timeframeID
-		validFrom := in.EffectiveDate
+		validFrom := activitiesModel.Date(in.EffectiveDate)
 		sched := &activitiesModel.Schedule{
 			Weekday:          weekday,
 			TimeframeID:      &tfID,
@@ -1420,7 +1420,7 @@ func (s *TemplateSplitService) createSuccessorSchedules(
 			WeekPattern:      weekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
 			ValidFrom:        &validFrom, // never materialize before the split point
-			ValidUntil:       cloneOptionalDate(segmentValidUntil),
+			ValidUntil:       activityDatePtr(segmentValidUntil),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ScheduleRepo.Create(ctx, sched); err != nil {
@@ -1557,7 +1557,7 @@ func carriedStudentRowsByPerson(
 		rows = append(rows, &activitiesModel.StudentEnrollment{
 			StudentID:        key.PersonID,
 			ValidFrom:        preferred.ValidFrom,
-			ValidUntil:       earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
+			ValidUntil:       earliestActivityDate(preferred.ValidUntil, segmentValidUntil),
 			SelectedWeekdays: unionSelectedWeekdays(group, preferred),
 			Weekday:          weekdayScopePtr(preferred.Weekday),
 		})
@@ -1576,9 +1576,9 @@ func (s *TemplateSplitService) persistSuccessorStudentRows(
 	for _, row := range rows {
 		row.ActivityGroupID = groupID
 		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
-			row.ValidFrom = in.EffectiveDate
+			row.ValidFrom = activitiesModel.Date(in.EffectiveDate)
 		}
-		row.ValidUntil = earliestOptionalDate(row.ValidUntil, segmentValidUntil)
+		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
 		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
@@ -1599,13 +1599,13 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 	for _, source := range rows {
 		validFrom := source.ValidFrom
 		if validFrom.Before(in.EffectiveDate) {
-			validFrom = in.EffectiveDate
+			validFrom = activitiesModel.Date(in.EffectiveDate)
 		}
 		row := &activitiesModel.StudentEnrollment{
 			StudentID:                source.StudentID,
 			ActivityGroupID:          groupID,
 			ValidFrom:                validFrom,
-			ValidUntil:               earliestOptionalDate(source.ValidUntil, segmentValidUntil),
+			ValidUntil:               earliestActivityDate(source.ValidUntil, segmentValidUntil),
 			CalendarPeriodID:         protectedEnrollmentPeriodAfterRebase(source.CalendarPeriodID, in.CalendarPeriodID),
 			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
 			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
@@ -1649,9 +1649,9 @@ func (s *TemplateSplitService) createStaffRoster(
 	for _, row := range rows {
 		row.GroupID = groupID
 		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
-			row.ValidFrom = in.EffectiveDate
+			row.ValidFrom = activitiesModel.Date(in.EffectiveDate)
 		}
-		row.ValidUntil = earliestOptionalDate(row.ValidUntil, segmentValidUntil)
+		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
 		if err := s.deps.SupervisorRepo.Create(ctx, row); err != nil {
@@ -1711,7 +1711,7 @@ func carriedStaffRowsByPerson(
 			StaffID:    key.PersonID,
 			IsPrimary:  preferred.IsPrimary,
 			ValidFrom:  preferred.ValidFrom,
-			ValidUntil: earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
+			ValidUntil: earliestActivityDate(preferred.ValidUntil, segmentValidUntil),
 			Weekday:    weekdayScopePtr(preferred.Weekday),
 		})
 	}
@@ -1756,6 +1756,10 @@ func earliestOptionalDate(left, right *timezone.Date) *timezone.Date {
 		return cloneOptionalDate(left)
 	}
 	return cloneOptionalDate(right)
+}
+
+func earliestActivityDate(left *activitiesModel.Date, right *timezone.Date) *activitiesModel.Date {
+	return activityDatePtr(earliestOptionalDate(timezoneDatePtr(left), right))
 }
 
 func cloneOptionalInt64(value *int64) *int64 {

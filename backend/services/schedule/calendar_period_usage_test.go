@@ -117,7 +117,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:        student.ID,
 		ActivityGroupID:  group.ID,
-		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		ValidFrom:        activitiesModels.Date(timezone.NewDate(2026, 8, 1)),
 		CalendarPeriodID: &used.ID,
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
@@ -131,7 +131,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	supervisor := &activitiesModels.SupervisorPlanned{
 		StaffID:          staff.ID,
 		GroupID:          group.ID,
-		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		ValidFrom:        activitiesModels.Date(timezone.NewDate(2026, 8, 1)),
 		CalendarPeriodID: &used.ID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))

@@ -258,7 +258,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		TimeframeID:      &timeframe.ID,
 		ActivityGroupID:  root.ID,
 		CalendarPeriodID: &period.ID,
-		ValidUntil:       &secondMonday,
+		ValidUntil:       activityDatePtr(&secondMonday),
 	}
 	rootSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), rootSchedule))
@@ -267,7 +267,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		TimeframeID:      &timeframe.ID,
 		ActivityGroupID:  successor.ID,
 		CalendarPeriodID: &period.ID,
-		ValidFrom:        &secondMonday,
+		ValidFrom:        activityDatePtr(&secondMonday),
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), successorSchedule))

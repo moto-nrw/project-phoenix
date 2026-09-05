@@ -211,7 +211,7 @@ func resolveSeriesCoverageDates(
 	if err != nil {
 		return nil, fmt.Errorf("load series recurrence envelope: %w", err)
 	}
-	envelope := &activitiesModel.Schedule{ValidFrom: validFrom, ValidUntil: validUntil}
+	envelope := &activitiesModel.Schedule{ValidFrom: activityDatePtr(validFrom), ValidUntil: activityDatePtr(validUntil)}
 	filtered := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
 		if scheduleNotStartedOn(envelope, date) || scheduleEndedOn(envelope, date) {

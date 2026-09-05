@@ -70,7 +70,7 @@ func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testin
 	)
 	require.ErrorIs(t, err, ErrTemplateRosterRebaseConflict)
 
-	boundedUntil := timezone.TodayDate().AddDays(30)
+	boundedUntil := activitiesModel.Date(timezone.TodayDate().AddDays(30))
 	activeB.ValidUntil = &boundedUntil
 	require.NoError(t, validateProtectedEnrollmentRebase(
 		[]*activitiesModel.StudentEnrollment{activeA, activeB},
@@ -331,7 +331,7 @@ func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 
-func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
+func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -350,7 +350,7 @@ func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 
-func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
+func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activitiesModel.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err

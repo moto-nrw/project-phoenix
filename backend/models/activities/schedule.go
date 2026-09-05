@@ -2,8 +2,6 @@ package activities
 
 import (
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Valid weekday values following ISO 8601 (Monday = 1, Sunday = 7)
@@ -31,13 +29,13 @@ type Schedule struct {
 	// convention as enrollment valid_until). NULL = open-ended. Set by the
 	// template split ("Dieser und alle folgenden") to retire the old
 	// template's recurrence from the effective date onward.
-	ValidUntil *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
+	ValidUntil *Date `bun:"valid_until" json:"valid_until,omitempty"`
 	// ValidFrom is the inclusive start of this schedule's recurrence: the
 	// schedule produces no instances BEFORE this date. NULL = open start.
 	// Set on successor schedules by the template split ("Dieser und alle
 	// folgenden") so materialization never emits successor instances before
 	// the effective date (which would duplicate the old template's rows).
-	ValidFrom *timezone.Date `bun:"valid_from" json:"valid_from,omitempty"`
+	ValidFrom *Date `bun:"valid_from" json:"valid_from,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
@@ -75,7 +73,7 @@ func (s *Schedule) SetValidityDateStrings(validUntil, validFrom *string) {
 	s.ValidUntil, s.ValidFrom = scheduleDate(validUntil), scheduleDate(validFrom)
 }
 
-func scheduleDateString(value *timezone.Date) *string {
+func scheduleDateString(value *Date) *string {
 	if value == nil {
 		return nil
 	}
@@ -83,10 +81,10 @@ func scheduleDateString(value *timezone.Date) *string {
 	return &result
 }
 
-func scheduleDate(value *string) *timezone.Date {
+func scheduleDate(value *string) *Date {
 	if value == nil {
 		return nil
 	}
-	result := timezone.Date(*value)
+	result := Date(*value)
 	return &result
 }

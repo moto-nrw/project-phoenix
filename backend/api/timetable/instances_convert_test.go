@@ -240,14 +240,14 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 				{
 					StudentID:        s.studentA,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 				},
 				{
 					StudentID:        s.studentB,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayTuesday},
 				},

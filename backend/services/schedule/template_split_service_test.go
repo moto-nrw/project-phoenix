@@ -33,6 +33,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func activityDatePointer(date timezone.Date) *activitiesModels.Date {
+	value := activitiesModels.Date(date)
+	return &value
+}
+
 // futureMonday returns the first Monday strictly after today, shifted by
 // offsetWeeks additional weeks. The split validates effective_date >= today,
 // so all split tests anchor on future dates.
@@ -200,7 +205,7 @@ func createProtectedSplitEnrollment(
 	t.Helper()
 	row := &activitiesModels.StudentEnrollment{
 		StudentID: studentID, ActivityGroupID: s.template.ID,
-		ValidFrom: validFrom, ValidUntil: &validUntil,
+		ValidFrom: activitiesModels.Date(validFrom), ValidUntil: activityDatePointer(validUntil),
 		CalendarPeriodID: &periodID, EnrollmentRequestChildID: &requestChildID,
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
@@ -739,7 +744,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	// Old schedule capped (exclusive end = effective date).
 	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
 	require.NotNil(t, oldSchedule.ValidUntil, "old schedule must be capped")
-	assert.Equal(t, effective, *oldSchedule.ValidUntil)
+	assert.Equal(t, activitiesModels.Date(effective), *oldSchedule.ValidUntil)
 
 	// Successor schedule open-ended, same weekday, week_pattern preserved
 	// (input nil → 0, matching the old schedule's pattern).
@@ -757,15 +762,15 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	for _, e := range oldEnrollments {
 		require.NotNil(t, e.ValidUntil, "every old enrollment must be ended")
 		if e.StudentID == s.students[2] {
-			assert.Equal(t, expiredUntil, *e.ValidUntil, "already-expired row untouched")
+			assert.Equal(t, activitiesModels.Date(expiredUntil), *e.ValidUntil, "already-expired row untouched")
 		} else {
-			assert.Equal(t, effective, *e.ValidUntil, "active row capped at effective date")
+			assert.Equal(t, activitiesModels.Date(effective), *e.ValidUntil, "active row capped at effective date")
 		}
 	}
 	oldSupervisors := loadSplitSupervisors(t, s, s.template.ID)
 	require.Len(t, oldSupervisors, 1)
 	require.NotNil(t, oldSupervisors[0].ValidUntil)
-	assert.Equal(t, effective, *oldSupervisors[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(effective), *oldSupervisors[0].ValidUntil)
 
 	// Carried-over roster: only the previously-active students, starting at
 	// the effective date, open-ended; primary flag preserved.
@@ -774,14 +779,14 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	assert.Equal(t, []int64{s.students[0], s.students[1]},
 		[]int64{newEnrollments[0].StudentID, newEnrollments[1].StudentID})
 	for _, e := range newEnrollments {
-		assert.Equal(t, effective, e.ValidFrom)
+		assert.Equal(t, activitiesModels.Date(effective), e.ValidFrom)
 		assert.Nil(t, e.ValidUntil)
 	}
 	newSupervisors := loadSplitSupervisors(t, s, res.NewTemplateID)
 	require.Len(t, newSupervisors, 1)
 	assert.Equal(t, s.staffID, newSupervisors[0].StaffID)
 	assert.True(t, newSupervisors[0].IsPrimary, "primary flag preserved on carry-over")
-	assert.Equal(t, effective, newSupervisors[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(effective), newSupervisors[0].ValidFrom)
 
 	// Planned future instance of the old template deleted; everything else
 	// survives.
@@ -964,22 +969,22 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 
 	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
 	require.NotNil(t, oldSchedule.ValidUntil)
-	assert.Equal(t, effective, *oldSchedule.ValidUntil)
+	assert.Equal(t, activitiesModels.Date(effective), *oldSchedule.ValidUntil)
 
 	oldEnrollments := loadSplitEnrollments(t, s, s.template.ID)
 	expiredUntil := effective.AddDays(-1)
 	for _, e := range oldEnrollments {
 		require.NotNil(t, e.ValidUntil)
 		if e.StudentID == s.students[2] {
-			assert.Equal(t, expiredUntil, *e.ValidUntil)
+			assert.Equal(t, activitiesModels.Date(expiredUntil), *e.ValidUntil)
 		} else {
-			assert.Equal(t, effective, *e.ValidUntil)
+			assert.Equal(t, activitiesModels.Date(effective), *e.ValidUntil)
 		}
 	}
 	oldSupervisors := loadSplitSupervisors(t, s, s.template.ID)
 	require.Len(t, oldSupervisors, 1)
 	require.NotNil(t, oldSupervisors[0].ValidUntil)
-	assert.Equal(t, effective, *oldSupervisors[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(effective), *oldSupervisors[0].ValidUntil)
 
 	assert.True(t, splitInstanceExists(t, s, first[0].ID), "active instance survives")
 	assert.False(t, splitInstanceExists(t, s, second[0].ID), "planned future old-template instance deleted")
@@ -1033,7 +1038,7 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 	newEnrollments := loadSplitEnrollments(t, s, res.NewTemplateID)
 	require.Len(t, newEnrollments, 1, "explicit roster wins; duplicates and zero ids dropped")
 	assert.Equal(t, s.students[2], newEnrollments[0].StudentID)
-	assert.Equal(t, effective, newEnrollments[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(effective), newEnrollments[0].ValidFrom)
 	assert.Nil(t, newEnrollments[0].ValidUntil)
 
 	newSupervisors := loadSplitSupervisors(t, s, res.NewTemplateID)
@@ -1046,7 +1051,7 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 	}
 	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
 	require.NotNil(t, oldSchedule.ValidUntil)
-	assert.Equal(t, effective, *oldSchedule.ValidUntil)
+	assert.Equal(t, activitiesModels.Date(effective), *oldSchedule.ValidUntil)
 }
 
 func TestTemplateSplit_ValidationErrors(t *testing.T) {
@@ -1130,7 +1135,7 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 	newSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, newSchedules, 1)
 	require.NotNil(t, newSchedules[0].ValidFrom, "successor schedule must carry valid_from")
-	assert.Equal(t, effective, *newSchedules[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(effective), *newSchedules[0].ValidFrom)
 
 	// Materialize the week BEFORE the effective date: the old (capped)
 	// template still owns it; the successor must be skipped as not started.
@@ -1160,8 +1165,8 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 	sourced := &activitiesModels.StudentEnrollment{
 		StudentID:                s.students[2],
 		ActivityGroupID:          s.template.ID,
-		ValidFrom:                sourcedFrom,
-		ValidUntil:               &sourcedUntil,
+		ValidFrom:                activitiesModels.Date(sourcedFrom),
+		ValidUntil:               activityDatePointer(sourcedUntil),
 		EnrollmentRequestChildID: &requestChildID,
 		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
 	}
@@ -1173,7 +1178,7 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 	weekdaySpecific := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[2],
 		ActivityGroupID:  s.template.ID,
-		ValidFrom:        futureRosterStart,
+		ValidFrom:        activitiesModels.Date(futureRosterStart),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
 	}
 	weekdaySpecific.SetTenantID(s.tenantID)
@@ -1246,13 +1251,13 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 	require.Len(t, oldSchedules, 1)
 	assert.Nil(t, oldSchedules[0].ValidFrom)
 	require.NotNil(t, oldSchedules[0].ValidUntil)
-	assert.Equal(t, effective, *oldSchedules[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(effective), *oldSchedules[0].ValidUntil,
 		"editing the predecessor must not reopen it past the split")
 
 	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, successorSchedules, 1)
 	require.NotNil(t, successorSchedules[0].ValidFrom)
-	assert.Equal(t, effective, *successorSchedules[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(effective), *successorSchedules[0].ValidFrom,
 		"editing the successor must not backfill before the split")
 	assert.Nil(t, successorSchedules[0].ValidUntil)
 
@@ -1291,7 +1296,7 @@ func assertPredecessorRosterBounds(
 		}
 		require.NotNil(t, enrollment.ValidUntil, "editing the predecessor must not create an open enrollment")
 		assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom), "predecessor enrollment bounds must never invert")
-		if enrollment.ValidFrom == replacementFrom && *enrollment.ValidUntil == effective {
+		if enrollment.ValidFrom == activitiesModels.Date(replacementFrom) && *enrollment.ValidUntil == activitiesModels.Date(effective) {
 			replacementStudents++
 		}
 	}
@@ -1301,7 +1306,7 @@ func assertPredecessorRosterBounds(
 	for _, supervisor := range loadSplitSupervisors(t, s, s.template.ID) {
 		require.NotNil(t, supervisor.ValidUntil, "editing the predecessor must not create open supervision")
 		assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom), "predecessor supervision bounds must never invert")
-		if supervisor.ValidFrom == replacementFrom && *supervisor.ValidUntil == effective {
+		if supervisor.ValidFrom == activitiesModels.Date(replacementFrom) && *supervisor.ValidUntil == activitiesModels.Date(effective) {
 			replacementStaff++
 		}
 	}
@@ -1325,9 +1330,9 @@ func assertPreservedSourcedEnrollment(
 	require.NotNil(t, preserved.EnrollmentRequestChildID)
 	assert.Equal(t, requestChildID, *preserved.EnrollmentRequestChildID,
 		"template PUT must preserve enrollment-decision provenance")
-	assert.Equal(t, wantFrom, preserved.ValidFrom)
+	assert.Equal(t, activitiesModels.Date(wantFrom), preserved.ValidFrom)
 	require.NotNil(t, preserved.ValidUntil)
-	assert.Equal(t, wantUntil, *preserved.ValidUntil,
+	assert.Equal(t, activitiesModels.Date(wantUntil), *preserved.ValidUntil,
 		"template PUT must not truncate a hidden bounded care-offer window")
 	assert.Equal(t, source.SelectedWeekdays, preserved.SelectedWeekdays)
 }
@@ -1363,10 +1368,10 @@ func assertActiveSuccessorStudents(
 		}
 		active++
 		if enrollment.StudentID == s.students[2] && len(enrollment.SelectedWeekdays) > 0 {
-			assert.Equal(t, futureStart, enrollment.ValidFrom, "future protected roster must retain its later start")
+			assert.Equal(t, activitiesModels.Date(futureStart), enrollment.ValidFrom, "future protected roster must retain its later start")
 			continue
 		}
-		assert.Equal(t, effective, enrollment.ValidFrom, "successor manual enrollment must start at schedule valid_from")
+		assert.Equal(t, activitiesModels.Date(effective), enrollment.ValidFrom, "successor manual enrollment must start at schedule valid_from")
 	}
 	assert.Equal(t, 3, active)
 }
@@ -1385,7 +1390,7 @@ func assertProtectedSuccessorRows(
 			continue
 		}
 		protected++
-		assert.Equal(t, futureStart, enrollment.ValidFrom, "future weekday-specific roster must not be pulled forward")
+		assert.Equal(t, activitiesModels.Date(futureStart), enrollment.ValidFrom, "future weekday-specific roster must not be pulled forward")
 		assert.Equal(t, source.SelectedWeekdays, enrollment.SelectedWeekdays)
 	}
 	assert.Equal(t, 1, protected, "explicit StudentIDs must not duplicate or widen the protected carried row")
@@ -1406,9 +1411,9 @@ func assertCarriedSourcedRows(
 			continue
 		}
 		carried++
-		assert.Equal(t, effective, enrollment.ValidFrom, "sourced row must be clipped to the successor start")
+		assert.Equal(t, activitiesModels.Date(effective), enrollment.ValidFrom, "sourced row must be clipped to the successor start")
 		require.NotNil(t, enrollment.ValidUntil)
-		assert.Equal(t, sourcedUntil, *enrollment.ValidUntil)
+		assert.Equal(t, activitiesModels.Date(sourcedUntil), *enrollment.ValidUntil)
 		assert.Equal(t, source.SelectedWeekdays, enrollment.SelectedWeekdays)
 	}
 	assert.Equal(t, 1, carried, "split must carry a hidden decision-owned enrollment independently of explicit StudentIDs")
@@ -1423,7 +1428,7 @@ func assertSuccessorStaffRoster(t *testing.T, s *scenarioSetup, groupID int64, e
 			continue
 		}
 		active++
-		assert.Equal(t, effective, supervisor.ValidFrom, "successor supervision must start at schedule valid_from")
+		assert.Equal(t, activitiesModels.Date(effective), supervisor.ValidFrom, "successor supervision must start at schedule valid_from")
 	}
 	assert.Equal(t, 1, active)
 }
@@ -1456,7 +1461,7 @@ func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
 	oldSchedules := loadSplitSchedules(t, s, s.template.ID)
 	require.Len(t, oldSchedules, 1)
 	require.NotNil(t, oldSchedules[0].ValidUntil)
-	assert.Equal(t, outerBoundary, *oldSchedules[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(outerBoundary), *oldSchedules[0].ValidUntil,
 		"rejected re-split must not shorten the predecessor")
 
 	materialized, err := s.svc.MaterializeForTenant(
@@ -1486,7 +1491,7 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	futureEnrollment := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[0],
 		ActivityGroupID:  s.template.ID,
-		ValidFrom:        futureRosterStart,
+		ValidFrom:        activitiesModels.Date(futureRosterStart),
 		CalendarPeriodID: &s.period.ID,
 	}
 	futureEnrollment.SetTenantID(s.tenantID)
@@ -1497,7 +1502,7 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	futureSupervisor := &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffID,
 		GroupID:          s.template.ID,
-		ValidFrom:        futureRosterStart,
+		ValidFrom:        activitiesModels.Date(futureRosterStart),
 		CalendarPeriodID: &s.period.ID,
 	}
 	futureSupervisor.SetTenantID(s.tenantID)
@@ -1542,8 +1547,8 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 		require.Len(t, schedules, 1)
 		require.NotNil(t, schedules[0].ValidFrom)
 		require.NotNil(t, schedules[0].ValidUntil)
-		assert.Equal(t, boundary, *schedules[0].ValidFrom)
-		assert.Equal(t, boundary, *schedules[0].ValidUntil)
+		assert.Equal(t, activitiesModels.Date(boundary), *schedules[0].ValidFrom)
+		assert.Equal(t, activitiesModels.Date(boundary), *schedules[0].ValidUntil)
 		assertTemplateRosterWindowsNotInverted(t, s, first.NewTemplateID)
 	})
 }
@@ -1554,13 +1559,13 @@ func assertFutureRosterCarried(t *testing.T, s *scenarioSetup, groupID int64, wa
 	for _, enrollment := range loadSplitEnrollments(t, s, groupID) {
 		if enrollment.StudentID == s.students[0] {
 			carriedStudent = true
-			assert.Equal(t, wantStart, enrollment.ValidFrom)
+			assert.Equal(t, activitiesModels.Date(wantStart), enrollment.ValidFrom)
 		}
 	}
 	assert.True(t, carriedStudent)
 	staff := loadSplitSupervisors(t, s, groupID)
 	require.Len(t, staff, 1)
-	assert.Equal(t, wantStart, staff[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(wantStart), staff[0].ValidFrom,
 		"future-starting open supervision must retain its start on the successor")
 }
 
@@ -1649,7 +1654,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, successorSchedules, 1)
 	require.NotNil(t, successorSchedules[0].ValidFrom)
-	assert.Equal(t, effective, *successorSchedules[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(effective), *successorSchedules[0].ValidFrom)
 
 	// The frontend follows a full-series PUT with a successor-scoped re-plan.
 	// Materialization still examines every template, making this the exact
@@ -1777,7 +1782,7 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 	schedules := loadSplitSchedules(t, s, s.template.ID)
 	require.Len(t, schedules, 1)
 	require.NotNil(t, schedules[0].ValidUntil)
-	assert.Equal(t, effective, *schedules[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(effective), *schedules[0].ValidUntil,
 		"rejected PUT must preserve the cap committed by the preceding end transaction")
 	assert.Equal(t, group.Name, reloadSplitGroup(t, s, s.template.ID).Name,
 		"rejected PUT must not mutate bounded template fields")
@@ -1993,7 +1998,7 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	secondEnroll := &activitiesModels.StudentEnrollment{
 		StudentID:        s.students[0],
 		ActivityGroupID:  s.template.ID,
-		ValidFrom:        effective.AddDays(-14),
+		ValidFrom:        activitiesModels.Date(effective.AddDays(-14)),
 		CalendarPeriodID: &s.period.ID,
 		SelectedWeekdays: []int{activitiesModels.WeekdayWednesday},
 	}
@@ -2006,7 +2011,7 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 		StaffID:          s.staffID,
 		GroupID:          s.template.ID,
 		IsPrimary:        false,
-		ValidFrom:        effective.AddDays(-14),
+		ValidFrom:        activitiesModels.Date(effective.AddDays(-14)),
 		CalendarPeriodID: &s.period.ID,
 	}
 	secondSup.SetTenantID(s.tenantID)

@@ -893,7 +893,7 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 // AFTER that date (same convention as enrollment valid_until). A nil
 // valid_until means open-ended.
 func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
-	return sch != nil && sch.ValidUntil != nil && !date.Before(*sch.ValidUntil)
+	return sch != nil && sch.ValidUntil != nil && !sch.ValidUntil.After(date)
 }
 
 // scheduleNotStartedOn answers: has this schedule's recurrence not yet begun
@@ -904,7 +904,7 @@ func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
 // effective date does not emit phantom successor instances next to the old
 // template's rows.
 func scheduleNotStartedOn(sch *activities.Schedule, date timezone.Date) bool {
-	return sch != nil && sch.ValidFrom != nil && date.Before(*sch.ValidFrom)
+	return sch != nil && sch.ValidFrom != nil && sch.ValidFrom.After(date)
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.

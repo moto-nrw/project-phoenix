@@ -2252,7 +2252,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       date.AddDays(-1),
+		ValidFrom:       activitiesModels.Date(date.AddDays(-1)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).Exec(ctx)

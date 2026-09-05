@@ -436,13 +436,13 @@ func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 	boundary := timezone.NewDate(2027, 1, 1)
 	rootSchedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: root.ID,
-		ValidUntil: &boundary,
+		ValidUntil: activityDatePtr(&boundary),
 	}
 	rootSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, rootSchedule))
 	successorSchedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: successor.ID,
-		ValidFrom: &boundary,
+		ValidFrom: activityDatePtr(&boundary),
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, successorSchedule))
@@ -467,7 +467,7 @@ func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing
 	startsAfterPhase := phase.ServiceEndDate.AddDays(1)
 	schedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
-		ValidFrom: &startsAfterPhase,
+		ValidFrom: activityDatePtr(&startsAfterPhase),
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, schedule))
@@ -566,7 +566,7 @@ func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care boundary")
 	schedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
-		CalendarPeriodID: &period.ID, TimeframeID: &timeframe.ID, ValidFrom: &validFrom, ValidUntil: &validUntil,
+		CalendarPeriodID: &period.ID, TimeframeID: &timeframe.ID, ValidFrom: activityDatePtr(&validFrom), ValidUntil: activityDatePtr(&validUntil),
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, testActivityScheduleRepository(t, db).Create(testpkg.Ctx(t), schedule))

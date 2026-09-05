@@ -41,7 +41,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	enrollment := &activities.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: groupID,
-		ValidFrom:       timezone.TodayDate(),
+		ValidFrom:       activities.Date(timezone.TodayDate()),
 	}
 	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
@@ -385,7 +385,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 			enrollment := &activities.StudentEnrollment{
 				StudentID:       studentID,
 				ActivityGroupID: groupID,
-				ValidFrom:       timezone.TodayDate(),
+				ValidFrom:       activities.Date(timezone.TodayDate()),
 			}
 			if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
 				return &ActivityError{Op: "create enrollment", Err: err}
@@ -493,7 +493,7 @@ func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, s
 		return result, nil
 	}
 
-	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, onDate)
+	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, activities.Date(onDate))
 	if err != nil {
 		return nil, &ActivityError{Op: "get active student enrollments by student IDs", Err: err}
 	}

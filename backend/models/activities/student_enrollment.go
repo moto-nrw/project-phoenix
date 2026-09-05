@@ -2,8 +2,6 @@ package activities
 
 import (
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Define attendance status constants
@@ -21,11 +19,11 @@ const ()
 type StudentEnrollment struct {
 	Model `bun:"schema:activities,table:student_enrollments"`
 	TenantModel
-	StudentID        int64          `bun:"student_id,notnull" json:"student_id"`
-	ActivityGroupID  int64          `bun:"activity_group_id,notnull" json:"activity_group_id"`
-	ValidFrom        timezone.Date  `bun:"valid_from,notnull" json:"valid_from"`
-	ValidUntil       *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
-	CalendarPeriodID *int64         `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	StudentID        int64  `bun:"student_id,notnull" json:"student_id"`
+	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	ValidFrom        Date   `bun:"valid_from,notnull" json:"valid_from"`
+	ValidUntil       *Date  `bun:"valid_until" json:"valid_until,omitempty"`
+	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
 	// EnrollmentRequestChildID marks activity rows materialized from an
 	// approved enrollment request child so later offering adjustments can
 	// replace exactly those rows, even if offering groups or phase dates changed.

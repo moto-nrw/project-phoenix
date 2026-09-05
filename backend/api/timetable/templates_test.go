@@ -33,6 +33,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func templateActivityDatePtr(date *timezone.Date) *activitiesModel.Date {
+	if date == nil {
+		return nil
+	}
+	value := activitiesModel.Date(*date)
+	return &value
+}
+
 type templateSetup struct {
 	res         *Resource
 	schedules   activitiesModel.ScheduleRepository
@@ -1001,7 +1009,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        activitiesModel.Date(periodB.StartDate),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
@@ -1010,7 +1018,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
 		ActivityGroupID: created.TemplateID,
-		ValidFrom:       timezone.NewDate(2026, time.January, 1),
+		ValidFrom:       activitiesModel.Date(timezone.NewDate(2026, time.January, 1)),
 	}
 	globalEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.enrollments.Create(s.ctx, globalEnrollment))
@@ -1018,7 +1026,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        activitiesModel.Date(periodB.StartDate),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(testpkg.Tenant(t))
@@ -1027,7 +1035,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
 		GroupID:   created.TemplateID,
-		ValidFrom: timezone.NewDate(2026, time.January, 1),
+		ValidFrom: activitiesModel.Date(timezone.NewDate(2026, time.January, 1)),
 	}
 	globalSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.supervisors.Create(s.ctx, globalSupervisor))
@@ -1147,7 +1155,7 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 	protected := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        period.StartDate,
+		ValidFrom:        activitiesModel.Date(period.StartDate),
 		CalendarPeriodID: &period.ID,
 		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 	}
@@ -1232,11 +1240,11 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	wBounded := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyBounded)
 	require.Equal(t, http.StatusCreated, wBounded.Code, "body=%s", wBounded.Body.String())
 	createdBounded := decodeTemplateData[createTemplateResponse](t, wBounded)
-	boundedUntil := periodP.EndDate
+	boundedUntil := activitiesModel.Date(periodP.EndDate)
 	boundedEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  createdBounded.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		ValidUntil:       &boundedUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
@@ -1257,7 +1265,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        roster.studentID,
 			ActivityGroupID:  createdGlobal.TemplateID,
-			ValidFrom:        periodP.StartDate,
+			ValidFrom:        activitiesModel.Date(periodP.StartDate),
 			CalendarPeriodID: roster.periodID,
 		}
 		enrollment.SetTenantID(testpkg.Tenant(t))
@@ -1266,7 +1274,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
 		GroupID:          createdGlobal.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))
@@ -1274,11 +1282,11 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	// A bounded staff assignment contributes only on dates inside its own
 	// validity window. Occurrence-level capacity must count it there without
 	// smearing it across the rest of the period.
-	boundedSupervisorUntil := periodP.EndDate
+	boundedSupervisorUntil := activitiesModel.Date(periodP.EndDate)
 	boundedSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          createdGlobal.TemplateID,
-		ValidFrom:        periodP.StartDate,
+		ValidFrom:        activitiesModel.Date(periodP.StartDate),
 		ValidUntil:       &boundedSupervisorUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
@@ -1291,7 +1299,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		periodQSupervisor := &activitiesModel.SupervisorPlanned{
 			StaffID:          staffID,
 			GroupID:          createdGlobal.TemplateID,
-			ValidFrom:        periodQ.StartDate,
+			ValidFrom:        activitiesModel.Date(periodQ.StartDate),
 			CalendarPeriodID: &periodQ.ID,
 		}
 		periodQSupervisor.SetTenantID(testpkg.Tenant(t))
@@ -1742,8 +1750,8 @@ func createCapacityEnrollment(
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        studentID,
 		ActivityGroupID:  templateID,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        activitiesModel.Date(validFrom),
+		ValidUntil:       templateActivityDatePtr(validUntil),
 		CalendarPeriodID: periodID,
 		SelectedWeekdays: selectedWeekdays,
 	}
@@ -1763,8 +1771,8 @@ func createCapacitySupervisor(
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          staffID,
 		GroupID:          templateID,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        activitiesModel.Date(validFrom),
+		ValidUntil:       templateActivityDatePtr(validUntil),
 		CalendarPeriodID: periodID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))

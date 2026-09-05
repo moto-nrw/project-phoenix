@@ -335,7 +335,7 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	booking := &activityModels.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activityModels.Date(today.AddDays(-30)),
 	}
 	booking.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
@@ -360,11 +360,11 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 
 	// valid_until is an EXCLUSIVE bound, so the booking still counts on the
 	// last care day and stops the day after.
-	stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, today)
+	stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, activityModels.Date(today))
 	require.NoError(t, err)
 	assert.Len(t, stillToday, 1, "the booking still counts on the last care day")
 
-	tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, today.AddDays(1))
+	tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{student.ID}, activityModels.Date(today.AddDays(1)))
 	require.NoError(t, err)
 	assert.Empty(t, tomorrow, "the booking has ended the day after")
 }
@@ -748,7 +748,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	openEnded := &activityModels.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activityModels.Date(today.AddDays(-30)),
 	}
 	openEnded.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, openEnded))
@@ -756,7 +756,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	futureOnly := &activityModels.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       today.AddDays(40),
+		ValidFrom:       activityModels.Date(today.AddDays(40)),
 		Weekday:         testpkg.IntPtr(3),
 	}
 	futureOnly.SetTenantID(testpkg.Tenant(t))
@@ -814,7 +814,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 
 	t.Run("the capped booking is open-ended again", func(t *testing.T) {
 		active, err := repos.StudentEnrollment.FindActiveByStudentIDs(
-			ctx, []int64{student.ID}, today.AddDays(200))
+			ctx, []int64{student.ID}, activityModels.Date(today.AddDays(200)))
 		require.NoError(t, err)
 		require.NotEmpty(t, active, "the offering runs on as if nothing happened")
 	})
@@ -823,7 +823,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 		restored, err := repos.StudentEnrollment.FindByID(ctx, futureOnlyID)
 		require.NoError(t, err)
 		require.NotNil(t, restored)
-		assert.Equal(t, today.AddDays(40), restored.ValidFrom)
+		assert.Equal(t, activityModels.Date(today.AddDays(40)), restored.ValidFrom)
 		assert.Nil(t, restored.ValidUntil)
 	})
 }

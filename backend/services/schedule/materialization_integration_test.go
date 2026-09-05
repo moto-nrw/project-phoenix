@@ -143,8 +143,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 
 	// 6. Enrollments: student1 + student2 valid unbounded; student3 expired
 	// the day before materializeDate.
-	expiredUntil := materializeDate.AddDays(-1)
-	validFrom := materializeDate.AddDays(-30)
+	expiredUntil := activitiesModels.Date(materializeDate.AddDays(-1))
+	validFrom := activitiesModels.Date(materializeDate.AddDays(-30))
 	enroll1 := &activitiesModels.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll1.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)

@@ -248,14 +248,14 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: monday.AddDays(-30),
+		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
 		Weekday:   &weekday,
 	}))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
 		IsPrimary:        true,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.periodID,
 		Weekday:          &weekday,
 	}))
@@ -563,7 +563,7 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
@@ -636,7 +636,7 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
@@ -732,7 +732,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
@@ -740,7 +740,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	inconsistentProtected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 		Weekday:          &inconsistentWeekday,
 	}
@@ -812,12 +812,12 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: monday.AddDays(-30),
+		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
 	}))
 	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
 		StudentID:       s.studentA,
 		ActivityGroupID: result.TemplateID,
-		ValidFrom:       monday.AddDays(-30),
+		ValidFrom:       activitiesModels.Date(monday.AddDays(-30)),
 	}))
 
 	rows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
@@ -893,7 +893,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
@@ -970,14 +970,14 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))
 	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))

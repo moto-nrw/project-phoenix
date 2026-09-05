@@ -1322,7 +1322,7 @@
       "declaration": "TestListTemplatesCapacityUsesActualOccurrences",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1401
+        1409
       ],
       "tables": [
         "activities.groups",
@@ -1336,8 +1336,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1952,
-        1953
+        1960,
+        1961
       ],
       "tables": []
     },
@@ -1347,7 +1347,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        127
+        135
       ],
       "tables": []
     },
@@ -1357,7 +1357,7 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        137
+        145
       ],
       "tables": []
     },
@@ -1367,7 +1367,7 @@
       "declaration": "ownedTimeframeRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        76
       ],
       "tables": []
     },
@@ -12514,8 +12514,8 @@
       "declaration": "TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting",
       "target": "database/repositories.NewFactory",
       "lines": [
-        365,
-        421
+        370,
+        426
       ],
       "tables": []
     },
@@ -12525,7 +12525,7 @@
       "declaration": "TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2198
+        2203
       ],
       "tables": []
     },
@@ -12535,7 +12535,7 @@
       "declaration": "createLinkedCareOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        255
+        260
       ],
       "tables": [
         "activities.groups"

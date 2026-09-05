@@ -370,10 +370,10 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, switchDate, rows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(switchDate), rows[0].ValidFrom,
 		"a future-dated offering link must not plan the child before the switch date")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *rows[0].ValidUntil)
 }
 
 func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
@@ -406,9 +406,9 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, switchDate, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil,
 		"a link ending mid-phase must not plan the child for the rest of the phase")
 }
 
@@ -613,13 +613,13 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 2, "two disjoint links yield two rows — one merged row would plan the gap")
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, leaveDate, *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(leaveDate), *rows[0].ValidUntil)
 	assert.Equal(t, studentID, rows[1].StudentID)
-	assert.Equal(t, rejoinDate, rows[1].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(rejoinDate), rows[1].ValidFrom)
 	require.NotNil(t, rows[1].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[1].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *rows[1].ValidUntil)
 }
 
 // An existing row must SHRINK when the child's offering window contracted
@@ -649,7 +649,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	require.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+	require.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *rows[0].ValidUntil)
 
 	// The child leaves the offering mid-phase AFTER the row was seeded.
 	capDate := env.sourcePhase.ServiceStartDate.AddDays(45)
@@ -660,7 +660,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, capDate, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(capDate), *rows[0].ValidUntil,
 		"the retained row must shrink to the contracted offering window")
 }
 
@@ -690,7 +690,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	require.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	require.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 
 	// The child switches to offering B mid-phase; the template is retargeted
 	// from A to B in the same breath.
@@ -712,10 +712,10 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, switchDate, rows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(switchDate), rows[0].ValidFrom,
 		"the row must not start before the child holds the NEW offering")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *rows[0].ValidUntil)
 }
 
 // A grade transition rewrites school classes; the tenant-wide resync must
@@ -1294,7 +1294,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	assert.Equal(t, phaseStart, rows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(phaseStart), rows[0].ValidFrom,
 		"the union row must start at the phase's service start, not at the approval date")
 }
 
@@ -1327,7 +1327,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	require.NoError(t, err)
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	require.Equal(t, phaseStart, rows[0].ValidFrom)
+	require.Equal(t, activitiesModels.Date(phaseStart), rows[0].ValidFrom)
 
 	// Undated correction: the selection was wrong from the start, switch the
 	// child from offering A to B (both feed the same template).
@@ -1345,7 +1345,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1, "the child still feeds the template through offering B")
-	assert.Equal(t, phaseStart, rows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(phaseStart), rows[0].ValidFrom,
 		"the rematerialized union row must cover the whole phase window again")
 }
 
@@ -1458,8 +1458,8 @@ func createBoundedTemplateSchedule(
 		ActivityGroupID:  groupID,
 		WeekPattern:      0,
 		CalendarPeriodID: periodID,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        activityDatePtr(validFrom),
+		ValidUntil:       activityDatePtr(validUntil),
 	}
 	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, testActivityScheduleRepository(t, env.db).Create(testpkg.Ctx(t), schedule))
@@ -1508,18 +1508,18 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 	predecessorRows := loadTemplateEnrollments(t, env, predecessor.ID)
 	require.Len(t, predecessorRows, 1)
 	assert.Equal(t, studentID, predecessorRows[0].StudentID)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, predecessorRows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), predecessorRows[0].ValidFrom)
 	require.NotNil(t, predecessorRows[0].ValidUntil)
-	assert.Equal(t, splitDate, *predecessorRows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(splitDate), *predecessorRows[0].ValidUntil,
 		"the capped predecessor must not be planned past its segment end")
 
 	successorRows := loadTemplateEnrollments(t, env, successor.ID)
 	require.Len(t, successorRows, 1)
 	assert.Equal(t, studentID, successorRows[0].StudentID)
-	assert.Equal(t, splitDate, successorRows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(splitDate), successorRows[0].ValidFrom,
 		"the successor must not be planned before its segment start")
 	require.NotNil(t, successorRows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *successorRows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *successorRows[0].ValidUntil)
 }
 
 // The tenant-wide resync (grade transitions) also visits capped split
@@ -1552,7 +1552,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, splitDate, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(splitDate), *rows[0].ValidUntil,
 		"the seeded row must stop at the segment's schedule valid_until")
 
 	// Re-running must keep the capped row instead of extending it.
@@ -1560,7 +1560,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, splitDate, *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(splitDate), *rows[0].ValidUntil)
 }
 
 // The materializer never revisits an existing instance, so the resync itself
@@ -1691,7 +1691,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	require.Equal(t, switchDate, *rows[0].ValidUntil,
+	require.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil,
 		"sanity: the resync must have touched the child's enrollment row")
 	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
 		"a hand-removed occurrence row must not be recreated while the child's coverage there is unchanged")
@@ -1791,9 +1791,9 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, switchDate, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil,
 		"the approval fan-out must not plan the child past the offering link's end")
 }
 
@@ -1873,7 +1873,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	require.Equal(t, switchDate, *rows[0].ValidUntil)
+	require.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil)
 	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
 		"the switched-away child must leave the already-materialized occurrence after the switch date")
 }
@@ -1901,7 +1901,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	require.Equal(t, splitDate, *rows[0].ValidUntil)
+	require.Equal(t, activitiesModels.Date(splitDate), *rows[0].ValidUntil)
 
 	// The switch keeps the same offering with unchanged days, so the existing
 	// row is retained rather than capped and re-seeded.
@@ -1922,7 +1922,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	rows = loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, splitDate, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(splitDate), *rows[0].ValidUntil,
 		"the retained row must keep the segment end — not be extended to the phase end")
 }
 
@@ -2067,9 +2067,9 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 	require.Len(t, rows, 1, "the source plans the child until the legacy link begins")
 	assert.Equal(t, studentID, rows[0].StudentID)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, legacyStart, *rows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(legacyStart), *rows[0].ValidUntil,
 		"the source row stops where the legacy feed takes over — and is not suppressed before it")
 }
 

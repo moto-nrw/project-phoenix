@@ -229,7 +229,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	booking := &activityModels.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-60),
+		ValidFrom:       activityModels.Date(today.AddDays(-60)),
 	}
 	booking.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
@@ -289,11 +289,11 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the offering ends at the last care day", func(t *testing.T) {
-		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, today)
+		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
 		require.NoError(t, err)
 		assert.Len(t, stillToday, 1)
 
-		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, today.AddDays(1))
+		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
 		require.NoError(t, err)
 		assert.Empty(t, tomorrow)
 	})

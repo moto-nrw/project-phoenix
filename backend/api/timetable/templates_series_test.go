@@ -171,9 +171,9 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 		if row.StudentID != latecomer.ID {
 			continue
 		}
-		assert.Equal(t, anchor, row.ValidFrom, "the predecessor row starts at the anchor")
+		assert.Equal(t, activitiesModel.Date(anchor), row.ValidFrom, "the predecessor row starts at the anchor")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, s.effective, *row.ValidUntil, "and ends with the predecessor segment")
+		assert.Equal(t, activitiesModel.Date(s.effective), *row.ValidUntil, "and ends with the predecessor segment")
 		require.NotNil(t, row.Weekday, "predecessor rows are written weekday-explicit")
 		weekdays = append(weekdays, *row.Weekday)
 	}

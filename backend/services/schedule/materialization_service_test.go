@@ -107,8 +107,8 @@ func TestResolveWindow(t *testing.T) {
 func TestIsEnrollmentValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) timezone.Date {
-		return timezone.NewDate(y, m, day)
+	d := func(y int, m time.Month, day int) activities.Date {
+		return activities.Date(timezone.NewDate(y, m, day))
 	}
 	p100 := int64(100)
 	p200 := int64(200)
@@ -249,12 +249,12 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	otherPeriodID := int64(401)
 	endedBefore := date.AddDays(-1)
 	enrollments := []*activities.StudentEnrollment{
-		{StudentID: 501, ValidFrom: date.AddDays(-1), CalendarPeriodID: &periodID},
-		{StudentID: 502, ValidFrom: date.AddDays(1)},
-		{StudentID: 503, ValidFrom: date.AddDays(-1), CalendarPeriodID: &otherPeriodID},
-		{StudentID: 504, ValidFrom: date.AddDays(-1), SelectedWeekdays: []int{2}},
-		{StudentID: 505, ValidFrom: date.AddDays(-1), StudentAlumnus: true},
-		{StudentID: 506, ValidFrom: date.AddDays(-1)},
+		{StudentID: 501, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &periodID},
+		{StudentID: 502, ValidFrom: activities.Date(date.AddDays(1))},
+		{StudentID: 503, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &otherPeriodID},
+		{StudentID: 504, ValidFrom: activities.Date(date.AddDays(-1)), SelectedWeekdays: []int{2}},
+		{StudentID: 505, ValidFrom: activities.Date(date.AddDays(-1)), StudentAlumnus: true},
+		{StudentID: 506, ValidFrom: activities.Date(date.AddDays(-1))},
 	}
 	targetStudentIDs := []int64{501, 507, 508, 507}
 	careBounds := map[int64]timezone.Date{506: endedBefore, 507: date, 508: endedBefore}
@@ -272,8 +272,8 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 func TestIsSupervisorValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) timezone.Date {
-		return timezone.NewDate(y, m, day)
+	d := func(y int, m time.Month, day int) activities.Date {
+		return activities.Date(timezone.NewDate(y, m, day))
 	}
 	target := d(2026, time.April, 20)
 	targetDay := timezone.NewDate(2026, 4, 20)
@@ -975,7 +975,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 4, 20)
-	validFrom := date
+	validFrom := activities.Date(date)
 	periodID := int64(400)
 
 	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
@@ -1154,7 +1154,7 @@ func TestScheduleEndedOn(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, time.June, 15)
-	until := timezone.NewDate(2026, time.June, 15)
+	until := activities.Date(timezone.NewDate(2026, time.June, 15))
 
 	assert.False(t, scheduleEndedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleEndedOn(&activities.Schedule{}, date), "nil valid_until = open-ended")
@@ -1175,7 +1175,7 @@ func TestScheduleNotStartedOn(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, time.August, 13)
-	from := timezone.NewDate(2026, time.August, 13)
+	from := activities.Date(timezone.NewDate(2026, time.August, 13))
 
 	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")
