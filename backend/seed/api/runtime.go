@@ -16,7 +16,6 @@ type Runtime struct {
 	AdditionalProfiles map[string]*SeedProfile
 	Parents            []ParentCredentials
 	Enrollment         SeedEnrollmentState
-	CareWithdrawals    *SeedCareWithdrawalDemo
 	Values             map[string]any
 }
 

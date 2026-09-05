@@ -73,7 +73,7 @@ func TestPrintActiveGroups_EmptyGroups(t *testing.T) {
 
 	// Should not panic with empty data
 	data := `{"status":"success","data":[]}`
-	printActiveGroups([]byte(data))
+	require.NoError(t, printActiveGroups([]byte(data)))
 }
 
 func TestPrintActiveGroups_WithGroups(t *testing.T) {
@@ -81,14 +81,14 @@ func TestPrintActiveGroups_WithGroups(t *testing.T) {
 
 	data := `{"status":"success","data":[{"id":1,"activity_name":"Fußball","room_name":"Sporthalle","supervisor_names":"Julia Klein"}]}`
 	// Should not panic
-	printActiveGroups([]byte(data))
+	require.NoError(t, printActiveGroups([]byte(data)))
 }
 
 func TestPrintActiveGroups_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	// Should not panic with invalid JSON
-	printActiveGroups([]byte("not json"))
+	require.Error(t, printActiveGroups([]byte("not json")))
 }
 
 func TestPrintActiveGroups_DirectArray(t *testing.T) {
@@ -96,7 +96,7 @@ func TestPrintActiveGroups_DirectArray(t *testing.T) {
 
 	data := `[{"id":1,"name":"Fußball","room_name":"Sporthalle"}]`
 	// Should handle direct array (no envelope)
-	printActiveGroups([]byte(data))
+	require.NoError(t, printActiveGroups([]byte(data)))
 }
 
 func TestPrintActiveGroups_FallbackToNameField(t *testing.T) {
@@ -104,7 +104,7 @@ func TestPrintActiveGroups_FallbackToNameField(t *testing.T) {
 
 	data := `{"status":"success","data":[{"id":1,"name":"Fußball"}]}`
 	// When activity_name is missing, should use "name"
-	printActiveGroups([]byte(data))
+	require.NoError(t, printActiveGroups([]byte(data)))
 }
 
 // =============================================================================
@@ -115,20 +115,20 @@ func TestPrintActiveVisits_EmptyVisits(t *testing.T) {
 	t.Parallel()
 
 	data := `{"status":"success","data":[]}`
-	printActiveVisits([]byte(data))
+	require.NoError(t, printActiveVisits([]byte(data)))
 }
 
 func TestPrintActiveVisits_WithVisits(t *testing.T) {
 	t.Parallel()
 
 	data := `{"status":"success","data":[{"student_id":1,"room_name":"OGS-Raum 1"},{"student_id":2,"room_name":"OGS-Raum 1"},{"student_id":3,"room_name":"Sporthalle"}]}`
-	printActiveVisits([]byte(data))
+	require.NoError(t, printActiveVisits([]byte(data)))
 }
 
 func TestPrintActiveVisits_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	printActiveVisits([]byte("not json"))
+	require.Error(t, printActiveVisits([]byte("not json")))
 }
 
 func TestPrintActiveVisits_UnknownRoom(t *testing.T) {
@@ -136,14 +136,14 @@ func TestPrintActiveVisits_UnknownRoom(t *testing.T) {
 
 	data := `{"status":"success","data":[{"student_id":1}]}`
 	// room_name missing → should use "(unknown)"
-	printActiveVisits([]byte(data))
+	require.NoError(t, printActiveVisits([]byte(data)))
 }
 
 func TestPrintActiveVisits_DirectArray(t *testing.T) {
 	t.Parallel()
 
 	data := `[{"student_id":1,"room_name":"OGS-Raum 1"}]`
-	printActiveVisits([]byte(data))
+	require.NoError(t, printActiveVisits([]byte(data)))
 }
 
 // =============================================================================
@@ -294,9 +294,9 @@ func TestRunStatus_GroupsFetchError(t *testing.T) {
 	}
 	require.NoError(t, WriteSeedState(state, statePath))
 
-	// Should still succeed (errors are printed, not returned)
+	// Smoke checks must fail when the profile cannot be read.
 	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory, StatePath: statePath})
-	assert.NoError(t, err)
+	assert.ErrorContains(t, err, "active groups")
 }
 
 // =============================================================================
