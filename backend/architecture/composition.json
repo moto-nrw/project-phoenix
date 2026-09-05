@@ -8530,59 +8530,6 @@
     },
     {
       "scope": "test",
-      "file": "services/activities/activity_service_test.go",
-      "declaration": "TestActivityService_EnrollStudent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        642
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/activities/activity_service_test.go",
-      "declaration": "TestActivityService_SetCategoryShiftTypeLinks",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        3010,
-        3011
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/activities/activity_service_test.go",
-      "declaration": "setupActivityService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/activities/category_operations_test.go",
-      "declaration": "TestServiceUpdateCategory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        132
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/activities/enrollment_graduation_race_test.go",
-      "declaration": "TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRosterRead",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        63
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/auth/auth_core_test.go",
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
