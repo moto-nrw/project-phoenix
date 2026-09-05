@@ -642,7 +642,18 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Equal(t, int64(5001), manual.Credentials.Accounts.Admin[0].StaffID)
 	assert.Zero(t, manual.Credentials.Accounts.Admin[0].TeacherID)
 	require.NotNil(t, state.CareWithdrawals)
-	assert.Equal(t, 3, state.Topology.Schools)
+	assert.Equal(t, 4, state.Topology.Schools)
+	assert.Equal(t, 2, state.Topology.Organizations)
+	enrollmentProfile, err := state.SelectProfile("anmeldung-wochenplan")
+	require.NoError(t, err)
+	assert.Len(t, enrollmentProfile.Entities.Students, 12)
+	assert.Len(t, enrollmentProfile.Entities.Enrollment.Requests, 16)
+	assert.Positive(t, enrollmentProfile.Entities.Enrollment.SchemaID)
+	assert.Equal(t, profile.Credentials.Accounts.Admin[0].Email, enrollmentProfile.Credentials.Accounts.Admin[0].Email)
+	assert.Len(t, enrollmentProfile.Credentials.Parents, 12)
+	assert.Len(t, enrollmentProfile.Devices, 1)
+	assert.Equal(t, map[string]int{"approved": 12, "submitted": 1, "waitlisted": 1, "rejected": 1, "withdrawn": 1}, countBy(enrollmentProfile.Entities.Enrollment.Requests, func(request SeedEnrollmentRequest) string { return request.Status }))
+	assert.NotEqual(t, profile.Organization.ID, enrollmentProfile.Organization.ID)
 	assert.Equal(t, []string{ManualProfileKey, DefaultProfileKey}, state.Organizations["demo-traeger-nord"].Profiles)
 	assert.NotEmpty(t, state.CareWithdrawals.SchoolAdmin.Email)
 	assertWithdrawalSeedTrace(t, trace)
@@ -826,6 +837,7 @@ func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
 func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestServer {
 	t.Helper()
+	weeklyMock := &weeklyProfileAPIMock{}
 	idCounter := int64(0)
 	var planningStaffID int64
 	manualStudents := make(map[int64]map[string]any)
@@ -838,6 +850,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	}
 
 	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		if weeklyMock.serve(t, w, r) {
+			return
+		}
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
