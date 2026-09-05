@@ -144,6 +144,14 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Normalize()
 	mergeAdditionalProfiles(state, rt.AdditionalProfiles)
 
+	if additional, ok := rt.Values[enrollmentWeeklyProfileKey].(*SeedState); ok {
+		state.Profiles[enrollmentWeeklyProfileKey] = additional.Profiles[enrollmentWeeklyProfileKey]
+		for key, org := range additional.Organizations {
+			state.Organizations[key] = org
+		}
+		state.Topology.Organizations++
+		state.Topology.Schools++
+	}
 	rt.State = state
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
@@ -226,6 +234,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedInactiveAccountStep{},
 			verifyProfileStep{definition: seeder.definition},
 			manualProfileStep{seeder: seeder},
+			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},
