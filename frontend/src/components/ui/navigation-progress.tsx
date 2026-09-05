@@ -41,6 +41,7 @@ export interface NavigationProgressStore {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly isPending: () => boolean;
   readonly startNavigation: (target: string) => number;
+  readonly startLinkNavigation: (target: string) => number;
   readonly startHistory: (target: string) => void;
   readonly completeNavigation: (currentUrl: string) => void;
   readonly cancelNavigation: (id: number) => void;
@@ -57,6 +58,8 @@ interface PendingNavigation {
 function createStore(): NavigationProgressStore {
   let pendingNavigations: PendingNavigation[] = [];
   let pendingHistoryNavigation: PendingNavigation | null = null;
+  let pendingLinkNavigation: Pick<PendingNavigation, "id" | "target"> | null =
+    null;
   let nextNavigationId = 0;
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -82,6 +85,10 @@ function createStore(): NavigationProgressStore {
     }
   };
   const startNavigation = (target: string) => {
+    if (pendingLinkNavigation?.target === target) {
+      return pendingLinkNavigation.id;
+    }
+
     const id = nextNavigationId + 1;
     nextNavigationId = id;
     update(() => {
@@ -114,6 +121,16 @@ function createStore(): NavigationProgressStore {
     },
     isPending,
     startNavigation,
+    startLinkNavigation: (target) => {
+      const id = startNavigation(target);
+      pendingLinkNavigation = { id, target };
+      queueMicrotask(() => {
+        if (pendingLinkNavigation?.id === id) {
+          pendingLinkNavigation = null;
+        }
+      });
+      return id;
+    },
     startHistory: (target) => {
       // Verlaufwechsel haben ein eindeutiges Ziel. Bei mehreren schnellen
       // Back-/Forward-Ereignissen darf ein verspäteter Zwischen-Commit nicht
@@ -168,6 +185,9 @@ function createStore(): NavigationProgressStore {
     },
     cancelNavigation: (id) => {
       update(() => {
+        if (pendingLinkNavigation?.id === id) {
+          pendingLinkNavigation = null;
+        }
         const index = pendingNavigations.findIndex(
           (pending) => pending.id === id,
         );

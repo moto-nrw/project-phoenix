@@ -4,7 +4,7 @@ import {
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import Link from "./navigation-link";
-import { useContext, type ReactNode } from "react";
+import { useContext, type MouseEvent, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
@@ -142,7 +142,9 @@ describe("NavigationProgress", () => {
     renderShell(
       <Link
         href="/calendar-periods"
-        onClick={(event) => event.preventDefault()}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+          event.preventDefault()
+        }
       >
         Planungszeiträume
       </Link>,
@@ -167,6 +169,39 @@ describe("NavigationProgress", () => {
         <NavigationProgressProvider>
           <NavigationProgressBar />
           <Link href="/staff/dienstplan">Zum Dienstplan</Link>
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("reuses a Link's progress entry when its click also calls router.push", () => {
+    function LinkedProgrammaticNavigation() {
+      const progressRouter = useProgressRouter();
+      return (
+        <Link
+          href="/staff/dienstplan"
+          onClick={() => progressRouter?.push("/staff/dienstplan")}
+        >
+          Zum Dienstplan
+        </Link>
+      );
+    }
+
+    navigateTo("/rooms");
+    const rendered = renderShell(<LinkedProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("link", { name: "Zum Dienstplan" }));
+
+    expect(router.push).toHaveBeenCalledWith("/staff/dienstplan");
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/dienstplan");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <LinkedProgrammaticNavigation />
         </NavigationProgressProvider>
       </AppRouterContext.Provider>,
     );
