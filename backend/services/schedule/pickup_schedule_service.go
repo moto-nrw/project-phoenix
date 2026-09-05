@@ -753,8 +753,8 @@ func (s *pickupScheduleService) UpdateException(
 			return err
 		}
 		lockDates := []timezone.Date{date}
-		if existing != nil && existing.ExceptionDate != date {
-			lockDates = append(lockDates, existing.ExceptionDate)
+		if existing != nil && timezone.Date(existing.ExceptionDate) != date {
+			lockDates = append(lockDates, timezone.Date(existing.ExceptionDate))
 			sort.Slice(lockDates, func(i, j int) bool { return lockDates[i].Before(lockDates[j]) })
 		}
 		for _, lockDate := range lockDates {
@@ -795,7 +795,7 @@ func (s *pickupScheduleService) DeleteStudentPickupException(
 			return err
 		}
 		if initial != nil {
-			if err := LockCareExceptionDay(txCtx, s.db, initial.StudentID, initial.ExceptionDate); err != nil {
+			if err := LockCareExceptionDay(txCtx, s.db, initial.StudentID, timezone.Date(initial.ExceptionDate)); err != nil {
 				return err
 			}
 			// Re-read under the lock, then detach: the release restores the
@@ -851,7 +851,7 @@ func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
 			return autoRows[i].ExceptionDate.Before(autoRows[j].ExceptionDate)
 		})
 		for _, row := range autoRows {
-			if err := LockCareExceptionDay(txCtx, s.db, studentID, row.ExceptionDate); err != nil {
+			if err := LockCareExceptionDay(txCtx, s.db, studentID, timezone.Date(row.ExceptionDate)); err != nil {
 				return err
 			}
 			fresh, err := s.core.ExceptionByID(txCtx, row.ID)

@@ -28,7 +28,7 @@ func TestStaffRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates staff member with valid data", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestStaffRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing staff member", func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds staff by person ID", func(t *testing.T) {
@@ -137,7 +137,7 @@ func TestStaffRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates staff notes", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestStaffRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing staff member", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestStaffRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all staff with no filters", func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds staff with person loaded", func(t *testing.T) {
@@ -252,7 +252,7 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("leaves person nil for soft-deleted people", func(t *testing.T) {
@@ -291,7 +291,7 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns requested staff members keyed by ID", func(t *testing.T) {
@@ -329,7 +329,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all staff with person data", func(t *testing.T) {

@@ -2,7 +2,6 @@ package repositories
 
 import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -28,8 +27,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := scheduleRepo.NewInstanceStudentRepository(db)
-	slots.(*scheduleRepo.InstanceStudentRepository).BindStudentDirectory(scheduleStudentDirectory{students: people, commands: people})
+	slots := timetableInstanceStudentRepository{timetable: NewUnobservedTimetableDependencies(db).Capability}
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

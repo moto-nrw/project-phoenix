@@ -89,7 +89,7 @@ func (s stubAuthLoginAccountTenantRepo) ListTenantAccessByAccountID(context.Cont
 
 func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg, err := NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
 	cfg.Audit = testpkg.NewAuthEventCommand(repoFactory.AuthEvent)

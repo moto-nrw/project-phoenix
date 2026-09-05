@@ -41,7 +41,7 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 		// Guardian withdrawal was retired in #2267 (guardians edit instead), but
 		// historic withdrawn rows must keep showing up here — so the status is
 		// written straight through the repository.
-		return repositories.NewFactory(db).ExcusedAbsenceRequest.Decide(
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ExcusedAbsenceRequest.Decide(
 			txCtx, withdrawn.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false,
 		)
 	})

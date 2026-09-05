@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -36,7 +35,7 @@ func NewClassArrivalExceptionRepository(db *bun.DB) schedule.ClassArrivalExcepti
 func (r *ClassArrivalExceptionRepository) FindByClassesAndDateRange(
 	ctx context.Context,
 	classes []string,
-	from, to timezone.Date,
+	from, to schedule.Date,
 ) ([]*schedule.ClassArrivalException, error) {
 	rows := make([]*schedule.ClassArrivalException, 0)
 	normalized := normalizedExceptionClassKeys(classes)
@@ -85,7 +84,7 @@ func (r *ClassArrivalExceptionRepository) Upsert(ctx context.Context, row *sched
 func (r *ClassArrivalExceptionRepository) DeleteByClassAndDate(
 	ctx context.Context,
 	schoolClass string,
-	date timezone.Date,
+	date schedule.Date,
 ) (bool, error) {
 	key := normalizeExceptionClass(schoolClass)
 	if key == "" {

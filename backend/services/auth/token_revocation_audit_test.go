@@ -74,7 +74,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
 	config.TokenAuth, err = authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
@@ -104,7 +104,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
 	config.Audit = failingAuditCommand{}

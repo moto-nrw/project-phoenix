@@ -43,7 +43,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
@@ -88,7 +88,7 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
@@ -122,7 +122,7 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
 	setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)

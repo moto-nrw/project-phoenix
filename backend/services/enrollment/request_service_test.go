@@ -161,7 +161,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	settings := newStubRequestSettings()
 	// Default to "enabled, no window restrictions" - individual tests
 	// override these maps to drive specific branches.
@@ -301,7 +301,7 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db)
+	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	config := env.config
 	config.LateInviteRepo = repos.LateInvite
 	svc := enrollmentService.NewRequestService(config)
@@ -334,7 +334,7 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db)
+	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	req := validSubmission(t, env.phaseID)
 	student := testpkg.CreateTestStudent(t, env.db, req.Children[0].FirstName, req.Children[0].LastName, "1a")
@@ -387,7 +387,7 @@ func withLateInviteRenewalFixture(
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db)
+	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	submission := validSubmission(t, env.phaseID)
 	student := testpkg.CreateTestStudent(t, env.db, submission.Children[0].FirstName, submission.Children[0].LastName, "1a")
@@ -503,7 +503,7 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 	require.NotNil(t, result.Request)
 	require.Len(t, result.Children, 1)
 	assert.NotEmpty(t, result.Request.StatusToken, "status token must be generated")
-	assert.Contains(t, result.StatusURL, "/enroll/status/", "status URL must point at the parent page")
+	assert.Contains(t, result.StatusURL, "/anmeldung/status/", "status URL must point at the parent page")
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[0].Status)
 
 	parents := env.outbox.ByKind("enrollment_submitted")
@@ -655,7 +655,7 @@ func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 	pastEnd := time.Now().AddDate(0, 0, -1)
 	env.phase.EnrollmentOpenAt = &pastStart
 	env.phase.EnrollmentCloseAt = &pastEnd
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -991,7 +991,7 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 		IsActive:       false,
 	}
 	inactiveOffering.SetTenantID(testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, inactiveOffering))
 
 	req := validSubmission(t, env.phaseID)
@@ -1008,7 +1008,7 @@ func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
@@ -1025,7 +1025,7 @@ func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
@@ -1054,7 +1054,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
@@ -1112,7 +1112,7 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
@@ -1196,7 +1196,7 @@ func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *tes
 
 	// Admin records a rejection with an internal reason.
 	reason := "Intern: Kapazität voll, Geschwisterkind bevorzugt"
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
 		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
 	))
@@ -1222,7 +1222,7 @@ func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *tes
 	require.NoError(t, err)
 
 	reason := "Leider keine freien Plätze in diesem Durchgang"
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
 		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
 	))
@@ -1274,7 +1274,7 @@ func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 	token := result.Request.StatusToken
 
 	// Move the only child to under_review so Edit must reject.
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
 		repoFactory.RequestChild.UpdateStatus(
 			ctx, result.Children[0].ID, enrollmentModels.ChildStatusUnderReview, nil, 0,
@@ -1398,7 +1398,7 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
 		repoFactory.RequestChild.UpdateStatus(
 			ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusUnderReview, nil, 0,
@@ -1425,7 +1425,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 13
 
@@ -1461,7 +1461,7 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
@@ -1507,7 +1507,7 @@ func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	offering := setupCareOfferingForCapacity(t, env, 10)
 
 	req := validSubmission(t, env.phaseID)
@@ -1538,7 +1538,7 @@ func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindo
 	pastEnd := time.Now().AddDate(0, 0, -1)
 	env.phase.EnrollmentOpenAt = &pastStart
 	env.phase.EnrollmentCloseAt = &pastEnd
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
@@ -1781,7 +1781,7 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
-	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, editor.Request.ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, editor.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -1821,7 +1821,7 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	offeringA := setupCareOfferingForCapacity(t, env, 10)
 	offeringB := setupCareOfferingForCapacity(t, env, 10)
@@ -1944,7 +1944,7 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	require.NoError(t, err)
 
 	// Promote child to approved → per-child withdraw must fail.
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
 		repoFactory.RequestChild.UpdateStatus(
 			ctx, result.Children[0].ID, enrollmentModels.ChildStatusApproved, nil, 0,
@@ -1976,7 +1976,7 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 2)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
 		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
 	))
@@ -2012,7 +2012,7 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 	submitted, err := env.svc.Submit(ctx, request)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
 		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
 	))
@@ -2048,7 +2048,7 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 	require.NoError(t, err)
 
 	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[0].ID))
-	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, submitted.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
@@ -2161,7 +2161,7 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	// platform.schools to satisfy the FK.
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, otherTenantID)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	tenantTwoEmail := "anna+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
@@ -2233,7 +2233,7 @@ func (r *lockedCareOfferingRepo) ListByIDsForUpdate(_ context.Context, _ []int64
 func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	cap := capacity
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:             env.phaseID,
@@ -2268,7 +2268,7 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	env.phase.CareOverflowMode = mode
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 }
 
@@ -2306,7 +2306,7 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 	ctx := testpkg.Ctx(t)
 	env.phase.ServiceStartDate = timezone.NewDate(2025, 9, 1)
 	env.phase.ServiceEndDate = timezone.NewDate(2026, 7, 31)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
@@ -2354,7 +2354,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
-	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, r2.Request.ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, r2.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -2459,7 +2459,7 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
 	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
 
-	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, result.Request.ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, result.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -2598,7 +2598,7 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:             env.phaseID,
 		Name:                "Unlimited slot",
@@ -2810,7 +2810,7 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 		FormSchemaID:     nil,
 	}
 	basis.SetTenantID(testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
 	defer func() {
 		_, _ = env.db.NewDelete().
@@ -2847,7 +2847,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 		FormSchemaID:     nil,
 	}
 	basis.SetTenantID(testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
 	defer func() {
 		_, _ = env.db.NewDelete().
@@ -2914,7 +2914,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 
 	// Schema: per-child boolean controller "has_allergy" + per-child REQUIRED
 	// text "which_allergy" that is only visible when has_allergy == true.
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
@@ -2964,7 +2964,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
@@ -3003,7 +3003,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
@@ -3043,7 +3043,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
@@ -3099,7 +3099,7 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 	publishPickupSchema(t, env, nil)
 
 	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        env.phaseID,
 		Name:           "Tue/Thu block",
@@ -3167,7 +3167,7 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
 	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        env.phaseID,
 		Name:           "Tue/Thu block",
@@ -3240,7 +3240,7 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 	env.phase.EligibleSchoolClasses = []string{"2a"}
 	env.phase.EligibleGradeLevels = []int{2}
 	env.phase.RequireSchoolClass = true
-	require.NoError(t, repositories.NewFactory(env.db).Phase.Update(ctx, env.phase))
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Phase.Update(ctx, env.phase))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "edit-draft-eligibility@example.com"

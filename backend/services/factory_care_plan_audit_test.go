@@ -15,7 +15,7 @@ func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 

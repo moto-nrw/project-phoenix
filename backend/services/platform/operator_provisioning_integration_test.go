@@ -29,7 +29,7 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 
 func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProvisioningService {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

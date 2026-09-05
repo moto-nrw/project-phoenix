@@ -50,7 +50,7 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	realChallengeRepo := repos.MFAEmailChallenge
 	stub := &raceLosingChallengeRepo{MFAEmailChallengeRepository: realChallengeRepo}
 	repos.MFAEmailChallenge = stub
@@ -120,7 +120,7 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	realChallengeRepo := repos.MFAEmailChallenge
 	stub := &raceLosingChallengeRepo{MFAEmailChallengeRepository: realChallengeRepo}
 	repos.MFAEmailChallenge = stub

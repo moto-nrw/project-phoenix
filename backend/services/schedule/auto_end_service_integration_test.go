@@ -175,7 +175,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	require.NoError(t, s.repos.ActiveGroup.Create(foreignCtx, foreignGroup))
 
 	foreignInstance := &scheduleModels.ActivityInstance{
-		Date:          timezone.DateFromTime(autoEndNow),
+		Date:          scheduleModels.DateFromTime(autoEndNow),
 		Title:         "Foreign tenant active instance",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

@@ -206,6 +206,11 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 	if err != nil {
 		return nil, err
 	}
+	var scheduleValidUntil *scheduleModels.Date
+	if validUntil != nil {
+		value := scheduleModels.Date(*validUntil)
+		scheduleValidUntil = &value
+	}
 	return &scheduleModels.StaffShiftSeries{
 		StaffID:          req.StaffID,
 		Weekdays:         weekdays,
@@ -216,8 +221,8 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 		Notes:            notes,
 		CalendarPeriodID: req.CalendarPeriodID,
 		WeekPattern:      weekPattern,
-		ValidFrom:        validFrom,
-		ValidUntil:       validUntil,
+		ValidFrom:        scheduleModels.Date(validFrom),
+		ValidUntil:       scheduleValidUntil,
 	}, nil
 }
 

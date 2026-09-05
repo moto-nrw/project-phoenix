@@ -122,7 +122,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(portalBindingJWTSecret)
 	require.NoError(t, err)
 	mailer := testpkg.NewCapturingMailer()

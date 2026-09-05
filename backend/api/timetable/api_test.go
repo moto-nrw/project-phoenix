@@ -172,8 +172,8 @@ func newTestPeriod() *schedule.CalendarPeriod {
 	p := &schedule.CalendarPeriod{
 		Name:            "Test Period",
 		PeriodType:      schedule.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(2025, 8, 1),
-		EndDate:         timezone.NewDate(2026, 7, 31),
+		StartDate:       schedule.NewDate(2025, 8, 1),
+		EndDate:         schedule.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -318,8 +318,8 @@ func TestMapPeriodToResponse(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "School Year 2025/2026",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       schedule.NewDate(2025, 8, 1),
+			EndDate:         schedule.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -342,12 +342,12 @@ func TestMapPeriodToResponse(t *testing.T) {
 	})
 
 	t.Run("maps period with anchor", func(t *testing.T) {
-		anchor := timezone.NewDate(2025, 9, 1)
+		anchor := schedule.NewDate(2025, 9, 1)
 		p := &schedule.CalendarPeriod{
 			Name:            "AB Week Period",
 			PeriodType:      schedule.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 1, 31),
+			StartDate:       schedule.NewDate(2025, 8, 1),
+			EndDate:         schedule.NewDate(2026, 1, 31),
 			WeekCycleLength: 2,
 			WeekCycleAnchor: &anchor,
 			IsActive:        false,
@@ -378,8 +378,8 @@ func TestListPeriods(t *testing.T) {
 		p1 := &schedule.CalendarPeriod{
 			Name:            "Period A",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       schedule.NewDate(2025, 8, 1),
+			EndDate:         schedule.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -482,8 +482,8 @@ func TestGetPeriod(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "Found Period",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       schedule.NewDate(2025, 8, 1),
+			EndDate:         schedule.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -874,8 +874,8 @@ func TestCreatePeriodOverlapWarnings(t *testing.T) {
 	t.Run("attaches one warning per overlapping active period", func(t *testing.T) {
 		other := newTestPeriod()
 		other.Name = "Schuljahr 2030/2031"
-		other.StartDate = timezone.NewDate(2030, 8, 1)
-		other.EndDate = timezone.NewDate(2031, 7, 31)
+		other.StartDate = schedule.NewDate(2030, 8, 1)
+		other.EndDate = schedule.NewDate(2031, 7, 31)
 
 		mock := &mockCalendarPeriodService{overlaps: []*schedule.CalendarPeriod{other}}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -1156,15 +1156,15 @@ func TestUpdatePeriod(t *testing.T) {
 		anchoredPeriod := &schedule.CalendarPeriod{
 			Name:            "Anchored",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       schedule.NewDate(2025, 8, 1),
+			EndDate:         schedule.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
 		anchoredPeriod.ID = int64(42)
 		anchoredPeriod.CreatedAt = time.Now()
 		anchoredPeriod.UpdatedAt = time.Now()
-		anchorTime := timezone.NewDate(2025, 9, 1)
+		anchorTime := schedule.NewDate(2025, 9, 1)
 		anchoredPeriod.WeekCycleAnchor = &anchorTime
 
 		mock := &mockCalendarPeriodService{period: anchoredPeriod}

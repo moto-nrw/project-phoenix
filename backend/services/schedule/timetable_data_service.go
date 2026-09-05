@@ -182,15 +182,16 @@ func studentIDsByDate(instances []*scheduleModel.ActivityInstance, students map[
 	seen := make(map[timezone.Date]map[int64]struct{})
 	out := make(map[timezone.Date][]int64)
 	for _, inst := range instances {
+		date := timezone.Date(inst.Date)
 		for _, row := range students[inst.ID] {
-			if seen[inst.Date] == nil {
-				seen[inst.Date] = make(map[int64]struct{})
+			if seen[date] == nil {
+				seen[date] = make(map[int64]struct{})
 			}
-			if _, dup := seen[inst.Date][row.StudentID]; dup {
+			if _, dup := seen[date][row.StudentID]; dup {
 				continue
 			}
-			seen[inst.Date][row.StudentID] = struct{}{}
-			out[inst.Date] = append(out[inst.Date], row.StudentID)
+			seen[date][row.StudentID] = struct{}{}
+			out[date] = append(out[date], row.StudentID)
 		}
 	}
 	return out
@@ -209,7 +210,7 @@ func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	if len(studentIDs) == 0 {
 		return map[int64]time.Time{}, nil
 	}
-	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +236,7 @@ func (s *TimetableDataService) GetCareDayCandidateStudentsByInstanceIDs(ctx cont
 }
 
 func (s *TimetableDataService) GetStudentInstancesWithAttendance(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
-	return s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	return s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetInstanceStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
@@ -275,7 +276,7 @@ func (s *TimetableDataService) LockInstanceAttendance(ctx context.Context, insta
 }
 
 func (s *TimetableDataService) GetActivityInstancesByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
-	return s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	return s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetInstanceByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error) {
@@ -326,7 +327,7 @@ func (s *TimetableDataService) UnacknowledgeConflict(ctx context.Context, accoun
 }
 
 func (s *TimetableDataService) GetActivityExceptionsByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityException, error) {
-	return s.deps.ActivityExceptionRepo.FindByDateRange(ctx, from, to)
+	return s.deps.ActivityExceptionRepo.FindByDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) CreateActivitySchedule(ctx context.Context, schedule *activitiesModel.Schedule) error {
@@ -338,7 +339,7 @@ func (s *TimetableDataService) GetTemplateStartTimesByGroupIDs(ctx context.Conte
 }
 
 func (s *TimetableDataService) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
-	return s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	return s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, scheduleModel.Date(date))
 }
 
 func (s *TimetableDataService) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error) {
@@ -401,11 +402,11 @@ func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, superv
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	return s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	return s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, studentID int64) ([]*scheduleModel.StudentPickupSchedule, error) {
@@ -413,7 +414,7 @@ func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, 
 }
 
 func (s *TimetableDataService) GetPickupExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentPickupException, error) {
-	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetVisitsByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*activeModel.Visit, error) {
@@ -453,11 +454,11 @@ func (s *TimetableDataService) CreatePlannedSupervisor(ctx context.Context, supe
 }
 
 func (s *TimetableDataService) CloseOpenEnrollmentsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom)
+	return s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
 }
 
 func (s *TimetableDataService) CloseOpenSupervisorsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom)
+	return s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
 }
 
 func (s *TimetableDataService) GetTimeframesByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*scheduleModel.Timeframe, error) {

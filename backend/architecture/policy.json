@@ -457,13 +457,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/activities",
-      "owner": "inbound-activities",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/admin",
       "owner": "inbound-admin",
       "role": "http",
@@ -991,13 +984,6 @@
     {
       "path": "database/repositories/platform",
       "owner": "organization-tenancy",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/activities",
-      "owner": "timetable-activities",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1848,6 +1834,20 @@
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/compose/httpadapter",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/timetable/compose/httpintegration",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/timetableprojection",
@@ -6734,11 +6734,81 @@
       "target_role": "domain"
     },
     {
-      "id": "timetable-activities.behavior-test.compose",
-      "description": "Timetable behavior tests exercise composition adapters.",
+      "id": "timetable-activities.http-integration-test.router",
+      "description": "Timetable HTTP integration tests exercise the real router and response contracts.",
       "scopes": ["external_test"],
       "source_owner": "timetable-activities",
-      "source_role": "module-behavior-test",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.common",
+      "description": "Timetable HTTP integration tests inspect shared error rendering contracts.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.identity-adapter",
+      "description": "Timetable HTTP integration tests supply authenticated claims.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.owner-domain",
+      "description": "Timetable HTTP integration tests build retained owner rows.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.identity-domain",
+      "description": "Timetable HTTP integration tests build retained account rows.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.people-domain",
+      "description": "Timetable HTTP integration tests build retained people rows.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.application",
+      "description": "Timetable HTTP integration tests pin retained application error contracts.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.orm-sql",
+      "description": "Timetable HTTP integration tests verify tenant persistence through the concrete test database.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.http-integration-test.compose",
+      "description": "Timetable HTTP integration tests exercise composition adapters.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
     },

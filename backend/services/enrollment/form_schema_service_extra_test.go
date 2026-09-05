@@ -26,7 +26,7 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaSer
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:        repoFactory.FormSchema,
 		PhaseRepo:   repoFactory.Phase,

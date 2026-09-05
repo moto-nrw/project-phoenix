@@ -340,21 +340,21 @@ func (s *materializationService) materializeForTenantLocked(
 
 	// Pre-fetch existing instances for the whole window. Builds an
 	// (activity_group_id, date, start_time) → bool set for O(1) lookup.
-	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	existingIdx := buildExistingIndex(existing)
 
 	// Pre-fetch exceptions for the window.
-	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, from, to)
+	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
 	}
 	exceptionIdx := buildExceptionIndex(exceptions)
 
 	// Load timeframes in one query and cache by ID.
-	timeframes, err := s.timeframeRepo.List(ctx, nil)
+	timeframes, err := s.timeframeRepo.ListAll(ctx)
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load timeframes", Err: err}
 	}
@@ -631,7 +631,7 @@ func (s *materializationService) materializeTemplate(
 			// snapshot. A non-NULL instance value is therefore always a
 			// single-occurrence pin.
 			instance := &schedule.ActivityInstance{
-				Date:             date,
+				Date:             schedule.Date(date),
 				ActivityGroupID:  &templateID,
 				CalendarPeriodID: &periodID,
 				Title:            tmpl.Name,
@@ -724,10 +724,10 @@ func (s *materializationService) copyExpectedStudents(
 	if len(studentIDs) == 0 {
 		return nil
 	}
-	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
-	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 		return &ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
@@ -852,14 +852,12 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 //
-// enrollmentStudentIsAlumnus reports whether the enrollment's joined student
-// row is a graduated (alumnus) soft-delete. FindByGroupID hydrates Student
-// (incl. status); enrollments built without that join return false, so callers
-// that only need the valid-on-date predicate are unaffected. Graduated students
-// keep their enrollment rows for transition reverts but must drop off every
-// current/future planning surface (#405).
+// enrollmentStudentIsAlumnus reports whether the People Directory projection
+// marks the enrollment's student as graduated. Graduated students keep their
+// enrollment rows for transition reverts but must drop off every current and
+// future planning surface (#405).
 func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
-	return e != nil && e.Student != nil && e.Student.IsAlumnus()
+	return e != nil && e.StudentAlumnus
 }
 
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
@@ -895,7 +893,7 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 // AFTER that date (same convention as enrollment valid_until). A nil
 // valid_until means open-ended.
 func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
-	return sch != nil && sch.ValidUntil != nil && !date.Before(*sch.ValidUntil)
+	return sch != nil && sch.ValidUntil != nil && !sch.ValidUntil.After(date)
 }
 
 // scheduleNotStartedOn answers: has this schedule's recurrence not yet begun
@@ -906,7 +904,7 @@ func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
 // effective date does not emit phantom successor instances next to the old
 // template's rows.
 func scheduleNotStartedOn(sch *activities.Schedule, date timezone.Date) bool {
-	return sch != nil && sch.ValidFrom != nil && date.Before(*sch.ValidFrom)
+	return sch != nil && sch.ValidFrom != nil && sch.ValidFrom.After(date)
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
@@ -1028,7 +1026,7 @@ func selectPeriod(
 	if pinned != nil {
 		for _, p := range periods {
 			if p.ID == *pinned {
-				if p.ContainsDay(date) {
+				if p.ContainsDay(schedule.Date(date)) {
 					return p
 				}
 				return nil
@@ -1041,7 +1039,7 @@ func selectPeriod(
 	// Collect active periods containing the date, sorted ascending by ID.
 	var matches []*schedule.CalendarPeriod
 	for _, p := range periods {
-		if p.ContainsDay(date) {
+		if p.ContainsDay(schedule.Date(date)) {
 			matches = append(matches, p)
 		}
 	}
@@ -1093,7 +1091,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 		}
 		k := existingKey{
 			ActivityGroupID: *inst.ActivityGroupID,
-			Date:            inst.Date,
+			Date:            timezone.Date(inst.Date),
 			StartTime:       formatTimeOfDay(inst.StartTime),
 		}
 		idx[k] = struct{}{}
@@ -1104,7 +1102,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 func buildExceptionIndex(exceptions []*schedule.ActivityException) map[exceptionKey]*schedule.ActivityException {
 	idx := make(map[exceptionKey]*schedule.ActivityException, len(exceptions))
 	for _, e := range exceptions {
-		idx[exceptionKey{e.ActivityGroupID, e.ExceptionDate}] = e
+		idx[exceptionKey{e.ActivityGroupID, timezone.Date(e.ExceptionDate)}] = e
 	}
 	return idx
 }

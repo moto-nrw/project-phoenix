@@ -19,7 +19,7 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).NotificationPreference
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).NotificationPreference
 	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()

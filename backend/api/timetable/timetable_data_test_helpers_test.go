@@ -2,13 +2,13 @@ package timetable
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -54,7 +54,7 @@ func testTimetableDataWithOfferingCallbacks(
 		InstanceStudentRepo:   boundRepos.InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
+		ActivityScheduleRepo:  boundRepos.ActivitySchedule,
 		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
 		StaffShiftRepo:        scheduleRepo.NewStaffShiftRepository(db),
 		StaffRepo:             boundRepos.Staff,
@@ -81,11 +81,11 @@ func testTimetableDataWithOfferingCallbacks(
 		PickupExceptionRepo:        boundRepos.StudentPickupException,
 		VisitRepo:                  activeRepo.NewVisitRepository(db),
 		RoomRepo:                   boundRepos.Room,
-		ActivityCategoryRepo:       activitiesRepo.NewCategoryRepository(db),
+		ActivityCategoryRepo:       boundRepos.ActivityCategory,
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
-		ActivitySupervisorRepo:     activitiesRepo.NewSupervisorPlannedRepository(db),
+		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
 		StudentEnrollmentRepo:      boundRepos.StudentEnrollment,
-		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),
+		TimeframeRepo:              boundRepos.Timeframe,
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
 		ValidateOfferingSource:     validateOfferingSource,
@@ -98,6 +98,11 @@ func testTimetableDataWithOfferingCallbacks(
 	}
 	return scheduleSvc.NewTimetableDataService(deps)
 }
+
+type panicTestTB struct{}
+
+func (panicTestTB) Helper()                           {}
+func (panicTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repositories.TimetableTestRepositories {
 	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)

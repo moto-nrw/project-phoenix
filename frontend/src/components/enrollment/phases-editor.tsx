@@ -1086,7 +1086,7 @@ function PhaseActions({
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   // Audience-restricted phases are never publicly reachable: the anonymous form
   // gate refuses BOTH linked_parents and existing_students, so the plain
-  // /enroll/{id} URL 404s for either unless it carries a valid late-invite
+  // /anmeldung/{id} URL 404s for either unless it carries a valid late-invite
   // token. The untokenized public actions ("Formular ansehen", the copy-link
   // button) would hand out a dead link, so hide them for both audiences while
   // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
@@ -1113,7 +1113,7 @@ function PhaseActions({
           {
             label: "Formular ansehen",
             icon: <ExternalLink className="h-4 w-4" aria-hidden />,
-            href: `/enroll/${encodeURIComponent(phase.id)}`,
+            href: tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`),
             external: true,
             onClick: () => undefined,
           },

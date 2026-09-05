@@ -2461,7 +2461,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 
 // CreateTestArrivalException inserts a date-specific arrival exception.
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
-func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2469,7 +2469,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &schedule.StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: date,
+		ExceptionDate: schedule.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2514,7 +2514,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 
 // CreateTestPickupException inserts a date-specific pickup exception.
 // Pass pickupHHMM="" for absence (PickupTime=NULL).
-func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2522,7 +2522,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: date,
+		ExceptionDate: schedule.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2567,6 +2567,14 @@ func Date(year int, month time.Month, day int) timezone.Date {
 	return timezone.NewDate(year, month, day)
 }
 
+func ScheduleDate(year int, month time.Month, day int) schedule.Date {
+	return schedule.NewDate(year, month, day)
+}
+
+type CalendarDate interface {
+	String() string
+}
+
 // TodayDate returns today's Berlin calendar date for fixture setup.
 func TodayDate() timezone.Date {
 	return timezone.TodayDate()
@@ -2582,7 +2590,7 @@ func WallClock(hour, minute int) time.Time {
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
-func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date CalendarDate, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2606,7 +2614,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	}
 
 	row := &schedule.ActivityInstance{
-		Date:             date,
+		Date:             schedule.Date(date.String()),
 		ActivityGroupID:  opts.ActivityGroupID,
 		CalendarPeriodID: opts.CalendarPeriodID,
 		ActiveGroupID:    opts.ActiveGroupID,
@@ -2632,7 +2640,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 // active-period invariants other tests rely on; callers that only need an id to
 // stamp on a materialized instance want exactly this. Names must be unique per
 // tenant — pass a suffixed one. The tenant-owned row dies with the clone.
-func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end timezone.Date) *schedule.CalendarPeriod {
+func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end CalendarDate) *schedule.CalendarPeriod {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2641,8 +2649,8 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 	row := &schedule.CalendarPeriod{
 		Name:            name,
 		PeriodType:      schedule.PeriodTypeCustom,
-		StartDate:       start,
-		EndDate:         end,
+		StartDate:       schedule.Date(start.String()),
+		EndDate:         schedule.Date(end.String()),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -2673,13 +2681,13 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 
 // CreateTestClosingDay inserts a schedule.closing_days row spanning
 // [start, end] for the test tenant. The tenant-owned row dies with the clone.
-func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end timezone.Date, reason string) *schedule.ClosingDay {
+func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, reason string) *schedule.ClosingDay {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.ClosingDay{StartDate: start, EndDate: end, Reason: reason}
+	row := &schedule.ClosingDay{StartDate: schedule.Date(start.String()), EndDate: schedule.Date(end.String()), Reason: reason}
 	row.SetTenantID(fixtureTenantID(tb))
 
 	_, err := db.NewInsert().
@@ -2752,7 +2760,7 @@ type StaffShiftOpts struct {
 // CreateTestStaffShift inserts a Dienstplan shift (schedule.staff_shifts) for
 // the staff member on the given date, tenant 1. created_by is stamped with the
 // staff's own id. The tenant-owned row dies with the clone.
-func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezone.Date, opts StaffShiftOpts) *schedule.StaffShift {
+func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date CalendarDate, opts StaffShiftOpts) *schedule.StaffShift {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2769,7 +2777,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezon
 
 	row := &schedule.StaffShift{
 		StaffID:     staffID,
-		Date:        date,
+		Date:        schedule.Date(date.String()),
 		StartTime:   parseTimeHHMM(tb, startHHMM),
 		EndTime:     parseTimeHHMM(tb, endHHMM),
 		Notes:       opts.Notes,

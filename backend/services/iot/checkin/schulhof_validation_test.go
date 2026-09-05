@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/modules/facilities"
 	activitySvc "github.com/moto-nrw/project-phoenix/services/activities"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -75,13 +74,13 @@ func TestSchulhofActivityGroupSelectsDedicatedActivityAmongSameNameActivities(t 
 		IsSystem: true,
 	}
 	normalActivity := &activityModels.Group{
-		Model:         base.Model{ID: 76},
+		Model:         activityModels.Model{ID: 76},
 		Name:          constants.SchulhofActivityName,
 		PlannedRoomID: &room.ID,
 		IsSystem:      false,
 	}
 	dedicatedActivity := &activityModels.Group{
-		Model:         base.Model{ID: 77},
+		Model:         activityModels.Model{ID: 77},
 		Name:          constants.SchulhofActivityName,
 		PlannedRoomID: &room.ID,
 		IsSystem:      true,

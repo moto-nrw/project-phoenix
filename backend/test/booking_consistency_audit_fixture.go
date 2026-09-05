@@ -122,7 +122,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrivalLink)
 	arrivalException := &scheduleModel.StudentArrivalException{
-		StudentID: withArrivalException.ID, ExceptionDate: auditDate, CreatedBy: staff.ID,
+		StudentID: withArrivalException.ID, ExceptionDate: scheduleModel.Date(auditDate), CreatedBy: staff.ID,
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrivalException)
 

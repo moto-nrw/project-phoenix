@@ -2096,7 +2096,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 
 	today := timezone.DateFromTime(now)
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
 	if err != nil {
 		s.getLogger().Warn("overdue tick: load today's instances failed",
 			slog.Int64("tenant_id", tenantID),

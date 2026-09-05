@@ -12,7 +12,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -71,10 +70,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	bookings, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
-	if err != nil {
-		return StudentTestRepositories{}, err
-	}
 	r := &Factory{db: db,
 		OfferingChangeImpact:         enrollmentRepo.NewOfferingChangeImpactRepository(db),
 		ParentRequestEvent:           usersRepo.NewParentRequestEventRepository(db),
@@ -93,7 +88,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
-	r.BindTimetable(bookings)
+	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
 		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(db),

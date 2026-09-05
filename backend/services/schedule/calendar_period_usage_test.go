@@ -32,8 +32,8 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	used := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Usage-Used-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       timezone.NewDate(2026, 8, 1),
-		EndDate:         timezone.NewDate(2027, 1, 31),
+		StartDate:       scheduleModels.NewDate(2026, 8, 1),
+		EndDate:         scheduleModels.NewDate(2027, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -42,8 +42,8 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	unused := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Usage-Unused-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       timezone.NewDate(2027, 2, 1),
-		EndDate:         timezone.NewDate(2027, 7, 31),
+		StartDate:       scheduleModels.NewDate(2027, 2, 1),
+		EndDate:         scheduleModels.NewDate(2027, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -52,8 +52,8 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	groupOnly := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Usage-Group-Only-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       timezone.NewDate(2027, 8, 1),
-		EndDate:         timezone.NewDate(2028, 1, 31),
+		StartDate:       scheduleModels.NewDate(2027, 8, 1),
+		EndDate:         scheduleModels.NewDate(2028, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -117,7 +117,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:        student.ID,
 		ActivityGroupID:  group.ID,
-		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		ValidFrom:        activitiesModels.Date(timezone.NewDate(2026, 8, 1)),
 		CalendarPeriodID: &used.ID,
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
@@ -131,7 +131,7 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	supervisor := &activitiesModels.SupervisorPlanned{
 		StaffID:          staff.ID,
 		GroupID:          group.ID,
-		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		ValidFrom:        activitiesModels.Date(timezone.NewDate(2026, 8, 1)),
 		CalendarPeriodID: &used.ID,
 	}
 	supervisor.SetTenantID(testpkg.Tenant(t))

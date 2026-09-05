@@ -191,7 +191,7 @@ type closingDayDates interface {
 }
 
 type calendarPeriods interface {
-	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*scheduleModels.CalendarPeriod, error)
+	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end scheduleModels.Date, excludeID int64) ([]*scheduleModels.CalendarPeriod, error)
 }
 
 type studentReader interface {
@@ -406,7 +406,7 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 		closing = set
 	}
 	if s.cfg.Periods != nil {
-		periods, err := s.cfg.Periods.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeHoliday, from, to, 0)
+		periods, err := s.cfg.Periods.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeHoliday, scheduleModels.Date(from), scheduleModels.Date(to), 0)
 		if err != nil {
 			return nil, excluded, fmt.Errorf("load holiday periods: %w", err)
 		}
@@ -415,13 +415,13 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 			// its overlap with [from, to] can ever be a care day.
 			start, end := p.StartDate, p.EndDate
 			if start.Before(from) {
-				start = from
+				start = scheduleModels.Date(from)
 			}
 			if end.After(to) {
-				end = to
+				end = scheduleModels.Date(to)
 			}
 			for d := start; !d.After(end); d = d.AddDays(1) {
-				vacation[d] = true
+				vacation[timezone.Date(d)] = true
 			}
 		}
 	}

@@ -499,7 +499,7 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 // served through the People Directory (#2661).
 func newPersonComposedGradeTransitionRepository(t *testing.T, db *bun.DB) educationModels.GradeTransitionRepository {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory.GradeTransition
 }

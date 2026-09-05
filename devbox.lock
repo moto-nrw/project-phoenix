@@ -49,6 +49,54 @@
         }
       }
     },
+    "agent-browser@0.27.0": {
+      "last_modified": "2026-08-27T07:16:00Z",
+      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#agent-browser",
+      "source": "devbox-search",
+      "version": "0.27.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/s4xph5w0m78qki7cpcysvpdp5ifz8jl8-agent-browser-0.27.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/s4xph5w0m78qki7cpcysvpdp5ifz8jl8-agent-browser-0.27.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/j0w8j01iypgafpxxb9r18ydrn58f1v6v-agent-browser-0.27.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/j0w8j01iypgafpxxb9r18ydrn58f1v6v-agent-browser-0.27.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/nbl7pvrq01nxk4xl99iwd0paxb4k0myg-agent-browser-0.27.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/nbl7pvrq01nxk4xl99iwd0paxb4k0myg-agent-browser-0.27.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fk98vciza0fqvldca3yviry43lmwyh16-agent-browser-0.27.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fk98vciza0fqvldca3yviry43lmwyh16-agent-browser-0.27.0"
+        }
+      }
+    },
     "air@1.67.4": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#air",
@@ -874,6 +922,44 @@
             }
           ],
           "store_path": "/nix/store/sqm80s7p5kx9j4ia19rw3jy41ajx1v73-golangci-lint-2.13.1"
+        }
+      }
+    },
+    "gopls@0.23.0": {
+      "last_modified": "2026-08-27T07:16:00Z",
+      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#gopls",
+      "source": "devbox-search",
+      "version": "0.23.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/rdj83cx04c687hnqm6hmhh6yccgfsq7m-gopls-0.23.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/rdj83cx04c687hnqm6hmhh6yccgfsq7m-gopls-0.23.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/lggc2bw3dm0m738q8jbs7dpf1gcchq4d-gopls-0.23.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/lggc2bw3dm0m738q8jbs7dpf1gcchq4d-gopls-0.23.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/5k1i3qkaaxpp5kj3h4fn7csvn1a5xzg3-gopls-0.23.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/5k1i3qkaaxpp5kj3h4fn7csvn1a5xzg3-gopls-0.23.0"
         }
       }
     },
@@ -1774,6 +1860,54 @@
             }
           ],
           "store_path": "/nix/store/bpw88kyqh3l8f6i3jmcdxwiig429l052-tree-2.3.2"
+        }
+      }
+    },
+    "typescript-language-server@5.3.0": {
+      "last_modified": "2026-08-27T07:16:00Z",
+      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#typescript-language-server",
+      "source": "devbox-search",
+      "version": "5.3.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/grb3q0pd4hxmkrs77f5q8gmrdggsy6ym-typescript-language-server-5.3.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/grb3q0pd4hxmkrs77f5q8gmrdggsy6ym-typescript-language-server-5.3.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/3k7vr8l8fap4nq18ri282yqmr51h044b-typescript-language-server-5.3.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/3k7vr8l8fap4nq18ri282yqmr51h044b-typescript-language-server-5.3.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6w64xys9f3hdihnh91lgq60l67jgzw8p-typescript-language-server-5.3.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/6w64xys9f3hdihnh91lgq60l67jgzw8p-typescript-language-server-5.3.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/p9mf2dvh6dfxcqyji53zad9z95h0lbn7-typescript-language-server-5.3.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/p9mf2dvh6dfxcqyji53zad9z95h0lbn7-typescript-language-server-5.3.0"
         }
       }
     },

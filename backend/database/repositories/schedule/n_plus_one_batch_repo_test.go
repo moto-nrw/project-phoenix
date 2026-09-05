@@ -5,7 +5,6 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func TestInstanceStaffRepository_FindByStaffIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
-	day := timezone.NewDate(2026, time.October, 15)
+	day := scheduleModels.NewDate(2026, time.October, 15)
 	first, _ := createInstanceFixture(t, db, "staff-batch-first", day)
 	otherDay, _ := createInstanceFixture(t, db, "staff-batch-other", day.AddDays(1))
 	staffA := testpkg.CreateTestStaff(t, db, "StaffBatch", "First")

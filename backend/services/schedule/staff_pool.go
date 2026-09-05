@@ -105,8 +105,8 @@ func (s *TimetableDataService) GetStaffPoolForInstance(ctx context.Context, inst
 	if err != nil {
 		return nil, fmt.Errorf("load shifts: %w", err)
 	}
-	weekFrom, weekTo := containingCalendarWeek(date)
-	usedWeeks, err := s.deps.StaffShiftRepo.FindUsedCalendarWeeks(ctx, weekFrom, weekTo)
+	weekFrom, weekTo := containingCalendarWeek(timezone.Date(date))
+	usedWeeks, err := s.deps.StaffShiftRepo.FindUsedCalendarWeeks(ctx, scheduleModel.Date(weekFrom), scheduleModel.Date(weekTo))
 	if err != nil {
 		return nil, fmt.Errorf("load used shift weeks: %w", err)
 	}

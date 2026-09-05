@@ -34,7 +34,7 @@ import (
 )
 
 func calendarTestConfig(db *bun.DB) calendarSvc.Config {
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	userContext := usercontextSvc.NewUserContextServiceWithRepos(
 		usercontextSvc.UserContextRepositories{
 			AccountRepo:        repos.Account,
@@ -453,7 +453,7 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OptOut", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -499,7 +499,7 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "DeleteRace", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -603,7 +603,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg.AccountRepo = repos.Account
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarSvc.NewService(cfg)
@@ -705,7 +705,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -757,7 +757,7 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -779,7 +779,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -826,7 +826,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -883,7 +883,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -930,7 +930,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -982,7 +982,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.AccountRepo = repos.Account
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
@@ -1032,7 +1032,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := calendarTestConfig(db)
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	service := calendarSvc.NewService(cfg)
@@ -1125,7 +1125,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg.AccountRepo = repos.Account
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarSvc.NewService(cfg)
@@ -1195,7 +1195,7 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Teacher")
 
@@ -1248,7 +1248,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg.AccountRepo = repos.Account
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarSvc.NewService(cfg)
@@ -1944,7 +1944,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MultiDay", "Organizer")
 
 	endsOn := timezone.NewDate(2026, 1, 31)
@@ -2077,7 +2077,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -2251,7 +2251,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg.AccountRepo = repos.Account
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarSvc.NewService(cfg)
@@ -2845,7 +2845,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg.AccountRepo = repos.Account
 	cfg.ParentsURL = "https://parents.test"
 	service := calendarSvc.NewService(cfg)
@@ -2908,7 +2908,7 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
-	appointmentCapability := repositories.NewFactory(db).Appointments()
+	appointmentCapability := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Appointments()
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Invitee")
 

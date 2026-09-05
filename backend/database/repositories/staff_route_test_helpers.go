@@ -2,14 +2,13 @@ package repositories
 
 import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	workforceRepo "github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -30,12 +29,17 @@ func NewAbsenceTypeTestRepositories(db *bun.DB) AbsenceTypeTestRepositories {
 }
 
 type ShiftTypeTestRepositories struct {
+	Timetable  timetable.Capability
 	Types      scheduleModels.ShiftTypeRepository
 	Categories activitiesModels.CategoryRepository
 }
 
 func NewShiftTypeTestRepositories(db *bun.DB) ShiftTypeTestRepositories {
-	return ShiftTypeTestRepositories{Types: scheduleRepo.NewShiftTypeRepository(db), Categories: activitiesRepo.NewCategoryRepository(db)}
+	repos, err := NewTimetableTestRepositories(db)
+	if err != nil {
+		panic(err)
+	}
+	return ShiftTypeTestRepositories{Timetable: repos.Timetable, Types: repos.ShiftType, Categories: repos.ActivityCategory}
 }
 
 func NewStudentLookupTestRepository(db *bun.DB) usersModels.StudentRepository {
