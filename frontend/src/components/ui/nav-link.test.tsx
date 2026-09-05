@@ -13,9 +13,6 @@ const linkProps = vi.fn();
 const mockRouter = { prefetch: mockPrefetch } as unknown as AppRouterInstance;
 
 vi.mock("next/link", () => ({
-  // NavLink hängt seit #2828 einen Melder in den Link, der den ausstehenden
-  // Wechsel über useLinkStatus abfragt.
-  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

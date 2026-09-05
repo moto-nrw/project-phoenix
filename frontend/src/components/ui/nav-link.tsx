@@ -11,7 +11,6 @@ import {
   type FocusEvent,
   type PointerEvent,
 } from "react";
-import { NavigationProgressReporter } from "~/components/ui/navigation-progress";
 
 type LinkProps = ComponentProps<typeof Link>;
 
@@ -77,9 +76,6 @@ export function NavLink({
       }}
     >
       {children}
-      {/* Rendert nichts; meldet nur, dass dieser Wechsel noch aussteht,
-          damit die Hülle ihren Fortschrittsbalken zeigt (#2828). */}
-      <NavigationProgressReporter />
     </Link>
   );
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { registerNavigationBlocker } from "~/lib/hooks/navigation-guard-store";
+import { cancelNavigationProgressFor } from "~/lib/navigation-progress-events";
 
 interface NavigationGuard {
   /** The destination of an intercepted navigation, or null when none is pending. */
@@ -92,6 +93,7 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       if (target === current) return;
 
       e.preventDefault();
+      cancelNavigationProgressFor(e);
       pendingPopRef.current = false;
       setPendingHref(target);
     };

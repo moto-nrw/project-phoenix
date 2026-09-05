@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useContext, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const linkStatus = vi.hoisted(() => ({ pending: false }));
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
 type RouterMock = Pick<
   AppRouterInstance,
@@ -26,14 +25,27 @@ const router = vi.hoisted(
 );
 
 vi.mock("next/link", () => ({
-  useLinkStatus: () => linkStatus,
   default: ({
     children,
     href,
+    onClick,
+    ...rest
   }: {
     children?: React.ReactNode;
     href: string;
-  }) => <a href={href}>{children}</a>,
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  }) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(event) => {
+        onClick?.(event);
+        event.preventDefault();
+      }}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,9 +56,9 @@ vi.mock("next/navigation", () => ({
 import {
   NavigationProgressBar,
   NavigationProgressProvider,
-  NavigationProgressReporter,
 } from "./navigation-progress";
 import ProtectedLoading from "~/app/[tenant]/(protected)/loading";
+import { cancelNavigationProgressFor } from "~/lib/navigation-progress-events";
 
 const appRouter = router as unknown as AppRouterInstance;
 
@@ -59,11 +71,7 @@ function renderShell(children?: ReactNode) {
     <AppRouterContext.Provider value={appRouter}>
       <NavigationProgressProvider>
         <NavigationProgressBar />
-        {children ?? (
-          <Link href="/calendar-periods">
-            <NavigationProgressReporter />
-          </Link>
-        )}
+        {children ?? <Link href="/calendar-periods">Planungszeiträume</Link>}
       </NavigationProgressProvider>
     </AppRouterContext.Provider>,
   );
@@ -78,7 +86,6 @@ function navigateTo(url: string) {
 
 describe("NavigationProgress", () => {
   beforeEach(() => {
-    linkStatus.pending = false;
     navigateTo("/dienstplan");
     router.push.mockClear();
     router.replace.mockClear();
@@ -97,24 +104,57 @@ describe("NavigationProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("shows the bar and announces the load when the Link reports a pending navigation", () => {
-    const rendered = renderShell();
-    linkStatus.pending = true;
-    rendered.rerender(
-      <AppRouterContext.Provider value={appRouter}>
-        <NavigationProgressProvider>
-          <NavigationProgressBar />
-          <Link href="/calendar-periods">
-            <NavigationProgressReporter />
-          </Link>
-        </NavigationProgressProvider>
-      </AppRouterContext.Provider>,
+  it("tracks a plain Link before its loading boundary renders", () => {
+    const rendered = renderShell(
+      <>
+        <ProtectedLoading />
+        <Link href="/calendar-periods">Planungszeiträume</Link>
+      </>,
     );
+
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.getByTestId("navigation-progress")).toHaveClass(
       "moto-nav-progress",
     );
     expect(screen.getByRole("status")).toHaveTextContent("Seite wird geladen");
+    expect(screen.queryByLabelText("Lädt...")).toBeNull();
+
+    navigateTo("/calendar-periods");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProtectedLoading />
+          <Link href="/calendar-periods">Planungszeiträume</Link>
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("cancels progress when a navigation guard blocks a Link", async () => {
+    const cancel = (event: MouseEvent) => {
+      event.preventDefault();
+      cancelNavigationProgressFor(event);
+    };
+    document.addEventListener("click", cancel, true);
+
+    try {
+      renderShell(<Link href="/calendar-periods">Planungszeiträume</Link>);
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("link", { name: "Planungszeiträume" }),
+        );
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    } finally {
+      document.removeEventListener("click", cancel, true);
+    }
   });
 
   it.each(["push", "replace"] as const)(
@@ -497,7 +537,6 @@ describe("NavigationProgress", () => {
   });
 
   it("keeps the announcement region mounted so it can be read out at all", () => {
-    linkStatus.pending = false;
     renderShell();
 
     // Ein Bereich, der erst beim Wechsel eingehängt wird, wird von
@@ -506,7 +545,6 @@ describe("NavigationProgress", () => {
   });
 
   it("renders nothing outside a provider instead of throwing", () => {
-    linkStatus.pending = true;
     render(<NavigationProgressBar />);
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();

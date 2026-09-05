@@ -1,6 +1,5 @@
 "use client";
 
-import { useLinkStatus } from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   AppRouterContext,
@@ -16,6 +15,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { wasNavigationProgressCancelled } from "~/lib/navigation-progress-events";
 
 /**
  * Fortschrittsanzeige für Seitenwechsel (#2828).
@@ -26,12 +26,12 @@ import {
  * Lücke — er ersetzt keine Seite, er liegt als 3 Pixel hohe Linie über dem
  * Kopfbereich.
  *
- * Woher der Zustand kommt: `useLinkStatus` meldet für jeden `NavLink`, ob
- * seine Navigation noch aussteht. Der Anbieter fängt außerdem `push` und
- * `replace` des App-Routers ab, weil einige Seiten per Schaltfläche wechseln.
- * Für vorgeladene Ziele (NavLink lädt bei Hover, Fokus oder Touch-Beginn vor)
- * überspringt Next den Link-Zustand ganz — dann erscheint der Balken gar nicht
- * erst, weil der Wechsel sofort passiert.
+ * Woher der Zustand kommt: Ein Capture-Listener der Hülle sieht jeden
+ * unveränderten Klick auf einen gleichoriginigen Link, bevor Next den
+ * Seitenwechsel anstößt. Der Anbieter fängt außerdem `push` und `replace` des
+ * App-Routers ab, weil einige Seiten per Schaltfläche wechseln. Für
+ * vorgeladene Ziele (NavLink lädt bei Hover, Fokus oder Touch-Beginn vor) ist
+ * der Wechsel oft sofort fertig und der Balken bleibt unsichtbar.
  *
  * Warum ein eigener Store statt `useState`: der Anbieter umschließt die
  * gesamte Hülle. Ein State-Wechsel dort würde Kopfzeile, Seitenleiste und
@@ -41,15 +41,13 @@ import {
 interface NavigationProgressStore {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly isPending: () => boolean;
-  readonly startLink: () => void;
-  readonly endLink: () => void;
-  readonly startProgrammatic: (target: string) => number;
+  readonly startNavigation: (target: string) => number;
   readonly startHistory: (target: string) => void;
   readonly completeNavigation: (currentUrl: string) => void;
-  readonly cancelProgrammatic: (id: number) => void;
+  readonly cancelNavigation: (id: number) => void;
 }
 
-const PROGRAMMATIC_NAVIGATION_TIMEOUT_MS = 10_000;
+const NAVIGATION_TIMEOUT_MS = 10_000;
 
 interface PendingNavigation {
   readonly id: number;
@@ -58,8 +56,7 @@ interface PendingNavigation {
 }
 
 function createStore(): NavigationProgressStore {
-  let pendingLinks = 0;
-  let pendingProgrammaticNavigations: PendingNavigation[] = [];
+  let pendingNavigations: PendingNavigation[] = [];
   let pendingHistoryNavigation: PendingNavigation | null = null;
   let nextNavigationId = 0;
   const listeners = new Set<() => void>();
@@ -67,19 +64,17 @@ function createStore(): NavigationProgressStore {
     for (const listener of listeners) listener();
   };
   const isPending = () =>
-    pendingLinks > 0 ||
-    pendingProgrammaticNavigations.length > 0 ||
-    pendingHistoryNavigation !== null;
+    pendingNavigations.length > 0 || pendingHistoryNavigation !== null;
   const update = (change: () => void) => {
     const wasPending = isPending();
     change();
     if (wasPending !== isPending()) notify();
   };
-  const clearProgrammaticNavigations = () => {
-    for (const navigation of pendingProgrammaticNavigations) {
+  const clearNavigations = () => {
+    for (const navigation of pendingNavigations) {
       clearTimeout(navigation.timeout);
     }
-    pendingProgrammaticNavigations = [];
+    pendingNavigations = [];
   };
   const clearHistoryNavigation = () => {
     if (pendingHistoryNavigation) {
@@ -87,27 +82,27 @@ function createStore(): NavigationProgressStore {
       pendingHistoryNavigation = null;
     }
   };
-  const startProgrammatic = (target: string) => {
+  const startNavigation = (target: string) => {
     const id = nextNavigationId + 1;
     nextNavigationId = id;
     update(() => {
       clearHistoryNavigation();
-      // Der App-Router arbeitet programmgesteuerte Wechsel nacheinander ab.
-      // Dasselbe Ziel kann deshalb mehrmals ausstehen und braucht je Wechsel
-      // eine eigene Kennung.
+      // Der App-Router arbeitet Seitenwechsel nacheinander ab. Dasselbe Ziel
+      // kann deshalb mehrmals ausstehen und braucht je Wechsel eine eigene
+      // Kennung.
       const navigation: PendingNavigation = {
         id,
         target,
         timeout: setTimeout(() => {
           update(() => {
-            const index = pendingProgrammaticNavigations.findIndex(
+            const index = pendingNavigations.findIndex(
               (pending) => pending.id === id,
             );
-            if (index !== -1) pendingProgrammaticNavigations.splice(index, 1);
+            if (index !== -1) pendingNavigations.splice(index, 1);
           });
-        }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
+        }, NAVIGATION_TIMEOUT_MS),
       };
-      pendingProgrammaticNavigations.push(navigation);
+      pendingNavigations.push(navigation);
     });
     return id;
   };
@@ -119,17 +114,7 @@ function createStore(): NavigationProgressStore {
       };
     },
     isPending,
-    startLink: () => {
-      update(() => {
-        pendingLinks += 1;
-      });
-    },
-    endLink: () => {
-      update(() => {
-        pendingLinks = Math.max(0, pendingLinks - 1);
-      });
-    },
-    startProgrammatic,
+    startNavigation,
     startHistory: (target) => {
       // Verlaufwechsel haben ein eindeutiges Ziel. Bei mehreren schnellen
       // Back-/Forward-Ereignissen darf ein verspäteter Zwischen-Commit nicht
@@ -137,7 +122,7 @@ function createStore(): NavigationProgressStore {
       const id = nextNavigationId + 1;
       nextNavigationId = id;
       update(() => {
-        clearProgrammaticNavigations();
+        clearNavigations();
         clearHistoryNavigation();
         pendingHistoryNavigation = {
           id,
@@ -147,7 +132,7 @@ function createStore(): NavigationProgressStore {
             update(() => {
               pendingHistoryNavigation = null;
             });
-          }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
+          }, NAVIGATION_TIMEOUT_MS),
         };
       });
     },
@@ -160,35 +145,35 @@ function createStore(): NavigationProgressStore {
           return;
         }
 
-        const matchingNavigation = pendingProgrammaticNavigations.findIndex(
+        const matchingNavigation = pendingNavigations.findIndex(
           (pending) => pending.target === url,
         );
         if (matchingNavigation !== -1) {
           // Der App-Router bestätigt seine Warteschlange der Reihe nach. Ein
           // späteres, gleiches Ziel bleibt nach diesem Commit deshalb weiter
           // ausstehend.
-          const completed = pendingProgrammaticNavigations.splice(
+          const completed = pendingNavigations.splice(
             0,
             matchingNavigation + 1,
           );
           for (const navigation of completed) {
             clearTimeout(navigation.timeout);
           }
-        } else if (pendingProgrammaticNavigations.length === 1) {
+        } else if (pendingNavigations.length === 1) {
           // Ein Redirect ändert die Ziel-URL. Ohne weitere ausstehende
           // Navigation gehört der Commit zu diesem Wechsel.
-          const [completed] = pendingProgrammaticNavigations.splice(0, 1);
+          const [completed] = pendingNavigations.splice(0, 1);
           if (completed) clearTimeout(completed.timeout);
         }
       });
     },
-    cancelProgrammatic: (id) => {
+    cancelNavigation: (id) => {
       update(() => {
-        const index = pendingProgrammaticNavigations.findIndex(
+        const index = pendingNavigations.findIndex(
           (pending) => pending.id === id,
         );
         if (index === -1) return;
-        const [cancelled] = pendingProgrammaticNavigations.splice(index, 1);
+        const [cancelled] = pendingNavigations.splice(index, 1);
         if (cancelled) clearTimeout(cancelled.timeout);
       });
     },
@@ -211,8 +196,8 @@ export function useNavigationProgressPending() {
 }
 
 /**
- * Umschließt die Hülle eines Portals. Außerhalb davon melden weder `NavLink`s
- * noch programmgesteuerte Wechsel etwas und der Balken erscheint nie —
+ * Umschließt die Hülle eines Portals. Außerhalb davon melden weder interne
+ * Links noch programmgesteuerte Wechsel etwas und der Balken erscheint nie —
  * Tests und Stories brauchen den Anbieter deshalb nicht.
  */
 export function NavigationProgressProvider({
@@ -256,6 +241,27 @@ function NavigationProgressRouter({
     } satisfies AppRouterInstance;
   }, [router, store]);
 
+  useEffect(() => {
+    const handleLinkClick = (event: MouseEvent) => {
+      const target = linkNavigationTarget(event);
+      if (target === null || target === currentUrl()) return;
+
+      // Der Capture-Listener läuft vor dem Link-Handler von Next. Damit ist
+      // der Status schon gesetzt, wenn die Ladegrenze gerendert wird.
+      const id = store.startNavigation(target);
+      queueMicrotask(() => {
+        // `next/link` ruft selbst preventDefault auf. Nur ein Guard kann den
+        // Wechsel deshalb ausdrücklich als abgebrochen kennzeichnen.
+        if (wasNavigationProgressCancelled(event)) {
+          store.cancelNavigation(id);
+        }
+      });
+    };
+
+    document.addEventListener("click", handleLinkClick, true);
+    return () => document.removeEventListener("click", handleLinkClick, true);
+  }, [store]);
+
   const content = (
     <>
       <Suspense fallback={null}>
@@ -285,11 +291,11 @@ function navigateTo(
     return;
   }
 
-  const id = store.startProgrammatic(target);
+  const id = store.startNavigation(target);
   try {
     navigate();
   } catch (error) {
-    store.cancelProgrammatic(id);
+    store.cancelNavigation(id);
     throw error;
   }
 }
@@ -297,10 +303,36 @@ function navigateTo(
 function navigationTarget(href: string): string | null {
   try {
     const target = new URL(href, window.location.href);
+    if (target.origin !== window.location.origin) return null;
     return normalizedUrl(target.pathname, target.search);
   } catch {
     return null;
   }
+}
+
+function linkNavigationTarget(event: MouseEvent): string | null {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    !(event.target instanceof Element)
+  ) {
+    return null;
+  }
+
+  const link = event.target.closest<HTMLAnchorElement>("a[href]");
+  if (
+    !link ||
+    (link.target !== "" && link.target !== "_self") ||
+    link.hasAttribute("download")
+  ) {
+    return null;
+  }
+
+  return navigationTarget(link.href);
 }
 
 function currentUrl() {
@@ -339,23 +371,6 @@ function NavigationProgressCompletion({
     return () =>
       window.removeEventListener("popstate", handleHistoryNavigation);
   }, [store]);
-
-  return null;
-}
-
-/**
- * Meldet den ausstehenden Seitenwechsel eines Links. Rendert nichts und muss
- * innerhalb eines `next/link` stehen — `NavLink` setzt sie dort ein.
- */
-export function NavigationProgressReporter() {
-  const store = useContext(NavigationProgressContext);
-  const { pending } = useLinkStatus();
-
-  useEffect(() => {
-    if (!store || !pending) return;
-    store.startLink();
-    return store.endLink;
-  }, [store, pending]);
 
   return null;
 }
