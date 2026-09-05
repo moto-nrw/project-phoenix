@@ -3,6 +3,7 @@ import {
   AppRouterContext,
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import NextLink from "next/link";
 import Link from "./navigation-link";
 import { useContext, type MouseEvent, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -107,7 +108,7 @@ describe("NavigationProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("tracks a plain Link before its loading boundary renders", () => {
+  it("tracks a NavigationLink before its loading boundary renders", () => {
     const rendered = renderShell(
       <>
         <ProtectedLoading />
@@ -383,41 +384,32 @@ describe("NavigationProgress", () => {
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("does not show the protected fallback after an untracked content navigation", () => {
-    navigateTo("/rooms");
-    const rendered = renderShell(<ProtectedLoading />);
+  it("suppresses the fallback before a native content link commits", () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <NextLink href="/calendar-periods">Planungszeiträume</NextLink>
+      </>,
+    );
 
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
-
-    navigateTo("/calendar-periods");
-    rendered.rerender(
-      <AppRouterContext.Provider value={appRouter}>
-        <NavigationProgressProvider>
-          <NavigationProgressBar />
-          <ProtectedLoading />
-        </NavigationProgressProvider>
-      </AppRouterContext.Provider>,
-    );
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("does not show the protected fallback after an untracked query navigation", () => {
+  it("suppresses the fallback before a native query link commits", () => {
     navigateTo("/calendar-periods?view=week");
-    const rendered = renderShell(<ProtectedLoading />);
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <NextLink href="/calendar-periods?view=month">Monatsansicht</NextLink>
+      </>,
+    );
 
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
-
-    navigateTo("/calendar-periods?view=month");
-    rendered.rerender(
-      <AppRouterContext.Provider value={appRouter}>
-        <NavigationProgressProvider>
-          <NavigationProgressBar />
-          <ProtectedLoading />
-        </NavigationProgressProvider>
-      </AppRouterContext.Provider>,
-    );
+    fireEvent.click(screen.getByRole("link", { name: "Monatsansicht" }));
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
     expect(screen.queryByLabelText("Lädt...")).toBeNull();

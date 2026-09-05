@@ -40,6 +40,8 @@ import {
 export interface NavigationProgressStore {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly isPending: () => boolean;
+  readonly isFallbackSuppressed: () => boolean;
+  readonly suppressFallback: () => void;
   readonly startNavigation: (target: string) => number;
   readonly startLinkNavigation: (target: string) => number;
   readonly startHistory: (target: string) => void;
@@ -60,6 +62,7 @@ function createStore(): NavigationProgressStore {
   let pendingHistoryNavigation: PendingNavigation | null = null;
   let pendingLinkNavigation: Pick<PendingNavigation, "id" | "target"> | null =
     null;
+  let fallbackSuppressed = false;
   let nextNavigationId = 0;
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -67,6 +70,12 @@ function createStore(): NavigationProgressStore {
   };
   const isPending = () =>
     pendingNavigations.length > 0 || pendingHistoryNavigation !== null;
+  const isFallbackSuppressed = () => fallbackSuppressed;
+  const suppressFallback = () => {
+    if (fallbackSuppressed) return;
+    fallbackSuppressed = true;
+    notify();
+  };
   const update = (change: () => void) => {
     const wasPending = isPending();
     change();
@@ -85,6 +94,7 @@ function createStore(): NavigationProgressStore {
     }
   };
   const startNavigation = (target: string) => {
+    suppressFallback();
     if (pendingLinkNavigation?.target === target) {
       return pendingLinkNavigation.id;
     }
@@ -120,6 +130,8 @@ function createStore(): NavigationProgressStore {
       };
     },
     isPending,
+    isFallbackSuppressed,
+    suppressFallback,
     startNavigation,
     startLinkNavigation: (target) => {
       const id = startNavigation(target);
@@ -132,6 +144,7 @@ function createStore(): NavigationProgressStore {
       return id;
     },
     startHistory: (target) => {
+      suppressFallback();
       // Verlaufwechsel haben ein eindeutiges Ziel. Bei mehreren schnellen
       // Back-/Forward-Ereignissen darf ein verspäteter Zwischen-Commit nicht
       // den Balken für das zuletzt angeforderte Ziel beenden.
@@ -207,7 +220,6 @@ function createStore(): NavigationProgressStore {
 
 export const NavigationProgressContext =
   createContext<NavigationProgressStore | null>(null);
-const NavigationFallbackContext = createContext(false);
 const NOT_PENDING = () => false;
 const NO_SUBSCRIPTION = () => () => undefined;
 
@@ -221,7 +233,12 @@ export function useNavigationProgressPending() {
 }
 
 export function useNavigationFallbackSuppressed() {
-  return useContext(NavigationFallbackContext);
+  const store = useContext(NavigationProgressContext);
+  return useSyncExternalStore(
+    store?.subscribe ?? NO_SUBSCRIPTION,
+    store?.isFallbackSuppressed ?? NOT_PENDING,
+    NOT_PENDING,
+  );
 }
 
 /**
@@ -252,6 +269,21 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
+  useEffect(() => {
+    // Native next/link instances dispatch through the router themselves and
+    // therefore do not pass through our Router wrapper. The capture phase is
+    // early enough to hide the generic fallback before Next renders it. It
+    // deliberately does not start progress: NavigationLink remains the sole
+    // source of link-progress entries.
+    const handleLinkClick = (event: MouseEvent) => {
+      const target = linkNavigationTarget(event);
+      if (target !== null && target !== currentUrl()) {
+        store.suppressFallback();
+      }
+    };
+    document.addEventListener("click", handleLinkClick, true);
+    return () => document.removeEventListener("click", handleLinkClick, true);
+  }, [store]);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
@@ -271,17 +303,12 @@ function NavigationProgressRouter({
   }, [router, store]);
 
   const content = (
-    <Suspense
-      fallback={
-        <NavigationFallbackContext.Provider value={false}>
-          {children}
-        </NavigationFallbackContext.Provider>
-      }
-    >
-      <NavigationProgressRouteProvider store={store}>
-        {children}
-      </NavigationProgressRouteProvider>
-    </Suspense>
+    <>
+      <Suspense fallback={null}>
+        <NavigationProgressCompletion store={store} />
+      </Suspense>
+      {children}
+    </>
   );
 
   if (progressRouter === null) return content;
@@ -290,31 +317,6 @@ function NavigationProgressRouter({
     <AppRouterContext.Provider value={progressRouter}>
       {content}
     </AppRouterContext.Provider>
-  );
-}
-
-function NavigationProgressRouteProvider({
-  children,
-  store,
-}: {
-  readonly children: ReactNode;
-  readonly store: NavigationProgressStore;
-}) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const url = normalizedUrl(pathname, searchParams?.toString() ?? "");
-  const lastUrl = useRef(url);
-  const hasNavigated = useRef(false);
-  if (lastUrl.current !== url) {
-    lastUrl.current = url;
-    hasNavigated.current = true;
-  }
-
-  return (
-    <NavigationFallbackContext.Provider value={hasNavigated.current}>
-      <NavigationProgressCompletion store={store} />
-      {children}
-    </NavigationFallbackContext.Provider>
   );
 }
 
@@ -346,6 +348,30 @@ function navigationTarget(href: string): string | null {
   } catch {
     return null;
   }
+}
+
+function linkNavigationTarget(event: MouseEvent): string | null {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    !(event.target instanceof Element)
+  ) {
+    return null;
+  }
+
+  const link = event.target.closest<HTMLAnchorElement>("a[href]");
+  if (
+    link === null ||
+    (link.target !== "" && link.target !== "_self") ||
+    link.hasAttribute("download")
+  ) {
+    return null;
+  }
+  return navigationTarget(link.href);
 }
 
 function currentUrl() {
