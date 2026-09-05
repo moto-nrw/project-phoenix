@@ -632,6 +632,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Startseite mit Begrüßung, ausgewählten Status-Kacheln und dem Knopf `Startseite anpassen` oben rechts.",
+        image: "/help/screens/startseite.webp",
       },
       {
         id: "home-anpassen",
@@ -658,6 +659,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Dialog Startseite anpassen mit den Gruppen Kennzahlen und Bereiche und je Eintrag einem Haken.",
+        image: "/help/screens/startseite-anpassen.webp",
       },
       {
         id: "kindersuche",

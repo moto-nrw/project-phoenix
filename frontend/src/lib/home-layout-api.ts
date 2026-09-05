@@ -25,11 +25,9 @@ export interface HomeLayoutState {
 }
 
 interface HomeLayoutResponse {
-  data?: {
-    overrides?: unknown;
-    policies?: unknown;
-    can_manage_policies?: unknown;
-  } | null;
+  overrides?: unknown;
+  policies?: unknown;
+  can_manage_policies?: unknown;
 }
 
 const EMPTY_STATE: HomeLayoutState = {
@@ -75,9 +73,9 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
 
   const result = (await response.json()) as HomeLayoutResponse;
   return {
-    overrides: sanitizeHomeLayoutOverrides(result.data?.overrides),
-    policies: sanitizeHomeBlockPolicies(result.data?.policies),
-    canManagePolicies: result.data?.can_manage_policies === true,
+    overrides: sanitizeHomeLayoutOverrides(result.overrides),
+    policies: sanitizeHomeBlockPolicies(result.policies),
+    canManagePolicies: result.can_manage_policies === true,
   };
 }
 

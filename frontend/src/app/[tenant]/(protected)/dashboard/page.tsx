@@ -204,6 +204,9 @@ function DashboardContent() {
   // Wer alles abwählt, sieht sonst eine leere Fläche und sucht den Fehler bei
   // sich. Die Startseite sagt stattdessen, wie sie zurückkommt.
   const nothingShown = visible.size === 0;
+  // Es gibt immer mindestens eine verfügbare Kachel. Bleibt keine davon
+  // persönlich wählbar, hat die Schule sie alle ausgeschaltet.
+  const schoolDisabledAllBlocks = nothingShown && adjustable.length === 0;
 
   const infoCardCount =
     Number(shown("section.recent_activity")) +
@@ -294,16 +297,37 @@ function DashboardContent() {
       {nothingShown ? (
         <EmptyState
           title="Ihre Startseite ist leer"
-          description="Sie haben alle Kacheln ausgeblendet."
+          description={
+            schoolDisabledAllBlocks
+              ? homeLayout.canManagePolicies
+                ? "Sie haben alle Kacheln für die Schule ausgeschaltet."
+                : "Die Schule blendet alle Kacheln aus. Wenden Sie sich an Ihre Leitung."
+              : "Sie haben alle Kacheln ausgeblendet."
+          }
           action={
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setCustomizing(true)}
-            >
-              Kacheln einblenden
-            </Button>
+            schoolDisabledAllBlocks ? (
+              homeLayout.canManagePolicies ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() =>
+                    router.push(tenantPath("/settings?tab=startseite"))
+                  }
+                >
+                  Startseite für alle öffnen
+                </Button>
+              ) : undefined
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setCustomizing(true)}
+              >
+                Kacheln einblenden
+              </Button>
+            )
           }
         />
       ) : null}

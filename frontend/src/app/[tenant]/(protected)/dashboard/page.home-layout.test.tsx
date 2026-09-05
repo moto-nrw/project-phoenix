@@ -110,6 +110,7 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     vi.clearAllMocks();
     layoutState.overrides = {};
     layoutState.policies = {};
+    layoutState.canManagePolicies = true;
     layoutState.isLoading = false;
     vi.mocked(useSWRAuth).mockReturnValue({
       data: undefined,
@@ -230,6 +231,38 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Kacheln einblenden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("erklärt eine von der Schule geleerte Startseite ohne wirkungslosen Knopf", async () => {
+    layoutState.policies = Object.fromEntries(
+      HOME_BLOCKS.map((block) => [block.key, "disabled"]),
+    );
+    layoutState.canManagePolicies = false;
+
+    render(<DashboardPage />);
+
+    expect(
+      await screen.findByText(
+        "Die Schule blendet alle Kacheln aus. Wenden Sie sich an Ihre Leitung.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kacheln einblenden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("führt die Leitung zur Vorgabe, wenn sie alle Kacheln ausgeschaltet hat", async () => {
+    layoutState.policies = Object.fromEntries(
+      HOME_BLOCKS.map((block) => [block.key, "disabled"]),
+    );
+
+    render(<DashboardPage />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Startseite für alle öffnen",
+      }),
     ).toBeInTheDocument();
   });
 

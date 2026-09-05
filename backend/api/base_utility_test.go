@@ -62,6 +62,15 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 	}
 }
 
+func TestRequireHomeLayoutOperationsPanicsWhenTheCapabilityIsMissing(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t,
+		"settings platform does not provide home layout operations",
+		func() { requireHomeLayoutOperations(struct{}{}) },
+	)
+}
+
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
 func TestParseAllowedOrigins(t *testing.T) {
 	t.Parallel()
