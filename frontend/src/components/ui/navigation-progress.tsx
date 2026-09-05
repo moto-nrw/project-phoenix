@@ -201,6 +201,7 @@ function createStore(): NavigationProgressStore {
 
 export const NavigationProgressContext =
   createContext<NavigationProgressStore | null>(null);
+const NavigationFallbackContext = createContext(false);
 const NOT_PENDING = () => false;
 const NO_SUBSCRIPTION = () => () => undefined;
 
@@ -211,6 +212,10 @@ export function useNavigationProgressPending() {
     store?.isPending ?? NOT_PENDING,
     NOT_PENDING,
   );
+}
+
+export function useNavigationFallbackSuppressed() {
+  return useContext(NavigationFallbackContext);
 }
 
 /**
@@ -241,6 +246,13 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
+  const pathname = usePathname();
+  const lastPathname = useRef(pathname);
+  const hasNavigated = useRef(false);
+  if (lastPathname.current !== pathname) {
+    lastPathname.current = pathname;
+    hasNavigated.current = true;
+  }
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
@@ -260,12 +272,12 @@ function NavigationProgressRouter({
   }, [router, store]);
 
   const content = (
-    <>
+    <NavigationFallbackContext.Provider value={hasNavigated.current}>
       <Suspense fallback={null}>
         <NavigationProgressCompletion store={store} />
       </Suspense>
       {children}
-    </>
+    </NavigationFallbackContext.Provider>
   );
 
   if (progressRouter === null) return content;

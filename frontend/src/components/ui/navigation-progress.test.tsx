@@ -383,6 +383,26 @@ describe("NavigationProgress", () => {
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
+  it("does not show the protected fallback after an untracked content navigation", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell(<ProtectedLoading />);
+
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
+
+    navigateTo("/calendar-periods");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProtectedLoading />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.queryByLabelText("Lädt...")).toBeNull();
+  });
+
   it("does not show progress when router.back cannot traverse history", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useProgressRouter();
