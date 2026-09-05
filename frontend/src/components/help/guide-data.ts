@@ -626,12 +626,38 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler: entweder passt sie nicht zu Ihrer Einrichtung, oder sie ist über `Startseite anpassen` ausgeblendet.",
           tone: "blue",
         },
         screenshot:
           "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Aktive Gruppen.",
         image: "/help/screens/home.webp",
+      },
+      {
+        id: "home-anpassen",
+        title: "Startseite anpassen",
+        searchTerms: [
+          "Kacheln ausblenden",
+          "Startseite anpassen",
+          "Zurücksetzen",
+        ],
+        icon: SlidersHorizontal,
+        summary:
+          "Jede Person entscheidet selbst, was ihre Startseite zeigt. Die Auswahl gilt auf allen Geräten.",
+        steps: [
+          "Auf `Home` oben rechts `Startseite anpassen` öffnen.",
+          "Unter `Kennzahlen` und `Bereiche` die Haken setzen oder entfernen. Was Sie abwählen, verschwindet von Ihrer Startseite.",
+          "`Speichern` klicken. Die Auswahl gilt sofort, auch am Handy und auf dem Tablet.",
+          "`Zurücksetzen` stellt die empfohlene Ansicht wieder her. Der Knopf ist nur aktiv, wenn Sie etwas geändert haben.",
+          "Haben Sie alles ausgeblendet, steht auf der Startseite `Ihre Startseite ist leer` mit dem Knopf `Kacheln einblenden`.",
+        ],
+        callout: {
+          title: "Manches gibt die Schule vor",
+          body: "Unter `Einstellungen` -> `Startseite für alle` legt die Leitung fest, was für alle gilt: `Frei wählbar`, `Immer anzeigen` oder `Aus`. Was dort fest eingestellt ist, steht im Dialog `Startseite anpassen` nicht zur Auswahl. Ein Hinweis im Dialog nennt, wie viele Kacheln das betrifft.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dialog Startseite anpassen mit den Gruppen Kennzahlen und Bereiche und je Eintrag einem Haken.",
       },
       {
         id: "kindersuche",
