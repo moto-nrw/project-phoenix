@@ -115,7 +115,7 @@ When modifying any file, update its counterpart:
 
 ## Deployed Environments (SOPS)
 
-Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
+Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/operations/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
 
 Keep the frontend's explicit `PORT: 3000` and the serving backend's credential-free application DSN. Privileged `DB_DSN` interpolation belongs only to the explicit `migrate` job. Update the allowlist and its matrix when changing service variables; `scripts/env-check.sh` verifies the boundary.
 

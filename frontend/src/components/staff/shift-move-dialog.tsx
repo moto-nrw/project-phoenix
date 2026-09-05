@@ -26,7 +26,7 @@ const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
 const INACTIVE_TYPE_MOVE_MESSAGE =
   "Diese Schichtart ist inaktiv. Bitte wählen Sie für die andere Person eine aktive Schichtart oder „Keine Schichtart“.";
 
-// "Verschieben nach" (docs/05-dienstplan.md Abschnitt 2.7, US-D6): move one
+// "Verschieben nach": move one
 // materialized shift to another person and/or day in one confirmed, atomic
 // PUT. The backend keeps the row ID, so a retry after a lost response cannot
 // create duplicates. A moved series occurrence consumes its original slot;

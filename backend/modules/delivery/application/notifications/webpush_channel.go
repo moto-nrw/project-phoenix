@@ -288,7 +288,7 @@ func (p *portalPayloads) forSubscription(sub *deliveryModels.PushSubscription) (
 // resolveSubscriptions maps the audience scope to registered devices.
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
-// push-worthy events yet. Documented follow-up in docs/notifications.md.
+// push-worthy events yet. Documented follow-up in docs/reference/notifications.md.
 func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*deliveryModels.PushSubscription, error) {
 	audience := event.Audience
 	switch audience.Scope {

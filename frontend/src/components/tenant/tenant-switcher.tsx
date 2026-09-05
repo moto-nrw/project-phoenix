@@ -42,7 +42,7 @@ interface BrandTenantSwitcherProps {
  * the dropdown trigger (#2011), replacing the separate switcher element
  * that used to overflow the header on mobile.
  *
- * Switch flow (per spec 04-frontend.md):
+ * Switch flow:
  * 1. Call switchTenant(slug) to get new JWT tokens
  * 2. Update NextAuth session via signIn("credentials", { internalRefresh: true })
  * 3. Clear SWR cache to prevent stale cross-tenant data

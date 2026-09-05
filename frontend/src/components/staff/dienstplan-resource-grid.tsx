@@ -51,8 +51,7 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useTenantMutateMatching } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 
-// Week matrix built on the generic kit ResourceGrid (docs/05-dienstplan.md
-// Abschnitt 2, docs/04-designsprache.md Abschnitt 6.2): rows are staff, columns
+// Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
 // view; the kit primitives stay generic (Fertig-Kriterium Y7). No data fetching
 // happens in this component — everything arrives as props from the view/hook.

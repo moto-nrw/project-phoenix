@@ -6,8 +6,7 @@ import { InstanceBlock } from "./instance-block";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 /**
- * InstanceBlock renders internally via the kit primitive PlanBlock
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 2.2/5.1). These
+ * InstanceBlock renders internally via the kit primitive PlanBlock. These
  * tests pin the data-to-PlanBlock mapping: planning-track edge color, the footer
  * CoverageIndicator numbers (Kriterium 6), cancelled rendering, the
  * acknowledged gray-with-note state, and the single-status-icon priority
