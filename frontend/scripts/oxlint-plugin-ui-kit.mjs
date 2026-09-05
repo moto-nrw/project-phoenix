@@ -477,8 +477,8 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/dashboard/sidebar.tsx|text-[10px]@1306
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@915 text-[11px]@934
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1296 text-[11px]@2973 text-[11px]@3165 text-[11px]@3170 text-[11px]@3175 text-[11px]@3329 text-[11px]@3921 text-[10px]@4138 text-[11px]@4150 text-[11px]@4185 text-[10px]@4199 text-[10px]@4243
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1304 text-[11px]@2989 text-[11px]@3181 text-[11px]@3186 text-[11px]@3191 text-[11px]@3345 text-[11px]@3937 text-[10px]@4154 text-[11px]@4166 text-[11px]@4201 text-[10px]@4215 text-[10px]@4259
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
 src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
@@ -492,7 +492,7 @@ src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@53
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 text-[10px]@322 text-[11px]@1011
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@469 text-[11px]@565 text-[11px]@574 text-[11px]@581 text-[10px]@715
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
 src/components/students/care-schedule-manager.tsx|text-[10px]@1121 text-[11px]@1276 text-[11px]@1365 text-[11px]@1375 text-[11px]@1405
 src/components/students/planned-status-days-modal.tsx|text-[10px]@899 text-[11px]@899
@@ -503,9 +503,9 @@ src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@375
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@429 text-[11px]@471
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
-src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
-src/components/timetable/instance-block.tsx|text-[10px]@198 text-[10px]@204 text-[10px]@211 text-[10px]@219 text-[10px]@240
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@251 text-[9px]@367 text-[9px]@946 text-[11px]@1211 text-[11px]@1237 text-[11px]@1413 text-[10px]@1483 text-[11px]@1506
+src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
+src/components/timetable/instance-block.tsx|text-[10px]@197 text-[10px]@203 text-[10px]@210 text-[10px]@218 text-[10px]@239
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@250 text-[9px]@366 text-[9px]@944 text-[11px]@1209 text-[11px]@1235 text-[11px]@1411 text-[10px]@1481 text-[11px]@1504
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@203 text-[10px]@219 text-[11px]@228 text-[10px]@270 text-[10px]@294 text-[10px]@376 text-[10px]@390 text-[10px]@402 text-[11px]@410 text-[11px]@417
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444
@@ -513,20 +513,20 @@ src/components/timetable/substitution-person-card.tsx|text-[11px]@53 text-[11px]
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@546 text-[9px]@551 text-[11px]@704 text-[11px]@708 text-[10px]@748 text-[10px]@752 text-[10px]@756 text-[10px]@760 text-[11px]@1196
 src/components/timetable/template-card.tsx|text-[11px]@113 text-[11px]@119 text-[10px]@162
 src/components/timetable/timetable-add-menu.tsx|text-[10px]@61 text-[11px]@81 text-[11px]@103
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@343 text-[11px]@377 text-[11px]@384 text-[11px]@405 text-[11px]@411
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@342 text-[11px]@376 text-[11px]@383 text-[11px]@404 text-[11px]@410
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@253 text-[9px]@269 text-[10px]@325 text-[11px]@325 text-[11px]@330 text-[10px]@353 text-[10px]@389 text-[11px]@389
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@253 text-[9px]@269 text-[10px]@325 text-[11px]@325 text-[11px]@330 text-[10px]@353 text-[10px]@388 text-[11px]@388
 src/components/ui/avatar.tsx|text-[10px]@32
-src/components/ui/coverage-indicator.tsx|text-[11px]@63 text-[11px]@165
+src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@352 text-[10px]@386
 src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/origin-chip.tsx|text-[11px]@25
+src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@344 text-[11px]@407
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
-src/components/ui/plan-block.tsx|text-[11px]@128 text-[11px]@135
-src/components/ui/plan-legend.tsx|text-[11px]@107
+src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
+src/components/ui/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[11px]@78 text-[11px]@79 text-[10px]@259
 `);
 

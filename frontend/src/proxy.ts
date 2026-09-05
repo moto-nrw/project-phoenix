@@ -277,7 +277,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/meal-plan",
   "/calendar",
   "/settings",
-  "/enroll",
+  "/anmeldung",
   "/accept-guardian-invite",
 ];
 
@@ -484,8 +484,68 @@ function extractTenantSlug(host: string): string | null {
   return null;
 }
 
-function isEnrollPath(pathname: string): boolean {
-  return pathname === "/enroll" || pathname.startsWith("/enroll/");
+/** Public parent-enrollment surface. German path since #2829; the English
+ * `/enroll` lives on only as the legacy redirect below, because it is
+ * printed in parent letters that schools already handed out. */
+const ENROLLMENT_PATH = "/anmeldung";
+const LEGACY_ENROLLMENT_PATH = "/enroll";
+
+function isEnrollmentPath(pathname: string): boolean {
+  return (
+    pathname === ENROLLMENT_PATH || pathname.startsWith(`${ENROLLMENT_PATH}/`)
+  );
+}
+
+function withEnrollmentPath(prefix: string, rest: string): string {
+  return `${prefix}${ENROLLMENT_PATH}${rest}`;
+}
+
+/** Maps a legacy `/enroll…` URL onto its German successor, or null when the
+ * path is unrelated. Covers the parents host (`/enroll/status/x`), a tenant
+ * subdomain (`/enroll/phase-1`), path mode on the bare domain
+ * (`/school-a/enroll/phase-1`) and parent-portal links rendered before the
+ * route rename (`/parents/enroll/status/x`). */
+function legacyEnrollmentTarget(pathname: string): string | null {
+  if (
+    pathname === LEGACY_ENROLLMENT_PATH ||
+    pathname.startsWith(`${LEGACY_ENROLLMENT_PATH}/`)
+  ) {
+    return withEnrollmentPath(
+      "",
+      pathname.slice(LEGACY_ENROLLMENT_PATH.length),
+    );
+  }
+
+  const legacyParentsPath = `/parents${LEGACY_ENROLLMENT_PATH}`;
+  if (
+    pathname === legacyParentsPath ||
+    pathname.startsWith(`${legacyParentsPath}/`)
+  ) {
+    return withEnrollmentPath(
+      "/parents",
+      pathname.slice(legacyParentsPath.length),
+    );
+  }
+
+  const match = /^\/([^/]+)(\/enroll(?:\/.*)?)$/.exec(pathname);
+  const slug = match?.[1];
+  const tail = match?.[2];
+  if (!slug || !tail || RESERVED_SUBDOMAINS.has(slug)) return null;
+
+  return withEnrollmentPath(
+    `/${slug}`,
+    tail.slice(LEGACY_ENROLLMENT_PATH.length),
+  );
+}
+
+function redirectLegacyEnrollment(
+  request: NextRequest,
+  target: string,
+): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = target;
+  // 308 keeps method and body, and lets browsers cache the move.
+  return withSecurityHeaders(NextResponse.redirect(url, 308));
 }
 
 function getBareTenantPrefixedPath(pathname: string): string | null {
@@ -509,6 +569,15 @@ export function proxy(request: NextRequest): NextResponse {
   }
 
   const hostname = getHostname(request);
+
+  // 0. Legacy English enrollment links (#2829). Parent letters and e-mails
+  // sent before the rename still point at /enroll; they must keep working on
+  // every host that serves the enrollment surface. Runs before host routing
+  // so the parents host, tenant subdomains and path mode share one rule.
+  const legacyEnrollment = legacyEnrollmentTarget(pathname);
+  if (legacyEnrollment) {
+    return redirectLegacyEnrollment(request, legacyEnrollment);
+  }
 
   // 1a. Operator subdomain gets its own routing
   if (isOperatorHost(hostname)) {
@@ -616,7 +685,7 @@ export function proxy(request: NextRequest): NextResponse {
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {
     const appPath = getBareTenantPrefixedPath(pathname);
-    return appPath && isEnrollPath(appPath)
+    return appPath && isEnrollmentPath(appPath)
       ? nextLocalized(request)
       : secureNext(request);
   }
@@ -627,7 +696,7 @@ export function proxy(request: NextRequest): NextResponse {
     ? pathname.slice(tenantSlug.length + 1) || "/"
     : pathname;
   const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
-  const isEnroll = isEnrollPath(normalizedAppPath);
+  const isEnroll = isEnrollmentPath(normalizedAppPath);
 
   // Already has tenant prefix. useTenantRouter().push() adds the slug explicitly,
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).

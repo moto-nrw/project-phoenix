@@ -503,7 +503,7 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 	require.NotNil(t, result.Request)
 	require.Len(t, result.Children, 1)
 	assert.NotEmpty(t, result.Request.StatusToken, "status token must be generated")
-	assert.Contains(t, result.StatusURL, "/enroll/status/", "status URL must point at the parent page")
+	assert.Contains(t, result.StatusURL, "/anmeldung/status/", "status URL must point at the parent page")
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[0].Status)
 
 	parents := env.outbox.ByKind("enrollment_submitted")

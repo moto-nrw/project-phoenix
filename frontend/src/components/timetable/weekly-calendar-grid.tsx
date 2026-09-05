@@ -104,7 +104,7 @@ interface WeeklyCalendarGridProps {
     description: string;
   };
   /**
-   * Betreuungsplan-Tageskopfzeile (06-betreuungsplan.md Abschnitt 3.1): zeigt
+   * Betreuungsplan-Tageskopfzeile: zeigt
    * pro Wochentagsspalte die eingeplante Personenzahl als CapacityStrip-Zeile
    * unter dem Sticky-Tagesheader. Default aus (false) — die
    * Vertretungs-Einzeltagesnutzung dieses Grids bleibt unverändert ohne
@@ -359,8 +359,7 @@ export function WeeklyCalendarGrid({
           })}
         </div>
 
-        {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
-            Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
+        {/* Day-header capacity strip (Betreuungsplan opt-in) — sm+ only, matches the desktop day-header columns;
             on mobile the day strip above already shows one day at a time.
             Klebt unter der Tageskopfzeile (sm:h-14 = 56px). */}
         {showDayHeader && (

@@ -1,6 +1,5 @@
 /**
- * Bedarfsquellen-Zuordnung des Betreuungsplan-Kopfzeilen-Chips
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2).
+ * Bedarfsquellen-Zuordnung des Betreuungsplan-Kopfzeilen-Chips.
  *
  * Reine Funktion ohne Datenabruf: Der Aufrufer lädt die Anmeldephasen
  * (`listPhases()`) und übergibt den sichtbaren Planungszeitraum plus das

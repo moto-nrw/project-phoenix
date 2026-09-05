@@ -393,7 +393,7 @@ func (s *calendarPeriodService) FindActiveOverlaps(ctx context.Context, period *
 // produce an instance on instanceDate, considering the period's A/B week cycle.
 //
 // Uses day-based difference calculation (NOT ISO week numbers) to avoid
-// year-boundary bugs. See timetable-system-plan.md §6.1 for algorithm details.
+// year-boundary bugs.
 //
 // timezone.Date.DaysUntil anchors both calendar days at UTC midnight before
 // subtracting, so DST transitions in Europe/Berlin (167- or 169-hour weeks at
