@@ -23,7 +23,7 @@ func (r *consentRecordingUnlinker) UnlinkStored(url string) { r.urls = append(r.
 func buildConsentService(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := usersService.NewStudentPhotoService(usersService.StudentPhotoServiceDependencies{
 		StudentRepo: repos.Student,

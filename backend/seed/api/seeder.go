@@ -483,7 +483,6 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 		}
 		fmt.Println()
 	}
-	printCareWithdrawalDemo(state)
 
 	// Statistics
 	fmt.Println("CREATED DATA:")
@@ -559,18 +558,6 @@ func formatSortedKeys[V any](values map[string]V) string {
 		return "-"
 	}
 	return strings.Join(slices.Sorted(maps.Keys(values)), ", ")
-}
-
-func printCareWithdrawalDemo(state *SeedState) {
-	if state == nil || state.CareWithdrawals == nil {
-		return
-	}
-	demo := state.CareWithdrawals
-	fmt.Println("CARE WITHDRAWAL DEMO:")
-	fmt.Printf("  School:   %s (%s)\n", demo.SchoolName, demo.TenantSlug)
-	fmt.Printf("  Email:    %s\n", demo.SchoolAdmin.Email)
-	fmt.Printf("  Password: %s\n", demo.SchoolAdmin.Password)
-	fmt.Println()
 }
 
 func formatSeedIDList(ids []int64) string {

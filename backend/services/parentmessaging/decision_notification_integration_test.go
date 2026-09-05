@@ -83,7 +83,7 @@ func enqueueDecision(
 func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
@@ -132,7 +132,7 @@ func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, student
 func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
@@ -156,7 +156,7 @@ func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	t.Run("a guardian who did not opt in is not pushed at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -210,7 +210,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) (int, error) {
 		t.Helper()

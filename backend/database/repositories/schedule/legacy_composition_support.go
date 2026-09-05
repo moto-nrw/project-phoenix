@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -17,11 +16,11 @@ type CalendarPeriodOverlapListing struct {
 	Source func(ctx context.Context, periodType, start, end string, excludeID int64) ([]*schedule.CalendarPeriod, error)
 }
 
-func (l CalendarPeriodOverlapListing) FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
+func (l CalendarPeriodOverlapListing) FindActiveOverlapping(ctx context.Context, start, end schedule.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
 	return l.Source(ctx, "", string(start), string(end), excludeID)
 }
 
-func (l CalendarPeriodOverlapListing) FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
+func (l CalendarPeriodOverlapListing) FindActiveOverlappingByType(ctx context.Context, periodType string, start, end schedule.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
 	return l.Source(ctx, periodType, string(start), string(end), excludeID)
 }
 
@@ -31,7 +30,7 @@ type ClosingDayRangeListing struct {
 	Source func(ctx context.Context, from, to string) ([]*schedule.ClosingDay, error)
 }
 
-func (l ClosingDayRangeListing) FindOverlappingRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ClosingDay, error) {
+func (l ClosingDayRangeListing) FindOverlappingRange(ctx context.Context, from, to schedule.Date) ([]*schedule.ClosingDay, error) {
 	return l.Source(ctx, string(from), string(to))
 }
 

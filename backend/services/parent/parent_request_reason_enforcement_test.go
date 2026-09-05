@@ -48,7 +48,7 @@ func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64,
 func buildReasonPolicyServices(t *testing.T, policy string) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,

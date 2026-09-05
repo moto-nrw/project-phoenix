@@ -45,7 +45,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		GuardianFirstName: "Erzieh",
 		GuardianLastName:  "Ungsberechtigt",
 		GuardianEmail:     fmt.Sprintf("korrektur-%d@example.test", time.Now().UnixNano()),
-		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
+		StatusToken:       fmt.Sprintf("tok-%d", testpkg.UniqueSuffix()),
 	}
 	request.TenantID = tenantID
 	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(ctx)

@@ -3,11 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileSpreadsheet, Printer } from "lucide-react";
 
-import { Modal } from "~/components/ui/modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Button } from "~/components/ui/button";
 import { Radio } from "~/components/ui/radio";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -183,112 +190,126 @@ export function PlanExportModal({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        plan === "dienstplan"
-          ? "Dienstplan drucken oder exportieren"
-          : "Betreuungsplan drucken oder exportieren"
-      }
-      closeLabel="Export schließen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      isDismissDisabled={busy !== null}
-      footer={footer}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        // Wie zuvor beim zentrierten Dialog: solange ein Export läuft,
+        // bleibt das Panel stehen.
+        if (!open && busy === null) onClose();
+      }}
     >
-      <div className="space-y-5">
-        {templates.length > 1 && (
+      <SlideOverContent widthClass="sm:w-[560px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {plan === "dienstplan"
+                ? "Dienstplan drucken oder exportieren"
+                : "Betreuungsplan drucken oder exportieren"}
+            </SlideOverTitle>
+          </div>
+          <SlideOverCloseButton
+            aria-label="Export schließen"
+            disabled={busy !== null}
+          />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {templates.length > 1 && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Vorlage</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {templates.map((item) => (
+                  <RadioOption
+                    key={item.id}
+                    id={`plan-export-template-${item.id}`}
+                    name="plan-export-template"
+                    selected={template === item.id}
+                    label={item.label}
+                    description={item.description}
+                    onClick={() => setTemplate(item.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section>
-            <p className="text-sm font-medium text-gray-900">Vorlage</p>
+            <p className="text-sm font-medium text-gray-900">Fassung</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {templates.map((item) => (
+              {variants.map((item) => (
                 <RadioOption
                   key={item.id}
-                  id={`plan-export-template-${item.id}`}
-                  name="plan-export-template"
-                  selected={template === item.id}
+                  id={`plan-export-variant-${item.id}`}
+                  name="plan-export-variant"
+                  selected={variant === item.id}
                   label={item.label}
                   description={item.description}
-                  onClick={() => setTemplate(item.id)}
+                  onClick={() => setVariant(item.id)}
                 />
               ))}
             </div>
           </section>
-        )}
 
-        <section>
-          <p className="text-sm font-medium text-gray-900">Fassung</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {variants.map((item) => (
-              <RadioOption
-                key={item.id}
-                id={`plan-export-variant-${item.id}`}
-                name="plan-export-variant"
-                selected={variant === item.id}
-                label={item.label}
-                description={item.description}
-                onClick={() => setVariant(item.id)}
-              />
-            ))}
-          </div>
-        </section>
+          <section>
+            <p className="text-sm font-medium text-gray-900">Zeitraum</p>
+            <SegmentedControl
+              ariaLabel="Zeitraum des Exports"
+              value={rangeMode}
+              onChange={(next) => setRangeMode(next as RangeMode)}
+              items={[
+                {
+                  value: "week",
+                  label: isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche",
+                },
+                { value: "range", label: "Mehrere Wochen" },
+              ]}
+            />
 
-        <section>
-          <p className="text-sm font-medium text-gray-900">Zeitraum</p>
-          <Tabs
-            value={rangeMode}
-            onValueChange={(value) => setRangeMode(value as RangeMode)}
-          >
-            <TabsList>
-              <TabsTrigger value="week">
-                {isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche"}
-              </TabsTrigger>
-              <TabsTrigger value="range">Mehrere Wochen</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {rangeMode === "range" && (
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="plan-export-from"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Von
-                </label>
-                <ISODatePicker
-                  id="plan-export-from"
-                  controlSize="lg"
-                  value={from}
-                  onChange={setFrom}
-                  calendarLayout="popover"
-                />
+            {rangeMode === "range" && (
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="plan-export-from"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Von
+                  </label>
+                  <ISODatePicker
+                    id="plan-export-from"
+                    controlSize="lg"
+                    value={from}
+                    onChange={setFrom}
+                    calendarLayout="popover"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="plan-export-to"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Bis
+                  </label>
+                  <ISODatePicker
+                    id="plan-export-to"
+                    controlSize="lg"
+                    value={to}
+                    min={from || undefined}
+                    onChange={setTo}
+                    calendarLayout="popover"
+                  />
+                </div>
               </div>
-              <div>
-                <label
-                  htmlFor="plan-export-to"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Bis
-                </label>
-                <ISODatePicker
-                  id="plan-export-to"
-                  controlSize="lg"
-                  value={to}
-                  min={from || undefined}
-                  onChange={setTo}
-                  calendarLayout="popover"
-                />
-              </div>
-            </div>
-          )}
+            )}
 
-          <p className="mt-2 text-xs text-gray-500">
-            {rangeError ?? describeRange(range.from, range.to, weekCount)}
-          </p>
-        </section>
-      </div>
-    </Modal>
+            <p className="mt-2 text-xs text-gray-500">
+              {rangeError ?? describeRange(range.from, range.to, weekCount)}
+            </p>
+          </section>
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

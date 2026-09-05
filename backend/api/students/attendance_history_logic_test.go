@@ -361,13 +361,13 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	morning := &schedule.ActivityInstance{
-		Date: date, Title: "Morgenbetreuung",
+		Date: schedule.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	morning.ID = 101
 	afternoon := &schedule.ActivityInstance{
-		Date: date, Title: "Nachmittagsbetreuung",
+		Date: schedule.Date(date), Title: "Nachmittagsbetreuung",
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}
@@ -395,7 +395,7 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 10)
 	instance := &schedule.ActivityInstance{
-		Date: date, Title: "Morgenbetreuung",
+		Date: schedule.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
@@ -636,18 +636,18 @@ func TestHasPlannedSlotRow(t *testing.T) {
 	assert.False(t, hasPlannedSlotRow(nil))
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{
 		nil,
-		{Instance: &schedule.ActivityInstance{Date: date}, Attendance: nil},
+		{Instance: &schedule.ActivityInstance{Date: schedule.Date(date)}, Attendance: nil},
 	}))
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Spontan-AG"},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Spontan-AG"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
 	}}), "cancelled instances must not count as care-plan evidence")
 	assert.True(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Morgenbetreuung"},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Morgenbetreuung"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
 	}}))
 }
@@ -657,7 +657,7 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
-		Date:      date,
+		Date:      schedule.Date(date),
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}

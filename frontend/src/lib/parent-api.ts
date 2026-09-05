@@ -577,7 +577,7 @@ export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
  * across every school (linked or not). The backend pre-filters by eligibility
  * and pre-sorts (already-linked schools first, then by school name and service
  * start), so the picker renders the list as-is. Powers the "Neue Anmeldung"
- * picker at /parents/enroll.
+ * picker at /parents/anmeldung.
  */
 export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
   return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");

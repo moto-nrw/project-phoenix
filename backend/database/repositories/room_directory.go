@@ -5,11 +5,8 @@ import (
 	"fmt"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
@@ -73,11 +70,6 @@ func (f *Factory) registerActiveRoomBinders() {
 }
 
 func (f *Factory) registerRemainingRoomBinders() {
-	if repo, ok := f.ActivityGroup.(*activitiesRepo.GroupRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindTemplateRooms(activityTemplateRoomDirectory{rooms})
-		})
-	}
 	if repo, ok := f.Group.(*educationRepo.GroupRepository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			repo.BindRoomDirectory(educationRoomDirectory{rooms})
@@ -88,30 +80,6 @@ func (f *Factory) registerRemainingRoomBinders() {
 			repo.BindRoomDirectory(iotRoomDirectory{rooms})
 		})
 	}
-	if repo, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(scheduleRoomDirectory{rooms})
-		})
-	}
-	if repo, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(usersRoomDirectory{rooms})
-		})
-	}
-}
-
-type activityTemplateRoomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d activityTemplateRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]activitiesRepo.TemplateRoom, error) {
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]activitiesRepo.TemplateRoom, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, activitiesRepo.TemplateRoom{ID: room.ID, Name: room.Name})
-	}
-	return result, nil
 }
 
 // BindFacilities replaces the default room owner with the observed
@@ -181,34 +149,6 @@ func (d iotRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]iot
 	result := make([]iotRepo.DirectoryRoom, 0, len(rooms))
 	for _, room := range rooms {
 		result = append(result, iotRepo.DirectoryRoom{ID: room.ID, TenantID: room.TenantID, Name: room.Name})
-	}
-	return result, nil
-}
-
-type scheduleRoomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d scheduleRoomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryRoom, error) {
-	rooms, err := d.rooms.LockRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]scheduleRepo.DirectoryRoom, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, scheduleRepo.DirectoryRoom{ID: room.ID, TenantID: room.TenantID})
-	}
-	return result, nil
-}
-
-type usersRoomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d usersRoomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]usersRepo.DirectoryRoom, error) {
-	rooms, err := d.rooms.LockRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]usersRepo.DirectoryRoom, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, usersRepo.DirectoryRoom{ID: room.ID, TenantID: room.TenantID})
 	}
 	return result, nil
 }

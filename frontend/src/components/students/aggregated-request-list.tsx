@@ -17,6 +17,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useToast } from "~/contexts/ToastContext";
+
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -85,9 +87,12 @@ function bulkRef(item: AggregatedOpenRequest): BulkApproveRequestRef[] {
 export function AggregatedRequestList({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
+  /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
+  onCountChange?: (count: number | null, hasMore: boolean) => void;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -113,7 +118,7 @@ export function AggregatedRequestList({
     load: loadWithdrawals,
     loadMore: loadMoreWithdrawals,
   } = withdrawalsFeed;
-  const [notice, setNotice] = useState<string | null>(null);
+  const { success: showSuccess } = useToast();
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
   const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(
@@ -169,9 +174,9 @@ export function AggregatedRequestList({
       suppressSelfReloadRef.current = true;
       window.dispatchEvent(new Event("change-requests-refresh"));
       suppressSelfReloadRef.current = false;
-      setNotice(decidedNotice);
+      showSuccess(decidedNotice);
     },
-    [setItems],
+    [setItems, showSuccess],
   );
 
   // Eine Anfrage wurde zwischenzeitlich geändert: die Zeile bleibt stehen und
@@ -207,7 +212,6 @@ export function AggregatedRequestList({
     (childCase: OpenCase) => {
       returnFocus.remember(caseRowID(childCase.key));
       setSelectedCaseKey(childCase.key);
-      setNotice(null);
       setStaleNotice(null);
     },
     [returnFocus],
@@ -240,7 +244,7 @@ export function AggregatedRequestList({
       setSelectedForBulk(new Set());
       setBulkReason("");
       setBulkConfirmOpen(false);
-      setNotice(`${count} Anfragen wurden freigegeben.`);
+      showSuccess(`${count} Anfragen wurden freigegeben.`);
       suppressSelfReloadRef.current = true;
       window.dispatchEvent(new Event("change-requests-refresh"));
       suppressSelfReloadRef.current = false;
@@ -269,17 +273,18 @@ export function AggregatedRequestList({
     selectedForBulk,
     setError,
     setItems,
+    showSuccess,
   ]);
 
   const handleWithdrawalFinished = useCallback(
     (row: CareWithdrawalCompletion, deleted = false) => {
       setWithdrawals((current) => current.filter((item) => item.id !== row.id));
-      setNotice(
+      showSuccess(
         deleted ? "Das Kind wurde gelöscht." : "Die Betreuung wurde beendet.",
       );
       window.dispatchEvent(new Event("change-requests-refresh"));
     },
-    [setWithdrawals],
+    [setWithdrawals, showSuccess],
   );
   const withdrawalDialogs = useWithdrawalDialogs(handleWithdrawalFinished);
 
@@ -301,14 +306,36 @@ export function AggregatedRequestList({
             : item,
         ),
       );
-      setNotice(
+      showSuccess(
         enabled
           ? "Der Familienschutz ist jetzt aktiv."
           : "Der Familienschutz ist jetzt aus.",
       );
     },
-    [setItems],
+    [setItems, showSuccess],
   );
+
+  const visibleWithdrawals =
+    view === "history"
+      ? withdrawals.filter((row) => {
+          const resolvedDate = row.resolvedAt?.slice(0, 10);
+          return (
+            resolvedDate !== undefined &&
+            (!filters.from || resolvedDate >= filters.from) &&
+            (!filters.to || resolvedDate <= filters.to)
+          );
+        })
+      : withdrawals;
+
+  // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
+  // einen Skelett-Balken statt einer falschen Null.
+  const visibleCount =
+    loading || withdrawalsLoading
+      ? null
+      : items.length + visibleWithdrawals.length;
+  useEffect(() => {
+    onCountChange?.(visibleCount, hasMore);
+  }, [onCountChange, visibleCount, hasMore]);
 
   if (loading || withdrawalsLoading) {
     return (
@@ -326,17 +353,6 @@ export function AggregatedRequestList({
     filters.statuses.length > 0 ||
     Boolean(filters.from) ||
     Boolean(filters.to);
-  const visibleWithdrawals =
-    view === "history"
-      ? withdrawals.filter((row) => {
-          const resolvedDate = row.resolvedAt?.slice(0, 10);
-          return (
-            resolvedDate !== undefined &&
-            (!filters.from || resolvedDate >= filters.from) &&
-            (!filters.to || resolvedDate <= filters.to)
-          );
-        })
-      : withdrawals;
 
   const showList = view === "open" && (wide || selectedCase === undefined);
   const showDetail = view === "open" && (wide || selectedCase !== undefined);
@@ -345,7 +361,6 @@ export function AggregatedRequestList({
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
       {staleNotice && <Alert type="warning" message={staleNotice} />}
-      {notice && <Alert type="success" message={notice} />}
       {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <RequestEmptyState
           view={view}
@@ -386,7 +401,7 @@ export function AggregatedRequestList({
                   onDecided={handleDecided}
                   onProtectionChanged={handleProtectionChanged}
                   onReload={handleStale}
-                  onNotice={setNotice}
+                  onNotice={showSuccess}
                   finishWithdrawal={withdrawalDialogs.finishWithdrawal}
                   removeWithdrawal={withdrawalDialogs.removeWithdrawal}
                 />
@@ -401,7 +416,7 @@ export function AggregatedRequestList({
           withdrawals={visibleWithdrawals}
           reasonRequired={reasonRequired}
           onCorrected={(corrected) => {
-            setNotice(corrected);
+            showSuccess(corrected);
             void feed.reload();
           }}
         />

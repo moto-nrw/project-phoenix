@@ -155,6 +155,18 @@ func (f *fakeCalendarService) CleanupExpiredFeedTombstones(context.Context) (int
 	return 0, nil
 }
 
+func (f *fakeCalendarService) EnqueueDueAppointmentReminders(context.Context, time.Time, time.Time) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeCalendarService) GuardianNotificationAudiences(context.Context, []int64) (map[int64]calendarSvc.GuardianNotificationAudience, error) {
+	return nil, nil
+}
+
+func (f *fakeCalendarService) ReminderEffects() calendarSvc.ReminderEffects {
+	return calendarSvc.ReminderEffects{}
+}
+
 func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }
@@ -177,13 +189,6 @@ func (f *fakeCalendarService) RecipientOptions(_ context.Context, query string, 
 	f.gotOptionsQ = query
 	f.gotOptionsLim = limit
 	return f.options, f.optionsErr
-}
-
-// EnqueueDueAppointmentReminders exists only to satisfy the service interface:
-// the guardian reminder scan (#1671) is driven by the scheduler, never by an
-// HTTP handler, so no test in this file calls it.
-func (f *fakeCalendarService) EnqueueDueAppointmentReminders(context.Context, time.Time, time.Time) (int, error) {
-	return 0, nil
 }
 
 func requestWithURLParam(req *http.Request, key, value string) *http.Request {

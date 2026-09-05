@@ -244,7 +244,7 @@ type EnrollmentRequestChildResponse struct {
 
 // EnrollmentRequestResponse is the wire shape for one enrollment.requests
 // row owned by the calling parent. The frontend uses StatusToken to
-// build the "details" link to /parents/enroll/status/{token}.
+// build the "details" link to /parents/anmeldung/status/{token}.
 type EnrollmentRequestResponse struct {
 	RequestID        string                           `json:"request_id"`
 	TenantID         string                           `json:"tenant_id"`

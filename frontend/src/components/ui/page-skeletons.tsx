@@ -64,6 +64,40 @@ export function SkeletonRegion({
  */
 export { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
 
+/**
+ * Die Kopfkarte von `TenantPage` als Platzhalter: dieselbe Fläche, dieselben
+ * Ränder, dieselbe Zeilenfolge (Titel, Statuszeile, optional Bedienzeile).
+ * Jede Seite, die während des Ladens ihren Kopf zeigt, nimmt diese hier —
+ * sonst springt der Inhalt, sobald die Daten da sind.
+ */
+export function TenantPageHeaderSkeleton({
+  leading = false,
+  controls = false,
+}: Readonly<{
+  /** Platz für Avatar oder Konzept-Symbol links vom Titel. */
+  leading?: boolean;
+  /** Zweite Zeile für Suche, Filter oder Zeitnavigation. */
+  controls?: boolean;
+}> = {}) {
+  return (
+    <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      <div className="flex min-w-0 items-center gap-3">
+        {leading && <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
+        <div className="min-w-0 flex-1">
+          <Skeleton className="h-7 w-52 max-w-3/4 rounded-full" />
+          <Skeleton className="mt-2 h-4 w-64 max-w-full rounded-full" />
+        </div>
+      </div>
+      {controls && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Skeleton className="h-9 w-48 rounded-lg" />
+          <Skeleton className="h-9 w-32 rounded-lg" />
+        </div>
+      )}
+    </header>
+  );
+}
+
 /** One InfoCard-shaped card: icon tile, title, then label/value rows. */
 export function CardSkeleton({ rows = 3 }: Readonly<{ rows?: number }>) {
   return (

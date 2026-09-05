@@ -22,10 +22,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -49,7 +48,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
@@ -95,7 +95,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// Create an instance bridged to the active.group and an instance_students
 	// row in 'expected' — exactly what the syncer is designed to flip.
 	instance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("E2E-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -108,7 +108,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := repos.InstanceStudent
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  student.ID,
@@ -155,7 +155,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
 
 	targetInstance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &targetActivity.ID,
 		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -212,7 +212,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := time.Now().UnixNano()
 	syncer := scheduleSvc.NewAttendanceSyncService(
 		repos.ActivityInstance,

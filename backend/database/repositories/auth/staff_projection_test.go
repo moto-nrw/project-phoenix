@@ -22,7 +22,7 @@ func TestCaregiverChainsComeFromSchoolMembership(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	chains, ok := factory.AccountTenant.(caregiverChainQuery)
 	require.True(t, ok, "the account listings still resolve caregiver chains")

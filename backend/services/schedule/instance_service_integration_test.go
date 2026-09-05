@@ -64,7 +64,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	// Register DB close FIRST so it runs LAST (LIFO) — after every other
 	// t.Cleanup has released its row references.
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -142,7 +142,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *scheduleModels.ActivityInstance {
 	t.Helper()
 	ai := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 20),
+		Date:            scheduleModels.NewDate(2026, 4, 20),
 		ActivityGroupID: &s.tmplID,
 		Title:           "Lifecycle-Test",
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -175,7 +175,7 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *scheduleModels.ActivityInstance {
 	t.Helper()
 	ai := &scheduleModels.ActivityInstance{
-		Date:          timezone.NewDate(2026, 4, 20),
+		Date:          scheduleModels.NewDate(2026, 4, 20),
 		Title:         "Lifecycle-Test-Spontaneous",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -498,7 +498,7 @@ func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
 	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
 
 	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
-		Date:      instance.Date,
+		Date:      timezone.Date(instance.Date),
 		StartTime: instance.StartTime,
 		EndTime:   instance.EndTime,
 		Title:     "Bearbeitet nach Deaktivierung",
@@ -525,7 +525,7 @@ func TestInstance_UpdatePlannedMovesSpontaneousOutsideActiveCalendarPeriod(t *te
 	}, nil)
 
 	require.NoError(t, err)
-	assert.Equal(t, targetDate, updated.Date)
+	assert.Equal(t, scheduleModels.Date(targetDate), updated.Date)
 	assert.True(t, updated.IsSpontaneous)
 }
 
@@ -557,7 +557,7 @@ func TestInstance_UpdatePlannedConvertsSpontaneousSameDateRejectsInactiveCalenda
 	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
 
 	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
-		Date:             instance.Date,
+		Date:             timezone.Date(instance.Date),
 		StartTime:        instance.StartTime,
 		EndTime:          instance.EndTime,
 		Title:            "Als geplant behalten",
@@ -628,7 +628,7 @@ func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
 	assert.Equal(t, []string{"instance_create"}, deviationSources())
 
 	_, err = svc.UpdatePlanned(s.ctx, inst.ID, scheduleSvc.UpdateInstanceInput{
-		Date:      inst.Date,
+		Date:      timezone.Date(inst.Date),
 		StartTime: inst.StartTime,
 		EndTime:   inst.EndTime,
 		Title:     "CRUD-Broadcast-Test (edited)",
@@ -707,7 +707,7 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 
 	sick := &activeModels.StudentStatusDay{
 		StudentID:  s.student1,
-		Date:       ai.Date,
+		Date:       timezone.Date(ai.Date),
 		Status:     activeModels.StudentStatusDaySick,
 		ReportedAt: time.Now(),
 		Source:     activeModels.StudentStatusSourcePlanned,
@@ -1191,7 +1191,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeModels.Group, staffID int64, overrideRoomID *int64, withStaffRow bool) {
 	t.Helper()
 	ai := &scheduleModels.ActivityInstance{
-		Date:          timezone.NewDate(2026, 4, 20),
+		Date:          scheduleModels.NewDate(2026, 4, 20),
 		Title:         "Lifecycle-Bridged",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -1399,7 +1399,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	// (is_spontaneous=false) but has no template — materialization could never
 	// recreate it, so a whole-grid re-plan must not delete it.
 	plannedManual := &scheduleModels.ActivityInstance{
-		Date:      from.AddDays(1),
+		Date:      scheduleModels.Date(from.AddDays(1)),
 		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -1458,7 +1458,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 
 	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	other := &scheduleModels.ActivityInstance{
-		Date:            from.AddDays(1),
+		Date:            scheduleModels.Date(from.AddDays(1)),
 		Title:           fmt.Sprintf("Row-other-%d", time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -1564,7 +1564,7 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 		RoomID: s.roomID, ActivityGroupID: &s.tmplID, StudentIDs: []int64{s.student2},
 	}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, updatedDate, updated.Date)
+	assert.Equal(t, scheduleModels.Date(updatedDate), updated.Date)
 
 	updatedRow := fetchAttendance(t, s, inst.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, updatedRow.Status)
@@ -1787,7 +1787,7 @@ func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *tes
 	ai := seedSpontaneousInstance(t, s, false)
 
 	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
-		Date:            ai.Date,
+		Date:            timezone.Date(ai.Date),
 		StartTime:       ai.StartTime,
 		EndTime:         ai.EndTime,
 		Title:           ai.Title,
@@ -1953,7 +1953,7 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date timezone.Date, statu
 	t.Helper()
 	endHour := startHour + 1
 	row := &scheduleModels.ActivityInstance{
-		Date:          date,
+		Date:          scheduleModels.Date(date),
 		Title:         fmt.Sprintf("Row-%s-%d", status, time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, endHour, 0, 0, 0, time.UTC),
@@ -2039,7 +2039,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	updated, err := repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2170,7 +2170,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	_, err = repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2195,7 +2195,7 @@ func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	warnings := scheduleSvc.DetectStartConflicts(s.ctx, scheduleSvc.ConflictDependencies{
 		GroupRepo:         repoFactory.ActiveGroup,
 		SupervisorRepo:    repoFactory.GroupSupervisor,

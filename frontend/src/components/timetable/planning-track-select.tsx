@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { useToast } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -388,29 +389,34 @@ export function PlanningTrackSelect({
         <h3 className="text-sm font-semibold text-gray-900">
           Planungsspuren verwalten
         </h3>
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          onClick={() => setView("select")}
-        >
-          Fertig
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={beginCreate}
+          >
+            <Plus className="size-4" aria-hidden="true" /> Neue Planungsspur
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => setView("select")}
+          >
+            Fertig
+          </Button>
+        </div>
       </div>
       {error && <Alert type="error" message={error} />}
-      <Button
-        type="button"
-        variant="outline"
-        size="compact"
-        className="mb-3"
-        onClick={beginCreate}
-      >
-        <Plus className="size-4" aria-hidden="true" /> Neue Planungsspur
-      </Button>
       {active.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500">
-          Noch keine Planungsspuren angelegt.
-        </p>
+        <div className="rounded-lg border border-dashed border-gray-200 px-4 py-2">
+          <EmptyState
+            variant="compact"
+            title="Noch keine Planungsspuren angelegt"
+            description="Legen Sie eine Planungsspur an, um Termine farblich zu bündeln."
+          />
+        </div>
       ) : (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
           {active.map((track, index) => (

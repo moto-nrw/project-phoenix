@@ -1177,7 +1177,7 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		// the split and overlap its successor.
 		draftEndExclusive := careDraftValidUntil(draft, phase)
 		if row.ValidUntil != nil && row.ValidUntil.Before(draftEndExclusive) {
-			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, draftEndExclusive); err != nil {
+			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(draftEndExclusive)); err != nil {
 				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)
 			}
 		}
@@ -1190,7 +1190,7 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		}
 		return nil
 	}
-	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
+	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(effectiveFrom)); err != nil {
 		return fmt.Errorf("decision: cap adjusted enrollment: %w", err)
 	}
 	return nil

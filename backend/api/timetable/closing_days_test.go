@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +16,8 @@ import (
 
 func newTestClosingDay() *schedule.ClosingDay {
 	d := &schedule.ClosingDay{
-		StartDate: timezone.NewDate(2026, 12, 24),
-		EndDate:   timezone.NewDate(2026, 12, 31),
+		StartDate: schedule.NewDate(2026, 12, 24),
+		EndDate:   schedule.NewDate(2026, 12, 31),
 		Reason:    "Weihnachtswoche",
 	}
 	d.ID = int64(7)
@@ -84,7 +83,7 @@ func TestCreateClosingDay(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 		assert.NotNil(t, created)
-		assert.Equal(t, timezone.NewDate(2026, 7, 20), created.StartDate)
+		assert.Equal(t, schedule.NewDate(2026, 7, 20), created.StartDate)
 		assert.Equal(t, "Sommerschließung", created.Reason)
 	})
 
@@ -208,7 +207,7 @@ func TestUpdateClosingDay(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.NotNil(t, updated)
-		assert.Equal(t, timezone.NewDate(2027, 1, 2), updated.EndDate)
+		assert.Equal(t, schedule.NewDate(2027, 1, 2), updated.EndDate)
 		assert.Equal(t, "Weihnachtsferien", updated.Reason)
 	})
 

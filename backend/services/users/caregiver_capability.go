@@ -600,7 +600,17 @@ func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerActivity, error) {
-	return s.ActivitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
+	rows, err := s.ActivitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]userModels.BlockerActivity, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, userModels.BlockerActivity{
+			ID: row.ID, ActivityID: row.ActivityID, ActivityName: row.ActivityName, IsPrimary: row.IsPrimary,
+		})
+	}
+	return result, nil
 }
 
 func (s *caregiverCapabilityService) listGroupTeacherAssignments(

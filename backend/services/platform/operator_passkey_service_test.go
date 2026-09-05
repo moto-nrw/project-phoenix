@@ -774,7 +774,7 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 	requireOperatorPasskeyTables(t, db, "platform.operator_passkey_credentials", "platform.operator_passkey_sessions")
 
 	ctx := context.Background()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	operator := &platformModel.Operator{

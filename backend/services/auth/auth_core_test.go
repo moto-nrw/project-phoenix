@@ -50,7 +50,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 }
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")

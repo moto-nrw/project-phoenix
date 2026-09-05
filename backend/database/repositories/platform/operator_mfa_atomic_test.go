@@ -25,7 +25,7 @@ func TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 
 	op := testpkg.CreateTestOperator(t, db)
 
-	repo := repositories.NewFactory(db).Operator
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator
 
 	const (
 		concurrency = 12
@@ -78,7 +78,7 @@ func TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) 
 
 	op := testpkg.CreateTestOperator(t, db)
 
-	repo := repositories.NewFactory(db).Operator
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator
 
 	for i := 0; i < 6; i++ {
 		_, err := repo.IncrementMFAAttempts(context.Background(), op.ID, 5, 15*time.Minute)

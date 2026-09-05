@@ -25,9 +25,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func TestSchoolScopeRejectedOnAllAPIRoutes(t *testing.T) {
+func checkSchoolScopeMatrix(t *testing.T, apiInstance *API) {
 	t.Parallel()
-	apiInstance := newGoldenAPI(t)
 
 	tokenAuth, err := jwt.NewTokenAuth()
 	require.NoError(t, err)

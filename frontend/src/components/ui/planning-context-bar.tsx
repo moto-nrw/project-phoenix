@@ -8,31 +8,29 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 /**
  * PlanningContextBar is the shared header of all three planning surfaces
- * (Betreuungsplan, Dienstplan, Vertretung) —
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2. It carries
+ * (Betreuungsplan, Dienstplan, Vertretung). It carries
  * no domain logic, no date math, and no data fetching: every value it shows
  * is a prop, and every navigation step is a callback the caller resolves.
- * The bar is generic on purpose (see Akzeptanzkriterium 11 in 04-designsprache.md,
- * "Y7"); domain-specific content (a week strip of day chips, a Lückenzähler
+ * The bar is generic on purpose; domain-specific content (a week strip of day chips, a Lückenzähler
  * chip, …) is composed by the caller via `navigationSlot`/`viewSwitcher`/
  * `actions`/`children`.
  *
- * Form (#2031): ein eigener Balken, damit die Leiste auf den ersten Blick als
- * Kopfbereich lesbar ist und nicht wie freistehende Bedienelemente über dem
- * Raster wirkt. Drei Regeln halten die drei Flächen zusammen:
+ * Form: die Leiste ist KEINE eigene Karte mehr. Sie sitzt als Bedienband IN
+ * der Kopfkarte von `TenantPage` (Slot `searchSlot`), an derselben Stelle, an
+ * der jede andere Seite Suche und Filter trägt. Zwei Karten übereinander —
+ * Seitenkopf und Planungsbalken — waren der letzte Ort im Portal, an dem eine
+ * Seite zwei Köpfe hatte. Zwei Regeln halten die drei Flächen zusammen:
  *
- * 1. Der Seitenname steht bereits in der App-Kopfzeile und wird hier nur noch
- *    für Screenreader gerendert. Die sichtbare Überschrift ist das Datum, also
- *    die Antwort auf "was sehe ich gerade". Ausnahme ist die mobile Ansicht:
- *    dort zeigt die App-Kopfzeile den Schulnamen, nicht die Seite, deshalb
- *    bleibt der Titel unter md sichtbar (klein, in der Bedienzeile).
+ * 1. Den Seitennamen trägt die Kopfkarte. Das Datum in der Bedienzeile
+ *    beantwortet "was sehe ich gerade".
  * 2. Die Navigation ist EIN Objekt: eine gerahmte Gruppe aus Zurück, Heute und
  *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
  *    ein auftauchender und verschwindender Button die Zeile seitlich springen
  *    ließ.
- * 3. Zeile 2 ist eine ruhige 12px-Kontextzeile, keine Sammlung verschiedener
- *    Pillen. Sie wird immer gerendert, damit der Inhalt darunter beim
- *    Seitenwechsel nicht springt.
+ * 3. Zeile 2 ist eine ruhige Kontextzeile in normaler Textgröße (`text-sm`) —
+ *    keine Sammlung verschiedener Pillen und kein Kleingedrucktes. Sie wird
+ *    immer gerendert, damit der Inhalt darunter beim Seitenwechsel nicht
+ *    springt.
  *
  * Mobiles Verhalten: die Bar darf auf einem Handy nicht per `flex-wrap` in vier
  * Zeilen zerfallen — gemessen fraß sie so ein Viertel bis ein Drittel des
@@ -51,14 +49,11 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  * eine Wochenleiste, gar nichts). Jedes Element, das in eine Zeile einzieht,
  * muss in diese Höhe passen — siehe PlanningDayChip.
  */
-const PRIMARY_ROW_MIN_H = "min-h-9";
-const CONTEXT_ROW_MIN_H = "min-h-8";
+const PRIMARY_ROW_MIN_H = "min-h-10";
+const CONTEXT_ROW_MIN_H = "min-h-9";
 const DAY_CHIP_SCROLL_MARGIN_PX = 4;
 
 interface PlanningContextBarProps {
-  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Auf kleinen
-   *  Ansichten sichtbar, ab md steht er in der App-Kopfzeile. */
-  readonly title: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
@@ -72,17 +67,32 @@ interface PlanningContextBarProps {
    *  aber deaktiviert (feste Geometrie, siehe Regel 2 oben). */
   readonly onToday?: () => void;
   readonly todayLabel?: string;
-  /** Slot für den Ansichts-Umschalter (`ui/Tabs` kommt vom Aufrufer). */
+  /** Slot für den Ansichts-Umschalter (`SegmentedControl` vom Aufrufer). */
   readonly viewSwitcher?: ReactNode;
   /** Rechtsbündige Aktionen (Primäraktion etc.). */
   readonly actions?: ReactNode;
   /** Zeile 2, die Kontextzeile. */
   readonly children?: ReactNode;
+  /** Für Flächen, die nie eine Kontextzeile haben (Statistik, Zeiterfassung):
+   *  lässt die reservierte zweite Zeile ganz weg. */
+  readonly withoutContextRow?: boolean;
+  /** Lässt die Kontextzeile auch unter `sm` umbrechen statt waagerecht zu
+   *  scrollen. Für Flächen, deren Kontext aus wenigen Text-Chips besteht
+   *  (Betreuungsplan: Zeitraum, Bedarf, Lücken): eine scrollende Zeile
+   *  schneidet dort auf dem Telefon den Text ab, und die Scrollbar, die das
+   *  anzeigen soll, zeichnet kein Handy. Die Wochenleiste der Vertretung
+   *  bleibt bei der scrollenden Zeile, weil sie zum gewählten Tag scrollt. */
+  readonly contextRowWrap?: boolean;
+  /** Setzt den `navigationSlot` ZWISCHEN die Pfeile, statt daneben. Für
+   *  Flächen, deren Zeitraum frei wählbar ist (Statistik): der Chip, den man
+   *  anklickt, und die Pfeile, die ihn verschieben, sind dann sichtbar EIN
+   *  Bedienelement. Der Heute-Knopf wandert dabei aus der Gruppe heraus und
+   *  erscheint nur, wenn es etwas zurückzusetzen gibt. */
+  readonly navigationInGroup?: boolean;
   readonly className?: string;
 }
 
 export function PlanningContextBar({
-  title,
   onPrevious,
   onNext,
   previousLabel = "Zurück",
@@ -94,38 +104,44 @@ export function PlanningContextBar({
   viewSwitcher,
   actions,
   children,
+  withoutContextRow = false,
+  contextRowWrap = false,
+  navigationInGroup = false,
   className,
 }: PlanningContextBarProps) {
   return (
-    <div
-      className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 ${className ?? ""}`}
-    >
+    <div className={`flex flex-col gap-3 ${className ?? ""}`}>
       <div
         className={`flex flex-wrap items-center gap-2 sm:gap-3 ${PRIMARY_ROW_MIN_H}`}
       >
-        {/* Titelblock: unter md ein zweizeiliger Block (Seitenname klein
-            darüber, Datum groß darunter), der die Zeile links füllt, während
-            die Zeitnavigation rechts sitzt. Ab md löst `contents` den Wrapper
-            auf — Überschrift und Datum werden wieder direkte Kinder der Zeile,
-            die Überschrift verschwindet in `sr-only` (die App-Kopfzeile trägt
-            den Seitennamen), und die Zeile ist exakt die alte. */}
-        <div className="flex min-w-0 flex-1 flex-col md:contents">
-          <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only md:text-base md:normal-case">
-            {title}
-          </h1>
-          {navigationSlot ??
-            (dateLabel && (
-              <p className="min-w-0 truncate text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:text-base">
-                {dateLabel}
-              </p>
-            ))}
-        </div>
+        {/* Datumsblock: unter md füllt er die Zeile links, die Zeitnavigation
+            sitzt rechts. Ab md löst `contents` den Wrapper auf und die
+            `md:order-*`-Klassen stellen die Zeile als Navigation, Datum,
+            Aktionen zusammen. */}
+        {!navigationInGroup && (
+          <div className="flex min-w-0 flex-1 flex-col md:contents">
+            {navigationSlot ??
+              (dateLabel && (
+                // Unter md darf das Datum umbrechen: abgeschnitten („KW 36 ·
+                // 31.08.–04.09....") fehlte auf dem Telefon genau das Jahr.
+                <p className="min-w-0 text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:truncate md:text-base">
+                  {dateLabel}
+                </p>
+              ))}
+          </div>
+        )}
 
         {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
-            Mobil sitzt sie rechts neben dem Titelblock, ab md rückt sie per
-            `order` wieder an den Anfang der Zeile. */}
-        <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
+            Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
+            `order` wieder an den Anfang der Zeile. Mit `navigationInGroup`
+            steht der Slot selbst zwischen den Pfeilen und die Gruppe füllt
+            unter md die Zeile. */}
+        <div
+          className={`inline-flex h-10 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white max-sm:h-11 md:order-1 ${
+            navigationInGroup ? "w-full md:w-auto" : ""
+          }`}
+        >
           <Button
             type="button"
             size="icon"
@@ -137,16 +153,22 @@ export function PlanningContextBar({
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            size="compact"
-            variant="ghost"
-            className="rounded-none px-3"
-            onClick={onToday}
-            disabled={!onToday}
-          >
-            {todayLabel}
-          </Button>
+          {navigationInGroup ? (
+            <div className="flex min-w-0 flex-1 items-stretch [&>*]:min-w-0 [&>*]:flex-1">
+              {navigationSlot}
+            </div>
+          ) : (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="rounded-none px-3"
+              onClick={onToday}
+              disabled={!onToday}
+            >
+              {todayLabel}
+            </Button>
+          )}
           <Button
             type="button"
             size="icon"
@@ -159,6 +181,20 @@ export function PlanningContextBar({
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
+
+        {/* Außerhalb der Gruppe ist „Heute" kein Dauergast: er steht nur da,
+            wenn er etwas tut. Rechts von der Gruppe kann nichts springen. */}
+        {navigationInGroup && onToday && (
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            className="h-10 px-3 text-gray-600 max-sm:h-11 md:order-2"
+            onClick={onToday}
+          >
+            {todayLabel}
+          </Button>
+        )}
 
         {/* Umschalter und Aktionen: unter md eine eigene Zeile über die VOLLE
             Breite (`basis-full`), in der sich der Ansichtsumschalter breit
@@ -178,14 +214,12 @@ export function PlanningContextBar({
             braucht, und beide bleiben vollständig sichtbar. */}
         {(viewSwitcher ?? actions) && (
           <div
-            className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap ${
+            className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap max-md:[&>*]:min-w-0 max-md:[&>*]:flex-1 ${
               viewSwitcher
-                ? // Drei Ebenen, weil der Umschalter drei verschachtelte
-                  // Elemente hat: der Tabs-Rahmen muss die freie Breite nehmen
-                  // (flex-1), die Liste darin sie ausfüllen (w-full), und die
-                  // Schaltflächen sie untereinander aufteilen (flex-1). Fehlt
-                  // eine davon, bleibt alles auf Textbreite stehen.
-                  "[&_[role=tab]]:flex-1 md:[&_[role=tab]]:flex-none [&_[role=tablist]]:w-full md:[&_[role=tablist]]:w-auto [&>*:first-child]:min-w-0 [&>*:first-child]:flex-1 md:[&>*:first-child]:flex-none"
+                ? // Der Umschalter nimmt unter md die freie Breite, damit er
+                  // nicht auf Textbreite links klebt; ab md steht er wieder in
+                  // seiner eigenen Breite am rechten Rand.
+                  "[&>*:first-child]:min-w-0 [&>*:first-child]:flex-1 md:[&>*:first-child]:flex-none"
                 : ""
             }`}
           >
@@ -195,20 +229,32 @@ export function PlanningContextBar({
         )}
       </div>
 
-      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten) INNERHALB des
-          Balkens: zwei Zonen, eine Fläche. */}
-      <div className="border-t border-gray-100 pt-2">
-        {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
+      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten). Die Zeile
+          bleibt auch leer stehen (#2031), damit der Inhalt beim Wechsel
+          zwischen Planungsflächen nicht springt -- außer die Fläche hat nie
+          Kontext (`withoutContextRow`): dann wäre sie nur ein leerer Streifen
+          unter dem Umschalter, auf dem Telefon 40 px hoch. */}
+      {!withoutContextRow && (
+        <div className="border-t border-gray-100 pt-2">
+          {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
             umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten
             in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. Die
-            sichtbare Scrollbar zeigt auf kleinen Ansichten, dass rechts noch
-            weitere Tage und Zähler folgen. */}
-        <div
-          className={`planning-context-scrollbar flex scrollbar-thin items-center gap-x-3 gap-y-1 overflow-x-auto pb-1 text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
-        >
-          {children}
+            sichtbare schmale Scrollbar zeigt auf kleinen Ansichten, dass
+            rechts noch weitere Tage und Zähler folgen. */}
+          <div
+            // `text-sm`, nicht `text-xs`: die Kontextzeile trägt Bedienelemente
+            // (Wochenleiste, Zeitraum-Menü) und Zustände — kein Kleingedrucktes
+            // (Typo-Boden, TENANT-PAGE-SPEC).
+            className={
+              contextRowWrap
+                ? `flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600 ${CONTEXT_ROW_MIN_H}`
+                : `planning-context-scrollbar flex scrollbar-thin items-center gap-x-3 gap-y-1 overflow-x-auto pb-1 text-sm text-gray-600 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`
+            }
+          >
+            {children}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -285,7 +331,10 @@ export function PlanningDayChip({
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "inline-flex h-8 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2 text-xs focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+        // 36 px und `text-sm`: der Tages-Chip ist ein Bedienelement in der
+        // Kontextzeile, kein Kleingedrucktes. `scroll-mx-1` hält beim
+        // automatischen Heranscrollen den Rand frei (#2031).
+        "inline-flex h-9 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2.5 text-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
         selected
           ? "bg-gray-900 text-white"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",

@@ -325,7 +325,8 @@ func (rs *Resource) careDaysForInstance(
 	if inst == nil {
 		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
 	}
-	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, inst.Date, inst.Date)
+	date := timezone.Date(inst.Date)
+	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, date, date)
 	if err != nil {
 		return nil, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
 	}
@@ -348,7 +349,7 @@ func instanceStudentCareDay(
 	return scheduleSvc.AttendanceRowCareDay(
 		inst.Status == scheduleModel.InstanceStatusCompleted,
 		row,
-		careDays[row.StudentID][inst.Date],
+		careDays[row.StudentID][timezone.Date(inst.Date)],
 	)
 }
 
@@ -530,7 +531,7 @@ func (rs *Resource) enrichInstance(
 	}
 
 	studentRows := rows.Students[inst.ID]
-	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[inst.Date])
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays, rows.Cutoffs[timezone.Date(inst.Date)])
 	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount
@@ -606,7 +607,8 @@ func (rs *Resource) dayConflictWarningsFor(
 	if inst == nil || rs.TimetableData == nil {
 		return empty
 	}
-	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, inst.Date, inst.Date)
+	date := timezone.Date(inst.Date)
+	dayInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, date, date)
 	if err != nil {
 		rs.getLogger().Warn("day conflict detection: load day instances failed",
 			slog.Int64("instance_id", inst.ID),
@@ -771,7 +773,7 @@ func (rs *Resource) resolveEmptyRosterReason(
 		}
 		cache[periodKey] = options
 	}
-	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, inst.Date)
+	explanation := enrollmentSvc.ExplainEmptyOfferingRoster(options, meta.sourceCareOfferingIDs, timezone.Date(inst.Date))
 	if explanation == nil {
 		return nil
 	}

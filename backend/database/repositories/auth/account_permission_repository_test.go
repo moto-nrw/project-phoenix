@@ -37,7 +37,7 @@ func TestAccountPermissionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account permission mapping", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions by account ID", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("grants new permission", func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("denies new permission", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes existing permission", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account permission granted status", func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountPermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all account permissions", func(t *testing.T) {
@@ -327,7 +327,7 @@ func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repo := repos.AccountPermission
 	ctx := testpkg.Ctx(t)
 

@@ -60,7 +60,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewStudentDocumentService(
 		db,
 		repos.StudentDocument,
@@ -107,7 +107,7 @@ func (s *studentDocumentScenario) input(category string) usersSvc.CreateStudentD
 		StudentID:       s.studentID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
-		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, time.Now().UnixNano()),
+		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, testpkg.UniqueSuffix()),
 		SizeBytes:       42,
 		ContentType:     "application/pdf",
 	}
@@ -362,7 +362,7 @@ func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	s := newStudentDocumentScenario(t)
 
 	// Same permissions, but no staff record in the tenant.
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
@@ -447,7 +447,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	t.Parallel()
 
 	s := newStudentDocumentScenario(t)
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	unaudited := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
@@ -721,7 +721,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, "erfundene_kategorie", office),
 		usersSvc.ErrStudentDocumentInvalid)
 
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,

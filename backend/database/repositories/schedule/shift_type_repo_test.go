@@ -33,7 +33,7 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	// Lower-case, missing-hash color must be normalized by Validate().
@@ -70,7 +70,7 @@ func TestShiftTypeRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	st := newShiftType("Update-"+testUnique(), "#83CD2D")
@@ -102,7 +102,7 @@ func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	name := "Dup-" + testUnique()
@@ -119,7 +119,7 @@ func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	name := "Absent-" + testUnique()
@@ -157,7 +157,7 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	tenant1 := testpkg.Ctx(t)
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -189,7 +189,7 @@ func TestShiftTypeRepository_GuardBranches(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	// nil entity is rejected before any DB access.
@@ -212,14 +212,14 @@ func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ShiftType
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ShiftType
 	ctx := testpkg.Ctx(t)
 
 	st := newShiftType("ListOpts-"+testUnique(), "#83CD2D")
 	require.NoError(t, repo.Create(ctx, st))
 
 	// nil options exercises the base List override without extra clauses.
-	rows, err := repo.List(ctx, nil)
+	rows, err := repo.ListAll(ctx)
 	require.NoError(t, err)
 	found := false
 	for _, row := range rows {

@@ -11,7 +11,7 @@ import { TagesplanView } from "~/components/timetable/tagesplan-view";
 
 export default function TagesplanPage() {
   return (
-    <BinaryModeGuard>
+    <BinaryModeGuard title="Tagesplan">
       <Suspense fallback={null}>
         <TagesplanView />
       </Suspense>

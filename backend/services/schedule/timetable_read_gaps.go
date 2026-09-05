@@ -25,7 +25,7 @@ type UnderstaffedInstance struct {
 // history and never surfaced. One instances query plus one bulk staff query —
 // no per-instance N+1.
 func (s *TimetableDataService) ComputeGaps(ctx context.Context, from, to timezone.Date) ([]UnderstaffedInstance, error) {
-	instances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, err
 	}

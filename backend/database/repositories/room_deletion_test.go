@@ -13,7 +13,7 @@ func TestFactoryDeletesRoomThroughDefaultOwner(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	room := testpkg.CreateTestRoom(t, db, "Löschbarer Raum")
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	require.NoError(t, factory.Room.Delete(testpkg.Ctx(t), room.ID))
 	_, err := factory.Room.FindByID(testpkg.Ctx(t), room.ID)

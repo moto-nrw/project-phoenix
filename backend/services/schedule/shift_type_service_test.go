@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -30,7 +29,7 @@ func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -54,7 +53,7 @@ func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -82,7 +81,7 @@ func TestShiftTypeService_CreateDefaultsIsIdempotent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 
 	// Fresh tenant so the count is deterministic.
@@ -118,7 +117,7 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -130,7 +129,7 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 	// A shift that references the type.
 	shift := &scheduleModels.StaffShift{
 		StaffID:     staff.ID,
-		Date:        timezone.NewDate(2026, time.July, 6),
+		Date:        scheduleModels.NewDate(2026, time.July, 6),
 		StartTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 		EndTime:     time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		ShiftTypeID: &st.ID,
@@ -161,7 +160,7 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 

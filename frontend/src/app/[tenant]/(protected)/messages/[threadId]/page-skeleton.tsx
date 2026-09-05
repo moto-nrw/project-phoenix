@@ -21,7 +21,8 @@ export function ThreadSkeleton() {
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-6 w-40 rounded" />
+          <Skeleton className="h-3 w-24 rounded-full" />
+          <Skeleton className="h-7 w-40 rounded" />
           <Skeleton className="h-4 w-56 rounded" />
         </div>
         <Skeleton className="h-9 w-36 flex-shrink-0 rounded-lg" />
@@ -37,6 +38,31 @@ export function ThreadSkeleton() {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Nur die Blasenliste: der Kopf der Unterhaltung steht bereits (aus dem
+ * Posteingang-Cache), es lädt nur noch der Verlauf.
+ */
+export function ThreadMessagesSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Verlauf wird geladen"
+      data-testid="thread-messages-skeleton"
+      className="space-y-3"
+    >
+      {Array.from({ length: 5 }, (_, i) => (
+        <Skeleton
+          key={i}
+          className={`h-12 rounded-2xl ${
+            i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"
+          }`}
+        />
+      ))}
     </div>
   );
 }

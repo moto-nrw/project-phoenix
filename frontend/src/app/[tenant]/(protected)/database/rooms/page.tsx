@@ -4,9 +4,10 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -24,7 +25,7 @@ import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -122,6 +123,13 @@ function RoomsPageContent() {
   const error = roomsError
     ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Raumliste.
+  const statusLine = useMemo(() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((r) => r.isOccupied).length;
+    return `${formatCount(rooms.length)} ${rooms.length === 1 ? "Raum" : "Räume"} · ${formatCount(occupied)} belegt`;
+  }, [roomsData]);
 
   const uniqueCategories = useMemo(() => {
     const rooms = roomsData ?? [];
@@ -344,11 +352,92 @@ function RoomsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredRooms.length === 0 && selectedRoom === null
+          ? {
+              title:
+                searchTerm || categoryFilter !== "all"
+                  ? "Keine Räume gefunden"
+                  : "Keine Räume vorhanden",
+              description:
+                searchTerm || categoryFilter !== "all"
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie den ersten Raum an, damit Gruppen einen Ort haben.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.rooms.icon}
+                  tone={MOTO_CONCEPTS.rooms.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm || categoryFilter !== "all" ? undefined : (
+                  <DatabaseCreateAction
+                    label="Raum"
+                    ariaLabel="Raum erstellen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Room>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={roomsConfig}
+            onSubmit={handleCreateRoom}
+          />
+
+          {selectedRoom && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
+              title="Raum löschen?"
+              description={
+                <>
+                  Möchten Sie den Raum{" "}
+                  <span className="font-medium">{selectedRoom.name}</span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={false}
+              error=""
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Räume",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={ROOMS_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
+            ) : null}
+            <DatabaseCreateAction
+              label="Raum"
+              ariaLabel="Raum erstellen"
+              onClick={() => setShowCreateModal(true)}
+            />
+          </div>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Räume" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -363,7 +452,7 @@ function RoomsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Räume suchen...",
+            placeholder: "Räume suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -371,31 +460,9 @@ function RoomsPageContent() {
             setSearchTerm("");
             setCategoryFilter("all");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={ROOMS_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-              ) : null}
-              <DatabaseCreateAction
-                label="Raum"
-                ariaLabel="Raum erstellen"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <RoomsMasterDetail
@@ -407,54 +474,7 @@ function RoomsPageContent() {
             onDeleteClick={handleDeleteClick}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.rooms.icon}
-              tone={MOTO_CONCEPTS.rooms.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm || categoryFilter !== "all"
-              ? "Keine Räume gefunden"
-              : "Keine Räume vorhanden"
-          }
-          description={
-            searchTerm || categoryFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Räume erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Room>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={roomsConfig}
-        onSubmit={handleCreateRoom}
-      />
-
-      {selectedRoom && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
-          title="Raum löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmVariant="danger"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Raum{" "}
-            <span className="font-medium">{selectedRoom.name}</span> wirklich
-            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
     </DatabasePageLayout>
   );
 }

@@ -199,7 +199,7 @@ type monthSettingsResolver interface {
 
 // monthShiftReader is implemented by schedule.StaffShiftRepository.
 type monthShiftReader interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
 }
 
 // monthSessionReader is implemented by active.WorkSessionRepository.
@@ -819,12 +819,12 @@ func isHalfAbsenceDay(absence *activeModels.StaffAbsence, d timezone.Date, start
 }
 
 func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int64, first, last timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, first, last)
+	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(first), scheduleModels.Date(last))
 	if err != nil {
 		return fmt.Errorf("failed to load staff shifts: %w", err)
 	}
 	for _, shift := range shifts {
-		agg, ok := aggregates[monthOf(shift.Date)]
+		agg, ok := aggregates[monthOf(timezone.Date(shift.Date))]
 		if !ok {
 			continue
 		}

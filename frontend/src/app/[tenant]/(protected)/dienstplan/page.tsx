@@ -7,10 +7,11 @@
 import { Suspense } from "react";
 
 import { DienstplanView } from "~/components/staff/dienstplan-view";
+import { DienstplanPageSkeleton } from "~/components/staff/dienstplan-skeleton";
 
 export default function DienstplanPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<DienstplanPageSkeleton />}>
       <DienstplanView />
     </Suspense>
   );

@@ -46,19 +46,21 @@ describe("DisplayModeGuard", () => {
     expect(screen.getByText("display-content")).toBeInTheDocument();
   });
 
-  it("triggers notFound() when the Info-Point Dashboard is disabled", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  // Verhaltensänderung, ausdrücklich freigegeben. Info-Displays sind NICHT
+  // operator-vorbehalten, deshalb nennt der Satz die Einstellungen.
+  it('zeigt den Zustand „nicht eingeschaltet" statt einer 404, wenn Info-Displays aus sind', () => {
+    render(
+      <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
+        <DisplayModeGuard>
+          <div>display-content</div>
+        </DisplayModeGuard>
+      </TenantProvider>,
+    );
 
-    expect(() =>
-      render(
-        <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
-          <DisplayModeGuard>
-            <div>display-content</div>
-          </DisplayModeGuard>
-        </TenantProvider>,
-      ),
-    ).toThrow("NEXT_NOT_FOUND");
-
-    errorSpy.mockRestore();
+    expect(screen.queryByText("display-content")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Diese Funktion ist nicht eingeschaltet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/in den Einstellungen/)).toBeInTheDocument();
   });
 });

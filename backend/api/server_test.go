@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +44,7 @@ func (worker readinessWorker) Start() {
 
 func (readinessWorker) Stop() {}
 
-func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
+func checkRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -119,25 +118,6 @@ func TestStaffMessageCleanupSkipsMissingRuntime(t *testing.T) {
 	t.Parallel()
 
 	require.Nil(t, staffMessageCleanup(nil))
-}
-
-func TestWithRuntimeBuildsCompleteWorker(t *testing.T) {
-	t.Parallel()
-
-	testpkg.SetupTestDB(t)
-	called := false
-	err := WithRuntime(context.Background(), ServeConfig{
-		Port:         "127.0.0.1:0",
-		PublicAPIURL: "http://api.invalid",
-		Logger:       slog.Default(),
-	}, func(runtime *Runtime) error {
-		called = true
-		require.NotNil(t, runtime.worker)
-		return nil
-	})
-
-	require.NoError(t, err)
-	require.True(t, called)
 }
 
 func TestRuntimeServeReturnsListenFailure(t *testing.T) {

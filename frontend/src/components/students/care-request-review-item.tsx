@@ -256,7 +256,7 @@ function RequestDiffRows({
   diff,
 }: Readonly<{ diff: StaffCareRequest["diff"] }>) {
   if (diff.length === 0)
-    return <span className="text-sm text-gray-500">—</span>;
+    return <span className="text-sm text-gray-500">–</span>;
   return diff.map((entry) => (
     <div key={entry.label} className="text-sm">
       <span className="text-xs text-gray-500">{entry.label}: </span>

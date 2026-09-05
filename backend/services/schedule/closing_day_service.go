@@ -84,7 +84,7 @@ func (s *closingDayService) Delete(ctx context.Context, id int64) error {
 }
 
 func (s *closingDayService) ClosingDaysInRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ClosingDay, error) {
-	days, err := s.repo.FindOverlappingRange(ctx, from, to)
+	days, err := s.repo.FindOverlappingRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "closing days in range", Err: err}
 	}
@@ -95,7 +95,7 @@ func (s *closingDayService) ClosingDayDates(ctx context.Context, from, to timezo
 	if to.Before(from) {
 		return map[timezone.Date]bool{}, nil
 	}
-	days, err := s.repo.FindOverlappingRange(ctx, from, to)
+	days, err := s.repo.FindOverlappingRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "closing day dates", Err: err}
 	}
@@ -104,14 +104,14 @@ func (s *closingDayService) ClosingDayDates(ctx context.Context, from, to timezo
 	for _, day := range days {
 		start := day.StartDate
 		if start.Before(from) {
-			start = from
+			start = schedule.Date(from)
 		}
 		end := day.EndDate
 		if end.After(to) {
-			end = to
+			end = schedule.Date(to)
 		}
 		for d := start; !d.After(end); d = d.AddDays(1) {
-			set[d] = true
+			set[timezone.Date(d)] = true
 		}
 	}
 	return set, nil

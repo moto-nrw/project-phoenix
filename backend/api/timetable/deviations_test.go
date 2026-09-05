@@ -25,7 +25,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -53,7 +52,7 @@ type devSetup struct {
 func buildDevModule(t *testing.T) *devSetup {
 	t.Helper()
 	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
-	db, serviceFactory := testutil.SetupAPITest(t, clock)
+	db, serviceFactory := testutil.SetupTimetableModule(t, clock)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -70,7 +69,7 @@ func buildDevModule(t *testing.T) *devSetup {
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock),
-		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: repositories.NewFactory(db).Staff}),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: mustTimetableTestRepositories(db).Staff}),
 		InstanceService: mock,
 		Now:             clock,
 		DB:              db,

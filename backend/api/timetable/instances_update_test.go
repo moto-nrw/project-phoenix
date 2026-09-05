@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -184,7 +183,7 @@ func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {
 		"room_id":    s.roomID,
 	}
 	s.mock.updateRes = &scheduleModel.ActivityInstance{
-		Date:          timezone.NewDate(2026, 5, 6),
+		Date:          scheduleModel.NewDate(2026, 5, 6),
 		StartTime:     time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC),
 		Title:         "Valid",

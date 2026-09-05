@@ -20,6 +20,8 @@ interface RoleGuardProps {
   readonly permission?: string | readonly string[];
   readonly children: React.ReactNode;
   readonly message?: string;
+  /** Die umgebende Seite hat bereits ein TenantPage-Gerüst. */
+  readonly embedded?: boolean;
   /** Rendered while the session loads; pages pass their skeleton to avoid a spinner flash. */
   readonly fallback?: React.ReactNode;
 }
@@ -29,6 +31,7 @@ export function RoleGuard({
   permission,
   children,
   message,
+  embedded = false,
   fallback,
 }: RoleGuardProps) {
   const { data: session, status } = useSession({
@@ -56,7 +59,7 @@ export function RoleGuard({
         (variant === "staffOrAdmin" && isAdmin);
 
   if (!isAllowed) {
-    return <ForbiddenPage message={message} />;
+    return <ForbiddenPage message={message} embedded={embedded} />;
   }
 
   return <>{children}</>;

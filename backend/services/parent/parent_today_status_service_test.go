@@ -28,7 +28,7 @@ import (
 func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,
 		AttendanceRepo: repos.Attendance,
@@ -47,7 +47,7 @@ func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:      repos.ParentChild,
 		AttendanceRepo: repos.Attendance,
@@ -101,11 +101,11 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db).StudentPickupSchedule.Create(txCtx, row)
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.Create(txCtx, row)
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return repositories.NewFactory(db).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
+			return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
 	return true
@@ -429,12 +429,12 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
 	exception := &scheduleModels.StudentArrivalException{
-		StudentID: chain.StudentID, ExceptionDate: timezone.NewDate(2026, 8, 24), ExpectedArrival: nil, CreatedBy: staff.ID,
+		StudentID: chain.StudentID, ExceptionDate: scheduleModels.NewDate(2026, 8, 24), ExpectedArrival: nil, CreatedBy: staff.ID,
 	}
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db).StudentArrivalException.Create(txCtx, exception)
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentArrivalException.Create(txCtx, exception)
 	}))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)

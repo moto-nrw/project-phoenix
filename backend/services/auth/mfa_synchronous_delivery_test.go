@@ -43,7 +43,7 @@ func newSynchronousDeliveryMFAService(
 ) (auth.MFAService, *repositories.Factory, *bun.DB, *authjwt.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(testJWTSecret)
 	require.NoError(t, err)
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{

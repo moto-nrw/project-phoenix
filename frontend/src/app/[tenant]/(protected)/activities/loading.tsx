@@ -1,12 +1,12 @@
 "use client";
 
-import { ActivitiesSkeleton } from "./page-skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 /**
- * Route-level loading UI: renders the same skeleton the page shows while its
- * data loads, so navigation shows one continuous skeleton instead of the
- * generic group-level Loading followed by the page skeleton.
+ * Route-level loading UI: dasselbe Gerüst wie die Seite, nur mit Skelett an
+ * Statuszeile und Inhalt, damit die Navigation ein durchgehendes Skelett
+ * zeigt statt erst der Gruppen-Ladeanzeige und dann dem Seitenskelett.
  */
 export default function ActivitiesLoading() {
-  return <ActivitiesSkeleton />;
+  return <TenantPage title="Aktivitäten" statsLoading loading />;
 }

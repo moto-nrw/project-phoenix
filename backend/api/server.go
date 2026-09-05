@@ -212,7 +212,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.StudentLifecycleAudit = services.StudentAudit
 	deps.CareExitEffector = services.CareLifecycle
 	deps.OutboxWorker = services.EmailOutboxWorker
-	deps.AppointmentReminders = services.Calendar
+	deps.AppointmentReminders = services.Reminders
 	var rollover scheduler.RolloverDeadlineRunner
 	if services.EnrollmentRollover != nil {
 		rollover = scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {

@@ -38,7 +38,7 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("persists and hydrates an explicit weekday map", func(t *testing.T) {

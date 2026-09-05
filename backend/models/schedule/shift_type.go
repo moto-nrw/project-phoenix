@@ -4,8 +4,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 const (
@@ -24,8 +22,8 @@ var shiftTypeHexColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]
 // at one shift type via a nullable FK — the color makes different duties
 // immediately distinguishable in the Dienstplan week grid (#1836).
 type ShiftType struct {
-	base.Model `bun:"schema:schedule,table:shift_types"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:shift_types"`
+	TenantModel
 	Name        string `bun:"name,notnull" json:"name"`
 	Color       string `bun:"color,notnull" json:"color"`
 	Description string `bun:"description" json:"description,omitempty"`

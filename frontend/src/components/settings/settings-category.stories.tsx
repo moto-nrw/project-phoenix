@@ -118,7 +118,7 @@ export const Expanded: Story = {
 /** A search hit: only matching settings, labelled with the tab it lives in. */
 export const SearchHit: Story = {
   args: {
-    kicker: "Betrieb",
+    tabLabel: "Betrieb",
     filterQuery: "sitzungsende",
   },
 };

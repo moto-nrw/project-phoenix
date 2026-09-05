@@ -29,7 +29,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		OperatorHostname: "operator.localhost:3000",
 	}
 
-	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db), db, slog.Default(), cfg)
+	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default(), cfg)
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)

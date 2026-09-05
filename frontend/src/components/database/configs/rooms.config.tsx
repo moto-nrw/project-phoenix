@@ -127,7 +127,6 @@ export const roomsConfig = defineEntityConfig<Room>({
     sections: [
       {
         title: "Raumdetails",
-        titleColor: "text-moto-green-strong",
         items: [
           {
             label: "Raumname",
@@ -168,7 +167,7 @@ export const roomsConfig = defineEntityConfig<Room>({
   list: {
     title: "Raum auswählen",
     description: "Verwalte Räume und deren Eigenschaften",
-    searchPlaceholder: "Raum suchen...",
+    searchPlaceholder: "Raum suchen…",
 
     // No filters needed for ~20 rooms - search is sufficient
 
@@ -212,42 +211,6 @@ export const roomsConfig = defineEntityConfig<Room>({
           }
         },
       },
-      badges: [
-        // Category badge
-        {
-          label: (room: Room) => room.category ?? "Keine Kategorie",
-          color: "bg-moto-indigo-soft text-moto-indigo-strong",
-          showWhen: (room: Room) => !!room.category,
-        },
-        // Building and floor badge
-        {
-          label: (room: Room) => {
-            if (room.building && room.floor !== undefined) {
-              return `${room.building} - Etage ${room.floor}`;
-            }
-            if (room.floor !== undefined) {
-              return `Etage ${room.floor}`;
-            }
-            if (room.building) {
-              return room.building;
-            }
-            return "";
-          },
-          color: "bg-gray-100 text-gray-800",
-          showWhen: (room: Room) => room.floor !== undefined || !!room.building,
-        },
-        // Occupancy status badge
-        {
-          label: "Belegt",
-          color: "bg-moto-red-soft text-moto-red-strong",
-          showWhen: (room: Room) => room.isOccupied,
-        },
-        {
-          label: "Frei",
-          color: "bg-moto-green-soft text-moto-green-strong",
-          showWhen: (room: Room) => !room.isOccupied,
-        },
-      ],
     },
   },
 

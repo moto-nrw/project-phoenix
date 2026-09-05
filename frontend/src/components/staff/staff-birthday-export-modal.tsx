@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 
 import { Modal } from "~/components/ui/modal";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -159,37 +160,26 @@ export function StaffBirthdayExportModal({
                   : "Nur Personen, die in den gewählten Monaten Geburtstag haben."}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setMonths([])}
-              aria-pressed={months.length === 0}
-              className={`inline-flex h-8 shrink-0 items-center rounded-md border px-2.5 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                months.length === 0
-                  ? "border-gray-900 bg-gray-950 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+            <ToggleChip
+              pressed={months.length === 0}
+              onPressedChange={() => setMonths([])}
+              className="shrink-0"
             >
               Ganzes Jahr
-            </button>
+            </ToggleChip>
           </div>
           <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
             {BIRTHDAY_MONTH_OPTIONS.map((month) => {
               const selected = months.includes(month.value);
               return (
-                <button
+                <ToggleChip
                   key={month.value}
-                  type="button"
-                  onClick={() => toggleMonth(month.value)}
-                  aria-label={month.label}
-                  aria-pressed={selected}
-                  className={`inline-flex h-9 items-center justify-center rounded-lg border text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    selected
-                      ? "border-gray-900 bg-gray-950 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
+                  pressed={selected}
+                  onPressedChange={() => toggleMonth(month.value)}
+                  ariaLabel={month.label}
                 >
                   {month.label.slice(0, 3)}
-                </button>
+                </ToggleChip>
               );
             })}
           </div>

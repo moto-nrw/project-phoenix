@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ func TestNewFactory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NotNil(t, factory)
 
 	// Verify auth repositories are initialized
@@ -63,6 +64,7 @@ func TestNewFactory(t *testing.T) {
 	t.Run("schedule repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.Dateframe)
 		assert.NotNil(t, factory.Timeframe)
+		assert.NotNil(t, factory.PlanningTrack)
 		assert.NotNil(t, factory.RecurrenceRule)
 	})
 
@@ -72,7 +74,13 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.ActivityCategory)
 		assert.NotNil(t, factory.ActivitySchedule)
 		assert.NotNil(t, factory.ActivitySupervisor)
+		factory.BindTimetable(timetabletest.New(t, db))
+		assert.NotNil(t, factory.ActivitySchedule)
+		assert.NotNil(t, factory.ActivitySupervisor)
 		assert.NotNil(t, factory.StudentEnrollment)
+		assert.NotNil(t, factory.Timeframe)
+		assert.NotNil(t, factory.PlanningTrack)
+		assert.NotNil(t, factory.RecurrenceRule)
 	})
 
 	// Verify active repositories are initialized

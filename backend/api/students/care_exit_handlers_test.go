@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -32,7 +31,7 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	repos.BindTimetable(timetabletest.New(t, tc.db))
 	deletion := userService.NewStudentDeletionService(
 		tc.resource.StudentService,
@@ -69,7 +68,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	wireCareLifecycleWithBookingMode(t, tc, true)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
@@ -156,7 +155,7 @@ func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
 	_, actor := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CareWithdrawal", "StaleDelete")
 	studentID := student.ID
@@ -242,7 +241,7 @@ func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *te
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-list@example.com")
 	studentID := student.ID
@@ -268,7 +267,7 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
 	studentID := student.ID
@@ -375,7 +374,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
 
-	stored, err := repositories.NewFactory(tc.db).Student.FindByID(testpkg.Ctx(t), student.ID)
+	stored, err := newStudentTestRepositories(tc.db).Student.FindByID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.EnrolledUntil)
 	assert.Equal(t, today, *stored.EnrolledUntil)
@@ -387,7 +386,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 		response := authExec(t, tc, request, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
 
-		after, err := repositories.NewFactory(tc.db).Student.FindByID(testpkg.Ctx(t), student.ID)
+		after, err := newStudentTestRepositories(tc.db).Student.FindByID(testpkg.Ctx(t), student.ID)
 		require.NoError(t, err)
 		assert.Nil(t, after.EnrolledUntil)
 	})

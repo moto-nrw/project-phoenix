@@ -11,8 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -46,23 +45,6 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	return newFactory(repos, db, logger, cfg, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
-// NewFactoryForTestsWithFeedback keeps API integration tests on the real
-// feedback module while the remaining legacy dependencies stay optional.
-func NewFactoryForTestsWithFeedback(
-	repos *repositories.Factory,
-	db *bun.DB,
-	logger *slog.Logger,
-	feedback users.FeedbackEntryCounter,
-	bindFeedbackSettings FeedbackSettingsBinder,
-	clocks ...func() time.Time,
-) (*Factory, error) {
-	owners, err := newOwnerCapabilitiesForTests(db)
-	if err != nil {
-		return nil, err
-	}
-	return newFactory(repos, db, logger, currentTestFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
-}
-
 func currentTestFactoryConfig() FactoryConfig {
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = "http://api.test"
@@ -94,7 +76,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
+	timetableCapability, err := repositories.NewTimetable(db, persons, rooms, schedule.TimetableCareDayLocker(db))
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

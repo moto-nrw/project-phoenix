@@ -53,7 +53,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := timezone.TodayDate()
 
@@ -164,7 +164,7 @@ func (f *overviewFixture) addShift(t *testing.T, staffID int64, date timezone.Da
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 23, 59, 59, 999999000, time.UTC),
 		CreatedBy: staffID,

@@ -36,18 +36,18 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.middleID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.anchor, *row.ValidUntil,
+		assert.Equal(t, activitiesModels.Date(c.anchor), *row.ValidUntil,
 			"the predecessor segment must end at the clicked date")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidFrom)
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.secondBoundary, *row.ValidFrom)
-		assert.Equal(t, c.secondBoundary, *row.ValidUntil, "the living segment is fully capped")
+		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidFrom)
+		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "the living segment is fully capped")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.rootID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.firstBoundary, *row.ValidUntil,
+		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidUntil,
 			"a segment that already ended before the clicked date is left alone")
 	}
 
@@ -85,12 +85,12 @@ func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) 
 
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.middleID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.anchor, *row.ValidUntil,
+		assert.Equal(t, activitiesModels.Date(c.anchor), *row.ValidUntil,
 			"the clicked segment ends at the clicked date")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.secondBoundary, *row.ValidUntil,
+		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil,
 			"and the living successor is ended too")
 	}
 

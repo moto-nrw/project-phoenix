@@ -1,5 +1,40 @@
 # Domain glossary
 
+## Offener Raum
+
+Ein **offener Raum** ist ein von der OGS-Leitung dauerhaft zur Nutzung
+freigegebener Ort, der keine tägliche Öffnung benötigt. Die Freigabe ist
+unabhängig davon, ob eine Betreuungskraft die Aufsicht in moto übernommen hat.
+
+Offene Räume sind für alle Betreuungskräfte auch ohne Belegung sichtbar;
+die Sichtbarkeit verleiht keine Buchungsrechte. Das Entfernen der Freigabe
+beendet weder bestehende Aufenthalte noch laufende Betreuungen.
+
+Die Raumfreigabe ist unabhängig vom Betreuungskonzept und von der Erlaubnis,
+spontane Aktivitäten zu starten. Die gemeinsame Raumansicht zeigt jedes dort
+erfasste Kind einmal, unabhängig von seiner Teilnahme an einem Angebot.
+
+Ein **Ortswechsel** erfasst, dass ein Kind einen anderen Aufenthaltsort nutzt.
+Bei einem offenen Raum ohne eigenes Gerät gilt die bewusste Zielwahl am
+NFC-Gerät oder durch eine Betreuungskraft am Handy direkt als Ortswechsel,
+nicht als unabhängig bestätigte Ankunft.
+
+Ein Ortswechsel ist keine Teilnahme an einem dort stattfindenden Angebot
+und überträgt keine Aufsicht. Berechtigte Betreuungskräfte können ihn auch
+ohne eigene Aufsicht im Zielraum erfassen.
+
+Ein **angebotsunabhängiger Raumaufenthalt** erfasst ein Kind in einem offenen
+Raum, ohne es einer dort laufenden Betreuung zuzuordnen. Das Beenden einer
+Betreuung setzt deren noch zugeordnete Kinder auf „Unterwegs“, lässt aber
+angebotsunabhängige Raumaufenthalte und die Raumfreigabe bestehen.
+
+Der globale automatische Tagesabschluss beendet auch angebotsunabhängige
+Raumaufenthalte; die Kinder werden „Unterwegs“, nicht von der OGS abgemeldet.
+Die dauerhafte Raumfreigabe bleibt bestehen.
+
+Die Freigabe als offener Raum erlaubt nicht automatisch die Abmeldung nach
+Hause am NFC-Gerät. Für diese gelten eigene Abmelderegeln.
+
 ## Demo-Daten
 
 Ein **Demo-Schulprofil** ist ein stabil benanntes, synthetisches Szenario für

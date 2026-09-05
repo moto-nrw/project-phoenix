@@ -75,7 +75,7 @@ type Service interface {
 }
 
 type instanceReader interface {
-	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*scheduleModel.ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
 }
 
 type instanceStudentReader interface {
@@ -115,7 +115,7 @@ type careDayReader interface {
 // excusals (excused_from set) can sign a child off on pickup lists after the
 // cutoff, matching full-day status days and cancelled care days.
 type partialAbsenceReader interface {
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentPickupException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date scheduleModel.Date) ([]*scheduleModel.StudentPickupException, error)
 }
 
 // regularPickupReader returns the date-aware recurring pickup projection (no
@@ -620,7 +620,7 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	// builder once per list kind: on a normal school day the old shape issued
 	// hundreds of per-slot roster/visit queries inside the tenant transaction
 	// before the frontend's preview request repeated the same work.
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1147,7 +1147,7 @@ type slotContext struct {
 // returns the selected instances whose rosters the merge will actually read,
 // and the set of deferred (not-yet-started reconciliation) occurrences.
 func (s *service) collectSlotContexts(ctx context.Context, params Params, result *Result) ([]slotContext, map[int64]struct{}, error) {
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, params.Date)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(params.Date))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1926,7 +1926,7 @@ func (s *service) loadPickupAbsences(
 	if s.pickupExceptionRepo == nil || len(studentIDs) == 0 {
 		return statuses, partial, nil
 	}
-	exceptions, err := s.pickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	exceptions, err := s.pickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, nil, fmt.Errorf("load pickup exceptions for partial absences: %w", err)
 	}
