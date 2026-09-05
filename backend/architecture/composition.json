@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        259
       ],
       "tables": []
     },
@@ -7510,7 +7510,7 @@
       "declaration": "TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAccess",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        164
       ],
       "tables": [
         "users.students",
@@ -7523,7 +7523,7 @@
       "declaration": "TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        631
+        632
       ],
       "tables": []
     },
@@ -10292,19 +10292,6 @@
         32
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/reminders/room_scope_equivalence_test.go",
-      "declaration": "TestSupervisedRoomScopeAgreesWithBulkReader",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        38
-      ],
-      "tables": [
-        "active.group_supervisors",
-        "active.groups"
-      ]
     },
     {
       "scope": "test",
@@ -28884,22 +28871,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 159,
+          "line": 160,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 418,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 580,
+          "line": 581,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1076,
+          "line": 1077,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28909,7 +28896,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 258,
+          "line": 259,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28919,12 +28906,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 160,
+          "line": 161,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 577,
+          "line": 578,
           "declaration": "type API"
         },
         {
@@ -29019,12 +29006,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 428,
+          "line": 430,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 459,
+          "line": 461,
           "declaration": "newFactory"
         },
         {

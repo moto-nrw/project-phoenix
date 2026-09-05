@@ -447,7 +447,7 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 	return true, nil
 }
 
-func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64, locale string) (bool, error) {
+func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Context, tenantID int64, accountIDs, studentIDs []int64, locale string) (bool, error) {
 	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
@@ -456,7 +456,7 @@ func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Co
 		Type: notifications.TypeParentAppointmentReminder, Title: title, Body: body,
 		DeepLink: parentCalendarDeepLink, Priority: notifications.PriorityNormal,
 		Audience: notifications.Audience{
-			TenantID: appointment.TenantID, Scope: notifications.ScopeGuardian,
+			TenantID: tenantID, Scope: notifications.ScopeGuardian,
 			GuardianAccountIDs: accountIDs, StudentIDs: studentIDs,
 		},
 	}); err != nil {
