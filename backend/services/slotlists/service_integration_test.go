@@ -2962,37 +2962,6 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	assert.Equal(t, 0, result.Counters.Missing)
 }
 
-// The schedule and enrollment repositories read students through the People
-// Directory port (#2662). This binary may import neither the owner nor the
-// composition root, so it serves the ports from the legacy student
-// repository, which reads the same rows the owner does.
-type legacyStudentDirectory struct {
-	students userModels.StudentRepository
-}
-
-func (d legacyStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryStudent, error) {
-	byID, err := d.students.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]scheduleRepo.DirectoryStudent, 0, len(byID))
-	for _, student := range byID {
-		result = append(result, scheduleRepo.DirectoryStudent{ID: student.ID, Alumnus: student.IsAlumnus()})
-	}
-	return result, nil
-}
-
-func (d legacyStudentDirectory) LockStudent(ctx context.Context, studentID int64) error {
-	locked, err := d.students.FindByIDsForUpdate(ctx, []int64{studentID})
-	if err != nil {
-		return err
-	}
-	if _, found := locked[studentID]; !found {
-		return scheduleRepo.ErrStudentNotFound
-	}
-	return nil
-}
-
 type legacyEnrollmentStudentDirectory struct {
 	students userModels.StudentRepository
 }

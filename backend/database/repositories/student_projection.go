@@ -9,7 +9,6 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -174,31 +173,6 @@ func (d parentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int6
 			SchoolClass: student.SchoolClass, Status: student.Status,
 			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
 		})
-	}
-	return result, nil
-}
-
-type scheduleStudentDirectory struct {
-	students peopledirectory.StudentQuery
-	commands peopledirectory.StudentCommand
-}
-
-func (d scheduleStudentDirectory) LockStudent(ctx context.Context, studentID int64) error {
-	err := d.commands.LockStudent(ctx, studentID)
-	if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-		return scheduleRepo.ErrStudentNotFound
-	}
-	return err
-}
-
-func (d scheduleStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]scheduleRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]scheduleRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, scheduleRepo.DirectoryStudent{ID: student.ID, Alumnus: student.IsAlumnus()})
 	}
 	return result, nil
 }
