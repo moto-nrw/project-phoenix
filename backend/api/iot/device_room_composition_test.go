@@ -14,28 +14,21 @@ import (
 func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	t.Parallel()
 
-	db, services, feedback := testutil.SetupFeedbackAPITest(t)
+	db, data := testutil.SetupIoTDataModule(t)
+	_, auth := testutil.SetupAuthModule(t)
+	_, feedback := testutil.SetupFeedbackModule(t)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
 	resource := NewResource(ServiceDependencies{
-		IoTService:               services.IoT,
-		StaffPINAuthenticator:    services.StaffPINAuth,
-		CheckinService:           services.Checkin,
-		StaffClockService:        services.StaffClock,
-		UsersService:             services.Users,
-		ActiveService:            services.Active,
-		ActivitiesService:        services.Activities,
-		SettingsService:          services.Settings,
-		FacilityService:          services.Facilities,
-		EducationService:         services.Education,
-		FeedbackService:          feedback,
+		IoTService:               data.IoT,
+		StaffPINAuthenticator:    auth.StaffPINAuth,
+		UsersService:             data.Users,
+		ActivitiesService:        data.Activities,
+		SettingsService:          auth.Settings,
+		FacilityService:          data.Facilities,
+		FeedbackService:          feedback.Feedback,
 		FeedbackResponseObserver: func(int, string) {},
-		PickupScheduleService:    services.PickupSchedule,
-		SchoolService:            services.Schools,
-		TimetableDataService:     services.TimetableData,
-		TimetableBridge:          services.TimetableBridge,
-		UnregisteredTagScans:     services.UnregisteredTagScans,
-		Broadcaster:              services.RealtimeHub,
+		SchoolService:            auth.Schools,
 		DevicePINFallback:        "1234",
 		DB:                       db,
 		DeviceLastSeenDebouncer:  device.NewLastSeenDebouncer(),

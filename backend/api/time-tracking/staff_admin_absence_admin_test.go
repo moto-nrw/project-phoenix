@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -51,7 +50,7 @@ func setupAbsenceAdminTest(t *testing.T, clocks ...func() time.Time) (tc *testCo
 		CreatedBy: subject.ID,
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(tc.db).StaffShift.Create(testpkg.Ctx(t), shift))
+	require.NoError(t, newWorkforceTestRepositories(t, tc.db).StaffShift.Create(testpkg.Ctx(t), shift))
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(editorAccount.ID)
@@ -88,7 +87,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 
 	// Absence persisted with subject/creator separation.
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newWorkforceTestRepositories(t, tc.db)
 	absences, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
@@ -134,7 +133,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	ctx := testpkg.Ctx(t)
-	absences, err := repositories.NewFactory(tc.db).StaffAbsence.GetByStaffAndDateRange(
+	absences, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.GetByStaffAndDateRange(
 		ctx,
 		subjectID,
 		tomorrow,
@@ -244,7 +243,7 @@ func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing
 		OverrunPolicy:    activeModels.AbsenceTypeOverrunBlock,
 	}
 	absenceType.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsenceType.Create(ctx, absenceType))
+	require.NoError(t, newWorkforceTestRepositories(t, tc.db).StaffAbsenceType.Create(ctx, absenceType))
 
 	tomorrow := today.AddDays(1)
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
