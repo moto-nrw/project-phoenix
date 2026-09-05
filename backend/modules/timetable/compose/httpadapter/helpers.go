@@ -131,11 +131,6 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 		Schedules:       []ScheduleResponse{},
 	}
 
-	// Add creator name if available
-	if group.CreatedByStaff != nil && group.CreatedByStaff.Person != nil {
-		response.CreatedByName = group.CreatedByStaff.Person.FirstName + " " + group.CreatedByStaff.Person.LastName
-	}
-
 	// Safely add optional fields with nil checks
 	if group.PlannedRoomID != nil {
 		response.PlannedRoomID = group.PlannedRoomID
@@ -194,10 +189,8 @@ func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorR
 		StaffID:   supervisor.StaffID,
 		IsPrimary: supervisor.IsPrimary,
 	}
-	if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-		resp.FirstName = supervisor.Staff.Person.FirstName
-		resp.LastName = supervisor.Staff.Person.LastName
-	}
+	resp.FirstName = supervisor.FirstName
+	resp.LastName = supervisor.LastName
 	return resp
 }
 

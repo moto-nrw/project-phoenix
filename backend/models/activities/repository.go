@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CategoryRepository defines operations for managing activity categories
@@ -218,7 +217,7 @@ type SupervisorPlannedRepository interface {
 
 	// ListPlannedSupervisionBlockers returns planned activity supervisions
 	// as caregiver-capability blocker rows.
-	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error)
+	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]PlannedSupervisionBlocker, error)
 
 	// CloseOpenByGroupAndPeriod closes the open planned supervisions of a
 	// group for the given calendar period (NULL period matches rows without
@@ -250,6 +249,13 @@ type SupervisorPlannedRepository interface {
 	// SetValidUntilByID closes exactly one supervision without writing the
 	// rest of a potentially partial read model back to the database.
 	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
+}
+
+type PlannedSupervisionBlocker struct {
+	ID           int64
+	ActivityID   int64
+	ActivityName string
+	IsPrimary    bool
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments

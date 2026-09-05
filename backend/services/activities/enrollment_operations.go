@@ -160,25 +160,16 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 // omitted from GetEnrolledStudents, so their absence from the submitted ID list
 // carries no intent (#405 review).
 //
-// The LOCKED status wins where we have one: it is the row a concurrent
-// graduation had to commit before, whereas the Student relation on `enrollments`
-// was loaded before the lock and can already be stale. Where no locked status is
-// available (no student repository wired, or the row vanished) the loaded
-// relation is the fallback, and a row with neither is NOT preserved — an unknown
-// status must not silently make enrollments undeletable.
+// The locked status is authoritative: it is the row a concurrent graduation
+// had to commit before. A missing row is not preserved; unknown status must not
+// silently make enrollments undeletable.
 func hiddenAlumnusEnrollments(
 	enrollments []*activities.StudentEnrollment,
 	locked map[int64]*users.Student,
 ) map[int64]bool {
 	hidden := make(map[int64]bool)
 	for _, enrollment := range enrollments {
-		if student, ok := locked[enrollment.StudentID]; ok {
-			if student.Status == users.StudentStatusAlumnus {
-				hidden[enrollment.StudentID] = true
-			}
-			continue
-		}
-		if enrollment.Student != nil && enrollment.Student.Status == users.StudentStatusAlumnus {
+		if student, ok := locked[enrollment.StudentID]; ok && student.Status == users.StudentStatusAlumnus {
 			hidden[enrollment.StudentID] = true
 		}
 	}
@@ -418,24 +409,35 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 	if err != nil {
 		return nil, &ActivityError{Op: "get enrolled students", Err: err}
 	}
+	studentIDs := make([]int64, 0, len(enrollments))
+	for _, enrollment := range enrollments {
+		studentIDs = append(studentIDs, enrollment.StudentID)
+	}
+	studentsByID, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActivityError{Op: "get enrolled students", Err: err}
+	}
 
-	// Extract the Student objects from the enrollments
 	students := make([]*users.Student, 0, len(enrollments))
 	for _, enrollment := range enrollments {
-		// Check if the Student relation is loaded
-		if enrollment.Student == nil {
+		student := studentsByID[enrollment.StudentID]
+		if student == nil {
 			continue
 		}
-		if enrollment.Student.Status == users.StudentStatusAlumnus {
+		if student.Status == users.StudentStatusAlumnus {
 			continue
 		}
 		// A departed child leaves the AG roster (#2487). Their booking was
 		// capped at their last care day; this keeps the roster read agreeing
 		// with the date-aware ones.
-		if enrollment.Student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
-		students = append(students, enrollment.Student)
+		student.Person = &users.Person{
+			FirstName: enrollment.StudentFirstName,
+			LastName:  enrollment.StudentLastName,
+		}
+		students = append(students, student)
 	}
 
 	return students, nil

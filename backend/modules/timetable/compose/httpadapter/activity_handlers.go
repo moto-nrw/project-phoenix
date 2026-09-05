@@ -32,11 +32,6 @@ func buildBaseActivityResponse(group *activities.Group, enrollmentCount int) Act
 		Schedules:       []ScheduleResponse{},
 	}
 
-	// Add creator name if available
-	if group.CreatedByStaff != nil && group.CreatedByStaff.Person != nil {
-		response.CreatedByName = group.CreatedByStaff.Person.FirstName + " " + group.CreatedByStaff.Person.LastName
-	}
-
 	return response
 }
 

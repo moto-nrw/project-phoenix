@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -120,6 +119,9 @@ func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context,
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
+	if r.students == nil {
+		return nil, errors.New("student enrollment repository: people directory is required")
+	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)
@@ -128,12 +130,24 @@ func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[int64]*usersModels.Student, len(students))
+	names, err := r.students.ListStudentNamesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	alumni := make(map[int64]bool, len(students))
 	for _, student := range students {
-		byID[student.ID] = legacyEnrollmentStudent(student)
+		alumni[student.ID] = student.IsAlumnus()
+	}
+	namesByID := make(map[int64]peopledirectory.StudentName, len(names))
+	for _, name := range names {
+		namesByID[name.StudentID] = name
 	}
 	for _, row := range rows {
-		row.Student = byID[row.StudentID]
+		row.StudentAlumnus = alumni[row.StudentID]
+		if name, ok := namesByID[row.StudentID]; ok {
+			row.StudentFirstName = name.FirstName
+			row.StudentLastName = name.LastName
+		}
 	}
 	return rows, nil
 }
@@ -213,22 +227,6 @@ func publicStudentEnrollmentInput(value *activitiesModels.StudentEnrollment) tim
 		ValidFrom: value.ValidFrom.String(), ValidUntil: validUntil, CalendarPeriodID: value.CalendarPeriodID,
 		EnrollmentRequestChildID: value.EnrollmentRequestChildID, SelectedWeekdays: value.SelectedWeekdays,
 		AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday}
-}
-
-func legacyEnrollmentStudent(value peopledirectory.Student) *usersModels.Student {
-	student := &usersModels.Student{PersonID: value.PersonID, SchoolClass: value.SchoolClass, GroupID: value.GroupID,
-		Status: usersModels.StudentStatus(value.Status), EnrolledFrom: optionalEnrollmentDate(value.EnrolledFrom), EnrolledUntil: optionalEnrollmentDate(value.EnrolledUntil)}
-	student.ID, student.CreatedAt, student.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
-	student.SetTenantID(value.TenantID)
-	return student
-}
-
-func optionalEnrollmentDate(value string) *activitiesModels.StudentEnrollmentDate {
-	if value == "" {
-		return nil
-	}
-	date := activitiesModels.StudentEnrollmentDate(value)
-	return &date
 }
 
 func legacyStudentEnrollmentError(operation string, err error) error {

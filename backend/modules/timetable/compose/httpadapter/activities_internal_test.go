@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // =============================================================================
@@ -612,14 +610,8 @@ func TestNewSupervisorResponse_Complete(t *testing.T) {
 		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: true,
-		Staff: &users.Staff{
-			Model: base.Model{ID: 10},
-			Person: &users.Person{
-				Model:     base.Model{ID: 100},
-				FirstName: "John",
-				LastName:  "Doe",
-			},
-		},
+		FirstName: "John",
+		LastName:  "Doe",
 	}
 
 	response := newSupervisorResponse(supervisor)
@@ -638,7 +630,6 @@ func TestNewSupervisorResponse_NilStaff(t *testing.T) {
 		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: false,
-		Staff:     nil,
 	}
 
 	response := newSupervisorResponse(supervisor)
@@ -657,10 +648,6 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: false,
-		Staff: &users.Staff{
-			Model:  base.Model{ID: 10},
-			Person: nil,
-		},
 	}
 
 	response := newSupervisorResponse(supervisor)

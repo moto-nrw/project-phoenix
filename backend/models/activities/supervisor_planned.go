@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // SupervisorQueryOptions and SupervisorDate keep the temporary compatibility
@@ -29,9 +28,10 @@ type SupervisorPlanned struct {
 	// so readers only need `Weekday == nil || *Weekday == isoWeekday(date)`.
 	Weekday *int `bun:"weekday" json:"weekday,omitempty"`
 
-	// Relations - these would be populated when using the ORM's relations
-	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
-	Group *Group       `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
+	StaffPersonID int64  `bun:"-" json:"-"`
+	FirstName     string `bun:"-" json:"first_name,omitempty"`
+	LastName      string `bun:"-" json:"last_name,omitempty"`
+	Group         *Group `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
 }
 
 // Validate ensures supervisor planned data is valid

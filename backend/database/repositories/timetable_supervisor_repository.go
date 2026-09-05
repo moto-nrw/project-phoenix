@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -159,14 +158,14 @@ func (r timetableActivitySupervisorRepository) CloseOpenByGroupAndPeriod(ctx con
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerActivity, error) {
+func (r timetableActivitySupervisorRepository) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]activitiesModels.PlannedSupervisionBlocker, error) {
 	values, err := r.timetable.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
 	if err != nil {
 		return nil, legacyDatabaseError("list planned supervision blockers", err)
 	}
-	result := make([]userModels.BlockerActivity, 0, len(values))
+	result := make([]activitiesModels.PlannedSupervisionBlocker, 0, len(values))
 	for _, value := range values {
-		result = append(result, userModels.BlockerActivity{ID: value.ID, ActivityID: value.ActivityID, ActivityName: value.ActivityName, IsPrimary: value.IsPrimary})
+		result = append(result, activitiesModels.PlannedSupervisionBlocker{ID: value.ID, ActivityID: value.ActivityID, ActivityName: value.ActivityName, IsPrimary: value.IsPrimary})
 	}
 	return result, nil
 }

@@ -82,7 +82,7 @@ func attachPlannedSupervisorStaff(ctx context.Context, query staffLookup, rows [
 			continue
 		}
 		if member, found := members[row.StaffID]; found {
-			row.Staff = toLegacyStaff(member)
+			row.StaffPersonID = member.PersonID
 		}
 	}
 	return nil

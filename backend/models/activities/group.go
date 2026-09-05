@@ -4,8 +4,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 const (
@@ -155,10 +153,9 @@ type Group struct {
 	Notes *string `bun:"notes" json:"notes,omitempty"`
 
 	// Relations - populated when using the ORM's relations
-	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
-	CreatedByStaff *users.Staff         `bun:"rel:belongs-to,join:created_by=id" json:"created_by_staff,omitempty"`
-	Supervisors    []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
-	Schedules      []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
+	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
+	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
+	Schedules   []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 }
 
 // GroupListQuery is the bounded read shape for activity-group listings.

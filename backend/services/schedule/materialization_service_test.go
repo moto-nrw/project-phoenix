@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -249,13 +248,12 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	periodID := int64(400)
 	otherPeriodID := int64(401)
 	endedBefore := date.AddDays(-1)
-	alumnus := &users.Student{Status: users.StudentStatusAlumnus}
 	enrollments := []*activities.StudentEnrollment{
 		{StudentID: 501, ValidFrom: date.AddDays(-1), CalendarPeriodID: &periodID},
 		{StudentID: 502, ValidFrom: date.AddDays(1)},
 		{StudentID: 503, ValidFrom: date.AddDays(-1), CalendarPeriodID: &otherPeriodID},
 		{StudentID: 504, ValidFrom: date.AddDays(-1), SelectedWeekdays: []int{2}},
-		{StudentID: 505, ValidFrom: date.AddDays(-1), Student: alumnus},
+		{StudentID: 505, ValidFrom: date.AddDays(-1), StudentAlumnus: true},
 		{StudentID: 506, ValidFrom: date.AddDays(-1)},
 	}
 	targetStudentIDs := []int64{501, 507, 508, 507}

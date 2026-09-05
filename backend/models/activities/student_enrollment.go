@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Define attendance status constants
@@ -39,10 +38,14 @@ type StudentEnrollment struct {
 	// enrollment/care-offering decision path and marks a row the template
 	// editor must not touch; Weekday is editor-owned and replaceable.
 	Weekday *int `bun:"weekday" json:"weekday,omitempty"`
+	// StudentAlumnus and the name fields are read projections supplied by the
+	// People Directory. They are not persisted with the enrollment row.
+	StudentAlumnus   bool   `bun:"-" json:"-"`
+	StudentFirstName string `bun:"-" json:"-"`
+	StudentLastName  string `bun:"-" json:"-"`
 
 	// Relations - populated when using the ORM's relations
-	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
+	ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
 }
 
 // IsValidAttendanceStatus checks if the attendance status is valid

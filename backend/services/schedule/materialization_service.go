@@ -852,14 +852,12 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 //
-// enrollmentStudentIsAlumnus reports whether the enrollment's joined student
-// row is a graduated (alumnus) soft-delete. FindByGroupID hydrates Student
-// (incl. status); enrollments built without that join return false, so callers
-// that only need the valid-on-date predicate are unaffected. Graduated students
-// keep their enrollment rows for transition reverts but must drop off every
-// current/future planning surface (#405).
+// enrollmentStudentIsAlumnus reports whether the People Directory projection
+// marks the enrollment's student as graduated. Graduated students keep their
+// enrollment rows for transition reverts but must drop off every current and
+// future planning surface (#405).
 func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
-	return e != nil && e.Student != nil && e.Student.IsAlumnus()
+	return e != nil && e.StudentAlumnus
 }
 
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
