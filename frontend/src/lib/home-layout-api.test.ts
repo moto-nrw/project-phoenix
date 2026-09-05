@@ -10,14 +10,16 @@ describe("fetchHomeLayout", () => {
     vi.clearAllMocks();
   });
 
-  it("reads the unwrapped tenant-proxy payload", async () => {
+  it("reads the tenant route wrapper payload", async () => {
     vi.mocked(sessionFetch).mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
-          overrides: { "section.birthdays": false },
-          policies: { "tile.students_present": "required" },
-          can_manage_policies: true,
+          data: {
+            overrides: { "section.birthdays": false },
+            policies: { "tile.students_present": "required" },
+            can_manage_policies: true,
+          },
         }),
     } as Response);
 
