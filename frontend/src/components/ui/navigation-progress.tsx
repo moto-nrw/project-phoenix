@@ -44,15 +44,16 @@ interface NavigationProgressStore {
   readonly startLink: () => void;
   readonly endLink: () => void;
   readonly startProgrammatic: (target: string) => number;
-  readonly startHistory: () => void;
-  readonly completeProgrammatic: (currentUrl: string) => void;
+  readonly startHistory: (target: string) => void;
+  readonly completeNavigation: (currentUrl: string) => void;
   readonly cancelProgrammatic: (id: number) => void;
 }
 
 const PROGRAMMATIC_NAVIGATION_TIMEOUT_MS = 10_000;
 
-interface PendingProgrammaticNavigation {
+interface PendingNavigation {
   readonly id: number;
+  readonly kind: "history" | "programmatic";
   readonly target: string | null;
   readonly supersededTargets: ReadonlySet<string>;
   readonly timeout: ReturnType<typeof setTimeout>;
@@ -60,38 +61,38 @@ interface PendingProgrammaticNavigation {
 
 function createStore(): NavigationProgressStore {
   let pendingLinks = 0;
-  let pendingProgrammaticNavigation: PendingProgrammaticNavigation | null =
-    null;
-  let nextProgrammaticNavigationId = 0;
+  let pendingNavigation: PendingNavigation | null = null;
+  let nextNavigationId = 0;
   const listeners = new Set<() => void>();
   const notify = () => {
     for (const listener of listeners) listener();
   };
-  const isPending = () =>
-    pendingLinks > 0 || pendingProgrammaticNavigation !== null;
+  const isPending = () => pendingLinks > 0 || pendingNavigation !== null;
   const update = (change: () => void) => {
     const wasPending = isPending();
     change();
     if (wasPending !== isPending()) notify();
   };
   const startNavigation = (
+    kind: PendingNavigation["kind"],
     target: string | null,
     supersededTargets: ReadonlySet<string>,
   ) => {
-    const id = nextProgrammaticNavigationId + 1;
-    nextProgrammaticNavigationId = id;
+    const id = nextNavigationId + 1;
+    nextNavigationId = id;
     update(() => {
-      if (pendingProgrammaticNavigation) {
-        clearTimeout(pendingProgrammaticNavigation.timeout);
+      if (pendingNavigation) {
+        clearTimeout(pendingNavigation.timeout);
       }
-      pendingProgrammaticNavigation = {
+      pendingNavigation = {
         id,
+        kind,
         target,
         supersededTargets,
         timeout: setTimeout(() => {
-          if (pendingProgrammaticNavigation?.id !== id) return;
+          if (pendingNavigation?.id !== id) return;
           update(() => {
-            pendingProgrammaticNavigation = null;
+            pendingNavigation = null;
           });
         }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
       };
@@ -99,7 +100,7 @@ function createStore(): NavigationProgressStore {
     return id;
   };
   const startProgrammatic = (target: string) => {
-    const previous = pendingProgrammaticNavigation;
+    const previous = pendingNavigation;
     // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
     // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
     // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
@@ -108,7 +109,7 @@ function createStore(): NavigationProgressStore {
       supersededTargets.add(previous.target);
     }
     supersededTargets.delete(target);
-    return startNavigation(target, supersededTargets);
+    return startNavigation("programmatic", target, supersededTargets);
   };
   return {
     subscribe: (onChange) => {
@@ -129,26 +130,31 @@ function createStore(): NavigationProgressStore {
       });
     },
     startProgrammatic,
-    startHistory: () => {
-      // Ein History-Ereignis hat kein angefordertes Ziel. Es muss unabhängig
-      // von einem zuvor verdrängten push/replace-Ziel abschließen können.
-      startNavigation(null, new Set());
+    startHistory: (target) => {
+      // Verlaufwechsel haben ein eindeutiges Ziel. Bei mehreren schnellen
+      // Back-/Forward-Ereignissen darf ein verspäteter Zwischen-Commit nicht
+      // den Balken für das zuletzt angeforderte Ziel beenden.
+      startNavigation("history", target, new Set());
     },
-    completeProgrammatic: (url) => {
-      const pending = pendingProgrammaticNavigation;
-      if (!pending || pending.supersededTargets.has(url)) {
+    completeNavigation: (url) => {
+      const pending = pendingNavigation;
+      if (
+        !pending ||
+        (pending.kind === "history" && pending.target !== url) ||
+        (pending.kind === "programmatic" && pending.supersededTargets.has(url))
+      ) {
         return;
       }
       update(() => {
         clearTimeout(pending.timeout);
-        pendingProgrammaticNavigation = null;
+        pendingNavigation = null;
       });
     },
     cancelProgrammatic: (id) => {
-      if (pendingProgrammaticNavigation?.id !== id) return;
+      if (pendingNavigation?.id !== id) return;
       update(() => {
-        clearTimeout(pendingProgrammaticNavigation?.timeout);
-        pendingProgrammaticNavigation = null;
+        clearTimeout(pendingNavigation?.timeout);
+        pendingNavigation = null;
       });
     },
   };
@@ -266,8 +272,8 @@ function NavigationProgressCompletion({
   const lastRouteUrl = useRef<string | null>(null);
 
   useEffect(() => {
-    const url = currentUrl();
-    store.completeProgrammatic(url);
+    const url = search === "" ? pathname : `${pathname}?${search}`;
+    store.completeNavigation(url);
     lastRouteUrl.current = url;
   }, [pathname, search, store]);
 
@@ -275,7 +281,7 @@ function NavigationProgressCompletion({
     const handleHistoryNavigation = () => {
       const url = currentUrl();
       if (lastRouteUrl.current !== null && url !== lastRouteUrl.current) {
-        store.startHistory();
+        store.startHistory(url);
       }
     };
     window.addEventListener("popstate", handleHistoryNavigation);

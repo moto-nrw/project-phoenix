@@ -286,6 +286,40 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("keeps progress visible until the final rapid history destination commits", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell();
+
+    act(() => {
+      window.history.replaceState({}, "", "/calendar-periods");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.history.replaceState({}, "", "/staff");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    route.pathname = "/calendar-periods";
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    route.pathname = "/staff";
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("completes a history navigation to a previously requested target", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useProgressRouter();
