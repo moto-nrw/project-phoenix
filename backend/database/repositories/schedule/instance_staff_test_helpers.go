@@ -1,3 +1,5 @@
+// Legacy SQL provider retained for cross-package contract tests. Production
+// callers use the Timetable capability through its compatibility adapter.
 package schedule
 
 import (
