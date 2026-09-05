@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Vertretung (#1886/Planung-Redesign, docs/planung-redesign/docs/07-vertretung.md).
+ * Vertretung.
  *
  * Der heute-zentrierte Zweiteiler: links die Störungsliste des Tages
  * (VertretungDayList), rechts der Tag als einspaltige Kalenderansicht

@@ -201,8 +201,7 @@ function germanFullDate(iso: string): string {
 
 /**
  * Regeltermin-Herkunftstext für den OriginChip im Detail-Modal
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2: "aus
- * Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
+ * ("aus Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
  * Template-Titel — materialisierte Instanzen erben den Titel des
  * Regeltermins 1:1 (timetable-helpers.ts Mapper), daher genügt
  * `instance.title`. Der Wochentag wird aus dem Instanzdatum abgeleitet
@@ -766,8 +765,7 @@ export function InstanceDetailModal({
     <div className="flex w-full flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
-                  (offene Lücke oder eingetragene Abwesenheit) —
-                  docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
+                  (offene Lücke oder eingetragene Abwesenheit). Nutzt
                   nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
         {canManage &&
           (instance.status === "planned" || instance.status === "active") &&

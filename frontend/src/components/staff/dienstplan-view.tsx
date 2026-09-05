@@ -54,7 +54,7 @@ const logger = createLogger({ component: "DienstplanView" });
 // planned shift end also drives the automatic checkout (#1798) when the
 // tenant setting "Automatische Ausstempelung" is enabled.
 //
-// URL-Vokabular (Planung-Redesign, docs/05-dienstplan.md Abschnitt 1): genau
+// URL-Vokabular: genau
 // `d` (Berlin-Kalendertag; die angezeigte Woche ist die Woche, die `d` enthält)
 // und `view` ("woche" | "halbjahr"). Ungültige Werte fallen still auf die
 // Defaults zurück (heute, "woche"). Modals bleiben reiner React-State.
