@@ -242,10 +242,10 @@ func SetupActiveModule(t *testing.T) (*bun.DB, services.ActiveTestModule) {
 	return db, module
 }
 
-func SetupRemindersModule(t *testing.T) (*bun.DB, services.RemindersTestModule) {
+func SetupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.RemindersTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewRemindersTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := services.NewRemindersTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	return db, module
 }

@@ -1,12 +1,14 @@
-package reminders_test
+package compose_test
 
 import (
+	"context"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,10 +35,11 @@ import (
 // exactly why this test talks to a real database.
 func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSupervisor
+	day := testpkg.Date(2026, time.September, 4)
+	now := day.BerlinMidnight().Add(12 * time.Hour)
+	db, module := testutil.SetupRemindersModule(t, func() time.Time { return now })
 	ctx := testpkg.Ctx(t)
+	require.NoError(t, module.Settings.SetValue(ctx, "reminders.activity_start_enabled", true, nil, nil))
 
 	staff := testpkg.CreateTestStaff(t, db, "RoomScope", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, db, "RoomScopeActivity")
@@ -65,28 +68,38 @@ func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	// The supervision in expiredRoom ended yesterday.
 	_, err = db.NewUpdate().
 		TableExpr("active.group_supervisors").
-		Set("end_date = ?", timezone.TodayDate().AddDays(-1)).
+		Set("end_date = ?", testpkg.TodayDate().AddDays(-1)).
 		Where("id = ?", expiredSup.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
-	rows, err := repo.ListActiveSupervisedRooms(ctx)
-	require.NoError(t, err)
-
-	bulkRooms := make(map[int64]struct{})
-	for _, row := range rows {
-		if row.StaffID == staff.ID {
-			bulkRooms[row.RoomID] = struct{}{}
-		}
+	instanceIDs := make(map[int64]string)
+	for _, roomID := range []int64{openRoom.ID, closedRoom.ID, expiredRoom.ID} {
+		instance := testpkg.CreateTestActivityInstance(t, db, day, roomID, testpkg.ActivityInstanceOpts{
+			StartHHMM: "12:00", EndHHMM: "13:00", Title: "Room scope",
+		})
+		instanceIDs[roomID] = strconv.FormatInt(instance.ID, 10)
 	}
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
+		scope := reminder.Scope{StaffID: staff.ID}
+		single, err := module.Reminders.Compute(ctx, scope)
+		require.NoError(t, err)
+		batch, err := module.Reminders.ComputeBatch(ctx, []reminder.BatchScope{{Scope: scope}})
+		require.NoError(t, err)
+		require.Contains(t, batch, staff.ID)
 
-	// What both paths agree on.
-	assert.Contains(t, bulkRooms, openRoom.ID,
-		"a live supervision on an open session is supervised on either path")
-	assert.NotContains(t, bulkRooms, expiredRoom.ID,
-		"a supervision that ended yesterday is gone on either path")
-
-	// The accepted divergence. Compute still sees this room; the batch does not.
-	assert.NotContains(t, bulkRooms, closedRoom.ID,
-		"the bulk reader drops the room of an ended session — deliberate, and stricter than Compute")
+		activityIDs := func(result *reminder.Result) []string {
+			ids := make([]string, 0, len(result.Reminders))
+			for _, item := range result.Reminders {
+				require.NotNil(t, item.ActivityInstanceID)
+				ids = append(ids, *item.ActivityInstanceID)
+			}
+			return ids
+		}
+		assert.ElementsMatch(t, []string{instanceIDs[openRoom.ID], instanceIDs[closedRoom.ID]}, activityIDs(single),
+			"the single query includes the closed session but excludes expired supervision")
+		assert.Equal(t, []string{instanceIDs[openRoom.ID]}, activityIDs(batch[staff.ID]),
+			"the batch query excludes both closed sessions and expired supervision")
+		return nil
+	}))
 }

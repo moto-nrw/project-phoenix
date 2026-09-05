@@ -1,4 +1,4 @@
-package reminders
+package application
 
 import (
 	"context"
@@ -7,13 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,16 +27,16 @@ type world struct {
 	settingInts    map[string]int
 	settingStrings map[string]string
 
-	students    map[int64]*userModel.Student
-	persons     map[int64]*userModel.Person
-	pickupTimes map[int64]*scheduleService.EffectivePickupTime
+	students    map[int64]*ports.Student
+	persons     map[int64]*ports.Person
+	pickupTimes map[int64]*ports.EffectivePickupTime
 
 	attendanceIDs []int64
 	visitsByRoom  map[int64][]int64
 	roomsByStaff  map[int64][]int64
 
-	instances     []*scheduleModel.ActivityInstance
-	instanceStaff []*scheduleModel.InstanceStaff
+	instances     []*ports.ActivityInstance
+	instanceStaff []*ports.InstanceStaff
 	roomNames     map[int64]string
 
 	mu    sync.Mutex
@@ -51,22 +46,22 @@ type world struct {
 func newWorld() *world {
 	return &world{
 		settingBools: map[string]bool{
-			configModel.KeyRemindersPickupUpcomingEnabled:  true,
-			configModel.KeyRemindersPickupOverdueEnabled:   true,
-			configModel.KeyRemindersActivityStartEnabled:   true,
-			configModel.KeyRemindersActivityOverdueEnabled: true,
+			"reminders.pickup_upcoming_enabled":  true,
+			"reminders.pickup_overdue_enabled":   true,
+			"reminders.activity_start_enabled":   true,
+			"reminders.activity_overdue_enabled": true,
 		},
 		settingInts: map[string]int{
-			configModel.KeyRemindersPickupUpcomingLeadMinutes: 10,
-			configModel.KeyRemindersActivityStartLeadMinutes:  10,
-			configModel.KeyTimetableOverdueThresholdMinutes:   5,
+			"reminders.pickup_upcoming_lead_minutes": 10,
+			"reminders.activity_start_lead_minutes":  10,
+			"timetable.overdue_threshold_minutes":    5,
 		},
 		settingStrings: map[string]string{
-			configModel.KeyPresenceMode: configModel.PresenceModeDetailed,
+			"operations.presence_mode": "detailed",
 		},
-		students:     map[int64]*userModel.Student{},
-		persons:      map[int64]*userModel.Person{},
-		pickupTimes:  map[int64]*scheduleService.EffectivePickupTime{},
+		students:     map[int64]*ports.Student{},
+		persons:      map[int64]*ports.Person{},
+		pickupTimes:  map[int64]*ports.EffectivePickupTime{},
 		visitsByRoom: map[int64][]int64{},
 		roomsByStaff: map[int64][]int64{},
 		roomNames:    map[int64]string{},
@@ -96,7 +91,7 @@ func (w *world) snapshot() map[string]int {
 
 // addStudent registers a child with a name, a class and an education group.
 func (w *world) addStudent(id int64, group int64, name, class string) *world {
-	st := &userModel.Student{SchoolClass: class}
+	st := &ports.Student{SchoolClass: class}
 	st.ID = id
 	st.PersonID = id
 	if group > 0 {
@@ -105,7 +100,7 @@ func (w *world) addStudent(id int64, group int64, name, class string) *world {
 	}
 	w.students[id] = st
 
-	p := &userModel.Person{FirstName: name, LastName: fmt.Sprintf("Nr%d", id)}
+	p := &ports.Person{Name: fmt.Sprintf("%s Nr%d", name, id)}
 	p.ID = id
 	w.persons[id] = p
 	return w
@@ -148,7 +143,7 @@ func (w *world) addInstance(id int64, title string, roomID int64, startMin, endM
 // assignsInstance plans a staff member onto an activity instance, the relation
 // the Betreuungsplan records.
 func (w *world) assignsInstance(staffID, instanceID int64, absent bool) *world {
-	w.instanceStaff = append(w.instanceStaff, &scheduleModel.InstanceStaff{
+	w.instanceStaff = append(w.instanceStaff, &ports.InstanceStaff{
 		InstanceID: instanceID,
 		StaffID:    staffID,
 		IsAbsent:   absent,
@@ -156,13 +151,13 @@ func (w *world) assignsInstance(staffID, instanceID int64, absent bool) *world {
 	return w
 }
 
-func (w *world) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
+func (w *world) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*ports.InstanceStaff, error) {
 	w.hit("FindByInstanceIDs")
 	wanted := make(map[int64]struct{}, len(instanceIDs))
 	for _, id := range instanceIDs {
 		wanted[id] = struct{}{}
 	}
-	out := make([]*scheduleModel.InstanceStaff, 0, len(w.instanceStaff))
+	out := make([]*ports.InstanceStaff, 0, len(w.instanceStaff))
 	for _, row := range w.instanceStaff {
 		if _, ok := wanted[row.InstanceID]; ok {
 			out = append(out, row)
@@ -172,7 +167,7 @@ func (w *world) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*sc
 }
 
 func (w *world) service() *service {
-	return &service{Dependencies: Dependencies{
+	return &service{QueryDependencies: ports.QueryDependencies{Clock: testClock,
 		Settings:          w,
 		Attendance:        w,
 		Pickup:            w,
@@ -206,7 +201,7 @@ func (w *world) ResolveString(_ context.Context, key string) (string, error) {
 
 // --- attendanceReader ---------------------------------------------------------
 
-func (w *world) ListOpenStudentIDsForDate(_ context.Context, _ timezone.Date) ([]int64, error) {
+func (w *world) ListOpenStudentIDsForDate(_ context.Context, _ string) ([]int64, error) {
 	w.hit("ListOpenStudentIDsForDate")
 	return append([]int64(nil), w.attendanceIDs...), nil
 }
@@ -216,9 +211,9 @@ func (w *world) ListOpenStudentIDsForDate(_ context.Context, _ timezone.Date) ([
 // Narrows to the requested IDs, unlike the older fake in service_internal_test.go.
 // The batch asks over a union, so a fake that ignores its argument would hide a
 // missing student.
-func (w *world) GetBulkEffectivePickupTimesForDate(_ context.Context, ids []int64, _ timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+func (w *world) GetBulkEffectivePickupTimesForDate(_ context.Context, ids []int64, _ string) (map[int64]*ports.EffectivePickupTime, error) {
 	w.hit("GetBulkEffectivePickupTimesForDate")
-	out := make(map[int64]*scheduleService.EffectivePickupTime, len(ids))
+	out := make(map[int64]*ports.EffectivePickupTime, len(ids))
 	for _, id := range ids {
 		if t, ok := w.pickupTimes[id]; ok {
 			out[id] = t
@@ -229,16 +224,16 @@ func (w *world) GetBulkEffectivePickupTimesForDate(_ context.Context, ids []int6
 
 // --- instanceReader -----------------------------------------------------------
 
-func (w *world) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (w *world) FindByTenantAndDate(_ context.Context, _ string) ([]*ports.ActivityInstance, error) {
 	w.hit("FindByTenantAndDate")
 	return w.instances, nil
 }
 
 // --- studentReader ------------------------------------------------------------
 
-func (w *world) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*userModel.Student, error) {
+func (w *world) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*ports.Student, error) {
 	w.hit("FindReadScopeByIDs")
-	out := make(map[int64]*userModel.Student, len(ids))
+	out := make(map[int64]*ports.Student, len(ids))
 	for _, id := range ids {
 		if st, ok := w.students[id]; ok {
 			out[id] = st
@@ -252,20 +247,20 @@ func (w *world) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*u
 // The test world identifies an active group with the room it runs in, so a
 // supervision row carries the room ID as its GroupID.
 
-func (w *world) GetStaffActiveSupervisions(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
+func (w *world) GetStaffActiveSupervisions(_ context.Context, staffID int64) ([]*ports.GroupSupervisor, error) {
 	w.hit("GetStaffActiveSupervisions")
-	out := make([]*activeModel.GroupSupervisor, 0, len(w.roomsByStaff[staffID]))
+	out := make([]*ports.GroupSupervisor, 0, len(w.roomsByStaff[staffID]))
 	for _, roomID := range w.roomsByStaff[staffID] {
-		out = append(out, &activeModel.GroupSupervisor{StaffID: staffID, GroupID: roomID})
+		out = append(out, &ports.GroupSupervisor{StaffID: staffID, GroupID: roomID})
 	}
 	return out, nil
 }
 
-func (w *world) GetActiveGroupsByIDs(_ context.Context, groupIDs []int64) (map[int64]*activeModel.Group, error) {
+func (w *world) GetActiveGroupsByIDs(_ context.Context, groupIDs []int64) (map[int64]*ports.Group, error) {
 	w.hit("GetActiveGroupsByIDs")
-	out := make(map[int64]*activeModel.Group, len(groupIDs))
+	out := make(map[int64]*ports.Group, len(groupIDs))
 	for _, id := range groupIDs {
-		out[id] = &activeModel.Group{RoomID: id}
+		out[id] = &ports.Group{RoomID: id}
 	}
 	return out, nil
 }
@@ -277,12 +272,12 @@ func (w *world) ListStudentsPresentInRoom(_ context.Context, roomID int64) ([]in
 
 // --- bulk readers -------------------------------------------------------------
 
-func (w *world) ListActiveSupervisedRooms(_ context.Context) ([]activeModel.StaffRoomSupervision, error) {
+func (w *world) ListActiveSupervisedRooms(_ context.Context) ([]ports.StaffRoomSupervision, error) {
 	w.hit("ListActiveSupervisedRooms")
-	var out []activeModel.StaffRoomSupervision
+	var out []ports.StaffRoomSupervision
 	for staffID, rooms := range w.roomsByStaff {
 		for _, roomID := range rooms {
-			out = append(out, activeModel.StaffRoomSupervision{StaffID: staffID, RoomID: roomID})
+			out = append(out, ports.StaffRoomSupervision{StaffID: staffID, RoomID: roomID})
 		}
 	}
 	return out, nil
@@ -297,15 +292,15 @@ func (w *world) ListOpenVisitStudentIDsByRoom(_ context.Context) (map[int64][]in
 
 type worldRooms struct{ w *world }
 
-func (r worldRooms) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesModel.Room, error) {
+func (r worldRooms) FindByIDs(_ context.Context, ids []int64) ([]*ports.Room, error) {
 	r.w.hit("Room.FindByIDs")
-	out := make([]*facilitiesModel.Room, 0, len(ids))
+	out := make([]*ports.Room, 0, len(ids))
 	for _, id := range ids {
 		name, ok := r.w.roomNames[id]
 		if !ok {
 			name = "Lernraum"
 		}
-		room := &facilitiesModel.Room{Name: name}
+		room := &ports.Room{Name: name}
 		room.ID = id
 		out = append(out, room)
 	}
@@ -314,9 +309,9 @@ func (r worldRooms) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesMode
 
 type worldPersons struct{ w *world }
 
-func (p worldPersons) FindByIDs(_ context.Context, ids []int64) (map[int64]*userModel.Person, error) {
+func (p worldPersons) FindByIDs(_ context.Context, ids []int64) (map[int64]*ports.Person, error) {
 	p.w.hit("Person.FindByIDs")
-	out := make(map[int64]*userModel.Person, len(ids))
+	out := make(map[int64]*ports.Person, len(ids))
 	for _, id := range ids {
 		if person, ok := p.w.persons[id]; ok {
 			out[id] = person
@@ -332,72 +327,56 @@ func (p worldPersons) FindByIDs(_ context.Context, ids []int64) (map[int64]*user
 // assertBatchMatchesCompute is the core assertion of this package: for every
 // scope, ComputeBatch must produce exactly what Compute produces.
 //
-// Both entry points read the clock themselves, so a minute tick between the two
-// calls would shift every MinutesAway by one. The pair is therefore retried once
-// if the wall-clock minute moved.
-func assertBatchMatchesCompute(t *testing.T, w *world, scopes []BatchScope) {
+// Both entry points receive the same fixed clock, so every timing boundary is
+// compared without retries or dependence on when the suite runs.
+func assertBatchMatchesCompute(t *testing.T, w *world, scopes []reminder.BatchScope) {
 	t.Helper()
 
 	svc := w.service()
 	ctx := context.Background()
 
-	for attempt := 0; attempt < 2; attempt++ {
-		before := minutesOfDay(timezone.Now())
+	batch, err := svc.ComputeBatch(ctx, scopes)
+	require.NoError(t, err)
 
-		batch, err := svc.ComputeBatch(ctx, scopes)
-		require.NoError(t, err)
+	singles := make(map[int64]*reminder.Result, len(scopes))
+	for _, sc := range scopes {
+		single, serr := svc.Compute(ctx, sc.Scope)
+		require.NoError(t, serr)
+		singles[sc.StaffID] = single
+	}
 
-		singles := make(map[int64]*Result, len(scopes))
-		for _, sc := range scopes {
-			single, serr := svc.Compute(ctx, sc.Scope)
-			require.NoError(t, serr)
-			singles[sc.StaffID] = single
-		}
+	require.Len(t, batch, len(scopes), "every requested scope needs an entry")
+	for _, sc := range scopes {
+		single := singles[sc.StaffID]
+		got := batch[sc.StaffID]
+		require.NotNil(t, got, "staff %d must have a result", sc.StaffID)
 
-		if minutesOfDay(timezone.Now()) != before {
-			if attempt == 0 {
-				continue // the minute rolled over mid-comparison, redo the pair
-			}
-			t.Skip("wall-clock minute kept changing during the comparison")
-		}
-
-		require.Len(t, batch, len(scopes), "every requested scope needs an entry")
-		for _, sc := range scopes {
-			single := singles[sc.StaffID]
-			got := batch[sc.StaffID]
-			require.NotNil(t, got, "staff %d must have a result", sc.StaffID)
-
-			assert.Equal(t, single.Enabled, got.Enabled, "staff %d: Enabled", sc.StaffID)
-			assert.Equal(t, single.Count, got.Count, "staff %d: Count", sc.StaffID)
-			assert.Equal(t, single.NextChangeAt, got.NextChangeAt, "staff %d: NextChangeAt", sc.StaffID)
-			assert.Equal(t, single.Reminders, got.Reminders, "staff %d: Reminders", sc.StaffID)
-		}
-		return
+		assert.Equal(t, single.Enabled, got.Enabled, "staff %d: Enabled", sc.StaffID)
+		assert.Equal(t, single.Count, got.Count, "staff %d: Count", sc.StaffID)
+		assert.Equal(t, single.NextChangeAt, got.NextChangeAt, "staff %d: NextChangeAt", sc.StaffID)
+		assert.Equal(t, single.Reminders, got.Reminders, "staff %d: Reminders", sc.StaffID)
 	}
 }
 
-func caregiver(staffID int64) BatchScope {
-	return BatchScope{Scope: Scope{IsAdmin: false, StaffID: staffID}}
+func caregiver(staffID int64) reminder.BatchScope {
+	return reminder.BatchScope{Scope: reminder.Scope{IsAdmin: false, StaffID: staffID}}
 }
 
-func personalCaregiver(staffID int64) BatchScope {
-	return BatchScope{
-		Scope:                        Scope{IsAdmin: false, StaffID: staffID},
+func personalCaregiver(staffID int64) reminder.BatchScope {
+	return reminder.BatchScope{
+		Scope:                        reminder.Scope{IsAdmin: false, StaffID: staffID},
 		IncludeAssignedActivityStart: true,
 	}
 }
 
-func admin(staffID int64) BatchScope {
-	return BatchScope{Scope: Scope{IsAdmin: true, StaffID: staffID}}
+func admin(staffID int64) reminder.BatchScope {
+	return reminder.BatchScope{Scope: reminder.Scope{IsAdmin: true, StaffID: staffID}}
 }
 
 func TestComputeBatchMatchesCompute(t *testing.T) {
 	t.Parallel()
 
-	nowMin := minutesOfDay(timezone.Now())
-	if nowMin < 60 || nowMin > 1380 {
-		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
-	}
+	_, nowMin := testClock()
 
 	soon := nowMin + 5  // inside the 10 minute lead window
 	late := nowMin - 15 // overdue
@@ -420,16 +399,16 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 	}
 
 	t.Run("admin sees everything", func(t *testing.T) {
-		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{admin(1)})
+		assertBatchMatchesCompute(t, baseWorld(), []reminder.BatchScope{admin(1)})
 	})
 
 	t.Run("caregiver with one room", func(t *testing.T) {
-		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{caregiver(7)})
+		assertBatchMatchesCompute(t, baseWorld(), []reminder.BatchScope{caregiver(7)})
 	})
 
 	t.Run("caregiver without supervision sees nothing", func(t *testing.T) {
 		w := baseWorld()
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(99)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(99)})
 
 		// Asserted in absolute terms as well, not only against Compute: an
 		// equivalence check compares the two paths with each other and is blind
@@ -437,7 +416,7 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		// everything" is the worst such bug, so it gets its own claim —
 		// especially now that the per-child read gate is gone (#2329) and
 		// supervision alone decides which children reach a caregiver.
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(99)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{caregiver(99)})
 		require.NoError(t, err)
 		assert.Empty(t, batch[99].Reminders,
 			"a caregiver without a live supervision must see no activity and no child")
@@ -448,9 +427,9 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		// education group — since #2329 that is enough to read the child.
 		w := baseWorld()
 		w.supervises(9, 10)
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(9)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(9)})
 
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(9)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{caregiver(9)})
 		require.NoError(t, err)
 		assert.NotEmpty(t, batch[9].Reminders,
 			"a room supervisor reads the children standing in their room")
@@ -458,23 +437,23 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 
 	t.Run("binary mode reads presence from attendance", func(t *testing.T) {
 		w := baseWorld()
-		w.settingStrings[configModel.KeyPresenceMode] = configModel.PresenceModeBinary
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
+		w.settingStrings["operations.presence_mode"] = "binary"
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7)})
 	})
 
 	t.Run("two caregivers must not contaminate each other", func(t *testing.T) {
-		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{caregiver(7), caregiver(8)})
+		assertBatchMatchesCompute(t, baseWorld(), []reminder.BatchScope{caregiver(7), caregiver(8)})
 	})
 
 	t.Run("admin and caregiver in one batch", func(t *testing.T) {
-		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{admin(1), caregiver(7)})
+		assertBatchMatchesCompute(t, baseWorld(), []reminder.BatchScope{admin(1), caregiver(7)})
 	})
 
 	t.Run("two rooms sharing a child are deduplicated", func(t *testing.T) {
 		w := baseWorld()
 		w.supervises(7, 20)
 		w.presentInRoom(20, 1) // the same child is present in both rooms
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7)})
 	})
 
 	t.Run("child present in a room but missing from attendance", func(t *testing.T) {
@@ -485,9 +464,9 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		w.addStudent(4, 100, "Dana", "1a")
 		w.pickupAtMinute(4, soon)
 		w.presentOnlyInRoom(10, 4)
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7), admin(1)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7), admin(1)})
 
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{caregiver(7)})
 		require.NoError(t, err)
 		var found bool
 		for _, r := range batch[7].Reminders {
@@ -501,13 +480,13 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 	t.Run("due child without a person record is dropped identically", func(t *testing.T) {
 		w := baseWorld()
 		delete(w.persons, 1)
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7), admin(1)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7), admin(1)})
 	})
 
 	t.Run("child outside every window contributes only a boundary", func(t *testing.T) {
 		w := baseWorld()
 		w.pickupAtMinute(1, far)
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
+		assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7)})
 	})
 
 	t.Run("planned upcoming assignment widens the batch and never narrows it", func(t *testing.T) {
@@ -521,12 +500,12 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		w.addInstance(103, "Theater", 20, start, start+60)
 		w.assignsInstance(7, 103, false)
 
-		single, err := w.service().Compute(context.Background(), Scope{StaffID: 7})
+		single, err := w.service().Compute(context.Background(), reminder.Scope{StaffID: 7})
 		require.NoError(t, err)
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{personalCaregiver(7)})
 		require.NoError(t, err)
 
-		hasInstance := func(rs []Reminder, id string) bool {
+		hasInstance := func(rs []reminder.Reminder, id string) bool {
 			for _, r := range rs {
 				if r.ActivityInstanceID != nil && *r.ActivityInstanceID == id {
 					return true
@@ -545,19 +524,19 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 
 	t.Run("personal assignment is independent of the room activity gate", func(t *testing.T) {
 		w := baseWorld()
-		w.settingBools[configModel.KeyRemindersPickupUpcomingEnabled] = false
-		w.settingBools[configModel.KeyRemindersPickupOverdueEnabled] = false
-		w.settingBools[configModel.KeyRemindersActivityStartEnabled] = false
-		w.settingBools[configModel.KeyRemindersActivityOverdueEnabled] = false
+		w.settingBools["reminders.pickup_upcoming_enabled"] = false
+		w.settingBools["reminders.pickup_overdue_enabled"] = false
+		w.settingBools["reminders.activity_start_enabled"] = false
+		w.settingBools["reminders.activity_overdue_enabled"] = false
 		w.addInstance(103, "Unassigned", 10, start, start+60)
 		w.assignsInstance(7, 101, false)
 
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{personalCaregiver(7)})
 		require.NoError(t, err)
 		require.Len(t, batch[7].Reminders, 1)
 		require.NotNil(t, batch[7].Reminders[0].ActivityInstanceID)
 		assert.Equal(t, "101", *batch[7].Reminders[0].ActivityInstanceID)
-		assert.Equal(t, TypeActivityStart, batch[7].Reminders[0].Type)
+		assert.Equal(t, reminder.TypeActivityStart, batch[7].Reminders[0].Type)
 	})
 
 	t.Run("an absent assignment is ignored", func(t *testing.T) {
@@ -566,7 +545,7 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		w := baseWorld()
 		w.assignsInstance(7, 102, true)
 
-		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(7)})
+		batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{caregiver(7)})
 		require.NoError(t, err)
 
 		for _, r := range batch[7].Reminders {
@@ -577,7 +556,7 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 	})
 
 	t.Run("without assignments both paths stay identical", func(t *testing.T) {
-		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{caregiver(7), caregiver(8), admin(1)})
+		assertBatchMatchesCompute(t, baseWorld(), []reminder.BatchScope{caregiver(7), caregiver(8), admin(1)})
 	})
 
 	t.Run("toggle combinations", func(t *testing.T) {
@@ -594,11 +573,11 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		for _, c := range combos {
 			t.Run(c.name, func(t *testing.T) {
 				w := baseWorld()
-				w.settingBools[configModel.KeyRemindersPickupUpcomingEnabled] = c.pickUp
-				w.settingBools[configModel.KeyRemindersPickupOverdueEnabled] = c.pickOver
-				w.settingBools[configModel.KeyRemindersActivityStartEnabled] = c.actStart
-				w.settingBools[configModel.KeyRemindersActivityOverdueEnabled] = c.actOver
-				assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7), admin(1)})
+				w.settingBools["reminders.pickup_upcoming_enabled"] = c.pickUp
+				w.settingBools["reminders.pickup_overdue_enabled"] = c.pickOver
+				w.settingBools["reminders.activity_start_enabled"] = c.actStart
+				w.settingBools["reminders.activity_overdue_enabled"] = c.actOver
+				assertBatchMatchesCompute(t, w, []reminder.BatchScope{caregiver(7), admin(1)})
 			})
 		}
 	})
@@ -611,18 +590,18 @@ func TestActivityRoomFilterNilOnlyForAdmins(t *testing.T) {
 	t.Parallel()
 
 	t.Run("admin gets no restriction", func(t *testing.T) {
-		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, nil))
-		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, []int64{10}))
+		assert.Nil(t, activityRoomFilter(reminder.Scope{IsAdmin: true}, nil))
+		assert.Nil(t, activityRoomFilter(reminder.Scope{IsAdmin: true}, []int64{10}))
 	})
 
 	t.Run("caregiver without rooms is restricted to nothing", func(t *testing.T) {
-		filter := activityRoomFilter(Scope{StaffID: 7}, nil)
+		filter := activityRoomFilter(reminder.Scope{StaffID: 7}, nil)
 		require.NotNil(t, filter, "an empty room list must restrict, never widen")
 		assert.Empty(t, filter)
 	})
 
 	t.Run("caregiver is restricted to their rooms", func(t *testing.T) {
-		filter := activityRoomFilter(Scope{StaffID: 7}, []int64{10, 20})
+		filter := activityRoomFilter(reminder.Scope{StaffID: 7}, []int64{10, 20})
 		require.NotNil(t, filter)
 		assert.Len(t, filter, 2)
 		assert.Contains(t, filter, int64(10))
@@ -646,14 +625,14 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 	})
 
 	t.Run("non-positive staff IDs are dropped", func(t *testing.T) {
-		out, err := svc.ComputeBatch(ctx, []BatchScope{caregiver(0), caregiver(-1)})
+		out, err := svc.ComputeBatch(ctx, []reminder.BatchScope{caregiver(0), caregiver(-1)})
 		require.NoError(t, err)
 		assert.Empty(t, out, "a scope that addresses nobody must not be computed")
 	})
 
 	t.Run("staff-less admins use an explicit result key", func(t *testing.T) {
-		out, err := svc.ComputeBatch(ctx, []BatchScope{
-			{Scope: Scope{IsAdmin: true}, ResultKey: -41},
+		out, err := svc.ComputeBatch(ctx, []reminder.BatchScope{
+			{Scope: reminder.Scope{IsAdmin: true}, ResultKey: -41},
 		})
 		require.NoError(t, err)
 		require.Contains(t, out, int64(-41))
@@ -661,19 +640,19 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 	})
 
 	t.Run("repeated staff IDs collapse", func(t *testing.T) {
-		out, err := svc.ComputeBatch(ctx, []BatchScope{caregiver(7), caregiver(7)})
+		out, err := svc.ComputeBatch(ctx, []reminder.BatchScope{caregiver(7), caregiver(7)})
 		require.NoError(t, err)
 		assert.Len(t, out, 1)
 	})
 
 	t.Run("repeated scopes preserve personal assignment requests", func(t *testing.T) {
-		scopes := dedupeBatchScopes([]BatchScope{caregiver(7), personalCaregiver(7)})
+		scopes := dedupeBatchScopes([]reminder.BatchScope{caregiver(7), personalCaregiver(7)})
 		require.Len(t, scopes, 1)
 		assert.True(t, scopes[0].IncludeAssignedActivityStart)
 	})
 
 	t.Run("every recipient gets its own result", func(t *testing.T) {
-		out, err := svc.ComputeBatch(ctx, []BatchScope{caregiver(7), caregiver(8)})
+		out, err := svc.ComputeBatch(ctx, []reminder.BatchScope{caregiver(7), caregiver(8)})
 		require.NoError(t, err)
 		require.Len(t, out, 2)
 		assert.NotSame(t, out[7], out[8], "results must not share a pointer")
@@ -681,7 +660,7 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 
 	t.Run("nil dependencies yield empty disabled results, not a panic", func(t *testing.T) {
 		bare := &service{}
-		out, err := bare.ComputeBatch(ctx, []BatchScope{caregiver(7), admin(1)})
+		out, err := bare.ComputeBatch(ctx, []reminder.BatchScope{caregiver(7), admin(1)})
 		require.NoError(t, err)
 		require.Len(t, out, 2)
 		for id, res := range out {
@@ -698,17 +677,14 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 	t.Parallel()
 
-	nowMin := minutesOfDay(timezone.Now())
-	if nowMin < 60 || nowMin > 1380 {
-		t.Skip("skipping near midnight")
-	}
+	_, nowMin := testClock()
 
 	// A world with many staff, each supervising their own room, with a child
 	// due for pickup in it.
-	build := func(staffCount int) (*world, []BatchScope) {
+	build := func(staffCount int) (*world, []reminder.BatchScope) {
 		w := newWorld()
 
-		scopes := make([]BatchScope, 0, staffCount)
+		scopes := make([]reminder.BatchScope, 0, staffCount)
 		for n := range staffCount {
 			i := n + 1
 			staffID := int64(i)
@@ -727,7 +703,7 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 		return w, scopes
 	}
 
-	run := func(staffCount int) (map[string]int, map[int64]*Result) {
+	run := func(staffCount int) (map[string]int, map[int64]*reminder.Result) {
 		w, scopes := build(staffCount)
 		w.resetCalls()
 		out, err := w.service().ComputeBatch(context.Background(), scopes)
@@ -771,10 +747,7 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 func TestBatchReportsPersonalAssignments(t *testing.T) {
 	t.Parallel()
 
-	nowMin := minutesOfDay(timezone.Now())
-	if nowMin < 60 || nowMin > 1380 {
-		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
-	}
+	_, nowMin := testClock()
 	start := nowMin + 5
 
 	w := newWorld()
@@ -785,7 +758,7 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 	w.assignsInstance(7, 202, false)
 	w.assignsInstance(1, 201, false)
 
-	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7), caregiver(8), admin(1)})
+	batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{personalCaregiver(7), caregiver(8), admin(1)})
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]struct{}{"202": {}}, batch[7].AssignedActivityInstanceIDs,
@@ -811,10 +784,7 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
 	t.Parallel()
 
-	nowMin := minutesOfDay(timezone.Now())
-	if nowMin < 60 || nowMin > 1380 {
-		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
-	}
+	_, nowMin := testClock()
 
 	w := newWorld()
 	w.supervises(7, 10)
@@ -823,7 +793,7 @@ func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
 	w.assignsInstance(7, 201, false)
 	w.assignsInstance(7, 202, false)
 
-	batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
+	batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{personalCaregiver(7)})
 	require.NoError(t, err)
 	require.Contains(t, batch, int64(7))
 
@@ -835,4 +805,37 @@ func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
 	}
 	assert.Contains(t, reminderIDs, "202", "an upcoming personal assignment must be included")
 	assert.NotContains(t, reminderIDs, "201", "an assignment outside supervised rooms must not widen overdue scope")
+}
+
+func (w *world) PickupUpcomingEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.pickup_upcoming_enabled", w.ResolveBool)
+}
+
+func (w *world) PickupOverdueEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.pickup_overdue_enabled", w.ResolveBool)
+}
+
+func (w *world) ActivityStartEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.activity_start_enabled", w.ResolveBool)
+}
+
+func (w *world) ActivityOverdueEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.activity_overdue_enabled", w.ResolveBool)
+}
+
+func (w *world) PickupLeadMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "reminders.pickup_upcoming_lead_minutes", w.ResolveInt)
+}
+
+func (w *world) ActivityLeadMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "reminders.activity_start_lead_minutes", w.ResolveInt)
+}
+
+func (w *world) OverdueThresholdMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "timetable.overdue_threshold_minutes", w.ResolveInt)
+}
+
+func (w *world) BinaryPresence(ctx context.Context) (bool, error) {
+	v, err := testSettingValue(ctx, "operations.presence_mode", w.ResolveString)
+	return v == "binary", err
 }

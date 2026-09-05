@@ -53,6 +53,7 @@ import (
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
@@ -1258,7 +1259,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
-	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{

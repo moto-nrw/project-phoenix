@@ -1,4 +1,4 @@
-package reminders_test
+package compose_test
 
 import (
 	"testing"

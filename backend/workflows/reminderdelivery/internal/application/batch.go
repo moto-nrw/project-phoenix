@@ -13,18 +13,15 @@
 // resolveActivityRooms, buildActivityReminders, assembleResult), and an
 // equivalence test asserts that ComputeBatch and Compute agree scope by scope.
 // If you are about to add a rule here, it belongs in a pure core instead.
-package reminders
+package application
 
 import (
 	"context"
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 // batchConfig combines the tenant-wide settings resolved once per batch with
@@ -51,23 +48,23 @@ func (c batchConfig) anyEnabled() bool { return c.anyPickup() || c.anyActivity()
 
 // batchInputs is everything read once for the whole tenant.
 type batchInputs struct {
-	today           timezone.Date
+	today           string
 	nowMin          int
 	attendanceIDs   []int64
 	visitsByRoom    map[int64][]int64
 	roomsByStaff    map[int64][]int64
-	instances       []*scheduleModel.ActivityInstance
-	students        map[int64]*userModel.Student
-	pickupTimes     map[int64]*scheduleService.EffectivePickupTime
+	instances       []*ports.ActivityInstance
+	students        map[int64]*ports.Student
+	pickupTimes     map[int64]*ports.EffectivePickupTime
 	presenceByStaff map[int64][]int64
 	// assignedInstances holds, per staff member, the activity instances they
 	// are planned on and not absent from.
 	assignedInstances map[int64]map[int64]struct{}
 }
 
-func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[int64]*Result, error) {
+func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope) (map[int64]*reminder.Result, error) {
 	recipients := dedupeBatchScopes(scopes)
-	results := make(map[int64]*Result, len(recipients))
+	results := make(map[int64]*reminder.Result, len(recipients))
 	if len(recipients) == 0 {
 		return results, nil
 	}
@@ -108,7 +105,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 	dueIDSet := make(map[int64]struct{})
 
 	for _, sc := range recipients {
-		resultKey := sc.resultKey()
+		resultKey := resultKey(sc)
 		if !cfg.anyPickup() {
 			pickupsByRecipient[resultKey] = staffPickups{nextChange: -1}
 			continue
@@ -141,13 +138,13 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 	// Per-staff pass two: render.
 	for _, sc := range recipients {
-		sp := pickupsByRecipient[sc.resultKey()]
+		sp := pickupsByRecipient[resultKey(sc)]
 
 		pickupPart, dropped := buildPickupReminders(sp.dues, names)
 		s.logDroppedPickups(dropped)
 		nextChange := sp.nextChange
 
-		var activityPart []Reminder
+		var activityPart []reminder.Reminder
 		if cfg.anyActivity() {
 			roomFilter := activityRoomFilter(sc.Scope, in.roomsByStaff[sc.StaffID])
 			part, next := buildActivityReminders(in.instances,
@@ -181,7 +178,7 @@ func (s *service) ComputeBatch(ctx context.Context, scopes []BatchScope) (map[in
 
 		result := assembleResult(pickupPart, activityPart, nextChange)
 		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
-		results[sc.resultKey()] = result
+		results[resultKey(sc)] = result
 	}
 
 	return results, nil
@@ -207,11 +204,11 @@ func assignedIDStrings(instanceIDs map[int64]struct{}) map[string]struct{} {
 // A staff-less admin is valid when the caller supplies an explicit result key:
 // admin visibility does not depend on a staff row. Non-admins still require a
 // positive StaffID so an absent bulk row can never widen their read scope.
-func dedupeBatchScopes(scopes []BatchScope) []BatchScope {
+func dedupeBatchScopes(scopes []reminder.BatchScope) []reminder.BatchScope {
 	positions := make(map[int64]int, len(scopes))
-	out := make([]BatchScope, 0, len(scopes))
+	out := make([]reminder.BatchScope, 0, len(scopes))
 	for _, sc := range scopes {
-		key := sc.resultKey()
+		key := resultKey(sc)
 		if key == 0 || sc.StaffID < 0 || (sc.StaffID == 0 && !sc.IsAdmin) {
 			continue
 		}
@@ -228,17 +225,17 @@ func dedupeBatchScopes(scopes []BatchScope) []BatchScope {
 // disabledResults gives every recipient its own empty, disabled result. Each
 // gets a distinct Result and a distinct slice: sharing one would couple two
 // people's lists.
-func disabledResults(recipients []BatchScope) map[int64]*Result {
-	results := make(map[int64]*Result, len(recipients))
+func disabledResults(recipients []reminder.BatchScope) map[int64]*reminder.Result {
+	results := make(map[int64]*reminder.Result, len(recipients))
 	for _, sc := range recipients {
-		results[sc.resultKey()] = &Result{Reminders: []Reminder{}}
+		results[resultKey(sc)] = &reminder.Result{Reminders: []reminder.Reminder{}}
 	}
 	return results
 }
 
 // hasCaregiver reports whether any recipient needs the supervision and group
 // reads. Planned assignments are loaded for every recipient, including admins.
-func hasCaregiver(recipients []BatchScope) bool {
+func hasCaregiver(recipients []reminder.BatchScope) bool {
 	for _, sc := range recipients {
 		if !sc.IsAdmin {
 			return true
@@ -247,7 +244,7 @@ func hasCaregiver(recipients []BatchScope) bool {
 	return false
 }
 
-func hasAssignedActivityStart(recipients []BatchScope) bool {
+func hasAssignedActivityStart(recipients []reminder.BatchScope) bool {
 	for _, sc := range recipients {
 		if sc.IncludeAssignedActivityStart {
 			return true
@@ -259,20 +256,20 @@ func hasAssignedActivityStart(recipients []BatchScope) bool {
 // loadBatchConfig resolves the tenant settings in the same order and with the
 // same error contract as Compute. The personal assignment type additionally
 // needs the activity lead time even when the room-scoped start gate is off.
-func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) (batchConfig, error) {
+func (s *service) loadBatchConfig(ctx context.Context, recipients []reminder.BatchScope) (batchConfig, error) {
 	cfg := batchConfig{assignedStart: hasAssignedActivityStart(recipients)}
 	var err error
 
-	if cfg.pickupUpcoming, err = s.resolveToggle(ctx, configModel.KeyRemindersPickupUpcomingEnabled); err != nil {
+	if cfg.pickupUpcoming, err = s.Settings.PickupUpcomingEnabled(ctx); err != nil {
 		return cfg, err
 	}
-	if cfg.pickupOverdue, err = s.resolveToggle(ctx, configModel.KeyRemindersPickupOverdueEnabled); err != nil {
+	if cfg.pickupOverdue, err = s.Settings.PickupOverdueEnabled(ctx); err != nil {
 		return cfg, err
 	}
-	if cfg.activityStart, err = s.resolveToggle(ctx, configModel.KeyRemindersActivityStartEnabled); err != nil {
+	if cfg.activityStart, err = s.Settings.ActivityStartEnabled(ctx); err != nil {
 		return cfg, err
 	}
-	if cfg.activityOverdue, err = s.resolveToggle(ctx, configModel.KeyRemindersActivityOverdueEnabled); err != nil {
+	if cfg.activityOverdue, err = s.Settings.ActivityOverdueEnabled(ctx); err != nil {
 		return cfg, err
 	}
 	if !cfg.anyEnabled() {
@@ -282,7 +279,7 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) 
 	caregivers := hasCaregiver(recipients)
 
 	if cfg.anyPickup() {
-		if cfg.pickupLead, err = s.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes); err != nil {
+		if cfg.pickupLead, err = s.leadMinutes(ctx, s.Settings.PickupLeadMinutes); err != nil {
 			return cfg, err
 		}
 		if caregivers {
@@ -293,7 +290,7 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) 
 	}
 
 	if cfg.activityStart || cfg.assignedStart {
-		if cfg.activityLead, err = s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes); err != nil {
+		if cfg.activityLead, err = s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes); err != nil {
 			return cfg, err
 		}
 	}
@@ -306,24 +303,17 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) 
 	return cfg, nil
 }
 
-func (s *service) resolveToggle(ctx context.Context, key string) (bool, error) {
-	v, err := s.Settings.ResolveBool(ctx, key)
-	if err != nil {
-		return false, fmt.Errorf("resolve %s: %w", key, err)
-	}
-	return v, nil
-}
-
 // loadBatchInputs performs every tenant-wide read exactly once, then derives the
 // per-person presence sets in memory.
-func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipients []BatchScope) (*batchInputs, error) {
+func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipients []reminder.BatchScope) (*batchInputs, error) {
+	today, nowMin := s.Clock()
 	in := &batchInputs{
-		today:             timezone.TodayDate(),
-		nowMin:            minutesOfDay(timezone.Now()),
+		today:             today,
+		nowMin:            nowMin,
 		visitsByRoom:      map[int64][]int64{},
 		roomsByStaff:      map[int64][]int64{},
-		students:          map[int64]*userModel.Student{},
-		pickupTimes:       map[int64]*scheduleService.EffectivePickupTime{},
+		students:          map[int64]*ports.Student{},
+		pickupTimes:       map[int64]*ports.EffectivePickupTime{},
 		presenceByStaff:   map[int64][]int64{},
 		assignedInstances: map[int64]map[int64]struct{}{},
 	}
@@ -405,7 +395,7 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	}
 
 	if cfg.anyActivity() && s.Instance != nil {
-		instances, err := s.Instance.FindByTenantAndDate(ctx, scheduleModel.Date(in.today))
+		instances, err := s.Instance.FindByTenantAndDate(ctx, in.today)
 		if err != nil {
 			return nil, err
 		}
@@ -432,7 +422,7 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		if s.BulkInstanceStaff != nil {
 			instanceIDs := make([]int64, 0, len(instances))
 			for _, inst := range instances {
-				if inst != nil && inst.Status == scheduleModel.InstanceStatusPlanned {
+				if inst != nil && inst.Status == ports.InstanceStatusPlanned {
 					instanceIDs = append(instanceIDs, inst.ID)
 				}
 			}
@@ -458,8 +448,8 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	return in, nil
 }
 
-func assignedActivityFilter(instanceIDs map[int64]struct{}) func(*scheduleModel.ActivityInstance) bool {
-	return func(inst *scheduleModel.ActivityInstance) bool {
+func assignedActivityFilter(instanceIDs map[int64]struct{}) func(*ports.ActivityInstance) bool {
+	return func(inst *ports.ActivityInstance) bool {
 		_, assigned := instanceIDs[inst.ID]
 		return assigned
 	}
@@ -471,9 +461,9 @@ func assignedUpcomingFilter(
 	instanceIDs map[int64]struct{},
 	roomFilter map[int64]struct{},
 	roomUpcomingEnabled bool,
-) func(*scheduleModel.ActivityInstance) bool {
+) func(*ports.ActivityInstance) bool {
 	assigned := assignedActivityFilter(instanceIDs)
-	return func(inst *scheduleModel.ActivityInstance) bool {
+	return func(inst *ports.ActivityInstance) bool {
 		if !assigned(inst) {
 			return false
 		}
@@ -490,7 +480,7 @@ func assignedUpcomingFilter(
 
 // batchPresence reproduces pickupScopeStudentIDs for one recipient, from
 // already-loaded data.
-func (s *service) batchPresence(sc BatchScope, cfg batchConfig, in *batchInputs) []int64 {
+func (s *service) batchPresence(sc reminder.BatchScope, cfg batchConfig, in *batchInputs) []int64 {
 	if sc.IsAdmin || cfg.binaryPresence {
 		return in.attendanceIDs
 	}
@@ -506,8 +496,8 @@ func (s *service) batchPresence(sc BatchScope, cfg batchConfig, in *batchInputs)
 // batchReadableStudents resolves the loaded student rows for one recipient.
 // Every recipient is staff, so since #2329 the whole presence set is readable —
 // per-group gating is gone.
-func (s *service) batchReadableStudents(sc BatchScope, _ batchConfig, in *batchInputs) (map[int64]*userModel.Student, error) {
-	readable := make(map[int64]*userModel.Student)
+func (s *service) batchReadableStudents(sc reminder.BatchScope, _ batchConfig, in *batchInputs) (map[int64]*ports.Student, error) {
+	readable := make(map[int64]*ports.Student)
 	for _, id := range in.presenceByStaff[sc.StaffID] {
 		if st := in.students[id]; st != nil {
 			readable[id] = st
@@ -516,7 +506,7 @@ func (s *service) batchReadableStudents(sc BatchScope, _ batchConfig, in *batchI
 	return readable, nil
 }
 
-func hasAdmin(recipients []BatchScope) bool {
+func hasAdmin(recipients []reminder.BatchScope) bool {
 	for _, sc := range recipients {
 		if sc.IsAdmin {
 			return true
