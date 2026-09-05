@@ -201,6 +201,58 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("ends a history navigation after a popstate event without a URL change", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useContext(AppRouterContext);
+      return (
+        <button type="button" onClick={() => progressRouter?.back()}>
+          Zurück
+        </button>
+      );
+    }
+
+    renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("ends a programmatic navigation after a redirected destination is active", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useContext(AppRouterContext);
+      return (
+        <button
+          type="button"
+          onClick={() => progressRouter?.push("/staff/dienstplan")}
+        >
+          Zum Dienstplan
+        </button>
+      );
+    }
+
+    navigateTo("/rooms");
+    const rendered = renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Zum Dienstplan" }));
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/dienstplan");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("ends an aborted programmatic navigation after the fallback timeout", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useContext(AppRouterContext);

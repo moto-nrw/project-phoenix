@@ -44,6 +44,7 @@ interface NavigationProgressStore {
   readonly endLink: () => void;
   readonly startProgrammatic: (target: string | null) => number;
   readonly completeProgrammatic: (currentUrl: string) => void;
+  readonly completeHistory: (currentUrl: string) => void;
   readonly cancelProgrammatic: (id: number) => void;
 }
 
@@ -52,6 +53,7 @@ const PROGRAMMATIC_NAVIGATION_TIMEOUT_MS = 10_000;
 interface PendingProgrammaticNavigation {
   readonly id: number;
   readonly target: string | null;
+  readonly supersededTargets: ReadonlySet<string>;
   readonly origin: string;
   readonly timeout: ReturnType<typeof setTimeout>;
 }
@@ -94,16 +96,20 @@ function createStore(): NavigationProgressStore {
       const id = nextProgrammaticNavigationId + 1;
       nextProgrammaticNavigationId = id;
       update(() => {
+        const previous = pendingProgrammaticNavigation;
         // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
-        // älteres Ziel würde nie mehr eintreffen und darf den Balken deshalb
-        // nicht bis zum Zeitlimit festhalten.
-        if (pendingProgrammaticNavigation) {
-          clearTimeout(pendingProgrammaticNavigation.timeout);
+        // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
+        // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
+        const supersededTargets = new Set(previous?.supersededTargets);
+        if (previous?.target !== null && previous?.target !== undefined) {
+          supersededTargets.add(previous.target);
         }
+        if (previous) clearTimeout(previous.timeout);
         const origin = currentUrl();
         pendingProgrammaticNavigation = {
           id,
           target,
+          supersededTargets,
           origin,
           timeout: setTimeout(() => {
             if (pendingProgrammaticNavigation?.id !== id) return;
@@ -117,12 +123,17 @@ function createStore(): NavigationProgressStore {
     },
     completeProgrammatic: (url) => {
       const pending = pendingProgrammaticNavigation;
-      if (
-        !pending ||
-        (pending.target !== null
-          ? pending.target !== url
-          : pending.origin === url)
-      ) {
+      if (!pending || pending.supersededTargets.has(url)) {
+        return;
+      }
+      update(() => {
+        clearTimeout(pending.timeout);
+        pendingProgrammaticNavigation = null;
+      });
+    },
+    completeHistory: (url) => {
+      const pending = pendingProgrammaticNavigation;
+      if (!pending || pending.target !== null || pending.origin !== url) {
         return;
       }
       update(() => {
@@ -268,6 +279,12 @@ function NavigationProgressCompletion({
   useEffect(() => {
     store.completeProgrammatic(currentUrl());
   }, [pathname, search, store]);
+
+  useEffect(() => {
+    const completeHistory = () => store.completeHistory(currentUrl());
+    window.addEventListener("popstate", completeHistory);
+    return () => window.removeEventListener("popstate", completeHistory);
+  }, [store]);
 
   return null;
 }
