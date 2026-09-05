@@ -48,12 +48,13 @@ const ALLOWED_ORPHANED_BOUNDARIES = new Set(["[tenant]/(protected)"]);
  * Seitenwechsel die vorherige Seite stehen, bis die neue bereit ist; der
  * Fortschrittsbalken der Hülle zeigt, dass etwas läuft.
  *
- * Was es nicht mehr geben darf, ist eine geteilte sichtbare Hülle über
- * mehreren Seiten. `(protected)/loading.tsx` bleibt absichtlich leer: Sie
- * fängt nur den ganzseitigen Root-Fallback ab, damit die Portalhülle und die
- * bisherige Seite sichtbar bleiben. Die alte Fassung zeigte einen allgemeinen
- * Ladekringel in Inhaltshöhe: erst sprang das Layout auf Kringelhöhe zusammen,
- * dann auf das Skelett der Zielseite, dann auf den Inhalt.
+ * Was es nicht mehr geben darf, ist eine geteilte sichtbare Hülle während
+ * eines Seitenwechsels. `(protected)/loading.tsx` zeigt nur beim ersten
+ * Aufruf einen Platzhalter im Portalrahmen; bei einer gemeldeten Navigation
+ * bleibt sie leer, damit die bisherige Seite sichtbar bleibt. Die alte
+ * Fassung zeigte bei jedem Wechsel einen allgemeinen Ladekringel in
+ * Inhaltshöhe: erst sprang das Layout auf Kringelhöhe zusammen, dann auf das
+ * Skelett der Zielseite, dann auf den Inhalt.
  * Gemessen (`pnpm run perf:nav`, 150 ms RTT) trat das auf /settings und
  * /statistics bei jedem Wechsel auf.
  *

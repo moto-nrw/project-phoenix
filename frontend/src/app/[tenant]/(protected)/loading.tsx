@@ -1,9 +1,13 @@
+"use client";
+
+import { Loading } from "~/components/ui/loading";
+import { useNavigationProgressPending } from "~/components/ui/navigation-progress";
+
 /**
- * Fängt den Root-Fallback ab, damit ein Seitenwechsel im Personal-Portal die
- * feste Portalhülle nicht durch die ganzseitige Ladeansicht ersetzt. Die
- * vorherige Seite bleibt sichtbar; den ausstehenden Wechsel meldet der
- * Fortschrittsbalken der Hülle.
+ * Zeigt beim ersten Aufruf einen Platzhalter im persistenten Portalrahmen.
+ * Bei einem bereits gemeldeten Seitenwechsel bleibt die alte Seite sichtbar;
+ * der Fortschrittsbalken der Hülle übernimmt dann die Rückmeldung.
  */
 export default function ProtectedLoading() {
-  return null;
+  return useNavigationProgressPending() ? null : <Loading fullPage={false} />;
 }

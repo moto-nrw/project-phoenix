@@ -15,8 +15,10 @@ import { NAVIGATION_HOPS, type NavigationHop } from "./targets";
 //                     Seite. Muss 0 sein, sonst ist es ein Full-Reload.
 //   rsc             — die RSC-Nutzlast des Zielsegments (`?_rsc=`).
 //   api             — Seitendaten. Die Hülle darf hier nicht auftauchen.
-//   shellApi        — Aufrufe der Hüllen-Endpunkte. Muss 0 sein: die Hüllen-
-//                     Daten kommen einmal beim Seitenaufruf (#2973).
+//   shellApi        — Aufrufe der Hüllen-Endpunkte. Bis auf die bewusst beim
+//                     Seitenwechsel erneuerten Ankündigungen und das beim
+//                     ersten Öffnen von Einstellungen geladene Schema muss
+//                     die Liste leer sein (#2973).
 //   shellSurvived   — die Hülle wurde vor dem Klick markiert; ist die Marke
 //                     danach weg, hat React sie neu aufgebaut.
 //   fallbacks       — welche Ladehüllen zwischendurch sichtbar waren.
@@ -57,6 +59,13 @@ const SHELL_ENDPOINTS = [
   "/api/auth/account-tenants",
   "/api/auth/session",
 ];
+const ALLOWED_NAVIGATION_SHELL_ENDPOINTS = new Set([
+  // Eine neue Ankündigung erscheint bewusst beim Seitenwechsel statt mitten
+  // in einer Eingabe. Das Schema wird beim ersten Öffnen von Einstellungen
+  // nachgeladen und danach im Cache gehalten.
+  "/api/platform/announcements/unread",
+  "/api/settings/schema",
+]);
 
 interface NavProbeWindow {
   __navProbe?: { fallbacks: string[]; observer: MutationObserver | null };
@@ -75,6 +84,25 @@ interface HopResult {
   shellApi: string[];
   fallbacks: string[];
   paths: string[];
+}
+
+function expectNavigationInvariants(result: HopResult): void {
+  const transition = `${result.from} → ${result.to}`;
+  expect(result.documents, `${transition}: kein Dokument-Reload`).toBe(0);
+  expect(
+    result.shellSurvived,
+    `${transition}: Portalhülle bleibt erhalten`,
+  ).toBe(true);
+  expect(
+    result.shellApi.filter(
+      (endpoint) => !ALLOWED_NAVIGATION_SHELL_ENDPOINTS.has(endpoint),
+    ),
+    `${transition}: keine wiederholten Hüllen-Endpunkte`,
+  ).toEqual([]);
+  expect(
+    result.fallbacks.filter((fallback) => fallback.startsWith("loading:")),
+    `${transition}: kein allgemeiner Ladeplatzhalter`,
+  ).toEqual([]);
 }
 
 /**
@@ -281,7 +309,9 @@ test("measure sidebar navigation", async ({ browser }) => {
       await recorder.waitForQuiet(QUIET);
       let from = NAVIGATION_HOPS[0]!.path;
       for (const hop of NAVIGATION_HOPS.slice(1)) {
-        results.push(await measureHop(page, recorder, from, hop));
+        const result = await measureHop(page, recorder, from, hop);
+        expectNavigationInvariants(result);
+        results.push(result);
         from = hop.path;
       }
     } finally {

@@ -46,6 +46,7 @@ import {
   NavigationProgressProvider,
   NavigationProgressReporter,
 } from "./navigation-progress";
+import ProtectedLoading from "~/app/[tenant]/(protected)/loading";
 
 const appRouter = router as unknown as AppRouterInstance;
 
@@ -202,7 +203,7 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
-  it("completes a repeated target after intervening navigations", () => {
+  it("keeps progress for repeated targets until every navigation commits", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useProgressRouter();
       return (
@@ -235,7 +236,59 @@ describe("NavigationProgress", () => {
       </AppRouterContext.Provider>,
     );
 
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/calendar-periods");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/first");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("shows the protected fallback initially but not during a pending navigation", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useProgressRouter();
+      return (
+        <button
+          type="button"
+          onClick={() => progressRouter?.push("/calendar-periods")}
+        >
+          Zu den Planungszeiträumen
+        </button>
+      );
+    }
+
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <ProgrammaticNavigation />
+      </>,
+    );
+
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
+    );
+
+    expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
   it("does not show progress when router.back cannot traverse history", () => {
