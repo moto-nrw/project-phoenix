@@ -22,10 +22,12 @@ import (
 // other. Tests that share a package DB must use CaptureQueriesForContext and
 // pass counter.Context(ctx) to the operation under test.
 type QueryCounter struct {
-	enabled atomic.Bool
-	mu      sync.Mutex
-	queries []countedQuery
-	scope   uint64
+	enabled            atomic.Bool
+	mu                 sync.Mutex
+	queries            []countedQuery
+	scope              uint64
+	rowsAffected       int64
+	statementsWithRows int
 }
 
 type queryCounterContextKey struct{}
@@ -93,7 +95,27 @@ func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) c
 	return ctx
 }
 
-func (*QueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
+func (c *QueryCounter) AfterQuery(ctx context.Context, event *bun.QueryEvent) {
+	if !c.enabled.Load() || (c.scope != 0 && ctx.Value(queryCounterContextKey{}) != c.scope) || event.Result == nil {
+		return
+	}
+	rows, err := event.Result.RowsAffected()
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	c.rowsAffected += rows
+	c.statementsWithRows++
+	c.mu.Unlock()
+}
+
+// Rows returns driver-reported rows and the number of statements with a known
+// row count. SELECT rows are included; these are not distinct entity counts.
+func (c *QueryCounter) Rows() (affected int64, statements int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.rowsAffected, c.statementsWithRows
+}
 
 // Start resumes recording after Stop.
 func (c *QueryCounter) Start() { c.enabled.Store(true) }
@@ -105,6 +127,8 @@ func (c *QueryCounter) Stop() { c.enabled.Store(false) }
 func (c *QueryCounter) Reset() {
 	c.mu.Lock()
 	c.queries = nil
+	c.rowsAffected = 0
+	c.statementsWithRows = 0
 	c.mu.Unlock()
 }
 

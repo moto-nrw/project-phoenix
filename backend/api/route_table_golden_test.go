@@ -283,6 +283,9 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		require.NotNil(t, runtime.worker)
 		api, ok := runtime.Handler().(*API)
 		require.True(t, ok)
+		if *runtimeCheckpointOutput != "" {
+			measureRuntimeCheckpoint(t, runtime)
+		}
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
