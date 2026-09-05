@@ -1546,7 +1546,11 @@ export const appChapters: readonly GuideChapter[] = [
           "`Im Kalender abonnieren` wählen. Oder den Link kopieren und im persönlichen Kalender einfügen.",
           "Termine, Betreuungsangebote und Dienstplan-Schichten erscheinen dort automatisch. Änderungen in moto werden übernommen.",
           "Das Abo ist nur zum Lesen. Änderungen im persönlichen Kalender wirken nicht auf moto zurück. Sie sehen den Link nur einmal. Geben Sie ihn nicht weiter.",
-          "Mit `Link neu erstellen` endet das bisherige Abo. Kalender mit dem alten Link erhalten danach keine Änderungen mehr.",
+          "Wenn Ihre Einrichtung den Kalenderzugang mit App-Passwort erlaubt, sehen Sie zusätzlich `Adresse`, `Benutzername` und `App-Passwort`. Tragen Sie diese Daten zum Beispiel in Thunderbird als CalDAV-Kalender ein.",
+          "Der normale Abo-Link funktioniert auch ohne diese Einstellung.",
+          "Auch die Verbindung über CalDAV ist nur zum Lesen. Änderungen im Kalenderprogramm erreichen moto nicht.",
+          "Sie sehen das App-Passwort nur einmal. Speichern Sie es gleich im Kalenderprogramm.",
+          "Mit `Zugangsdaten neu erstellen` endet das bisherige Abo. Kalender mit dem alten Link oder App-Passwort erhalten danach keine Änderungen mehr.",
         ],
         callout: {
           title: "Eltern nur mit Portalzugang einladen",
@@ -1554,7 +1558,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Mein Kalender mit Tag/Woche/Monat, Termin-Dialog, Bearbeiten/Absagen/Löschen, Teilnehmerübersicht und dem Bereich Kalender abonnieren.",
+          "Mein Kalender mit Tag/Woche/Monat, Termin-Dialog, Bearbeiten/Absagen/Löschen, Teilnehmerübersicht sowie dem Bereich Kalender abonnieren mit optionalen CalDAV-Zugangsdaten.",
       },
       {
         id: "dienstplan",

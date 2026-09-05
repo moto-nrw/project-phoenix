@@ -1782,7 +1782,22 @@
     "createNew": "Krijoni lidhje të re abonimi"
   },
   "staffCalendarSubscribe": {
-    "description": "Abononi një herë takimet tuaja në kalendarin e telefonit. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht. Nuk keni nevojë ta shtoni secilin takim veçmas. Ndryshimet në kalendarin e telefonit nuk kalojnë te moto."
+    "description": "Abononi një herë takimet tuaja në kalendarin e telefonit. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht. Nuk keni nevojë ta shtoni secilin takim veçmas. Ndryshimet në kalendarin e telefonit nuk kalojnë te moto.",
+    "createNew": "Krijoni të dhëna të reja hyrjeje",
+    "regenerate": "Krijoni të dhëna të reja hyrjeje",
+    "alreadyActive": "Të dhënat tuaja të hyrjes janë tashmë aktive. Ato shfaqen vetëm një herë. Nëse nuk i keni më, krijoni të reja. Kjo mbyll edhe abonimin e mëparshëm të kalendarit.",
+    "regenerated": "U krijuan të dhëna të reja hyrjeje. Të mëparshmet nuk vlejnë më.",
+    "caldavTitle": "Lidhuni me një program kalendari",
+    "caldavDescription": "Shikoni kalendarin tuaj moto, për shembull në Thunderbird. Atje mund t'i shikoni vetëm takimet.",
+    "caldavAddress": "Adresa",
+    "caldavUsername": "Emri i përdoruesit",
+    "caldavPassword": "Fjalëkalimi i aplikacionit",
+    "addressCopied": "Adresa u kopjua.",
+    "usernameCopied": "Emri i përdoruesit u kopjua.",
+    "passwordCopied": "Fjalëkalimi i aplikacionit u kopjua.",
+    "passwordOnce": "Fjalëkalimin e aplikacionit e shihni vetëm tani. Ruajeni menjëherë në programin e kalendarit.",
+    "passwordHidden": "Fjalëkalimi i aplikacionit është shfaqur tashmë. Nëse nuk e keni më, krijoni të dhëna të reja hyrjeje.",
+    "caldavUnavailable": "Lidhja nuk është e disponueshme tani. Ju lutemi provoni përsëri."
   },
   "parentNews": {
     "kicker": "Postë nga OGS",

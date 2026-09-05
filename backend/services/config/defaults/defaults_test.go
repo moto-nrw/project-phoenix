@@ -162,6 +162,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// the Erinnerungen tab.
 		"calendar.appointment_reminder_enabled",
 		"calendar.appointment_reminder_lead_hours",
+		// Read-only staff CalDAV access (#3051).
+		"calendar.caldav_enabled",
 		// Info-point display feature (issue #1325): opt-in toggle, default off.
 		"display.enabled",
 		// Absence-approval email notifications (issue #1419 4d).
@@ -185,6 +187,22 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestCalendarCalDAVSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyCalendarCalDAVEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, "Kalenderzugang mit App-Passwort erlauben", def.Label)
+	assert.Equal(t, "Mitarbeitende können ihren moto-Kalender mit Benutzername und App-Passwort verbinden. Der normale Abo-Link bleibt weiterhin verfügbar. Termine können nur angesehen werden.", def.Description)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "system", def.Tab)
+	assert.Equal(t, "schnittstellen", def.Category)
 }
 
 func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {

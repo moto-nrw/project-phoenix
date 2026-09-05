@@ -284,7 +284,7 @@ type Factory struct {
 	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
-	Calendar            calendarService.Service
+	Calendar            calendarService.FullService
 	CalendarFeedCleanup calendarService.FeedCleanupService
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
@@ -340,6 +340,7 @@ type FactoryConfig struct {
 	EmailFromName              string
 	EmailFromAddress           string
 	FrontendURL                string
+	PublicAPIURL               string
 	ParentsURL                 string
 	SchoolURL                  string
 	AppEnv                     string
@@ -371,6 +372,7 @@ func currentFactoryConfig() FactoryConfig {
 		EmailFromName:              viper.GetString("email_from_name"),
 		EmailFromAddress:           viper.GetString("email_from_address"),
 		FrontendURL:                viper.GetString("frontend_url"),
+		PublicAPIURL:               viper.GetString("next_public_api_url"),
 		ParentsURL:                 viper.GetString("parents_url"),
 		SchoolURL:                  viper.GetString("school_url"),
 		AppEnv:                     viper.GetString("app_env"),
@@ -428,6 +430,7 @@ func NewFactoryWithModules(
 	repos *repositories.Factory,
 	db *bun.DB,
 	logger *slog.Logger,
+	publicAPIURL string,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
@@ -452,7 +455,9 @@ func NewFactoryWithModules(
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	cfg := currentFactoryConfig()
+	cfg.PublicAPIURL = publicAPIURL
+	return newFactory(repos, db, logger, cfg, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -570,6 +575,15 @@ func newFactory(
 	appEnv := strings.ToLower(cfg.AppEnv)
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+	}
+
+	rawPublicAPIURL := cfg.PublicAPIURL
+	publicAPIURL := strings.TrimRight(rawPublicAPIURL, "/")
+	if publicAPIURL == "" {
+		return nil, fmt.Errorf("NEXT_PUBLIC_API_URL is required")
+	}
+	if appEnv == "production" && !strings.HasPrefix(publicAPIURL, "https://") {
+		return nil, fmt.Errorf("NEXT_PUBLIC_API_URL must use https:// in production (received %q)", rawPublicAPIURL)
 	}
 
 	// Parents-portal URL - used for every parent-facing email link
@@ -2633,12 +2647,14 @@ func newFactory(
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
 		SchoolRepo:             repos.School,
 		Settings:               settingsService,
+		CalDAVPolicy:           calendarCalDAVPolicy{settings: settingsService},
 		AccountRepo:            repos.Account,
 		StaffFeedRepo:          repos.StaffCalendarFeedToken,
 		StaffFeedTombstoneRepo: repos.CalendarStaffFeedTombstone,
 		PersonRepo:             repos.Person,
 		ParentsURL:             parentsURL,
 		FrontendURL:            frontendURL,
+		CalDAVURL:              publicAPIURL,
 		Notifier:               notificationsService,
 		ReminderNotifier:       notificationsService,
 		Preferences:            notificationPreferencesService,

@@ -64,7 +64,7 @@ describe("CalendarSubscribePanel", () => {
       "webcal://parents.test/api/calendar-feed/abc",
     );
     expect(
-      screen.getByDisplayValue("https://parents.test/api/calendar-feed/abc"),
+      screen.getByText("https://parents.test/api/calendar-feed/abc"),
     ).toBeInTheDocument();
   });
 
@@ -145,9 +145,7 @@ describe("CalendarSubscribePanel", () => {
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(
-        screen.getByDisplayValue(
-          "https://parents.test/api/calendar-feed/fresh",
-        ),
+        screen.getByText("https://parents.test/api/calendar-feed/fresh"),
       ).toBeInTheDocument(),
     );
   });
@@ -170,7 +168,7 @@ describe("CalendarSubscribePanel", () => {
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(
-        screen.getByDisplayValue("https://parents.test/api/calendar-feed/new"),
+        screen.getByText("https://parents.test/api/calendar-feed/new"),
       ).toBeInTheDocument(),
     );
     expect(mockToastSuccess).toHaveBeenCalled();
@@ -197,7 +195,7 @@ describe("CalendarSubscribePanel staff audience", () => {
 
     await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
     expect(
-      await screen.findByDisplayValue(
+      await screen.findByText(
         "https://school.test/api/calendar-feed/staff-token",
       ),
     ).toBeInTheDocument();
@@ -210,8 +208,80 @@ describe("CalendarSubscribePanel staff audience", () => {
     fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
 
     expect(
-      await screen.findByText(/der bisherige gilt dann nicht mehr/),
+      await screen.findByText(/bisherige Kalender-Abo endet dann ebenfalls/),
     ).toBeInTheDocument();
     expect(mockRotateStaffFeed).not.toHaveBeenCalled();
+  });
+
+  it("keeps CalDAV hidden when the school has not enabled it", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "staff-token",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByRole("heading", {
+        name: /Mit einem Kalenderprogramm verbinden/,
+      }),
+    ).toBeNull();
+  });
+
+  it("shows the read-only CalDAV access details only once", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "staff-token",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" calDAVEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /Mit einem Kalenderprogramm verbinden/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("https://school.test/api/caldav/"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("staff@example.test")).toBeInTheDocument();
+    expect(screen.getByText("staff-token")).toBeInTheDocument();
+    expect(screen.getByText(/App-Passwort nur jetzt/)).toBeInTheDocument();
+    expect(screen.getByText(/nur ansehen/)).toBeInTheDocument();
+  });
+
+  it("explains how to replace access details when the password was already shown", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "",
+      webcal_url: "",
+      caldav: {
+        server_url: "https://school.test/api/caldav/",
+        username: "staff@example.test",
+        app_password: "",
+      },
+    });
+
+    render(<CalendarSubscribePanel audience="staff" calDAVEnabled />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(/App-Passwort wurde bereits gezeigt/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Neue Zugangsdaten erstellen/ }),
+    ).toBeInTheDocument();
   });
 });

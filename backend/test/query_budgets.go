@@ -71,6 +71,10 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.planned_now": {max: 4},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// services/calendar — one authenticated CalDAV snapshot. The operation
+	// resolves the capability owner once, then batch-loads the shared personal
+	// calendar projection regardless of the number of returned VEVENTs.
+	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
 	"services.active.work_session_history.reads":           {max: 7},
 	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},

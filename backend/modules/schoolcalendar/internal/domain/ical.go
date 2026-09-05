@@ -62,12 +62,25 @@ var weekdayToICS = map[string]string{
 }
 
 func RenderCalendar(name string, events []CalendarEvent) string {
+	return renderCalendar(name, events, true)
+}
+
+// RenderCalendarObject renders one RFC 5545 calendar object for CalDAV. A
+// calendar object contains exactly one VEVENT and deliberately omits METHOD,
+// which describes message transport rather than stored calendar data.
+func RenderCalendarObject(event CalendarEvent) string {
+	return renderCalendar("", []CalendarEvent{event}, false)
+}
+
+func renderCalendar(name string, events []CalendarEvent, publish bool) string {
 	var b strings.Builder
 	writeLine(&b, "BEGIN:VCALENDAR")
 	writeLine(&b, "VERSION:2.0")
 	writeLine(&b, "PRODID:"+prodID)
 	writeLine(&b, "CALSCALE:GREGORIAN")
-	writeLine(&b, "METHOD:PUBLISH")
+	if publish {
+		writeLine(&b, "METHOD:PUBLISH")
+	}
 	if name != "" {
 		writeLine(&b, "X-WR-CALNAME:"+escapeText(name))
 		writeLine(&b, "X-WR-TIMEZONE:"+berlinTZID)

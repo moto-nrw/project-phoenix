@@ -72,8 +72,9 @@ func newGoldenAPI(t *testing.T) *API {
 
 	goldenAPIOnce.Do(func() {
 		runtime, err := newRuntime(ServeConfig{
-			Port:   "0",
-			Logger: slog.Default(),
+			Port:         "0",
+			PublicAPIURL: "http://api.invalid",
+			Logger:       slog.Default(),
 		})
 		if err != nil {
 			goldenAPIErr = err

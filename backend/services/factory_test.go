@@ -22,6 +22,7 @@ func testFactoryConfig() services.FactoryConfig {
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
 		FrontendURL:      "http://localhost:3000",
+		PublicAPIURL:     "http://localhost:8080",
 		ParentsURL:       "http://parents.localhost:3000",
 		SchoolURL:        "http://schule.localhost:3000",
 		TenantDomain:     "localhost",
@@ -225,6 +226,19 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.Contains(t, err.Error(), "FRONTEND_URL")
+}
+
+func TestNewFactory_PublicAPIURL_Required(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	cfg := testFactoryConfig()
+	cfg.PublicAPIURL = ""
+
+	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db), db, slog.Default(), cfg)
+	require.Error(t, err)
+	require.Nil(t, factory)
+	assert.ErrorContains(t, err, "NEXT_PUBLIC_API_URL")
 }
 
 func TestNewFactory_PortalURLs_Required(t *testing.T) {

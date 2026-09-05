@@ -1,3 +1,5 @@
+CONNECT /api/caldav
+CONNECT /api/caldav/*
 CONNECT /internal/metrics
 DELETE /api/active/combined/{id}
 DELETE /api/active/groups/{id}
@@ -10,6 +12,8 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/announcement-attachments/{announcementId}/{attachmentId}
+DELETE /api/caldav
+DELETE /api/caldav/*
 DELETE /api/calendar/appointments/{appointmentId}
 DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
@@ -106,6 +110,7 @@ DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
+GET /.well-known/caldav
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
 GET /api/active/analytics/dashboard
@@ -159,6 +164,8 @@ GET /api/announcement-attachments/{announcementId}
 GET /api/announcement-attachments/{announcementId}/{attachmentId}/download
 GET /api/birthdays/
 GET /api/birthdays/opt-out
+GET /api/caldav
+GET /api/caldav/*
 GET /api/calendar/appointments/{appointmentId}
 GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
@@ -564,8 +571,14 @@ GET /school/staff-messages/unread-count
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+HEAD /api/caldav
+HEAD /api/caldav/*
 HEAD /internal/metrics
+OPTIONS /api/caldav
+OPTIONS /api/caldav/*
 OPTIONS /internal/metrics
+PATCH /api/caldav
+PATCH /api/caldav/*
 PATCH /api/display/{id}/
 PATCH /api/enrollment/requests/{statusToken}
 PATCH /api/enrollment/schema/{id}
@@ -605,6 +618,8 @@ POST /api/admin/grade-transitions/{id}/apply
 POST /api/admin/grade-transitions/{id}/revert
 POST /api/announcement-attachments/{announcementId}
 POST /api/birthdays/staff-export
+POST /api/caldav
+POST /api/caldav/*
 POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
@@ -923,6 +938,8 @@ PUT /api/activities/{id}/students
 PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
 PUT /api/birthdays/opt-out
+PUT /api/caldav
+PUT /api/caldav/*
 PUT /api/calendar/appointments/{appointmentId}
 PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
@@ -1022,5 +1039,9 @@ PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
+QUERY /api/caldav
+QUERY /api/caldav/*
 QUERY /internal/metrics
+TRACE /api/caldav
+TRACE /api/caldav/*
 TRACE /internal/metrics

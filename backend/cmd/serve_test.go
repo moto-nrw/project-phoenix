@@ -98,6 +98,7 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 		Request: &sentry.Request{
 			Data: `{"notes":"person names and free text"}`,
 			Headers: map[string]string{
+				"Authorization":    "Basic replayable-caldav-credentials",
 				"X-Staff-PIN":      "1234",
 				"X-Staff-Auth-Pin": "5678",
 				"Accept":           "application/json",
@@ -109,6 +110,7 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 
 	require.NotNil(t, scrubbed.Request)
 	assert.Empty(t, scrubbed.Request.Data)
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["Authorization"])
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-PIN"])
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-Auth-Pin"])
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
@@ -156,6 +158,7 @@ func validServeConfig() serveConfig {
 		JWTExpiry:           "15m",
 		JWTRefreshExpiry:    "168h",
 		FrontendURL:         "http://localhost:3000",
+		PublicAPIURL:        "http://localhost:8080",
 		ParentsURL:          "http://parents.localhost:3000",
 		PhoenixAuthPassword: "phoenix_auth_dev",
 		DatabaseDSN:         "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",

@@ -1782,7 +1782,22 @@
     "createNew": "Neuen Abo-Link erstellen"
   },
   "staffCalendarSubscribe": {
-    "description": "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht."
+    "description": "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht.",
+    "createNew": "Neue Zugangsdaten erstellen",
+    "regenerate": "Zugangsdaten neu erstellen",
+    "alreadyActive": "Ihre Zugangsdaten sind bereits aktiv. Sie werden nur einmal gezeigt. Wenn Sie sie nicht mehr haben, erstellen Sie neue. Das bisherige Kalender-Abo endet dann ebenfalls.",
+    "regenerated": "Neue Zugangsdaten erstellt. Die bisherigen gelten nicht mehr.",
+    "caldavTitle": "Mit einem Kalenderprogramm verbinden",
+    "caldavDescription": "Zeigen Sie Ihren moto-Kalender zum Beispiel in Thunderbird. Dort können Sie die Termine nur ansehen.",
+    "caldavAddress": "Adresse",
+    "caldavUsername": "Benutzername",
+    "caldavPassword": "App-Passwort",
+    "addressCopied": "Adresse kopiert.",
+    "usernameCopied": "Benutzername kopiert.",
+    "passwordCopied": "App-Passwort kopiert.",
+    "passwordOnce": "Sie sehen das App-Passwort nur jetzt. Speichern Sie es gleich im Kalenderprogramm.",
+    "passwordHidden": "Das App-Passwort wurde bereits gezeigt. Wenn Sie es nicht mehr haben, erstellen Sie neue Zugangsdaten.",
+    "caldavUnavailable": "Die Verbindung ist gerade nicht verfügbar. Bitte versuchen Sie es noch einmal."
   },
   "parentNews": {
     "kicker": "Post von der OGS",

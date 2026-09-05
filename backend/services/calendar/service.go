@@ -87,6 +87,16 @@ type FeedCleanupService interface {
 type FullService interface {
 	Service
 	FeedCleanupService
+	StaffCalDAVService
+}
+
+// StaffCalDAVService keeps the CalDAV protocol adapter behind one deep
+// calendar interface: callers receive either the UI credentials or one fully
+// authorised, privacy-filtered calendar snapshot.
+type StaffCalDAVService interface {
+	StaffCalendarAccess(ctx context.Context) (StaffCalendarAccessInfo, error)
+	RotateStaffCalendarAccess(ctx context.Context) (StaffCalendarAccessInfo, error)
+	AuthenticateStaffCalDAV(ctx context.Context, username, appPassword string) (*StaffCalDAVCalendar, error)
 }
 
 type Config struct {
@@ -115,12 +125,14 @@ type Config struct {
 	PushOutbox             PushOutboxCanceller
 	SchoolRepo             platformModels.SchoolRepository
 	Settings               LogoResolver
+	CalDAVPolicy           CalDAVPolicy
 	AccountRepo            FeedAccountRepo
 	StaffFeedRepo          authModels.StaffCalendarFeedTokenRepository
 	StaffFeedTombstoneRepo calModels.StaffFeedTombstoneRepository
 	PersonRepo             userModels.PersonRepository
 	ParentsURL             string
 	FrontendURL            string
+	CalDAVURL              string
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -166,6 +178,39 @@ type CalendarEvent struct {
 
 type CalendarRenderer interface {
 	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
+	RenderCalendarObject(context.Context, CalendarEvent) (string, error)
+}
+
+type CalDAVPolicy interface {
+	Enabled(context.Context) (bool, error)
+	EnabledForTenant(context.Context, int64) (bool, error)
+}
+
+type StaffCalendarAccessInfo struct {
+	URL       string
+	WebcalURL string
+	CalDAV    *StaffCalDAVCredentials
+}
+
+type StaffCalDAVCredentials struct {
+	ServerURL   string
+	Username    string
+	AppPassword string
+}
+
+type StaffCalDAVCalendar struct {
+	AccountID string
+	TenantID  int64
+	Revision  string
+	Items     []StaffCalDAVItem
+}
+
+type StaffCalDAVItem struct {
+	Name       string
+	UID        string
+	Content    []byte
+	ETag       string
+	ModifiedAt time.Time
 }
 
 type service struct {

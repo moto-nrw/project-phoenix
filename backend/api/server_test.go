@@ -70,6 +70,13 @@ func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 			want: "port",
 		},
 		{
+			name: "public API URL",
+			ctx:  context.Background(),
+			deps: ServeConfig{Port: "8080", Logger: slog.Default()},
+			run:  func(*Runtime) error { return nil },
+			want: "public API URL",
+		},
+		{
 			name: "context",
 			deps: ServeConfig{Port: "8080", Logger: slog.Default()},
 			run:  func(*Runtime) error { return nil },
@@ -120,8 +127,9 @@ func TestWithRuntimeBuildsCompleteWorker(t *testing.T) {
 	testpkg.SetupTestDB(t)
 	called := false
 	err := WithRuntime(context.Background(), ServeConfig{
-		Port:   "127.0.0.1:0",
-		Logger: slog.Default(),
+		Port:         "127.0.0.1:0",
+		PublicAPIURL: "http://api.invalid",
+		Logger:       slog.Default(),
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)

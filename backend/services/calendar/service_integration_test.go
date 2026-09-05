@@ -153,6 +153,19 @@ func calendarContext(tb testing.TB, accountID int64) context.Context {
 	})
 }
 
+type fixedCalDAVSettings struct {
+	enabled bool
+	err     error
+}
+
+func (s fixedCalDAVSettings) Enabled(context.Context) (bool, error) {
+	return s.enabled, s.err
+}
+
+func (s fixedCalDAVSettings) EnabledForTenant(context.Context, int64) (bool, error) {
+	return s.enabled, s.err
+}
+
 func wallClock(h, m int) time.Time {
 	return timezone.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
 }
@@ -751,6 +764,116 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "moto-kalender.ics", filename)
 	assert.Contains(t, content, "SUMMARY:Teamsitzung")
+}
+
+func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndToken(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.CalDAVPolicy = fixedCalDAVSettings{enabled: true}
+	cfg.FrontendURL = "https://moto.test"
+	cfg.CalDAVURL = "https://api.moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Mitarbeiter")
+	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "CalDAV Teamsitzung",
+		StartDate:    timezone.TodayDate().AddDays(7),
+		EndDate:      timezone.TodayDate().AddDays(7),
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+	})
+	require.NoError(t, err)
+
+	access, err := service.StaffCalendarAccess(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	require.NotNil(t, access.CalDAV)
+	assert.Equal(t, "https://api.moto.test/api/caldav/", access.CalDAV.ServerURL)
+	assert.Equal(t, account.Email, access.CalDAV.Username)
+	assert.NotEmpty(t, access.CalDAV.AppPassword)
+	assert.Equal(t, strings.TrimPrefix(access.URL, "https://moto.test/api/calendar-feed/"), access.CalDAV.AppPassword)
+
+	secondAccess, err := service.StaffCalendarAccess(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	require.NotNil(t, secondAccess.CalDAV)
+	assert.Empty(t, secondAccess.URL)
+	assert.Empty(t, secondAccess.CalDAV.AppPassword, "the raw capability must only be returned once")
+
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), "other@example.test", access.CalDAV.AppPassword)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+
+	queryCounter := testpkg.CaptureQueriesForContext(t, db)
+	calendar, err := service.AuthenticateStaffCalDAV(
+		queryCounter.Context(testpkg.Ctx(t)), strings.ToUpper(account.Email), access.CalDAV.AppPassword,
+	)
+	require.NoError(t, err)
+	testpkg.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Queries())
+	require.NotEmpty(t, calendar.Items)
+	assert.Equal(t, testpkg.Tenant(t), calendar.TenantID)
+
+	_, feedContent, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), access.CalDAV.AppPassword)
+	require.NoError(t, err)
+	for _, item := range calendar.Items {
+		content := string(item.Content)
+		assert.Contains(t, content, "BEGIN:VCALENDAR")
+		assert.Contains(t, content, "BEGIN:VEVENT")
+		assert.Contains(t, content, "UID:"+item.UID)
+		assert.NotContains(t, content, "METHOD:PUBLISH")
+		assert.Contains(t, feedContent, "UID:"+item.UID)
+	}
+
+	disabledConfig := cfg
+	disabledConfig.CalDAVPolicy = fixedCalDAVSettings{enabled: false}
+	disabledService := calendarSvc.NewService(disabledConfig)
+	_, err = disabledService.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, access.CalDAV.AppPassword)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	_, _, err = disabledService.StaffCalendarFeedByToken(testpkg.Ctx(t), access.CalDAV.AppPassword)
+	require.NoError(t, err, "the CalDAV feature gate must not disable the existing iCalendar feed")
+
+	rotated, err := service.RotateStaffCalendarAccess(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	require.NotNil(t, rotated.CalDAV)
+	assert.NotEqual(t, access.CalDAV.AppPassword, rotated.CalDAV.AppPassword)
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, access.CalDAV.AppPassword)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "rotation must revoke the old CalDAV capability")
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
+	require.NoError(t, err)
+
+	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "an inactive school mapping must receive no calendar data")
+}
+
+func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvailable(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.CalDAVPolicy = fixedCalDAVSettings{err: errors.New("setting unavailable")}
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Fail Closed")
+	access, err := service.StaffCalendarAccess(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	assert.Nil(t, access.CalDAV)
+	require.NotEmpty(t, access.URL)
+
+	token := strings.TrimPrefix(access.URL, "https://moto.test/api/calendar-feed/")
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
 }
 
 func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *testing.T) {

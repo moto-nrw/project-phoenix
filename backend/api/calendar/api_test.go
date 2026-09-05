@@ -47,6 +47,11 @@ type fakeCalendarService struct {
 	staffFeedURL    string
 	staffFeedWebcal string
 	staffFeedErr    error
+	staffCalDAV     *calendarSvc.StaffCalDAVCredentials
+	calDAVCalendar  *calendarSvc.StaffCalDAVCalendar
+	calDAVErr       error
+	calDAVUsername  string
+	calDAVPassword  string
 
 	respondErr       error
 	gotRespondID     int64
@@ -130,6 +135,24 @@ func (f *fakeCalendarService) RotateStaffCalendarFeed(context.Context) (string, 
 
 func (f *fakeCalendarService) StaffCalendarFeedByToken(context.Context, string) (string, string, error) {
 	return "", "", nil
+}
+
+func (f *fakeCalendarService) StaffCalendarAccess(context.Context) (calendarSvc.StaffCalendarAccessInfo, error) {
+	return calendarSvc.StaffCalendarAccessInfo{URL: f.staffFeedURL, WebcalURL: f.staffFeedWebcal, CalDAV: f.staffCalDAV}, f.staffFeedErr
+}
+
+func (f *fakeCalendarService) RotateStaffCalendarAccess(context.Context) (calendarSvc.StaffCalendarAccessInfo, error) {
+	return calendarSvc.StaffCalendarAccessInfo{URL: f.staffFeedURL, WebcalURL: f.staffFeedWebcal, CalDAV: f.staffCalDAV}, f.staffFeedErr
+}
+
+func (f *fakeCalendarService) AuthenticateStaffCalDAV(_ context.Context, username, password string) (*calendarSvc.StaffCalDAVCalendar, error) {
+	f.calDAVUsername = username
+	f.calDAVPassword = password
+	return f.calDAVCalendar, f.calDAVErr
+}
+
+func (f *fakeCalendarService) CleanupExpiredFeedTombstones(context.Context) (int, error) {
+	return 0, nil
 }
 
 func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
@@ -220,7 +243,28 @@ func TestCalendarFeedURLReturnsSubscriptionLinks(t *testing.T) {
 	rs.calendarFeedURL(w, httptest.NewRequest(http.MethodGet, "/feed", nil))
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","message":"Calendar feed URL retrieved","data":{"url":"https://moto.test/api/calendar-feed/token","webcal_url":"webcal://moto.test/api/calendar-feed/token"}}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","message":"Calendar feed URL retrieved","data":{"url":"https://moto.test/api/calendar-feed/token","webcal_url":"webcal://moto.test/api/calendar-feed/token","caldav":null}}`, w.Body.String())
+}
+
+func TestCalendarFeedURLReturnsShowOnceCalDAVCredentials(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCalendarService{
+		staffFeedURL:    "https://moto.test/api/calendar-feed/token",
+		staffFeedWebcal: "webcal://moto.test/api/calendar-feed/token",
+		staffCalDAV: &calendarSvc.StaffCalDAVCredentials{
+			ServerURL:   "https://moto.test/api/caldav/",
+			Username:    "staff@example.test",
+			AppPassword: "token",
+		},
+	}
+	rs := &Resource{service: service}
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, httptest.NewRequest(http.MethodGet, "/feed", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"status":"success","message":"Calendar feed URL retrieved","data":{"url":"https://moto.test/api/calendar-feed/token","webcal_url":"webcal://moto.test/api/calendar-feed/token","caldav":{"server_url":"https://moto.test/api/caldav/","username":"staff@example.test","app_password":"token"}}}`, w.Body.String())
 }
 
 func TestRotateCalendarFeedReturnsFreshLinks(t *testing.T) {

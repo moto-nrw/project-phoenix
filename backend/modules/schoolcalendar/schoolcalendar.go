@@ -278,6 +278,7 @@ type HolidayQuery interface {
 // CalendarRenderer renders complete RFC 5545 calendar documents.
 type CalendarRenderer interface {
 	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
+	RenderCalendarObject(context.Context, CalendarEvent) (string, error)
 }
 
 type Command interface {
@@ -330,6 +331,7 @@ type engine interface {
 	ListHolidays(context.Context, string, string, string) ([]Holiday, error)
 	HolidayDates(context.Context, string, string, string) (map[string]bool, error)
 	RenderCalendar(context.Context, string, []CalendarEvent) (string, error)
+	RenderCalendarObject(context.Context, CalendarEvent) (string, error)
 }
 
 type Module struct{ engine engine }
@@ -518,6 +520,13 @@ func (m *Module) RenderCalendar(ctx context.Context, name string, events []Calen
 		}
 	}
 	return m.engine.RenderCalendar(ctx, name, events)
+}
+
+func (m *Module) RenderCalendarObject(ctx context.Context, event CalendarEvent) (string, error) {
+	if err := validateCalendarEvent(event); err != nil {
+		return "", err
+	}
+	return m.engine.RenderCalendarObject(ctx, event)
 }
 
 func validateHolidayWindow(from, to string) error {

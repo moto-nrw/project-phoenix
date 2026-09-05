@@ -1782,7 +1782,22 @@
     "createNew": "Create a new subscription link"
   },
   "staffCalendarSubscribe": {
-    "description": "Subscribe to your appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically. You do not need to add each appointment separately. Changes made in your phone calendar do not reach moto."
+    "description": "Subscribe to your appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically. You do not need to add each appointment separately. Changes made in your phone calendar do not reach moto.",
+    "createNew": "Create new access details",
+    "regenerate": "Create new access details",
+    "alreadyActive": "Your access details are already active. They are shown only once. If you no longer have them, create new ones. This also ends the existing calendar subscription.",
+    "regenerated": "New access details created. The previous ones no longer work.",
+    "caldavTitle": "Connect a calendar app",
+    "caldavDescription": "View your moto calendar in an app such as Thunderbird. You can only view the appointments there.",
+    "caldavAddress": "Address",
+    "caldavUsername": "Username",
+    "caldavPassword": "App password",
+    "addressCopied": "Address copied.",
+    "usernameCopied": "Username copied.",
+    "passwordCopied": "App password copied.",
+    "passwordOnce": "You see the app password only now. Save it in the calendar app right away.",
+    "passwordHidden": "The app password has already been shown. If you no longer have it, create new access details.",
+    "caldavUnavailable": "The connection is currently unavailable. Please try again."
   },
   "parentNews": {
     "kicker": "Post from the OGS",
