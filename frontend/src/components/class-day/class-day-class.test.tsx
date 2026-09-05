@@ -11,6 +11,12 @@ const { mockSearchParams } = vi.hoisted(() => ({
   mockSearchParams: new URLSearchParams(),
 }));
 
+// Weekday scenarios must not depend on the weekday on which the suite runs.
+vi.mock("~/lib/date-helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/date-helpers")>()),
+  todayISO: () => "2026-09-07",
+}));
+
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
@@ -123,7 +129,7 @@ describe("classArrivalExceptionLine", () => {
 describe("ClassDayClass", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSearchParams.delete("tag");
+    mockSearchParams.set("tag", todayISO());
   });
 
   it("shows the class-wide exception line even without write access", async () => {
