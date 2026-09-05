@@ -510,6 +510,46 @@ func (e *recordingEngine) DeleteUpcomingInstanceStaff(context.Context, int64, st
 	return 0, nil
 }
 
+func (e *recordingEngine) FindInstanceStudent(context.Context, int64) (timetable.InstanceStudent, error) {
+	e.calls++
+	return timetable.InstanceStudent{}, nil
+}
+
+func (e *recordingEngine) ListInstanceStudents(context.Context, timetable.InstanceStudentFilter) ([]timetable.InstanceStudent, error) {
+	e.calls++
+	return []timetable.InstanceStudent{}, nil
+}
+
+func (e *recordingEngine) CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, error) {
+	e.calls++
+	return map[int64]int{}, nil
+}
+
+func (e *recordingEngine) ListParallelStudentPresence(context.Context, int64, string, []int64) ([]timetable.ParallelPresence, error) {
+	e.calls++
+	return []timetable.ParallelPresence{}, nil
+}
+
+func (e *recordingEngine) CreateInstanceStudent(context.Context, timetable.InstanceStudentInput) (timetable.InstanceStudent, error) {
+	e.calls++
+	return timetable.InstanceStudent{}, nil
+}
+
+func (e *recordingEngine) UpdateInstanceStudent(context.Context, int64, timetable.InstanceStudentInput) (timetable.InstanceStudent, error) {
+	e.calls++
+	return timetable.InstanceStudent{}, nil
+}
+
+func (e *recordingEngine) DeleteInstanceStudent(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteInstanceStudentsByInstance(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets

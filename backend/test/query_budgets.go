@@ -103,6 +103,7 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.activity_exceptions.list": {max: 1, exact: true},
 	"modules.timetable.activity_instances.list":  {max: 1, exact: true},
 	"modules.timetable.instance_staff.list":      {max: 1, exact: true},
+	"modules.timetable.instance_students.list":   {max: 1, exact: true},
 	"modules.timetable.schedules.list":           {max: 1, exact: true},
 	"modules.timetable.supervisors.list":         {max: 1, exact: true},
 	"modules.timetable.target_students.list":     {max: 1, exact: true},

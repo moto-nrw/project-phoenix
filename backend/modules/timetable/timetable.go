@@ -62,6 +62,9 @@ var (
 	ErrInstanceStaffNotFound         = errors.New("instance staff assignment not found")
 	ErrInvalidInstanceStaff          = errors.New("invalid instance staff assignment")
 	ErrInvalidInstanceStaffQuery     = errors.New("invalid instance staff query")
+	ErrInstanceStudentNotFound       = errors.New("instance student assignment not found")
+	ErrInvalidInstanceStudent        = errors.New("invalid instance student assignment")
+	ErrInvalidInstanceStudentQuery   = errors.New("invalid instance student query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -168,6 +171,7 @@ type Query interface {
 	ActivityExceptionQuery
 	ActivityInstanceQuery
 	InstanceStaffQuery
+	InstanceStudentQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryForShare(context.Context, int64) (Category, error)
@@ -193,6 +197,7 @@ type Command interface {
 	ActivityExceptionCommand
 	ActivityInstanceCommand
 	InstanceStaffCommand
+	InstanceStudentCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -912,6 +917,62 @@ func (m *Module) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64,
 		return 0, m.reject("delete_upcoming_instance_staff", ErrInvalidInstanceStaff)
 	}
 	return m.engine.DeleteUpcomingInstanceStaff(ctx, staffID, after)
+}
+
+func (m *Module) FindInstanceStudent(ctx context.Context, id int64) (InstanceStudent, error) {
+	if id <= 0 {
+		return InstanceStudent{}, m.reject("find_instance_student", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.FindInstanceStudent(ctx, id)
+}
+
+func (m *Module) ListInstanceStudents(ctx context.Context, filter InstanceStudentFilter) ([]InstanceStudent, error) {
+	if !validInstanceStudentFilter(filter) {
+		return nil, m.reject("list_instance_students", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListInstanceStudents(ctx, filter)
+}
+
+func (m *Module) CountNonAbsentInstanceStudents(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	if hasInvalidID(instanceIDs) {
+		return nil, m.reject("count_non_absent_instance_students", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.CountNonAbsentInstanceStudents(ctx, instanceIDs)
+}
+
+func (m *Module) ListParallelStudentPresence(ctx context.Context, excludeInstanceID int64, date string, studentIDs []int64) ([]ParallelPresence, error) {
+	if excludeInstanceID <= 0 || !validDate(date) || hasInvalidID(studentIDs) {
+		return nil, m.reject("list_parallel_student_presence", ErrInvalidInstanceStudentQuery)
+	}
+	return m.engine.ListParallelStudentPresence(ctx, excludeInstanceID, date, studentIDs)
+}
+
+func (m *Module) CreateInstanceStudent(ctx context.Context, input InstanceStudentInput) (InstanceStudent, error) {
+	if !validInstanceStudent(input) {
+		return InstanceStudent{}, m.reject("create_instance_student", ErrInvalidInstanceStudent)
+	}
+	return m.engine.CreateInstanceStudent(ctx, input)
+}
+
+func (m *Module) UpdateInstanceStudent(ctx context.Context, id int64, input InstanceStudentInput) (InstanceStudent, error) {
+	if id <= 0 || !validInstanceStudent(input) {
+		return InstanceStudent{}, m.reject("update_instance_student", ErrInvalidInstanceStudent)
+	}
+	return m.engine.UpdateInstanceStudent(ctx, id, input)
+}
+
+func (m *Module) DeleteInstanceStudent(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_instance_student", ErrInvalidInstanceStudent)
+	}
+	return m.engine.DeleteInstanceStudent(ctx, id)
+}
+
+func (m *Module) DeleteInstanceStudentsByInstance(ctx context.Context, instanceID int64) error {
+	if instanceID <= 0 {
+		return m.reject("delete_instance_students_by_instance", ErrInvalidInstanceStudent)
+	}
+	return m.engine.DeleteInstanceStudentsByInstance(ctx, instanceID)
 }
 
 func invalidActivityInstanceWeekdays(weekdays []int) bool {

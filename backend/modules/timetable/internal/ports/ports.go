@@ -113,6 +113,14 @@ type Store interface {
 	DeleteInstanceStaff(context.Context, int64) (domain.OperationStats, error)
 	DeleteInstanceStaffByInstance(context.Context, int64) (domain.OperationStats, error)
 	DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, domain.OperationStats, error)
+	FindInstanceStudent(context.Context, int64) (domain.InstanceStudent, bool, domain.OperationStats, error)
+	ListInstanceStudents(context.Context, domain.InstanceStudentFilter) ([]domain.InstanceStudent, domain.OperationStats, error)
+	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
+	ListParallelStudentPresence(context.Context, int64, string, []int64) ([]domain.ParallelPresence, domain.OperationStats, error)
+	CreateInstanceStudent(context.Context, domain.InstanceStudentFields) (domain.InstanceStudent, domain.OperationStats, error)
+	UpdateInstanceStudent(context.Context, int64, domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error)
+	DeleteInstanceStudent(context.Context, int64) (domain.OperationStats, error)
+	DeleteInstanceStudentsByInstance(context.Context, int64) (domain.OperationStats, error)
 }
 
 type Transaction interface {

@@ -669,6 +669,58 @@ func (e engine) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, 
 	return rows, mapError(err)
 }
 
+func (e engine) FindInstanceStudent(ctx context.Context, id int64) (timetable.InstanceStudent, error) {
+	value, err := e.service.FindInstanceStudent(ctx, id)
+	return instanceStudentToPublic(value), mapError(err)
+}
+
+func (e engine) ListInstanceStudents(ctx context.Context, filter timetable.InstanceStudentFilter) ([]timetable.InstanceStudent, error) {
+	values, err := e.service.ListInstanceStudents(ctx, domain.InstanceStudentFilter(filter))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.InstanceStudent, 0, len(values))
+	for _, value := range values {
+		result = append(result, instanceStudentToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CountNonAbsentInstanceStudents(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	result, err := e.service.CountNonAbsentInstanceStudents(ctx, instanceIDs)
+	return result, mapError(err)
+}
+
+func (e engine) ListParallelStudentPresence(ctx context.Context, excludeID int64, date string, studentIDs []int64) ([]timetable.ParallelPresence, error) {
+	values, err := e.service.ListParallelStudentPresence(ctx, excludeID, date, studentIDs)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.ParallelPresence, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.ParallelPresence(value))
+	}
+	return result, nil
+}
+
+func (e engine) CreateInstanceStudent(ctx context.Context, input timetable.InstanceStudentInput) (timetable.InstanceStudent, error) {
+	value, err := e.service.CreateInstanceStudent(ctx, domain.InstanceStudentFields(input))
+	return instanceStudentToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateInstanceStudent(ctx context.Context, id int64, input timetable.InstanceStudentInput) (timetable.InstanceStudent, error) {
+	value, err := e.service.UpdateInstanceStudent(ctx, id, domain.InstanceStudentFields(input))
+	return instanceStudentToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteInstanceStudent(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteInstanceStudent(ctx, id))
+}
+
+func (e engine) DeleteInstanceStudentsByInstance(ctx context.Context, instanceID int64) error {
+	return mapError(e.service.DeleteInstanceStudentsByInstance(ctx, instanceID))
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -976,6 +1028,14 @@ func instanceStaffToPublic(value domain.InstanceStaff) timetable.InstanceStaff {
 	}
 }
 
+func instanceStudentToPublic(value domain.InstanceStudent) timetable.InstanceStudent {
+	return timetable.InstanceStudent{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		InstanceID: value.InstanceID, StudentID: value.StudentID, RoomID: value.RoomID, Status: value.Status,
+		Substatus: value.Substatus, Note: value.Note, CheckedInAt: value.CheckedInAt, CheckedOutAt: value.CheckedOutAt,
+		IsUnplanned: value.IsUnplanned, NotScheduled: value.NotScheduled, ManualStatusAt: value.ManualStatusAt,
+		StudentStatusDayID: value.StudentStatusDayID, PickupExceptionID: value.PickupExceptionID}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -1012,6 +1072,8 @@ func mapError(err error) error {
 		return timetable.ErrActivityInstanceNotFound
 	case errors.Is(err, domain.ErrInstanceStaffNotFound):
 		return timetable.ErrInstanceStaffNotFound
+	case errors.Is(err, domain.ErrInstanceStudentNotFound):
+		return timetable.ErrInstanceStudentNotFound
 	default:
 		return err
 	}

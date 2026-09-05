@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"errors"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -14,9 +15,11 @@ type RecurrenceRuleQueryOptions = modelBase.QueryOptions
 type ActivityExceptionQueryOptions = modelBase.QueryOptions
 type ActivityInstanceQueryOptions = modelBase.QueryOptions
 type InstanceStaffQueryOptions = modelBase.QueryOptions
+type InstanceStudentQueryOptions = modelBase.QueryOptions
 type ActivityExceptionDate = timezone.Date
 type ActivityInstanceDate = timezone.Date
 type InstanceStaffDate = timezone.Date
+type InstanceStudentDate = timezone.Date
 
 func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
 	return timezone.ParseDate(value)
@@ -46,6 +49,19 @@ type InstanceStaffListFilter struct {
 	SickAbsenceID *int64
 	Limit         int
 	Offset        int
+}
+
+type InstanceStudentListFilter struct {
+	IDs         []int64
+	InstanceIDs []int64
+	StudentIDs  []int64
+	Status      *string
+	Limit       int
+	Offset      int
+}
+
+func InstanceStudentWallClock(at time.Time) string {
+	return at.In(timezone.Berlin).Format("15:04:05")
 }
 
 func WrapDatabaseError(operation string, err error) error {
@@ -367,6 +383,80 @@ func InstanceStaffListOptions(options *InstanceStaffQueryOptions) (InstanceStaff
 		}
 	}
 	return result, nil
+}
+
+func InstanceStudentListOptions(options *InstanceStudentQueryOptions) (InstanceStudentListFilter, error) {
+	result := InstanceStudentListFilter{}
+	if options == nil {
+		return result, nil
+	}
+	if options.Pagination != nil {
+		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
+	}
+	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
+		return InstanceStudentListFilter{}, errors.New("instance student sorting is unsupported")
+	}
+	if options.Filter == nil {
+		return result, nil
+	}
+	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
+		return InstanceStudentListFilter{}, errors.New("compound instance student filters are unsupported")
+	}
+	for _, condition := range options.Filter.Conditions() {
+		if err := applyInstanceStudentCondition(&result, condition); err != nil {
+			return InstanceStudentListFilter{}, err
+		}
+	}
+	return result, nil
+}
+
+func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition modelBase.FilterCondition) error {
+	if condition.Operator == modelBase.OpEqual {
+		if condition.Field == "status" {
+			value, ok := condition.Value.(string)
+			if !ok {
+				return errors.New("instance student status filter is unsupported")
+			}
+			result.Status = &value
+			return nil
+		}
+		id, ok := condition.Value.(int64)
+		if !ok {
+			return errors.New("instance student filter is unsupported")
+		}
+		return assignInstanceStudentID(result, condition.Field, id)
+	}
+	if condition.Operator != modelBase.OpIn || condition.Field == "status" {
+		return errors.New("instance student filter is unsupported")
+	}
+	values, ok := condition.Value.([]interface{})
+	if !ok {
+		return errors.New("instance student IN filter is unsupported")
+	}
+	for _, value := range values {
+		id, idOK := value.(int64)
+		if !idOK {
+			return errors.New("instance student IN filter is unsupported")
+		}
+		if err := assignInstanceStudentID(result, condition.Field, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func assignInstanceStudentID(result *InstanceStudentListFilter, field string, id int64) error {
+	switch field {
+	case "id":
+		result.IDs = append(result.IDs, id)
+	case "instance_id":
+		result.InstanceIDs = append(result.InstanceIDs, id)
+	case "student_id":
+		result.StudentIDs = append(result.StudentIDs, id)
+	default:
+		return errors.New("instance student filter is unsupported")
+	}
+	return nil
 }
 
 func applyInstanceStaffCondition(result *InstanceStaffListFilter, condition modelBase.FilterCondition) error {
