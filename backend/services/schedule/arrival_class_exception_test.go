@@ -43,7 +43,7 @@ func setClassArrivalException(t *testing.T, repos *repositories.Factory, class s
 	require.NoError(t, err)
 	row := &scheduleModel.ClassArrivalException{
 		SchoolClass: class,
-		Date:        date,
+		Date:        scheduleModel.Date(date),
 		ArrivalTime: timezone.NormalizeWallClock(parsed),
 	}
 	if reason != "" {

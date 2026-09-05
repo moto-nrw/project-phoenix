@@ -70,7 +70,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Create the instance and manually bridge to the active.group (simulating
 	// the post-Start state — we don't exercise the lifecycle service here).
 	instance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("AS-Instance-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -282,7 +282,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	}))
 
 	afternoonInstance := &scheduleModels.ActivityInstance{
-		Date: timezone.NewDate(2026, 4, 21), Title: fmt.Sprintf("AS-Afternoon-%d", time.Now().UnixNano()),
+		Date: scheduleModels.NewDate(2026, 4, 21), Title: fmt.Sprintf("AS-Afternoon-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:    s.roomID, Status: scheduleModels.InstanceStatusPlanned,
@@ -298,7 +298,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 
 	statusRepo := s.statusRepo
 	statusDay := &activeModels.StudentStatusDay{
-		StudentID: student.ID, Date: afternoonInstance.Date,
+		StudentID: student.ID, Date: timezone.Date(afternoonInstance.Date),
 		Status: activeModels.StudentStatusDaySick, ReportedAt: morningCheckOut,
 		Source: activeModels.StudentStatusSourceManual,
 	}

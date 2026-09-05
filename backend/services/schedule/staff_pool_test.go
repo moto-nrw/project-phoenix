@@ -33,7 +33,7 @@ func createPoolShift(t *testing.T, s *moveSetup, staffID int64, startHHMM, endHH
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      moveTestDate(),
+		Date:      scheduleModels.Date(moveTestDate()),
 		StartTime: parseMoveClock(t, startHHMM),
 		EndTime:   parseMoveClock(t, endHHMM),
 		Cancelled: cancelled,

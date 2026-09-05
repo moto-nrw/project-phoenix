@@ -9,7 +9,6 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -105,7 +104,7 @@ func TestBroadcastMirroredInstanceFiresAfterCommit(t *testing.T) {
 	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
 	activeGroupID := int64(321)
 	inst := &scheduleModel.ActivityInstance{
-		Date:          timezone.NewDate(2026, 5, 11),
+		Date:          scheduleModel.NewDate(2026, 5, 11),
 		StartTime:     time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
 		ActiveGroupID: &activeGroupID,
 	}
@@ -414,7 +413,7 @@ func TestCompleteMirroredTimetableInstanceGoesThroughBridge(t *testing.T) {
 
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{
-		Date:          timezone.NewDate(2026, 5, 11),
+		Date:          scheduleModel.NewDate(2026, 5, 11),
 		StartTime:     time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
 		ActiveGroupID: &activeGroupID,
 	}

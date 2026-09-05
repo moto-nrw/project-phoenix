@@ -1002,7 +1002,7 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 	}
 	old, _ := req.Payload["previous_pickup_time"].(string)
 	if old == "" && s.pickupExceptions != nil {
-		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 		if findErr != nil {
 			return nil, findErr
 		}
@@ -1374,7 +1374,7 @@ func pickupImpactToken(blocks []scheduleModels.PartialAbsenceBlock) string {
 }
 
 func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, date timezone.Date, pickupTime time.Time, reason string, staffID int64) (int64, error) {
-	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 	if err != nil {
 		return 0, fmt.Errorf("schedule: load pickup exception for request: %w", err)
 	}
@@ -1396,7 +1396,7 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 	exception := &scheduleModels.StudentPickupException{
 		TenantModel:   scheduleModels.TenantModel{TenantID: req.TenantID},
 		StudentID:     req.StudentID,
-		ExceptionDate: date,
+		ExceptionDate: scheduleModels.Date(date),
 		PickupTime:    &pickupTime,
 		Reason:        &reason,
 		Source:        scheduleModels.ExceptionSourceStaff,

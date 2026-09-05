@@ -55,7 +55,7 @@ func futureMonday(offsetWeeks int) timezone.Date {
 func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date timezone.Date, status string, spontaneous bool, startHour int) int64 {
 	t.Helper()
 	row := &scheduleModels.ActivityInstance{
-		Date:            date,
+		Date:            scheduleModels.Date(date),
 		Title:           fmt.Sprintf("Split-%s-%d", status, time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, startHour+1, 0, 0, 0, time.UTC),
@@ -290,8 +290,8 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end timezo
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Short linked period %d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       start,
-		EndDate:         end,
+		StartDate:       scheduleModels.Date(start),
+		EndDate:         scheduleModels.Date(end),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -303,7 +303,7 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end timezo
 
 func createCompatibleCalendarPeriod(t *testing.T, s *scenarioSetup) *scheduleModels.CalendarPeriod {
 	t.Helper()
-	period := createShortCalendarPeriod(t, s, s.period.StartDate, s.period.EndDate)
+	period := createShortCalendarPeriod(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	period.Name = fmt.Sprintf("Compatible linked period %d", time.Now().UnixNano())
 	return period
 }
@@ -341,7 +341,7 @@ func linkedTemplateUpdateInput(t *testing.T, s *scenarioSetup, periodID *int64) 
 		TimeframeID:      s.timeframe.ID,
 		WeekPattern:      s.schedule.WeekPattern,
 		CalendarPeriodID: periodID,
-		RosterValidFrom:  s.period.StartDate,
+		RosterValidFrom:  timezone.Date(s.period.StartDate),
 		StudentIDs:       []int64{s.students[0], s.students[1]},
 		StaffIDs:         []int64{s.staffID},
 		PrimaryStaffID:   &s.staffID,
@@ -473,7 +473,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 	t.Run("update removes B-week occurrences", func(t *testing.T) {
 		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 		defer s.runCleanup(t)
-		anchor := effective
+		anchor := scheduleModels.Date(effective)
 		s.period.WeekCycleLength = 2
 		s.period.WeekCycleAnchor = &anchor
 		require.NoError(t, s.factory.CalendarPeriod.UpdatePeriod(s.ctx, s.period))
@@ -1615,7 +1615,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	assert.Equal(t, single.ID, updatedSingle.ID)
 	exceptions := loadExceptions(t, s, s.template.ID)
 	require.Len(t, exceptions, 1)
-	assert.Equal(t, singleDate, exceptions[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.Date(singleDate), exceptions[0].ExceptionDate)
 	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
 
 	// "Ab jetzt dauerhaft": split at the next Monday.

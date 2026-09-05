@@ -66,8 +66,8 @@ func loadCareOfferingMaterializationState(
 	}
 	exceptions, err := deps.activityExceptionRepo.FindByDateRange(
 		ctx,
-		phase.ServiceStartDate,
-		phase.ServiceEndDate,
+		scheduleModels.Date(phase.ServiceStartDate),
+		scheduleModels.Date(phase.ServiceEndDate),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load exceptions for care offering materialization: %w", err)
@@ -96,7 +96,7 @@ func loadCareOfferingMaterializationState(
 		}
 		state.exceptions[careOfferingExceptionKey{
 			groupID: exception.ActivityGroupID,
-			date:    exception.ExceptionDate,
+			date:    timezone.Date(exception.ExceptionDate),
 		}] = exception
 	}
 	return state, nil

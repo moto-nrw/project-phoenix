@@ -586,7 +586,7 @@ func (s *reportService) classDayArrivalException(ctx context.Context, schoolClas
 		return nil, fmt.Errorf("class day report: load class arrival exception: %w", err)
 	}
 	for _, row := range rows {
-		if row == nil || row.Date != date {
+		if row == nil || row.Date != scheduleModel.Date(date) {
 			continue
 		}
 		out := &ClassDayArrivalException{

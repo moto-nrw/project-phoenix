@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Common validation error messages for arrival schedule models.
@@ -98,13 +96,13 @@ type StudentArrivalException struct {
 	Model `bun:"schema:schedule,table:student_arrival_exceptions"`
 	TenantModel
 
-	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	ExpectedArrival   *time.Time    `bun:"expected_arrival" json:"expected_arrival,omitempty"`
-	Reason            *string       `bun:"reason" json:"reason,omitempty"`
-	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
-	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
-	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+	StudentID         int64      `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate     Date       `bun:"exception_date,notnull" json:"exception_date"`
+	ExpectedArrival   *time.Time `bun:"expected_arrival" json:"expected_arrival,omitempty"`
+	Reason            *string    `bun:"reason" json:"reason,omitempty"`
+	Source            string     `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy         int64      `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian *int64     `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
 }
 
 // Validate ensures arrival exception data is valid
@@ -134,10 +132,10 @@ type StudentArrivalNote struct {
 	Model `bun:"schema:schedule,table:student_arrival_notes"`
 	TenantModel
 
-	StudentID int64         `bun:"student_id,notnull" json:"student_id"`
-	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
-	Content   string        `bun:"content,notnull" json:"content"`
-	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
+	StudentID int64  `bun:"student_id,notnull" json:"student_id"`
+	NoteDate  Date   `bun:"note_date,notnull" json:"note_date"`
+	Content   string `bun:"content,notnull" json:"content"`
+	CreatedBy int64  `bun:"created_by,notnull" json:"created_by"`
 }
 
 // Validate ensures arrival note data is valid
@@ -201,27 +199,27 @@ type StudentArrivalExceptionRepository interface {
 	FindUpcomingByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalException, error)
 
 	// FindByStudentIDAndDate finds an arrival exception for a specific student and date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentArrivalException, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date Date) (*StudentArrivalException, error)
 
 	// FindByStudentIDsAndDate finds arrival exceptions for multiple students and a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentArrivalException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date Date) ([]*StudentArrivalException, error)
 
 	// FindByStudentIDAndDateRange finds arrival exceptions for a student whose
 	// exception_date falls within the inclusive [from, to] range, sorted by
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
-	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*StudentArrivalException, error)
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*StudentArrivalException, error)
 
 	// FindByStudentIDsAndDateRange is the bulk form of the above: every
 	// exception for the given students within the inclusive range, so a
 	// planner window resolves in one query instead of one per day.
-	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*StudentArrivalException, error)
+	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to Date) ([]*StudentArrivalException, error)
 
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastExceptions deletes all exceptions older than the given date
-	DeletePastExceptions(ctx context.Context, beforeDate timezone.Date) (int64, error)
+	DeletePastExceptions(ctx context.Context, beforeDate Date) (int64, error)
 }
 
 // StudentArrivalNoteRepository defines operations for managing student arrival notes
@@ -232,14 +230,14 @@ type StudentArrivalNoteRepository interface {
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalNote, error)
 
 	// FindByStudentIDAndDate finds all arrival notes for a student on a specific date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*StudentArrivalNote, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date Date) ([]*StudentArrivalNote, error)
 
 	// FindByStudentIDsAndDate finds all arrival notes for multiple students on a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentArrivalNote, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date Date) ([]*StudentArrivalNote, error)
 
 	// DeleteByStudentID deletes all arrival notes for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastNotes deletes all notes older than the given date
-	DeletePastNotes(ctx context.Context, beforeDate timezone.Date) (int64, error)
+	DeletePastNotes(ctx context.Context, beforeDate Date) (int64, error)
 }

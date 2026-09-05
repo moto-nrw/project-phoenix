@@ -715,7 +715,7 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
 		StudentID:             chain.StudentID,
-		ExceptionDate:         day,
+		ExceptionDate:         scheduleModels.Date(day),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
@@ -762,7 +762,7 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
 		StudentID:             chain.StudentID,
-		ExceptionDate:         day,
+		ExceptionDate:         scheduleModels.Date(day),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,

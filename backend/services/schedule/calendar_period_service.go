@@ -340,8 +340,8 @@ func (s *calendarPeriodService) EnsureDefaultSchoolYear(ctx context.Context) ([]
 		period := &schedule.CalendarPeriod{
 			Name:            name,
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       start,
-			EndDate:         end,
+			StartDate:       schedule.Date(start),
+			EndDate:         schedule.Date(end),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -419,7 +419,7 @@ func ShouldMaterializeWeekPattern(weekPattern int, instanceDate timezone.Date, p
 		return true // no anchor set, can't compute — allow by default
 	}
 
-	daysDiff := period.WeekCycleAnchor.DaysUntil(instanceDate)
+	daysDiff := period.WeekCycleAnchor.DaysUntil(schedule.Date(instanceDate))
 	weeksDiff := daysDiff / 7
 	// Go's integer division truncates toward zero, so for negative daysDiff
 	// we need an explicit floor when the division isn't exact.

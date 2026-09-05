@@ -220,7 +220,7 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByDateRange(ctx, start, end)
+	shifts, err := s.repo.FindByDateRange(ctx, scheduleModels.Date(start), scheduleModels.Date(end))
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, start, end)
+	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(start), scheduleModels.Date(end))
 	if err != nil {
 		return nil, err
 	}

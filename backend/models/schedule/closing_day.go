@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // ClosingDayReasonMaxLength is the maximum length of the reason field.
@@ -20,9 +18,9 @@ type ClosingDay struct {
 	Model `bun:"schema:schedule,table:closing_days"`
 	TenantModel
 
-	StartDate timezone.Date `bun:"start_date,notnull" json:"start_date"`
-	EndDate   timezone.Date `bun:"end_date,notnull" json:"end_date"`
-	Reason    string        `bun:"reason,notnull" json:"reason"`
+	StartDate Date   `bun:"start_date,notnull" json:"start_date"`
+	EndDate   Date   `bun:"end_date,notnull" json:"end_date"`
+	Reason    string `bun:"reason,notnull" json:"reason"`
 }
 
 // Validate ensures closing day data is valid
@@ -57,5 +55,5 @@ type ClosingDayRepository interface {
 	// FindOverlappingRange returns all closing days of the current tenant
 	// whose [start_date, end_date] range overlaps [from, to] (inclusive on
 	// both ends), ordered by start_date.
-	FindOverlappingRange(ctx context.Context, from, to timezone.Date) ([]*ClosingDay, error)
+	FindOverlappingRange(ctx context.Context, from, to Date) ([]*ClosingDay, error)
 }

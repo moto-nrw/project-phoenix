@@ -48,7 +48,7 @@ func (f *instFixture) newInstance(t *testing.T, date timezone.Date, status strin
 	t.Helper()
 	title := fmt.Sprintf("Inst-%s-%s", date, status)
 	inst := &scheduleModels.ActivityInstance{
-		Date:            date,
+		Date:            scheduleModels.Date(date),
 		Title:           title,
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -70,7 +70,7 @@ func (f *instFixture) newException(t *testing.T, activityGroupID int64, date tim
 	t.Helper()
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModels.Date(date),
 		ExceptionType:   exceptionType,
 	}
 	exc.SetTenantID(f.tenantID)
@@ -469,7 +469,7 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Other-Room-%d", time.Now().UnixNano()))
 
 	otherInst := &scheduleModels.ActivityInstance{
-		Date:      old,
+		Date:      scheduleModels.Date(old),
 		Title:     fmt.Sprintf("OtherTenant-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

@@ -99,7 +99,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	require.NotNil(t, row.PickupExceptionID)
 
 	exception, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, date)
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -142,7 +142,7 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	assert.Nil(t, row.Substatus)
 
 	exception, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, date)
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")
 }

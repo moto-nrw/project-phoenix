@@ -114,7 +114,7 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
 	for _, instance := range instances {
 		instanceIDs = append(instanceIDs, instance.ID)
-		datesByInstance[instance.ID] = instance.Date
+		datesByInstance[instance.ID] = timezone.Date(instance.Date)
 	}
 	if len(instanceIDs) == 0 {
 		return nil, nil

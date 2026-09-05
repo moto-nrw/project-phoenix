@@ -216,8 +216,8 @@ func insertHolidayPeriod(t *testing.T, db *bun.DB, tenantID int64, name string, 
 	row := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       from,
-		EndDate:         to,
+		StartDate:       scheduleModels.Date(from),
+		EndDate:         scheduleModels.Date(to),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -310,8 +310,8 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	// Tue 09.06. is a closing day, Fri 12.06. lies in a holiday period.
 	// Care days: Mon, Wed, Thu = 3.
 	require.NoError(t, tc.createClosingDay(ctx, &scheduleModels.ClosingDay{
-		StartDate: timezone.NewDate(2026, 6, 9),
-		EndDate:   timezone.NewDate(2026, 6, 9),
+		StartDate: scheduleModels.NewDate(2026, 6, 9),
+		EndDate:   scheduleModels.NewDate(2026, 6, 9),
 		Reason:    "Pädagogischer Tag",
 	}))
 	insertHolidayPeriod(t, tc.db, tenantID, "Pfingstferien", timezone.NewDate(2026, 6, 12), timezone.NewDate(2026, 6, 14))

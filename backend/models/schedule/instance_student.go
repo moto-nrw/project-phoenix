@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Attendance status constants (system-controlled, E18).
@@ -200,7 +198,7 @@ type InstanceStudentRepository interface {
 	// tenant-scoped. Ordered by the other instance's start_time DESC, id DESC
 	// so callers taking the first row per student get the latest running
 	// block. Empty studentIDs returns an empty slice without hitting the DB.
-	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date timezone.Date, studentIDs []int64) ([]ParallelPresence, error)
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date Date, studentIDs []int64) ([]ParallelPresence, error)
 
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
@@ -245,18 +243,18 @@ type InstanceStudentRepository interface {
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*InstanceStudent, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*InstanceStudent, error)
 
 	// FindByStudentIDsAndDate is the multi-student form of
 	// FindByStudentAndDateRange for a single day. One query for the whole
 	// batch; empty input returns an empty slice without hitting the DB.
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*InstanceStudent, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date Date) ([]*InstanceStudent, error)
 
 	// FindCurrentCandidatesByStudentIDs is the multi-student form of
 	// FindCurrentCandidates: every student's currently-running booked slots
 	// in one query. Callers group per student and apply the same
 	// exactly-one-candidate rule as the single-student path.
-	FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
+	FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date Date, at time.Time) ([]*InstanceStudent, error)
 
 	// UpdateAttendanceFromCheckinBatch applies UpdateAttendanceFromCheckin's
 	// SET and guards to the given (instance, student) pairs in one statement
@@ -296,7 +294,7 @@ type InstanceStudentRepository interface {
 	// already materialized upcoming instances, so departed children stop
 	// counting on current and future timetables and staffing ratios.
 	// Tenant-scoped; returns the rows removed.
-	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date, at time.Time) (int, error)
+	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from Date, at time.Time) (int, error)
 
 	// RestoreArchivedByTransition replays the rows
 	// ArchivePlannedByStudentIDsFrom removed for `transitionID` (restricted to
@@ -316,7 +314,7 @@ type InstanceStudentRepository interface {
 	// is re-derived from today's status days, except for non-bookings and
 	// hand-set statuses, which are replayed as archived. Tenant-scoped; returns
 	// the rows restored.
-	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date) (int, error)
+	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from Date) (int, error)
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first
@@ -331,13 +329,13 @@ type InstanceStudentRepository interface {
 	// historical checkout may be repaired for a previously closed visit. The
 	// check-in guard protects a later re-entry from an edit to an older visit.
 	ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error)
-	FindCurrentCandidates(ctx context.Context, studentID int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
-	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
+	FindCurrentCandidates(ctx context.Context, studentID int64, date Date, at time.Time) ([]*InstanceStudent, error)
+	ApplyStatusDay(ctx context.Context, studentID int64, date Date, statusDayID int64, substatus string) (int, error)
 	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
-	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
+	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date Date) (int, error)
 	ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
 	ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
-	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
+	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants
@@ -392,7 +390,7 @@ type InstanceStudentRepository interface {
 	// stays visible — that decision outranks the marker. 'Expected' rows on
 	// cancelled instances are never marked; the instance status carries that
 	// story.
-	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*ScheduledInstanceRow, error)
 
 	// HasPlannedSlotsInRange reports whether the tenant has at least one
 	// planned slot assignment (is_unplanned = FALSE) on a non-cancelled
@@ -404,12 +402,12 @@ type InstanceStudentRepository interface {
 	// Cancelled instances keep their assignment rows but count as no
 	// evidence either — a cancelled-only occurrence was never a usable
 	// slot. Tenant-scoped via the caller's context.
-	HasPlannedSlotsInRange(ctx context.Context, from, to timezone.Date) (bool, error)
+	HasPlannedSlotsInRange(ctx context.Context, from, to Date) (bool, error)
 
 	// FindPlannedStudentIDsByDate returns unique student IDs that have a
 	// non-cancelled materialized timetable row on the given date. Used by
 	// student search's "kommt heute" heuristic as an additive planning signal.
-	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
+	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date Date) ([]int64, error)
 
 	// MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent'
 	// for students on still-active instances bridged to the given
@@ -434,7 +432,7 @@ type InstanceStudentRepository interface {
 	// by student then instance. Custom projection (join on activity_instances)
 	// the generic filter shape cannot express; feeds the per-student audit
 	// rows of the timetable retention cleanup.
-	ListStudentInstanceRefsBefore(ctx context.Context, cutoff timezone.Date) ([]StudentInstanceRef, error)
+	ListStudentInstanceRefsBefore(ctx context.Context, cutoff Date) ([]StudentInstanceRef, error)
 }
 
 // StudentInstanceRef is a minimal (student, instance) projection used by the

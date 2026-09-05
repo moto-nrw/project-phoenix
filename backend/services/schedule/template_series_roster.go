@@ -472,7 +472,7 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 	if today := s.deps.Today(); from.Before(today) {
 		from = today
 	}
-	all, err := s.deps.ActivityInstanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
+	all, err := s.deps.ActivityInstanceRepo.FindPlannedTemplateBackedFrom(ctx, scheduleModel.Date(from))
 	if err != nil {
 		return &ScheduleError{Op: "reconcile predecessor staff: load future instances", Err: err}
 	}
@@ -517,14 +517,15 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 		if inst.CalendarPeriodID != nil {
 			periodID = *inst.CalendarPeriodID
 		}
-		primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, inst.Date, periodID)
+		instanceDate := timezone.Date(inst.Date)
+		primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID)
 		for _, staffID := range staffIDs {
-			desired := supervisorsPlanStaffOn(byStaff[staffID], inst.Date, periodID)
+			desired := supervisorsPlanStaffOn(byStaff[staffID], instanceDate, periodID)
 			key := instanceStudentPair{instanceID: inst.ID, studentID: staffID}
 			row, exists := existing[key]
 			switch {
 			case desired && !exists:
-				if supervisorsPlanStaffOn(priorByStaff[staffID], inst.Date, periodID) {
+				if supervisorsPlanStaffOn(priorByStaff[staffID], instanceDate, periodID) {
 					// The pre-edit rows already planned this occurrence and the
 					// row is gone regardless — a hand removal that stays.
 					continue

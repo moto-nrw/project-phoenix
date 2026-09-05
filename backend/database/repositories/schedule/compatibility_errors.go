@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // RecurrenceRuleQueryOptions keeps the legacy repository method signature
@@ -17,10 +18,10 @@ type ActivityExceptionQueryOptions = modelBase.QueryOptions
 type ActivityInstanceQueryOptions = modelBase.QueryOptions
 type InstanceStaffQueryOptions = modelBase.QueryOptions
 type InstanceStudentQueryOptions = modelBase.QueryOptions
-type ActivityExceptionDate = timezone.Date
-type ActivityInstanceDate = timezone.Date
-type InstanceStaffDate = timezone.Date
-type InstanceStudentDate = timezone.Date
+type ActivityExceptionDate = scheduleModels.Date
+type ActivityInstanceDate = scheduleModels.Date
+type InstanceStaffDate = scheduleModels.Date
+type InstanceStudentDate = scheduleModels.Date
 
 type PickupExceptionProjection struct {
 	ID            int64
@@ -61,11 +62,11 @@ type PickupExceptionDirectory interface {
 }
 
 func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
-	return timezone.ParseDate(value)
+	return scheduleModels.ParseDate(value)
 }
 
 func ParseActivityInstanceDate(value string) (ActivityInstanceDate, error) {
-	return timezone.ParseDate(value)
+	return scheduleModels.ParseDate(value)
 }
 
 type ActivityInstanceListFilter struct {

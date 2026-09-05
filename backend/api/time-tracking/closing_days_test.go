@@ -19,8 +19,8 @@ func TestGetClosingDays(t *testing.T) {
 	t.Parallel()
 
 	days := []*schedule.ClosingDay{{
-		StartDate: timezone.NewDate(2026, 12, 24),
-		EndDate:   timezone.NewDate(2026, 12, 31),
+		StartDate: schedule.NewDate(2026, 12, 24),
+		EndDate:   schedule.NewDate(2026, 12, 31),
 		Reason:    "Weihnachtswoche",
 	}}
 	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{

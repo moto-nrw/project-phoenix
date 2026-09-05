@@ -138,7 +138,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	reason := "Fällt aus"
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -218,7 +218,7 @@ func createModifiedException(
 	reason := "Verlegt"
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModels.Date(date),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &startTime,
 		Reason:          &reason,

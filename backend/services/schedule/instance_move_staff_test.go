@@ -45,7 +45,7 @@ type moveSetup struct {
 func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
 	t.Helper()
 	row := &scheduleModels.ActivityInstance{
-		Date:      moveTestDate(),
+		Date:      scheduleModels.Date(moveTestDate()),
 		Title:     title,
 		StartTime: parseMoveClock(t, startHHMM),
 		EndTime:   parseMoveClock(t, endHHMM),
@@ -313,7 +313,7 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 	t.Run("cross-date move rejected", func(t *testing.T) {
 		s := setup(t)
 		otherDay := &scheduleModels.ActivityInstance{
-			Date:      moveTestDate().AddDays(1),
+			Date:      scheduleModels.Date(moveTestDate().AddDays(1)),
 			Title:     "Anderer Tag",
 			StartTime: parseMoveClock(t, "14:00"),
 			EndTime:   parseMoveClock(t, "15:00"),
@@ -553,7 +553,7 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 
 	s := makeMoveSetup(t)
 	past := &scheduleModels.ActivityInstance{
-		Date:      timezone.TodayDate().AddDays(-1),
+		Date:      scheduleModels.Date(timezone.TodayDate().AddDays(-1)),
 		Title:     "Gestern",
 		StartTime: parseMoveClock(t, "14:00"),
 		EndTime:   parseMoveClock(t, "15:00"),

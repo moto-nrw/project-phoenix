@@ -442,7 +442,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
 		tmplID := created.TemplateID
 		inst := &scheduleModel.ActivityInstance{
-			Date:            date,
+			Date:            scheduleModel.Date(date),
 			ActivityGroupID: &tmplID,
 			Title:           name,
 			StartTime:       time.Date(2024, 1, 1, hour, 0, 0, 0, time.UTC),
@@ -1533,7 +1533,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		createCapacityEnrollment(t, s, templateID, s.studentA, date, &end, &period.ID, nil)
 		exception := &scheduleModel.ActivityException{
 			ActivityGroupID: templateID,
-			ExceptionDate:   date,
+			ExceptionDate:   scheduleModel.Date(date),
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
@@ -1607,7 +1607,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		require.NoError(t, err)
 		exception := &scheduleModel.ActivityException{
 			ActivityGroupID: templateID,
-			ExceptionDate:   date,
+			ExceptionDate:   scheduleModel.Date(date),
 			ExceptionType:   scheduleModel.ActivityExceptionModified,
 			RoomID:          &s.roomID,
 		}
@@ -1706,7 +1706,8 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Inactive", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		end := period.StartDate.AddDays(1)
-		createCapacityEnrollment(t, s, templateID, s.studentA, period.StartDate, &end, &period.ID, nil)
+		endDate := timezone.Date(end)
+		createCapacityEnrollment(t, s, templateID, s.studentA, timezone.Date(period.StartDate), &endDate, &period.ID, nil)
 		_, err := s.db.NewUpdate().Table("schedule.calendar_periods").
 			Set("is_active = FALSE").
 			Where("tenant_id = ?", testpkg.Tenant(t)).
@@ -1868,13 +1869,18 @@ func createTemplateTestPeriodRange(
 	weekCycleAnchor *timezone.Date,
 ) *scheduleModel.CalendarPeriod {
 	t.Helper()
+	var scheduleAnchor *scheduleModel.Date
+	if weekCycleAnchor != nil {
+		value := scheduleModel.Date(*weekCycleAnchor)
+		scheduleAnchor = &value
+	}
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeCustom,
-		StartDate:       startDate,
-		EndDate:         endDate,
+		StartDate:       scheduleModel.Date(startDate),
+		EndDate:         scheduleModel.Date(endDate),
 		WeekCycleLength: weekCycleLength,
-		WeekCycleAnchor: weekCycleAnchor,
+		WeekCycleAnchor: scheduleAnchor,
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
@@ -2087,7 +2093,7 @@ func TestTemplateCreateStartDateValidation(t *testing.T) {
 	for _, sched := range tpl.Schedules {
 		assert.Empty(t, sched.ValidFrom, "omitted start_date must leave schedules open-started")
 	}
-	assertTemplateRosterValidFrom(t, s, created.TemplateID, period.StartDate)
+	assertTemplateRosterValidFrom(t, s, created.TemplateID, timezone.Date(period.StartDate))
 }
 
 // assertTemplateRosterValidFrom checks that every enrollment and supervisor

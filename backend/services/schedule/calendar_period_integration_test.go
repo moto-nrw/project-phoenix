@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -44,8 +43,8 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 		p1 := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("GetAll-A-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -55,8 +54,8 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 		p2 := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("GetAll-B-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 1, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -87,8 +86,8 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 		active := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Active-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -98,8 +97,8 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 		inactive := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Inactive-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 1, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -132,8 +131,8 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -172,8 +171,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -187,12 +186,12 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 	t.Run("creates period with week cycle", func(t *testing.T) {
 		ctx := testpkg.OwnCtx(t)
 		name := fmt.Sprintf("Create-Cycle-%d", time.Now().UnixNano())
-		anchor := timezone.NewDate(2025, 9, 1)
+		anchor := scheduleModels.NewDate(2025, 9, 1)
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 			WeekCycleAnchor: &anchor,
 			IsActive:        true,
@@ -210,8 +209,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		first := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -221,8 +220,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		second := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 1, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -236,8 +235,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            "",
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
 
@@ -251,8 +250,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("BadDates-%d", time.Now().UnixNano()),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2026, 8, 1),
-			EndDate:         timezone.NewDate(2025, 7, 31),
+			StartDate:       scheduleModels.NewDate(2026, 8, 1),
+			EndDate:         scheduleModels.NewDate(2025, 7, 31),
 			WeekCycleLength: 1,
 		}
 
@@ -283,7 +282,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	})
 	ctx := testpkg.TenantContext(tenantID)
 
-	makePeriod := func(name, periodType string, start, end timezone.Date, active bool) *scheduleModels.CalendarPeriod {
+	makePeriod := func(name, periodType string, start, end scheduleModels.Date, active bool) *scheduleModels.CalendarPeriod {
 		return &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 			PeriodType:      periodType,
@@ -295,12 +294,12 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	}
 
 	base := makePeriod("SameType-Basis", scheduleModels.PeriodTypeSemester,
-		timezone.NewDate(2035, 8, 1), timezone.NewDate(2036, 1, 31), true)
+		scheduleModels.NewDate(2035, 8, 1), scheduleModels.NewDate(2036, 1, 31), true)
 	require.NoError(t, svc.CreatePeriod(ctx, base))
 
 	t.Run("create rejects an active same-type overlap", func(t *testing.T) {
 		overlapping := makePeriod("SameType-Kollision", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2035, 10, 1), timezone.NewDate(2036, 3, 31), true)
+			scheduleModels.NewDate(2035, 10, 1), scheduleModels.NewDate(2036, 3, 31), true)
 		err := svc.CreatePeriod(ctx, overlapping)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
@@ -316,29 +315,29 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 
 	t.Run("create allows an inactive same-type overlap", func(t *testing.T) {
 		inactive := makePeriod("SameType-Inaktiv", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2035, 10, 1), timezone.NewDate(2036, 3, 31), false)
+			scheduleModels.NewDate(2035, 10, 1), scheduleModels.NewDate(2036, 3, 31), false)
 		require.NoError(t, svc.CreatePeriod(ctx, inactive))
 	})
 
 	t.Run("create allows an active cross-type overlap", func(t *testing.T) {
 		holiday := makePeriod("SameType-Ferien", scheduleModels.PeriodTypeHoliday,
-			timezone.NewDate(2035, 10, 1), timezone.NewDate(2035, 10, 14), true)
+			scheduleModels.NewDate(2035, 10, 1), scheduleModels.NewDate(2035, 10, 14), true)
 		require.NoError(t, svc.CreatePeriod(ctx, holiday))
 	})
 
 	t.Run("create allows an adjacent same-type period", func(t *testing.T) {
 		adjacent := makePeriod("SameType-Angrenzend", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2036, 2, 1), timezone.NewDate(2036, 7, 31), true)
+			scheduleModels.NewDate(2036, 2, 1), scheduleModels.NewDate(2036, 7, 31), true)
 		require.NoError(t, svc.CreatePeriod(ctx, adjacent))
 	})
 
 	t.Run("update rejects a date change into a same-type overlap", func(t *testing.T) {
 		mover := makePeriod("SameType-Verschoben", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2037, 8, 1), timezone.NewDate(2038, 1, 31), true)
+			scheduleModels.NewDate(2037, 8, 1), scheduleModels.NewDate(2038, 1, 31), true)
 		require.NoError(t, svc.CreatePeriod(ctx, mover))
 
-		mover.StartDate = timezone.NewDate(2035, 12, 1)
-		mover.EndDate = timezone.NewDate(2036, 1, 15)
+		mover.StartDate = scheduleModels.NewDate(2035, 12, 1)
+		mover.EndDate = scheduleModels.NewDate(2036, 1, 15)
 		err := svc.UpdatePeriod(ctx, mover)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
@@ -346,7 +345,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 
 	t.Run("update rejects activating an overlapping same-type period", func(t *testing.T) {
 		sleeper := makePeriod("SameType-Schlafend", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2035, 9, 1), timezone.NewDate(2035, 12, 31), false)
+			scheduleModels.NewDate(2035, 9, 1), scheduleModels.NewDate(2035, 12, 31), false)
 		require.NoError(t, svc.CreatePeriod(ctx, sleeper))
 
 		sleeper.IsActive = true
@@ -360,7 +359,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 		// guard — this is the pre-rule legacy data shape.
 		repo := repositories.NewFactory(db).CalendarPeriod
 		legacy := makePeriod("SameType-Bestand", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2035, 9, 1), timezone.NewDate(2035, 11, 30), true)
+			scheduleModels.NewDate(2035, 9, 1), scheduleModels.NewDate(2035, 11, 30), true)
 		legacy.SetTenantID(tenantID)
 		require.NoError(t, repo.Create(ctx, legacy))
 
@@ -372,7 +371,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	t.Run("update rejects a type change into a same-type overlap", func(t *testing.T) {
 		// A holiday inside the base semester is a legal cross-type overlap …
 		retyped := makePeriod("SameType-Umgetypt", scheduleModels.PeriodTypeHoliday,
-			timezone.NewDate(2035, 11, 5), timezone.NewDate(2035, 11, 15), true)
+			scheduleModels.NewDate(2035, 11, 5), scheduleModels.NewDate(2035, 11, 15), true)
 		require.NoError(t, svc.CreatePeriod(ctx, retyped))
 
 		// … but re-typing it to semester collides with the active base semester.
@@ -388,7 +387,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 		// guard checks the NEW type, so this repair path must keep working.
 		repo := repositories.NewFactory(db).CalendarPeriod
 		legacy := makePeriod("SameType-Reparatur", scheduleModels.PeriodTypeSemester,
-			timezone.NewDate(2035, 12, 1), timezone.NewDate(2036, 1, 20), true)
+			scheduleModels.NewDate(2035, 12, 1), scheduleModels.NewDate(2036, 1, 20), true)
 		legacy.SetTenantID(tenantID)
 		require.NoError(t, repo.Create(ctx, legacy))
 
@@ -416,8 +415,8 @@ func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
 		return &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("%s-%d", name, suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2040, 8, 1),
-			EndDate:         timezone.NewDate(2041, 1, 31),
+			StartDate:       scheduleModels.NewDate(2040, 8, 1),
+			EndDate:         scheduleModels.NewDate(2041, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -467,8 +466,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -496,8 +495,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -515,8 +514,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		first := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("First-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -526,8 +525,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		second := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Second-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 1, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -547,8 +546,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -602,14 +601,14 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 		p := periods[0]
 		// Independent re-derivation of the expected school year — keeps the
 		// test honest against the production helper.
-		today := timezone.NewDate(2026, 8, 24)
+		today := scheduleModels.NewDate(2026, 8, 24)
 		startYear := today.Year()
 		if today.Month() < time.August {
 			startYear--
 		}
 		assert.Equal(t, fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1), p.Name)
-		assert.Equal(t, timezone.NewDate(startYear, time.August, 1), p.StartDate)
-		assert.Equal(t, timezone.NewDate(startYear+1, time.July, 31), p.EndDate)
+		assert.Equal(t, scheduleModels.NewDate(startYear, time.August, 1), p.StartDate)
+		assert.Equal(t, scheduleModels.NewDate(startYear+1, time.July, 31), p.EndDate)
 		assert.Equal(t, scheduleModels.PeriodTypeSchoolYear, p.PeriodType)
 		assert.True(t, p.IsActive)
 		assert.Equal(t, 1, p.WeekCycleLength)
@@ -636,8 +635,8 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 		existing := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Vorhandener-Zeitraum-%d", time.Now().UnixNano()),
 			PeriodType:      scheduleModels.PeriodTypeCustom,
-			StartDate:       timezone.NewDate(2030, time.January, 1),
-			EndDate:         timezone.NewDate(2030, time.June, 30),
+			StartDate:       scheduleModels.NewDate(2030, time.January, 1),
+			EndDate:         scheduleModels.NewDate(2030, time.June, 30),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -732,7 +731,7 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 	tenantID, ctx := newBootstrapTenant(t, db)
 
 	// Same bounds as the default school year so the two inserts overlap.
-	today := timezone.NewDate(2026, 8, 24)
+	today := scheduleModels.NewDate(2026, 8, 24)
 	startYear := today.Year()
 	if today.Month() < time.August {
 		startYear--
@@ -740,8 +739,8 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 	explicit := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Eigenes-Schuljahr-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(startYear, time.August, 1),
-		EndDate:         timezone.NewDate(startYear+1, time.July, 31),
+		StartDate:       scheduleModels.NewDate(startYear, time.August, 1),
+		EndDate:         scheduleModels.NewDate(startYear+1, time.July, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -794,8 +793,8 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 	active := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Overlaps-Aktiv-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(2030, time.August, 1),
-		EndDate:         timezone.NewDate(2031, time.July, 31),
+		StartDate:       scheduleModels.NewDate(2030, time.August, 1),
+		EndDate:         scheduleModels.NewDate(2031, time.July, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -805,8 +804,8 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 		candidate := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Overlaps-Kandidat-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       timezone.NewDate(2031, time.January, 1),
-			EndDate:         timezone.NewDate(2031, time.December, 31),
+			StartDate:       scheduleModels.NewDate(2031, time.January, 1),
+			EndDate:         scheduleModels.NewDate(2031, time.December, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -823,8 +822,8 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 		candidate := &scheduleModels.CalendarPeriod{
 			Name:       "wird nicht gespeichert",
 			PeriodType: scheduleModels.PeriodTypeSemester,
-			StartDate:  timezone.NewDate(2031, time.January, 1),
-			EndDate:    timezone.NewDate(2031, time.December, 31),
+			StartDate:  scheduleModels.NewDate(2031, time.January, 1),
+			EndDate:    scheduleModels.NewDate(2031, time.December, 31),
 			IsActive:   false,
 		}
 
@@ -852,8 +851,8 @@ func TestCalendarPeriodService_DeletePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       timezone.NewDate(2025, 8, 1),
-			EndDate:         timezone.NewDate(2026, 7, 31),
+			StartDate:       scheduleModels.NewDate(2025, 8, 1),
+			EndDate:         scheduleModels.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}

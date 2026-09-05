@@ -90,7 +90,7 @@ func (s *materializationService) DetectEditedInWindow(
 		return nil, nil
 	}
 
-	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "detect edited: load instances", Err: err}
 	}
@@ -118,7 +118,7 @@ func (s *materializationService) DetectEditedInWindow(
 	// ones are individually-deleted occurrences that a following-series split
 	// would rematerialize under the successor template — reported only when the
 	// caller asks for deletions (#1875 review).
-	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "detect edited: load exceptions", Err: err}
 	}
@@ -175,19 +175,20 @@ func (s *materializationService) DetectEditedInWindow(
 		}
 
 		for _, inst := range planned {
+			instanceDate := timezone.Date(inst.Date)
 			expected := s.expectedSlotsOn(
 				tmpl,
 				schedules,
 				timeframeByID,
 				periods,
-				exceptionIdx[exceptionKey{tmpl.ID, inst.Date}],
-				inst.Date,
+				exceptionIdx[exceptionKey{tmpl.ID, instanceDate}],
+				instanceDate,
 			)
 			expectedStudentIDs := expectedStudentIDsOn(
 				enrollments,
 				targetStudentIDs,
 				careBounds,
-				inst.Date,
+				instanceDate,
 				calendarPeriodID(inst),
 			)
 			changes := diffOccurrenceWithExpectedStudents(
@@ -211,7 +212,7 @@ func (s *materializationService) DetectEditedInWindow(
 			}
 			edited = append(edited, EditedOccurrence{
 				InstanceID: inst.ID,
-				Date:       inst.Date,
+				Date:       instanceDate,
 				StartTime:  formatTimeOfDay(inst.StartTime),
 				Title:      inst.Title,
 				Changes:    changes,
@@ -227,7 +228,7 @@ func (s *materializationService) DetectEditedInWindow(
 			// No instance row (it was deleted); InstanceID 0 signals a deletion.
 			edited = append(edited, EditedOccurrence{
 				InstanceID: 0,
-				Date:       exc.ExceptionDate,
+				Date:       timezone.Date(exc.ExceptionDate),
 				StartTime:  "",
 				Title:      tmpl.Name,
 				Changes:    []string{EditedChangeDeleted},
@@ -405,10 +406,11 @@ func staffRosterChanged(
 	staffRows []*schedule.InstanceStaff,
 ) bool {
 	periodID := calendarPeriodID(inst)
-	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, inst.Date, periodID)
+	instanceDate := timezone.Date(inst.Date)
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID)
 	expectedStaff := make(map[int64]bool)
 	for _, sup := range supervisors {
-		if isSupervisorValidOn(sup, inst.Date, periodID) {
+		if isSupervisorValidOn(sup, instanceDate, periodID) {
 			expectedStaff[sup.StaffID] = hasPrimary && sup.StaffID == primaryStaffID
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +55,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	})
 	require.ErrorIs(t, err, scheduleService.ErrPartialAbsencePendingRequestConflict)
 
-	rows, listErr := repos.StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, day, day)
+	rows, listErr := repos.StudentPickupException.FindByStudentIDAndDateRange(ctx, chain.StudentID, scheduleModels.Date(day), scheduleModels.Date(day))
 	require.NoError(t, listErr)
 	assert.Empty(t, rows, "pending full-day request must block partial-absence creation")
 }

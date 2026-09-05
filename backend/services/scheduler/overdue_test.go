@@ -84,7 +84,7 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 	start := s.now.Add(-time.Duration(minutesAgo) * time.Minute)
 
 	ai := &scheduleModels.ActivityInstance{
-		Date:          timezone.DateFromTime(s.now),
+		Date:          scheduleModels.DateFromTime(s.now),
 		Title:         fmt.Sprintf("OVR-%d", time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 23, 59, 0, 0, time.UTC),

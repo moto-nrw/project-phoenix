@@ -95,8 +95,8 @@ func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, 
 	period := &scheduleModels.CalendarPeriod{
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       start,
-		EndDate:         end,
+		StartDate:       scheduleModels.Date(start),
+		EndDate:         scheduleModels.Date(end),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -514,10 +514,10 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
+	anchor := scheduleModels.NewDate(2026, time.August, 31) // Monday, week A
 	period := &scheduleModels.CalendarPeriod{
 		Name: uniqueSchemaName("care-ab-period-" + t.Name()), PeriodType: scheduleModels.PeriodTypeCustom,
-		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
+		StartDate: scheduleModels.NewDate(2026, 8, 1), EndDate: scheduleModels.NewDate(2027, 8, 31),
 		WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
@@ -583,7 +583,7 @@ func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testin
 	period := &scheduleModels.CalendarPeriod{
 		Name:       uniqueSchemaName("inactive-care-period-" + t.Name()),
 		PeriodType: scheduleModels.PeriodTypeCustom,
-		StartDate:  timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
+		StartDate:  scheduleModels.NewDate(2026, 8, 1), EndDate: scheduleModels.NewDate(2027, 8, 31),
 		WeekCycleLength: 1, IsActive: false,
 	}
 	period.SetTenantID(testpkg.Tenant(t))

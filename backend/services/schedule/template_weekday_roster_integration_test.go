@@ -940,8 +940,8 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	periodB := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Roster-B-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       timezone.NewDate(2026, 1, 1),
-		EndDate:         timezone.NewDate(2026, 12, 31),
+		StartDate:       scheduleModels.NewDate(2026, 1, 1),
+		EndDate:         scheduleModels.NewDate(2026, 12, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -1038,8 +1038,8 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

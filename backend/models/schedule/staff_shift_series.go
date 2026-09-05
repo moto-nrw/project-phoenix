@@ -3,8 +3,6 @@ package schedule
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // StaffShiftSeries is one recurring shift rule (#1889): the same wall-clock
@@ -33,10 +31,10 @@ type StaffShiftSeries struct {
 	CalendarPeriodID int64 `bun:"calendar_period_id,notnull" json:"calendar_period_id"`
 	// WeekPattern: 0 = every week, 1 = week A, 2 = week B (the encoding
 	// ShouldMaterializeWeekPattern expects).
-	WeekPattern  int            `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
-	ValidFrom    timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil   *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	SeriesRootID *int64         `bun:"series_root_id" json:"series_root_id,omitempty"`
+	WeekPattern  int    `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
+	ValidFrom    Date   `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil   *Date  `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	SeriesRootID *int64 `bun:"series_root_id" json:"series_root_id,omitempty"`
 	// RetainedOccurrenceShiftID records the concrete current-day row that a
 	// same-day permanent edit retained. It is deliberately separate from
 	// Detached: detached rows can also be ordinary one-off deviations, which
@@ -120,7 +118,7 @@ func (s *StaffShiftSeries) ContainsWeekday(weekday int) bool {
 type StaffShiftSeriesException struct {
 	Model `bun:"schema:schedule,table:staff_shift_series_exceptions"`
 	TenantModel
-	SeriesID  int64         `bun:"series_id,notnull" json:"series_id"`
-	Date      timezone.Date `bun:"date,notnull,type:date" json:"date"`
-	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
+	SeriesID  int64 `bun:"series_id,notnull" json:"series_id"`
+	Date      Date  `bun:"date,notnull,type:date" json:"date"`
+	CreatedBy int64 `bun:"created_by,notnull" json:"created_by"`
 }

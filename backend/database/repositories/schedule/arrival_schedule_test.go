@@ -440,7 +440,7 @@ func TestStudentArrivalExceptionRepository_Create(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.NewDate(2024, 2, 14),
+			ExceptionDate: scheduleModels.NewDate(2024, 2, 14),
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -470,9 +470,9 @@ func TestStudentArrivalExceptionRepository_FindByStudentID(t *testing.T) {
 	t.Run("finds all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		dates := []timezone.Date{
-			timezone.NewDate(2024, 2, 14),
-			timezone.NewDate(2024, 2, 15),
+		dates := []scheduleModels.Date{
+			scheduleModels.NewDate(2024, 2, 14),
+			scheduleModels.NewDate(2024, 2, 15),
 		}
 
 		for _, date := range dates {
@@ -507,7 +507,7 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 
 		pastException := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.TodayDate().AddDays(-7),
+			ExceptionDate: scheduleModels.Date(timezone.TodayDate()).AddDays(-7),
 			Reason:        testpkg.StrPtr("Past exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -516,7 +516,7 @@ func TestStudentArrivalExceptionRepository_FindUpcomingByStudentID(t *testing.T)
 
 		futureException := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.TodayDate().AddDays(7),
+			ExceptionDate: scheduleModels.Date(timezone.TodayDate()).AddDays(7),
 			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -542,7 +542,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 	t.Run("finds exception for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		exceptionDate := timezone.NewDate(2024, 3, 20)
+		exceptionDate := scheduleModels.NewDate(2024, 3, 20)
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -560,7 +560,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDAndDate(t *testing.T) 
 	})
 
 	t.Run("returns nil when not found", func(t *testing.T) {
-		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), timezone.TodayDate())
+		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), scheduleModels.Date(timezone.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Nil(t, result)
@@ -580,7 +580,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
 		staff := testpkg.CreateTestStaff(t, db, "ArrStaff", "BulkLookup")
 
-		exceptionDate := timezone.NewDate(2024, 4, 10)
+		exceptionDate := scheduleModels.NewDate(2024, 4, 10)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			exception := &scheduleModels.StudentArrivalException{
@@ -600,7 +600,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate(t *testing.T)
 	})
 
 	t.Run("returns empty slice for empty student IDs", func(t *testing.T) {
-		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, timezone.TodayDate())
+		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, scheduleModels.Date(timezone.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -617,7 +617,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 	student := testpkg.CreateTestStudent(t, db, "ArrStudent", "BerlinTZ", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "ArrStaff", "BerlinTZ")
 
-	// timezone.Date binds as a 'YYYY-MM-DD' literal, so the DB session
+	// scheduleModels.Date binds as a 'YYYY-MM-DD' literal, so the DB session
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
 	// stays to pin exactly that: the roundtrip is session-TZ-independent.
 	err := db.RunInTx(ctx, nil, func(_ context.Context, tx bun.Tx) error {
@@ -627,7 +627,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 			return err
 		}
 
-		day := timezone.NewDate(2026, 4, 24)
+		day := scheduleModels.NewDate(2026, 4, 24)
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: day,
@@ -678,7 +678,7 @@ func TestStudentArrivalExceptionRepository_FindByID(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.NewDate(2024, 5, 20),
+			ExceptionDate: scheduleModels.NewDate(2024, 5, 20),
 			Reason:        testpkg.StrPtr("Test reason"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -714,7 +714,7 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 		arrivalTime := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:       student.ID,
-			ExceptionDate:   timezone.NewDate(2024, 6, 15),
+			ExceptionDate:   scheduleModels.NewDate(2024, 6, 15),
 			ExpectedArrival: &arrivalTime,
 			Reason:          testpkg.StrPtr("Original reason"),
 			CreatedBy:       createRepositoryTestStaffID(t, db),
@@ -746,7 +746,7 @@ func TestStudentArrivalExceptionRepository_Update(t *testing.T) {
 	t.Run("fails validation on invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     0, // Invalid
-			ExceptionDate: timezone.NewDate(2024, 6, 15),
+			ExceptionDate: scheduleModels.NewDate(2024, 6, 15),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createRepositoryTestStaffID(t, db),
 		}
@@ -771,7 +771,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.NewDate(2099, time.January, i),
+				ExceptionDate: scheduleModels.NewDate(2099, time.January, i),
 				Reason:        testpkg.StrPtr("Test exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -791,7 +791,7 @@ func TestStudentArrivalExceptionRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, timezone.NewDate(2099, time.January, 3), results[0].ExceptionDate)
+		assert.Equal(t, scheduleModels.NewDate(2099, time.January, 3), results[0].ExceptionDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -816,7 +816,7 @@ func TestStudentArrivalExceptionRepository_DeleteByStudentID(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i),
+				ExceptionDate: scheduleModels.Date(timezone.TodayDate()).AddDays(i),
 				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -850,7 +850,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
+				ExceptionDate: scheduleModels.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Past exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -864,7 +864,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
+				ExceptionDate: scheduleModels.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Future exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -873,7 +873,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 			futureExceptionCount++
 		}
 
-		cutoffDate := timezone.NewDate(2026, 8, 24)
+		cutoffDate := scheduleModels.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
@@ -907,7 +907,7 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 2, 14),
+			NoteDate:  scheduleModels.NewDate(2024, 2, 14),
 			Content:   "Arrives by school bus",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -928,7 +928,7 @@ func TestStudentArrivalNoteRepository_Create(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  timezone.NewDate(2024, 2, 14),
+			NoteDate:  scheduleModels.NewDate(2024, 2, 14),
 			Content:   "Test",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -952,7 +952,7 @@ func TestStudentArrivalNoteRepository_FindByID(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 5, 20),
+			NoteDate:  scheduleModels.NewDate(2024, 5, 20),
 			Content:   "Test note",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -985,10 +985,10 @@ func TestStudentArrivalNoteRepository_FindByStudentID(t *testing.T) {
 	t.Run("finds all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		dates := []timezone.Date{
-			timezone.NewDate(2024, 2, 14),
-			timezone.NewDate(2024, 2, 15),
-			timezone.NewDate(2024, 2, 16),
+		dates := []scheduleModels.Date{
+			scheduleModels.NewDate(2024, 2, 14),
+			scheduleModels.NewDate(2024, 2, 15),
+			scheduleModels.NewDate(2024, 2, 16),
 		}
 
 		for _, date := range dates {
@@ -1029,7 +1029,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	t.Run("finds notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 
-		targetDate := timezone.NewDate(2024, 3, 20)
+		targetDate := scheduleModels.NewDate(2024, 3, 20)
 
 		// Create multiple notes for target date
 		for i := 0; i < 2; i++ {
@@ -1064,7 +1064,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 	})
 
 	t.Run("returns empty slice when no notes found", func(t *testing.T) {
-		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), timezone.TodayDate())
+		result, err := repo.FindByStudentIDAndDate(ctx, int64(99999999), scheduleModels.Date(timezone.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -1083,7 +1083,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
 
-		noteDate := timezone.NewDate(2024, 4, 10)
+		noteDate := scheduleModels.NewDate(2024, 4, 10)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			note := &scheduleModels.StudentArrivalNote{
@@ -1103,7 +1103,7 @@ func TestStudentArrivalNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for empty student IDs", func(t *testing.T) {
-		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, timezone.TodayDate())
+		results, err := repo.FindByStudentIDsAndDate(ctx, []int64{}, scheduleModels.Date(timezone.TodayDate()))
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -1123,7 +1123,7 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 6, 15),
+			NoteDate:  scheduleModels.NewDate(2024, 6, 15),
 			Content:   "Original content",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -1151,7 +1151,7 @@ func TestStudentArrivalNoteRepository_Update(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  timezone.NewDate(2024, 6, 15),
+			NoteDate:  scheduleModels.NewDate(2024, 6, 15),
 			Content:   "Test",
 			CreatedBy: createRepositoryTestStaffID(t, db),
 		}
@@ -1176,7 +1176,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		for i := 1; i <= 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.NewDate(2099, time.February, i),
+				NoteDate:  scheduleModels.NewDate(2099, time.February, i),
 				Content:   "Test note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1196,7 +1196,7 @@ func TestStudentArrivalNoteRepository_List(t *testing.T) {
 		results, err = repo.List(ctx, options)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
-		assert.Equal(t, timezone.NewDate(2099, time.February, 3), results[0].NoteDate)
+		assert.Equal(t, scheduleModels.NewDate(2099, time.February, 3), results[0].NoteDate)
 	})
 
 	t.Run("lists with nil options", func(t *testing.T) {
@@ -1221,7 +1221,7 @@ func TestStudentArrivalNoteRepository_DeleteByStudentID(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i),
+				NoteDate:  scheduleModels.Date(timezone.TodayDate()).AddDays(i),
 				Content:   "Note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1261,7 +1261,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
+				NoteDate:  scheduleModels.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Past note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1275,7 +1275,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
+				NoteDate:  scheduleModels.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Future note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1284,7 +1284,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 			futureNoteCount++
 		}
 
-		cutoffDate := timezone.NewDate(2026, 8, 24)
+		cutoffDate := scheduleModels.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastNotes(ctx, cutoffDate)
 
 		require.NoError(t, err)

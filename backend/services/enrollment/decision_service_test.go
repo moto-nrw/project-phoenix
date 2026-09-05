@@ -3283,7 +3283,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 
 	period := &scheduleModels.CalendarPeriod{
 		Name: "decision-split-series-" + t.Name(), PeriodType: scheduleModels.PeriodTypeCustom,
-		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
+		StartDate: scheduleModels.NewDate(2026, 8, 1), EndDate: scheduleModels.NewDate(2027, 8, 31),
 		WeekCycleLength: 1, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))

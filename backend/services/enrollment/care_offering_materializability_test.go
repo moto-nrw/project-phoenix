@@ -145,7 +145,7 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &start,
 		EndTime:         &end,
@@ -179,7 +179,7 @@ func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *
 	require.NoError(t, repos.ActivitySchedule.Update(testpkg.Ctx(t), schedules[0]))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	})
 
@@ -207,7 +207,7 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care exception override")
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   firstMonday,
+		ExceptionDate:   scheduleModels.Date(firstMonday),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		RoomID:          &overrideRoom.ID,
 	}
@@ -276,7 +276,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 	for _, date := range []timezone.Date{firstMonday, secondMonday} {
 		createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 			ActivityGroupID: root.ID,
-			ExceptionDate:   date,
+			ExceptionDate:   scheduleModels.Date(date),
 			ExceptionType:   scheduleModels.ActivityExceptionModified,
 			RoomID:          &overrideRoom.ID,
 		})
@@ -362,7 +362,7 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 	overrideStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &overrideStart,
 	})
@@ -399,7 +399,7 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
@@ -424,7 +424,7 @@ func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T
 	invalidStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &invalidStart,
 	}

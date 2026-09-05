@@ -384,7 +384,7 @@ func (s *instanceService) now() time.Time {
 	return time.Now()
 }
 
-func instanceBoundary(day timezone.Date, wallClock time.Time) time.Time {
+func instanceBoundary(day scheduleModel.Date, wallClock time.Time) time.Time {
 	return time.Date(day.Year(), day.Month(), day.Day(), wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
 }
 
@@ -472,7 +472,7 @@ func (s *instanceService) notScheduledStudentIDs(
 		return nil, nil
 	}
 
-	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, studentIDs, instance.Date)
+	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, studentIDs, timezone.Date(instance.Date))
 	if err != nil {
 		return nil, &ScheduleError{Op: "complete instance: resolve care day", Err: err}
 	}
@@ -511,7 +511,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	// re-entrant, matching Cancel's day lock. Reload under the lock so a concurrent
 	// cancel/complete is observed before we materialize the bridge (#1840).
 	lockedDate := instance.Date
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), timezone.Date(lockedDate))); err != nil {
 		return nil, &ScheduleError{Op: "start instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
@@ -790,7 +790,7 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	// group). Advisory xact locks are re-entrant; reload under the lock so a
 	// concurrent move/cancel/complete is observed before we act (#1840).
 	lockedDate := instance.Date
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), timezone.Date(lockedDate))); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
@@ -955,7 +955,7 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 		return nil, err
 	}
 	lockedDate := instance.Date
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), timezone.Date(lockedDate))); err != nil {
 		return nil, &ScheduleError{Op: "reopen instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
@@ -1309,7 +1309,7 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 	// this lock) re-acquires it harmlessly. Reload under the lock so a concurrent
 	// move/complete/cancel is observed before we act (#1840).
 	lockedDate := instance.Date
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), timezone.Date(lockedDate))); err != nil {
 		return nil, &ScheduleError{Op: "cancel instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
@@ -1491,10 +1491,10 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 	}
 
 	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
-		if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, instance.Date); err != nil {
+		if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date)); err != nil {
 			return err
 		}
-		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, instance.Date, deletedSlotReason); err != nil {
+		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date), deletedSlotReason); err != nil {
 			return err
 		}
 	}
@@ -1513,7 +1513,7 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 }
 
 func (s *instanceService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date timezone.Date) error {
-	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, date)
+	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
 		return &ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
 	}
@@ -1611,7 +1611,7 @@ func newActivityInstance(
 		isSpontaneous = *req.IsSpontaneous
 	}
 	inst := &scheduleModel.ActivityInstance{
-		Date:                   req.Date,
+		Date:                   scheduleModel.Date(req.Date),
 		StartTime:              req.StartTime,
 		EndTime:                req.EndTime,
 		Title:                  req.Title,
@@ -1728,7 +1728,7 @@ func (s *instanceService) assignCreatedInstanceRoster(
 		return err
 	}
 	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
-	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, inst.Date); err != nil {
+	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, timezone.Date(inst.Date)); err != nil {
 		return err
 	}
 	return s.assignCreatedInstanceStudents(ctx, inst, studentIDs, tenantID)
@@ -1824,7 +1824,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	// days can never deadlock.
 	tenantID := tenant.FromContext(ctx)
 	lockedDate := instance.Date
-	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, lockedDate, req.Date); err != nil {
+	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, timezone.Date(lockedDate), req.Date); err != nil {
 		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
 	}
 
@@ -1845,10 +1845,10 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
-	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
+	if err := validateLegacyWeekendInstanceDate(timezone.Date(instance.Date), req.Date); err != nil {
 		return nil, err
 	}
-	if req.CalendarPeriodID != nil || (instance.Date != req.Date && !instance.IsSpontaneous) {
+	if req.CalendarPeriodID != nil || (timezone.Date(instance.Date) != req.Date && !instance.IsSpontaneous) {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
 			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
 		}
@@ -1866,11 +1866,11 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	// materializer treats that slot as consumed (skipped_exception).
 	origSlot := capturedSlot{
 		ActivityGroupID: instance.ActivityGroupID,
-		Date:            instance.Date,
+		Date:            timezone.Date(instance.Date),
 		StartHHMMSS:     formatTimeOfDay(instance.StartTime),
 	}
 
-	instance.Date = req.Date
+	instance.Date = scheduleModel.Date(req.Date)
 	instance.StartTime = req.StartTime
 	instance.EndTime = req.EndTime
 	instance.Title = req.Title
@@ -1944,7 +1944,7 @@ func (s *instanceService) validateInstanceDateInActiveCalendarPeriod(ctx context
 		return fmt.Errorf("find active calendar periods: %w", err)
 	}
 	for _, period := range periods {
-		if period.ContainsDay(date) {
+		if period.ContainsDay(scheduleModel.Date(date)) {
 			return nil
 		}
 	}
@@ -2086,7 +2086,7 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		}
 	}
 	lockStudentIDs = append(lockStudentIDs, studentIDs...)
-	if err := s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), instance.Date); err != nil {
+	if err := s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), timezone.Date(instance.Date)); err != nil {
 		return err
 	}
 
@@ -2195,7 +2195,7 @@ func (s *instanceService) consumeMovedSlot(ctx context.Context, orig capturedSlo
 		return nil // slot key unchanged — nothing vacated
 	}
 
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, orig.Date)
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, scheduleModel.Date(orig.Date))
 	if err != nil {
 		return &ScheduleError{Op: "update instance: check slot exception", Err: err}
 	}
@@ -2214,7 +2214,7 @@ func (s *instanceService) consumeMovedSlot(ctx context.Context, orig capturedSlo
 	reason := movedSlotReason
 	exc := &scheduleModel.ActivityException{
 		ActivityGroupID: *orig.ActivityGroupID,
-		ExceptionDate:   orig.Date,
+		ExceptionDate:   scheduleModel.Date(orig.Date),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -2232,7 +2232,7 @@ func (s *instanceService) consumeMovedSlot(ctx context.Context, orig capturedSlo
 }
 
 func (s *instanceService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date timezone.Date, reason string) error {
-	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, date)
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
 		return &ScheduleError{Op: "delete instance: check slot exception", Err: err}
 	}
@@ -2257,7 +2257,7 @@ func (s *instanceService) ensureCancelledSlotException(ctx context.Context, acti
 
 	exc := &scheduleModel.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModel.Date(date),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -2498,7 +2498,8 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 	// Saturday/Sunday occurrences must be deleted too: materialization no
 	// longer recreates weekends, and retaining them would leave stale title,
 	// room, time, roster, or notes after a series edit.
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID, false)
+	fromDate, toDate := scheduleModel.Date(from), scheduleModel.Date(to)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, fromDate, &toDate, activityGroupID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
@@ -2611,7 +2612,7 @@ type snapshotSubstitute struct {
 // planned, template-backed occurrences ReplanWeek is about to delete. Only those
 // rows are regenerated, so only those can carry an override worth preserving.
 func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timezone.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2634,7 +2635,7 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 		if activityGroupID != nil && *inst.ActivityGroupID != *activityGroupID {
 			continue
 		}
-		occurrences[groupDay{*inst.ActivityGroupID, inst.Date}]++
+		occurrences[groupDay{*inst.ActivityGroupID, timezone.Date(inst.Date)}]++
 		eligible = append(eligible, inst)
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, activityInstanceIDs(eligible))
@@ -2645,7 +2646,7 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 	snapshots := make([]deviationSnapshot, 0)
 	for _, inst := range eligible {
 		snap := deviationSnapshot{
-			date:             inst.Date,
+			date:             timezone.Date(inst.Date),
 			activityGroupID:  *inst.ActivityGroupID,
 			startTime:        formatTimeOfDay(inst.StartTime),
 			understaffedAck:  inst.UnderstaffedAck,
@@ -2911,7 +2912,7 @@ func indexRegeneratedCandidates(candidates []*scheduleModel.ActivityInstance) ma
 	byGroupDay := make(map[groupDay][]*scheduleModel.ActivityInstance)
 	for _, candidate := range candidates {
 		if candidate.ActivityGroupID != nil {
-			key := groupDay{*candidate.ActivityGroupID, candidate.Date}
+			key := groupDay{*candidate.ActivityGroupID, timezone.Date(candidate.Date)}
 			byGroupDay[key] = append(byGroupDay[key], candidate)
 		}
 	}
@@ -3103,5 +3104,5 @@ func instanceRefreshReason(eventType realtime.EventType) string {
 // GetPlannedStudentIDsByDate returns the unique student IDs (of the given
 // candidates) that have a planned instance on the date.
 func (s *instanceService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error) {
-	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, date)
+	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, scheduleModel.Date(date))
 }

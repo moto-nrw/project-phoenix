@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -56,7 +55,7 @@ const heldInstance = `(
 // those materialize rows just as well; without the is_template gate they would
 // appear as courses. Archived templates stay in on purpose: the section is
 // retrospective, and a course archived in March still took place in February.
-func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
+func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to, today scheduleModels.Date) ([]scheduleModels.CourseInstanceRow, error) {
 	var rows []scheduleModels.CourseInstanceRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`schedule.activity_instances AS "instance"`).
@@ -137,7 +136,7 @@ const enrolledOnInstanceDate = `(
 // The three counters are returned separately instead of a ready-made quota so
 // the service can state the denominator on the screen: present + absent are
 // decided, open occurrences are not.
-func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, from, to, today timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
+func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, from, to, today scheduleModels.Date) ([]scheduleModels.CourseParticipationRow, error) {
 	var rows []scheduleModels.CourseParticipationRow
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`schedule.instance_students AS "attendance"`).

@@ -127,7 +127,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: e.clock(t, start),
 		EndTime:   e.clock(t, end),
 		CreatedBy: staffID,
@@ -598,7 +598,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		DateEnd:        day,
 	}
 	shift := &scheduleModels.StaffShift{
-		StaffID: e.subject.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.subject.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "09:00"), CreatedBy: e.admin.ID,
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
@@ -657,7 +657,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		DateEnd:        day,
 	}
 	cover := &scheduleModels.StaffShift{
-		StaffID: e.sub.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.sub.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 	}
 	cover.SetTenantID(testpkg.Tenant(t))

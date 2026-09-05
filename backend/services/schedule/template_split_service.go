@@ -588,7 +588,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	// preserveDeviations=false: split is the destructive series operation. A
 	// surviving deviated old-template row would dedupe apart from the new
 	// template's materialized successor and show as a duplicate block (#1840).
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &oldID, false)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(in.EffectiveDate), nil, &oldID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}
@@ -852,7 +852,7 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	// preserveDeviations=false: "end this and all following" must actually
 	// remove the whole planned series — keeping a deviated row would leave the
 	// ended series partly alive (#1840).
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID, false)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(in.EffectiveDate), nil, &templateID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
@@ -941,7 +941,7 @@ func (s *TemplateSplitService) cascadeEndToSeriesSegments(
 			)
 		}
 		segmentID := seg.Group.ID
-		n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, capAt, nil, &segmentID, false)
+		n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(capAt), nil, &segmentID, false)
 		if err != nil {
 			return deleted, &ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
 		}

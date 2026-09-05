@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +15,7 @@ func shiftWall(hour, minute int) time.Time {
 func testShift(startHour, endHour int) *StaffShift {
 	return &StaffShift{
 		StaffID:   7,
-		Date:      timezone.NewDate(2026, time.July, 6),
+		Date:      NewDate(2026, time.July, 6),
 		StartTime: shiftWall(startHour, 0),
 		EndTime:   shiftWall(endHour, 0),
 		CreatedBy: 1,
@@ -33,7 +32,7 @@ func TestStaffShiftValidate(t *testing.T) {
 	assert.Error(t, missingStaff.Validate())
 
 	missingDate := testShift(8, 16)
-	missingDate.Date = timezone.Date("")
+	missingDate.Date = Date("")
 	assert.Error(t, missingDate.Validate())
 
 	inverted := testShift(16, 8)
@@ -98,7 +97,7 @@ func TestStaffShiftEndInstant(t *testing.T) {
 	assert.Equal(t, 6, end.Day())
 	assert.Equal(t, 16, end.Hour())
 	assert.Equal(t, 0, end.Minute())
-	assert.Equal(t, timezone.Berlin, end.Location())
+	assert.Equal(t, berlin, end.Location())
 }
 
 func TestStaffShiftEntityAccessors(t *testing.T) {

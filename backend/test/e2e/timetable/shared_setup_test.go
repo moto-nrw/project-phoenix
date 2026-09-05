@@ -212,8 +212,8 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

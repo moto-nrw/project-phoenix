@@ -143,7 +143,7 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	// Grade filter 1 must match the child's school class.
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	// A second child outside the filter must stay off the roster.
@@ -231,7 +231,7 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, newStart)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	name := fmt.Sprintf("Angebots-Pull-Forward-%d", time.Now().UnixNano())
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -292,7 +292,7 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
 		Name:                  fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano()),
@@ -333,7 +333,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -402,7 +402,7 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -457,7 +457,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -515,7 +515,7 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -610,7 +610,7 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -691,7 +691,7 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -773,8 +773,8 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	fitting := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
-	overhanging := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate.AddDays(30))
+	fitting := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
+	overhanging := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate).AddDays(30))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	createInput := scheduleSvc.CreateTemplateInput{
@@ -843,7 +843,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	_, err := s.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = FALSE WHERE id = ?`, offering.ID).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -880,7 +880,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -952,7 +952,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 
 	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
@@ -975,7 +975,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 
 	// One occurrence is already materialized when the edit happens.
 	instance := &scheduleModels.ActivityInstance{
-		Date:             monday,
+		Date:             scheduleModels.Date(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,
@@ -1033,7 +1033,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	name := fmt.Sprintf("Angebots-Termin-%d", time.Now().UnixNano())
 	manualStudentID := s.students[0]
 
@@ -1057,7 +1057,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	// One occurrence with the manual child is already materialized when the
 	// conversion happens.
 	instance := &scheduleModels.ActivityInstance{
-		Date:             monday,
+		Date:             scheduleModels.Date(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,

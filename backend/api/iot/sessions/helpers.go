@@ -197,7 +197,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 
 	startedBy := firstPositiveID(supervisorIDs)
 	inst := &scheduleModel.ActivityInstance{
-		Date:            timezone.DateFromTime(startedAt),
+		Date:            scheduleModel.DateFromTime(startedAt),
 		ActivityGroupID: activeGroup.GroupID,
 		Title:           rs.timetableTitleForActivity(ctx, activeGroup.GroupID),
 		StartTime:       clockFromMinutes(startMinutes),

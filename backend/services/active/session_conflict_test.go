@@ -497,7 +497,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
 		activeGroupID := session1.ID
 		mirroredInstance := &scheduleModels.ActivityInstance{
-			Date:            timezone.TodayDate(),
+			Date:            scheduleModels.Date(timezone.TodayDate()),
 			ActivityGroupID: &activityGroup.ID,
 			Title:           "Force Transfer Activity",
 			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),

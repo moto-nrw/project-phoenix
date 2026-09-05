@@ -457,7 +457,8 @@ func loadOverlappingInstances(
 	q PlannedConflictQuery,
 	logger *slog.Logger,
 ) []*scheduleModel.ActivityInstance {
-	instances, err := deps.InstanceRepo.FindByTenantAndDateRange(ctx, q.Date, q.Date)
+	queryDate := scheduleModel.Date(q.Date)
+	instances, err := deps.InstanceRepo.FindByTenantAndDateRange(ctx, queryDate, queryDate)
 	if err != nil {
 		logger.Warn("planned conflict detection: load day instances failed",
 			slog.String("date", q.Date.String()),
@@ -720,7 +721,7 @@ func appendPairStaffConflicts(out map[int64][]InstanceConflictWarning, a, b Wind
 		if roomA == roomB {
 			continue // same concrete room — sanctioned parallel supervision
 		}
-		fp := conflictFingerprint(ConflictKindStaff, aRow.StaffID, a.Instance.Date,
+		fp := conflictFingerprint(ConflictKindStaff, aRow.StaffID, timezone.Date(a.Instance.Date),
 			a.Instance.ID, b.Instance.ID, oStart, oEnd, roomA, roomB)
 		appendMirroredWarnings(out, a.Instance, b.Instance, InstanceConflictWarning{
 			Kind:        ConflictKindStaff,
@@ -752,7 +753,7 @@ func appendPairStudentConflicts(out map[int64][]InstanceConflictWarning, a, b Wi
 		// Rooms are irrelevant to a child double-booking (the conflict exists
 		// either way), so the fingerprint pins them to zero: moving one block
 		// to another room must NOT resurface an acknowledged child conflict.
-		fp := conflictFingerprint(ConflictKindStudent, aRow.StudentID, a.Instance.Date,
+		fp := conflictFingerprint(ConflictKindStudent, aRow.StudentID, timezone.Date(a.Instance.Date),
 			a.Instance.ID, b.Instance.ID, oStart, oEnd, 0, 0)
 		appendMirroredWarnings(out, a.Instance, b.Instance, InstanceConflictWarning{
 			Kind:        ConflictKindStudent,

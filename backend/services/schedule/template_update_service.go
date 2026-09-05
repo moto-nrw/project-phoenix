@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -605,7 +606,7 @@ func (s *TimetableDataService) propagateListKindToInstances(
 		return nil
 	}
 	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
-		ctx, templateID, previousKind, newKind, s.deps.Today(),
+		ctx, templateID, previousKind, newKind, scheduleModel.Date(s.deps.Today()),
 	); err != nil {
 		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}

@@ -111,7 +111,7 @@ func CarePlanStatusSlots(repository scheduleModels.InstanceStudentRepository) ca
 }
 
 func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {
-	return d.repository.ApplyStatusDay(ctx, studentID, carePlanLegacy.ScheduleDate(date), statusDayID, substatus)
+	return d.repository.ApplyStatusDay(ctx, studentID, scheduleModels.Date(date), statusDayID, substatus)
 }
 
 func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {

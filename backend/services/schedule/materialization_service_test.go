@@ -415,7 +415,7 @@ func TestPeriodSelection(t *testing.T) {
 	}
 
 	mkPeriod := func(id int64, start, end timezone.Date) *schedule.CalendarPeriod {
-		p := &schedule.CalendarPeriod{StartDate: start, EndDate: end, IsActive: true}
+		p := &schedule.CalendarPeriod{StartDate: schedule.Date(start), EndDate: schedule.Date(end), IsActive: true}
 		p.ID = id
 		return p
 	}
@@ -588,7 +588,7 @@ type materializationFakeInstanceRepo struct {
 	findErr  error
 }
 
-func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityInstance, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
@@ -620,7 +620,7 @@ type materializationFakeExceptionRepo struct {
 	err error
 }
 
-func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, timezone.Date, timezone.Date) ([]*schedule.ActivityException, error) {
+func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityException, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -797,8 +797,8 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeEnrollmentRepo{},
 			materializationFakeSupervisorRepo{},
 			materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
-				StartDate: date.AddDays(-30),
-				EndDate:   date.AddDays(30),
+				StartDate: schedule.Date(date.AddDays(-30)),
+				EndDate:   schedule.Date(date.AddDays(30)),
 				IsActive:  true,
 				Model:     schedule.Model{ID: 401},
 			}}},
@@ -827,8 +827,8 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 
 	date := timezone.NewDate(2026, 4, 20)
 	period := &schedule.CalendarPeriod{
-		StartDate: date.AddDays(-30),
-		EndDate:   date.AddDays(30),
+		StartDate: schedule.Date(date.AddDays(-30)),
+		EndDate:   schedule.Date(date.AddDays(30)),
 		IsActive:  true,
 		Model:     schedule.Model{ID: 405},
 	}
@@ -1072,11 +1072,11 @@ func (r *materializationCountingStudentRepo) Create(_ context.Context, row *sche
 	return nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, schedule.Date) (int, error) {
 	return 0, nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, schedule.Date) (int, error) {
 	return 0, nil
 }
 
@@ -1128,8 +1128,8 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
 			Name:            "Schuljahr",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       date.AddDays(-30),
-			EndDate:         date.AddDays(30),
+			StartDate:       schedule.Date(date.AddDays(-30)),
+			EndDate:         schedule.Date(date.AddDays(30)),
 			WeekCycleLength: 1,
 			IsActive:        true,
 			Model:           schedule.Model{ID: 400},

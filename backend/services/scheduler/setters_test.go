@@ -143,7 +143,7 @@ func (f *fakeInstanceRepo) Update(_ context.Context, _ *scheduleModel.ActivityIn
 	return nil
 }
 func (f *fakeInstanceRepo) Delete(_ context.Context, _ any) error { return nil }
-func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -152,13 +152,13 @@ func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Dat
 func (f *fakeInstanceRepo) List(_ context.Context, _ *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
@@ -168,7 +168,7 @@ func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleM
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 
@@ -230,7 +230,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
 		inst := &scheduleModel.ActivityInstance{
-			Date:          today,
+			Date:          scheduleModel.Date(today),
 			StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 			EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 			Status:        scheduleModel.InstanceStatusPlanned,
@@ -267,7 +267,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 
 	today := timezone.NewDate(2026, 4, 20)
 	inst := &scheduleModel.ActivityInstance{
-		Date:          today,
+		Date:          scheduleModel.Date(today),
 		StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Status:        scheduleModel.InstanceStatusPlanned,
@@ -630,7 +630,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	today := timezone.NewDate(2026, 4, 20)
 	startTime := time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC) // 10:00 local
 	inst := &scheduleModel.ActivityInstance{
-		Date:          today,
+		Date:          scheduleModel.Date(today),
 		StartTime:     startTime,
 		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Status:        scheduleModel.InstanceStatusPlanned,
@@ -972,19 +972,19 @@ func (f *fakeInstanceRepo) CountWithOptions(context.Context, *base.QueryOptions)
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *scheduleModel.Date) (*scheduleModel.Date, error) {
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, scheduleModel.Date, *scheduleModel.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 

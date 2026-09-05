@@ -142,7 +142,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	assert.Equal(t, group.ID, supervisorRepo.groupID)
 	require.NotNil(t, instanceRepo.activityGroupID)
 	assert.Equal(t, group.ID, *instanceRepo.activityGroupID)
-	assert.Equal(t, future, instanceRepo.from)
+	assert.Equal(t, scheduleModel.Date(future), instanceRepo.from)
 	assert.Nil(t, instanceRepo.to)
 	// #1840: ending a series is destructive — it must hard-delete deviated
 	// rows too, so preservation is OFF.
@@ -362,13 +362,13 @@ type templateEndUnitInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
 	deleted            int64
 	err                error
-	from               timezone.Date
-	to                 *timezone.Date
+	from               scheduleModel.Date
+	to                 *scheduleModel.Date
 	activityGroupID    *int64
 	preserveDeviations bool
 }
 
-func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
+func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from scheduleModel.Date, to *scheduleModel.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	r.from = from
 	r.to = to
 	r.activityGroupID = activityGroupID
@@ -379,6 +379,6 @@ func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ cont
 	return r.deleted, nil
 }
 
-func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (r *templateEndUnitInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }

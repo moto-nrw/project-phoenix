@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -236,7 +235,7 @@ func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
 func TestStudentArrivalException_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -367,7 +366,7 @@ func TestStudentArrivalException_Validate(t *testing.T) {
 func TestStudentArrivalException_IsAbsent(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -445,7 +444,7 @@ func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
 func TestStudentArrivalNote_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 
 	tests := []struct {
 		name    string

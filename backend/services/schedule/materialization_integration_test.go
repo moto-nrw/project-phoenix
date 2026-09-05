@@ -97,8 +97,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(materializeDate.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(materializeDate.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(materializeDate.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(materializeDate.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -340,7 +340,7 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 	// Insert a cancelled exception for the target date.
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   materializeDate,
+		ExceptionDate:   scheduleModels.Date(materializeDate),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
 	exc.SetTenantID(s.tenantID)
@@ -366,7 +366,7 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   materializeDate,
+		ExceptionDate:   scheduleModels.Date(materializeDate),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}
@@ -452,8 +452,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "No Templates Test 2025/2026",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(2025, 8, 1),
-		EndDate:         timezone.NewDate(2026, 7, 31),
+		StartDate:       scheduleModels.NewDate(2025, 8, 1),
+		EndDate:         scheduleModels.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -509,8 +509,8 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Herbstferien-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       timezone.NewDate(2026, 10, 14),
-		EndDate:         timezone.NewDate(2026, 10, 25),
+		StartDate:       scheduleModels.NewDate(2026, 10, 14),
+		EndDate:         scheduleModels.NewDate(2026, 10, 25),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

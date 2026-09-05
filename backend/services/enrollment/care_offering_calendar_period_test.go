@@ -74,8 +74,8 @@ func (f *calendarPeriodValidationFixture) createPeriod(
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       timezone.NewDate(2026, time.August, 1),
-		EndDate:         timezone.NewDate(2027, time.August, 31),
+		StartDate:       scheduleModels.NewDate(2026, time.August, 1),
+		EndDate:         scheduleModels.NewDate(2027, time.August, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -221,7 +221,7 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	fixture.createLinkedTemplate(t, &period.ID, nil)
 
 	replacement := *period
-	replacement.EndDate = fixture.phase.ServiceEndDate.AddDays(-1)
+	replacement.EndDate = scheduleModels.Date(fixture.phase.ServiceEndDate.AddDays(-1))
 
 	err := fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
@@ -253,7 +253,7 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	require.NoError(t, testActivityScheduleRepository(t, fixture.db).Update(fixture.ctx, schedules[0]))
 
 	replacement := *period
-	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
+	anchor := scheduleModels.NewDate(2026, time.August, 31) // Monday, week A
 	replacement.WeekCycleLength = 2
 	replacement.WeekCycleAnchor = &anchor
 	err = fixture.validate(t, period.ID, &replacement)

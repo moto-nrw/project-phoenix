@@ -340,14 +340,14 @@ func (s *materializationService) materializeForTenantLocked(
 
 	// Pre-fetch existing instances for the whole window. Builds an
 	// (activity_group_id, date, start_time) → bool set for O(1) lookup.
-	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	existingIdx := buildExistingIndex(existing)
 
 	// Pre-fetch exceptions for the window.
-	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, from, to)
+	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
 	}
@@ -631,7 +631,7 @@ func (s *materializationService) materializeTemplate(
 			// snapshot. A non-NULL instance value is therefore always a
 			// single-occurrence pin.
 			instance := &schedule.ActivityInstance{
-				Date:             date,
+				Date:             schedule.Date(date),
 				ActivityGroupID:  &templateID,
 				CalendarPeriodID: &periodID,
 				Title:            tmpl.Name,
@@ -724,10 +724,10 @@ func (s *materializationService) copyExpectedStudents(
 	if len(studentIDs) == 0 {
 		return nil
 	}
-	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
-	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
 		return &ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
@@ -1026,7 +1026,7 @@ func selectPeriod(
 	if pinned != nil {
 		for _, p := range periods {
 			if p.ID == *pinned {
-				if p.ContainsDay(date) {
+				if p.ContainsDay(schedule.Date(date)) {
 					return p
 				}
 				return nil
@@ -1039,7 +1039,7 @@ func selectPeriod(
 	// Collect active periods containing the date, sorted ascending by ID.
 	var matches []*schedule.CalendarPeriod
 	for _, p := range periods {
-		if p.ContainsDay(date) {
+		if p.ContainsDay(schedule.Date(date)) {
 			matches = append(matches, p)
 		}
 	}
@@ -1091,7 +1091,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 		}
 		k := existingKey{
 			ActivityGroupID: *inst.ActivityGroupID,
-			Date:            inst.Date,
+			Date:            timezone.Date(inst.Date),
 			StartTime:       formatTimeOfDay(inst.StartTime),
 		}
 		idx[k] = struct{}{}
@@ -1102,7 +1102,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 func buildExceptionIndex(exceptions []*schedule.ActivityException) map[exceptionKey]*schedule.ActivityException {
 	idx := make(map[exceptionKey]*schedule.ActivityException, len(exceptions))
 	for _, e := range exceptions {
-		idx[exceptionKey{e.ActivityGroupID, e.ExceptionDate}] = e
+		idx[exceptionKey{e.ActivityGroupID, timezone.Date(e.ExceptionDate)}] = e
 	}
 	return idx
 }

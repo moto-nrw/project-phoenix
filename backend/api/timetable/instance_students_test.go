@@ -28,7 +28,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -217,7 +216,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 
 	// Insert a planned instance for this tenant.
 	inst := &schedule.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 22),
+		Date:            schedule.NewDate(2026, 4, 22),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("P-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),

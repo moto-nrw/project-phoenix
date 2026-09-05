@@ -35,14 +35,14 @@ type stubPickupRepo struct {
 	rangeErr error
 }
 
-func (s stubPickupRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModels.StudentPickupException, error) {
+func (s stubPickupRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date scheduleModels.Date) (*scheduleModels.StudentPickupException, error) {
 	if s.findErr != nil {
 		return nil, s.findErr
 	}
 	return s.StudentPickupExceptionRepository.FindByStudentIDAndDate(ctx, studentID, date)
 }
 
-func (s stubPickupRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModels.StudentPickupException, error) {
+func (s stubPickupRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
 	if s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
@@ -56,14 +56,14 @@ type stubArrivalRepo struct {
 	rangeErr error
 }
 
-func (s stubArrivalRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModels.StudentArrivalException, error) {
+func (s stubArrivalRepo) FindByStudentIDAndDate(ctx context.Context, studentID int64, date scheduleModels.Date) (*scheduleModels.StudentArrivalException, error) {
 	if s.findErr != nil {
 		return nil, s.findErr
 	}
 	return s.StudentArrivalExceptionRepository.FindByStudentIDAndDate(ctx, studentID, date)
 }
 
-func (s stubArrivalRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModels.StudentArrivalException, error) {
+func (s stubArrivalRepo) FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
 	if s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
@@ -322,7 +322,7 @@ func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
 	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
 	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 
-	persisted, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
+	persisted, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, persisted)
 }
@@ -343,7 +343,7 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 	staffTime := wallClock(16, 0)
 	staffEx := &scheduleModels.StudentPickupException{
 		StudentID:     chain.StudentID,
-		ExceptionDate: date,
+		ExceptionDate: scheduleModels.Date(date),
 		PickupTime:    staffTime,
 		CreatedBy:     staff.ID,
 	}
@@ -411,7 +411,7 @@ func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 	guardianID := chain.AccountID
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		ExpectedArrival:   wallClock(8, 15),
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -463,7 +463,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 	guardianID := account.ID
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:         student.ID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		PickupTime:        wallClock(13, 30),
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -481,7 +481,7 @@ func TestGuardianExceptionSurvivesAccountDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	// The care instruction survives; only the author link is cleared.
-	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, student.ID, date)
+	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, student.ID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, persisted, "exception must survive guardian account deletion (no CASCADE)")
 	assert.Nil(t, persisted.CreatedByGuardian, "author link is cleared to NULL")
@@ -501,7 +501,7 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 	guardianID := chain.AccountID
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		PickupTime:        wallClock(14, 45),
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -513,7 +513,7 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 	err := svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
 	assert.ErrorIs(t, err, parentService.ErrPastCareDate)
 
-	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
+	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, persisted, "past guardian row must remain for audit/history")
 	assert.Equal(t, exception.ID, persisted.ID)
@@ -549,7 +549,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	guardianID := chain.AccountID
 	guardianArrival := &scheduleModels.StudentArrivalException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     guardianDay,
+		ExceptionDate:     scheduleModels.Date(guardianDay),
 		ExpectedArrival:   wallClock(8, 0),
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -560,7 +560,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	// Day 2: a staff-authored pickup row.
 	staffPickup := &scheduleModels.StudentPickupException{
 		StudentID:     chain.StudentID,
-		ExceptionDate: staffPickupDay,
+		ExceptionDate: scheduleModels.Date(staffPickupDay),
 		PickupTime:    wallClock(16, 0),
 		CreatedBy:     staff.ID,
 	}
@@ -570,7 +570,7 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	// Day 3: a staff-authored arrival row.
 	staffArrival := &scheduleModels.StudentArrivalException{
 		StudentID:       chain.StudentID,
-		ExceptionDate:   staffArrivalDay,
+		ExceptionDate:   scheduleModels.Date(staffArrivalDay),
 		ExpectedArrival: wallClock(7, 45),
 		CreatedBy:       staff.ID,
 	}
@@ -626,7 +626,7 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	// A staff pickup row with no time — the "child is absent today" marker.
 	absent := &scheduleModels.StudentPickupException{
 		StudentID:     chain.StudentID,
-		ExceptionDate: absentDay,
+		ExceptionDate: scheduleModels.Date(absentDay),
 		PickupTime:    nil,
 		CreatedBy:     staff.ID,
 	}
@@ -668,7 +668,7 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 	// A staff arrival row with no expected time — the "child is absent today" marker.
 	absent := &scheduleModels.StudentArrivalException{
 		StudentID:       chain.StudentID,
-		ExceptionDate:   absentDay,
+		ExceptionDate:   scheduleModels.Date(absentDay),
 		ExpectedArrival: nil,
 		CreatedBy:       staff.ID,
 	}
@@ -700,7 +700,7 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 	guardianID := chain.AccountID
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:         chain.StudentID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		ExpectedArrival:   wallClock(8, 30),
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -847,7 +847,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
 
-	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
+	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, persisted)
 }
@@ -931,7 +931,7 @@ func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
 	date := careFixtureToday().AddDays(1)
 	arrival := &scheduleModels.StudentArrivalException{
 		StudentID:       chain.StudentID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModels.Date(date),
 		ExpectedArrival: wallClock(10, 30),
 		CreatedBy:       staff.ID,
 	}

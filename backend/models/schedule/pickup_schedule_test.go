@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -239,7 +238,7 @@ func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
 func TestStudentPickupException_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -370,7 +369,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 func TestStudentPickupException_IsAbsent(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -476,7 +475,7 @@ func TestWeekdayNames(t *testing.T) {
 func TestStudentPickupNote_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 
 	tests := []struct {
 		name    string

@@ -133,7 +133,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 
 	// Nothing was applied: only a staff approval may move a pickup time.
 	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, date)
+		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }

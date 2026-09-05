@@ -1527,8 +1527,8 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 			}
 			return nil, fmt.Errorf("offering source counts: load calendar period: %w", err)
 		}
-		if period.StartDate.After(countedFrom) {
-			countedFrom = period.StartDate
+		if period.StartDate.After(scheduleModels.Date(countedFrom)) {
+			countedFrom = timezone.Date(period.StartDate)
 		}
 	}
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, countedIDs, countedFrom)
@@ -1594,8 +1594,8 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	// For a running (or past) period today stays the boundary — links that
 	// already ended are no longer plannable either way.
 	countedFrom := s.todayDate()
-	if period != nil && period.StartDate.After(countedFrom) {
-		countedFrom = period.StartDate
+	if period != nil && period.StartDate.After(scheduleModels.Date(countedFrom)) {
+		countedFrom = timezone.Date(period.StartDate)
 	}
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
 	if err != nil {

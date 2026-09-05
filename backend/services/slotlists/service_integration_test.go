@@ -361,7 +361,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -471,7 +471,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Man %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -543,7 +543,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa spät %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -675,7 +675,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	// Cancelled AFTER it ran: ActiveGroupID and the visit are preserved, exactly
 	// the state InstanceService.Cancel leaves behind for an already-active slot.
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-CxlMan %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -732,7 +732,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, f.db, fmt.Sprintf("SL-Other-Act-%d", suffix))
 	listKind := activitiesModels.ListKindLearningTime
 	otherInstance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Lernzeit %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 13, 30, 0, 0, time.UTC),
@@ -1314,7 +1314,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-ExAct-%d", suffix))
 
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -1400,7 +1400,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 
 	// A completed instance: the block already ran and ended.
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -1428,7 +1428,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 	// A timeless "Kommt heute nicht" pickup exception on the list date is the
 	// only thing that makes the care-day verdict CareDayCancelled.
 	exc := &scheduleModels.StudentPickupException{
-		StudentID: child.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+		StudentID: child.ID, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -1499,7 +1499,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	exc := &scheduleModels.StudentPickupException{
 		StudentID:             partial.ID,
-		ExceptionDate:         pickupDate,
+		ExceptionDate:         scheduleModels.Date(pickupDate),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staff.ID,
@@ -1696,14 +1696,14 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 
 			if tc.clearWhat == "pickup" {
 				exc := &scheduleModels.StudentPickupException{
-					StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+					StudentID: child.ID, ExceptionDate: scheduleModels.Date(pickupDate), PickupTime: nil, CreatedBy: staff.ID,
 				}
 				exc.SetTenantID(testpkg.Tenant(t))
 				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
 				require.NoError(t, err)
 			} else {
 				exc := &scheduleModels.StudentArrivalException{
-					StudentID: child.ID, ExceptionDate: pickupDate, ExpectedArrival: nil, CreatedBy: staff.ID,
+					StudentID: child.ID, ExceptionDate: scheduleModels.Date(pickupDate), ExpectedArrival: nil, CreatedBy: staff.ID,
 				}
 				exc.SetTenantID(testpkg.Tenant(t))
 				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_arrival_exceptions`).Exec(ctx)
@@ -1944,7 +1944,7 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 	// A timeless pickup exception ("Kommt heute nicht") clears the effective
 	// pickup time for pickupDate.
 	exc := &scheduleModels.StudentPickupException{
-		StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+		StudentID: child.ID, ExceptionDate: scheduleModels.Date(pickupDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -1989,7 +1989,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-EndAct-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2056,7 +2056,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-UnbookedStaff", fmt.Sprintf("US-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2141,7 +2141,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-UpStaff", fmt.Sprintf("UP-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2233,7 +2233,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxaStaff", fmt.Sprintf("CXA-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2253,7 +2253,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 	// care-day verdict CareDayCancelled for both children.
 	for _, sid := range []int64{attended.ID, noShow.ID} {
 		exc := &scheduleModels.StudentPickupException{
-			StudentID: sid, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+			StudentID: sid, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 		}
 		exc.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -2336,7 +2336,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2357,7 +2357,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 	// care-day verdict CareDayCancelled for both children.
 	for _, sid := range []int64{attended.ID, noShow.ID} {
 		exc := &scheduleModels.StudentPickupException{
-			StudentID: sid, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+			StudentID: sid, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 		}
 		exc.SetTenantID(testpkg.Tenant(t))
 		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -2442,7 +2442,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-SdStaff", fmt.Sprintf("SDS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2542,7 +2542,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	// pickupNow is 12:00 on pickupDate (Wednesday, ISO 3); this occurrence starts
 	// at 15:00 → not yet started, so the reconciliation reaches it deferred.
 	future := &scheduleModels.ActivityInstance{
-		Date:            pickupDate,
+		Date:            scheduleModels.Date(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2573,7 +2573,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	}
 
 	cancelExc := &scheduleModels.StudentPickupException{
-		StudentID: cancelled.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+		StudentID: cancelled.ID, ExceptionDate: scheduleModels.Date(pickupDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	cancelExc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(cancelExc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -2640,7 +2640,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxStaff", fmt.Sprintf("CXS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &scheduleModels.ActivityInstance{
-		Date:            listDate,
+		Date:            scheduleModels.Date(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2665,7 +2665,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	sched.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, pickupRepo.Create(ctx, sched))
 	exc := &scheduleModels.StudentPickupException{
-		StudentID: cancelled.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+		StudentID: cancelled.ID, ExceptionDate: scheduleModels.Date(listDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
@@ -2727,7 +2727,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started.
 	future := &scheduleModels.ActivityInstance{
-		Date:            pickupDate,
+		Date:            scheduleModels.Date(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2777,7 +2777,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	// A slot that has already started (start 09:00 < 12:00) with no presence
 	// evidence does reconcile — its expected no-show is a genuine "Fehlt".
 	started := &scheduleModels.ActivityInstance{
-		Date:            pickupDate,
+		Date:            scheduleModels.Date(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Started %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -2832,7 +2832,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started, so
 	// the reconciliation reaches it deferred (no active group yet).
 	future := &scheduleModels.ActivityInstance{
-		Date:            pickupDate,
+		Date:            scheduleModels.Date(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2921,7 +2921,7 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	require.NoError(t, pickupRepo.Create(ctx, sched))
 
 	exc := &scheduleModels.StudentPickupException{
-		StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+		StudentID: child.ID, ExceptionDate: scheduleModels.Date(pickupDate), PickupTime: nil, CreatedBy: staff.ID,
 	}
 	exc.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)

@@ -243,7 +243,7 @@ func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	// unplanned even when the stored exception has an arrival time.
 	require.NoError(t, svc.CreateStudentArrivalException(ctx, &scheduleModel.StudentArrivalException{
 		StudentID:       student.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModel.Date(monday),
 		ExpectedArrival: &arrivalTime,
 		CreatedBy:       staff.ID,
 	}))

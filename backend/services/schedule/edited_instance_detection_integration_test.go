@@ -419,7 +419,7 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	reason := "Einzeltermin gelöscht"
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   editWindowStart,
+		ExceptionDate:   scheduleModels.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -477,7 +477,7 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   editWindowStart,
+		ExceptionDate:   scheduleModels.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}

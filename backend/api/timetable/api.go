@@ -528,6 +528,14 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 	return startDate, endDate, anchor, true
 }
 
+func scheduleDatePointer(date *timezone.Date) *schedule.Date {
+	if date == nil {
+		return nil
+	}
+	value := schedule.Date(*date)
+	return &value
+}
+
 // validatePeriodRules checks business rules after dates have been parsed.
 // Returns true on success, or renders an error and returns false.
 func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) bool {
@@ -654,14 +662,15 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 	if !validatePeriodRules(w, r, req, startDate, endDate, anchor) {
 		return
 	}
+	scheduleAnchor := scheduleDatePointer(anchor)
 
 	period := &schedule.CalendarPeriod{
 		Name:            req.Name,
 		PeriodType:      req.PeriodType,
-		StartDate:       startDate,
-		EndDate:         endDate,
+		StartDate:       schedule.Date(startDate),
+		EndDate:         schedule.Date(endDate),
 		WeekCycleLength: req.WeekCycleLength,
-		WeekCycleAnchor: anchor,
+		WeekCycleAnchor: scheduleAnchor,
 		IsActive:        req.IsActive,
 	}
 
@@ -751,10 +760,10 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 
 	existing.Name = req.Name
 	existing.PeriodType = req.PeriodType
-	existing.StartDate = startDate
-	existing.EndDate = endDate
+	existing.StartDate = schedule.Date(startDate)
+	existing.EndDate = schedule.Date(endDate)
 	existing.WeekCycleLength = req.WeekCycleLength
-	existing.WeekCycleAnchor = anchor
+	existing.WeekCycleAnchor = scheduleDatePointer(anchor)
 	existing.IsActive = req.IsActive
 
 	if err := rs.CalendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {

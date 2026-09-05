@@ -26,7 +26,7 @@ func classBlockInstance(id, groupID int64, start string, status string) *schedul
 	}
 	return &scheduleModel.ActivityInstance{
 		Model:           scheduleModel.Model{ID: id},
-		Date:            timezone.NewDate(2026, 9, 7),
+		Date:            scheduleModel.NewDate(2026, 9, 7),
 		ActivityGroupID: &groupID,
 		StartTime:       parsed,
 		Status:          status,
@@ -74,7 +74,7 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 
 	// Spontaneous blocks carry no template and therefore no class.
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
-		{Model: scheduleModel.Model{ID: 20}, Date: date, StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
+		{Model: scheduleModel.Model{ID: 20}, Date: scheduleModel.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

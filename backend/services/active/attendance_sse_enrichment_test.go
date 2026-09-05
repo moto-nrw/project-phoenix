@@ -22,7 +22,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -96,7 +95,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// Create an instance bridged to the active.group and an instance_students
 	// row in 'expected' — exactly what the syncer is designed to flip.
 	instance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("E2E-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -156,7 +155,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
 
 	targetInstance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &targetActivity.ID,
 		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

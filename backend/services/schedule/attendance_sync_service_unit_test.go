@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -91,19 +90,19 @@ func (f *fakeInstanceRepo) List(_ context.Context, options *modelsBase.QueryOpti
 	return []*scheduleModel.ActivityInstance{&instance}, nil
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
@@ -151,14 +150,14 @@ func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _,
 	return f.findRow, f.findErr
 }
 
-func (f *fakeInstanceStudentRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, scheduleModel.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)
 	}
 	return f.candidates, f.candidateErr
 }
 
-func (f *fakeInstanceStudentRepo) FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]*scheduleModel.InstanceStudent, error) {
 	if f.datePanic != nil {
 		panic(f.datePanic)
 	}
@@ -209,18 +208,18 @@ func (f *fakeInstanceStudentRepo) ReconcileAttendanceInterval(
 	return f.reconcileErr == nil, f.reconcileErr
 }
 
-func (f *fakeInstanceStudentRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]scheduleModel.ParallelPresence, error) {
+func (f *fakeInstanceStudentRepo) FindPresentInOtherActiveInstances(context.Context, int64, scheduleModel.Date, []int64) ([]scheduleModel.ParallelPresence, error) {
 	return nil, nil
 }
 
-func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, scheduleModel.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)
 	}
 	return f.candidates, f.candidateErr
 }
 
-func (f *fakeInstanceStudentRepo) ApplyStatusDay(context.Context, int64, timezone.Date, int64, string) (int, error) {
+func (f *fakeInstanceStudentRepo) ApplyStatusDay(context.Context, int64, scheduleModel.Date, int64, string) (int, error) {
 	panic("unused")
 }
 
@@ -228,7 +227,7 @@ func (f *fakeInstanceStudentRepo) ReleaseStatusDay(context.Context, int64) (int,
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, scheduleModel.Date) (int, error) {
 	panic("unused")
 }
 
@@ -240,7 +239,7 @@ func (f *fakeInstanceStudentRepo) ReleasePartialAbsence(context.Context, int64) 
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (f *fakeInstanceStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, scheduleModel.Date) (int, error) {
 	panic("unused")
 }
 
@@ -284,14 +283,14 @@ func (f *fakeInstanceStudentRepo) CountNonAbsentByInstanceIDs(context.Context, [
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.InstanceStudent, error) {
 	if f.datePanic != nil {
 		panic(f.datePanic)
 	}
 	return f.dateRows, f.dateErr
 }
 
-func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezone.Date) ([]int64, error) {
+func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, scheduleModel.Date) ([]int64, error) {
 	panic("unused")
 }
 
@@ -299,11 +298,11 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
+func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, scheduleModel.Date, time.Time) (int, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
+func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, scheduleModel.Date) (int, error) {
 	panic("unused")
 }
 
@@ -319,11 +318,11 @@ func (f *fakeInstanceStudentRepo) MarkNotScheduled(context.Context, []scheduleMo
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
+func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) HasPlannedSlotsInRange(context.Context, timezone.Date, timezone.Date) (bool, error) {
+func (f *fakeInstanceStudentRepo) HasPlannedSlotsInRange(context.Context, scheduleModel.Date, scheduleModel.Date) (bool, error) {
 	panic("unused")
 }
 
@@ -1013,11 +1012,11 @@ func (f *fakeInstanceRepo) CountWithOptions(context.Context, *modelsBase.QueryOp
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *scheduleModel.Date) (*scheduleModel.Date, error) {
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -1029,15 +1028,15 @@ func (f *fakeInstanceStudentRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Con
 	return 0, nil
 }
 
-func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]scheduleModel.StudentInstanceRef, error) {
+func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, scheduleModel.Date) ([]scheduleModel.StudentInstanceRef, error) {
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, scheduleModel.Date, *scheduleModel.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -1049,7 +1048,7 @@ func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 

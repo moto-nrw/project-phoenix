@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Period type constants
@@ -58,13 +56,13 @@ type CalendarPeriod struct {
 	Model `bun:"schema:schedule,table:calendar_periods"`
 	TenantModel
 
-	Name            string         `bun:"name,notnull" json:"name"`
-	PeriodType      string         `bun:"period_type,notnull" json:"period_type"`
-	StartDate       timezone.Date  `bun:"start_date,notnull" json:"start_date"`
-	EndDate         timezone.Date  `bun:"end_date,notnull" json:"end_date"`
-	WeekCycleLength int            `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
-	WeekCycleAnchor *timezone.Date `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
-	IsActive        bool           `bun:"is_active,notnull,default:false" json:"is_active"`
+	Name            string `bun:"name,notnull" json:"name"`
+	PeriodType      string `bun:"period_type,notnull" json:"period_type"`
+	StartDate       Date   `bun:"start_date,notnull" json:"start_date"`
+	EndDate         Date   `bun:"end_date,notnull" json:"end_date"`
+	WeekCycleLength int    `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
+	WeekCycleAnchor *Date  `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
+	IsActive        bool   `bun:"is_active,notnull,default:false" json:"is_active"`
 }
 
 // Validate ensures calendar period data is valid
@@ -112,15 +110,15 @@ func (p *CalendarPeriod) HasWeekCycle() bool {
 
 // ContainsDay returns true if the given calendar day falls within this
 // period (inclusive on both ends).
-func (p *CalendarPeriod) ContainsDay(d timezone.Date) bool {
+func (p *CalendarPeriod) ContainsDay(d Date) bool {
 	return !d.Before(p.StartDate) && !d.After(p.EndDate)
 }
 
 // ContainsDate returns true if the Berlin calendar day of the given instant
-// falls within this period. Callers that already hold a timezone.Date should
+// falls within this period. Callers that already hold a Date should
 // use ContainsDay directly.
 func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
-	return p.ContainsDay(timezone.DateFromTime(date))
+	return p.ContainsDay(DateFromTime(date))
 }
 
 // CalendarPeriodUsage aggregates how many planning objects reference a
@@ -157,12 +155,12 @@ type CalendarPeriodRepository interface {
 	// FindActiveOverlapping returns all active periods of the current tenant
 	// whose [start_date, end_date] range overlaps [start, end] (inclusive on
 	// both ends), excluding the period with excludeID.
-	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+	FindActiveOverlapping(ctx context.Context, start, end Date, excludeID int64) ([]*CalendarPeriod, error)
 
 	// FindActiveOverlappingByType behaves like FindActiveOverlapping but only
 	// considers active periods of the given period_type. It backs the hard
 	// same-type overlap rejection; the untyped variant stays advisory.
-	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end Date, excludeID int64) ([]*CalendarPeriod, error)
 
 	// UsageCounts returns, per calendar period of the current tenant, how many
 	// rows reference it through nullable calendar_period_id FKs. Periods without
