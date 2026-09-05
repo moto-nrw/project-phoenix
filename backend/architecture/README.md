@@ -5,6 +5,68 @@ roles, tenant-safe read projections, legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
+## Canonical module map
+
+[ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
+records File Storage as the eighteenth domain for
+[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
+[#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+The canonical owner lists are:
+
+| Domain (18) | Policy owner |
+|---|---|
+| Identity & Access | `identity-access` |
+| People Directory | `people-directory` |
+| School Membership | `school-membership` |
+| Organisation & Tenancy | `organization-tenancy` |
+| School Structure | `school-structure` |
+| School Calendar | `school-calendar` |
+| Facilities | `facilities` |
+| Enrollment | `enrollment` |
+| Care Plan | `care-plan` |
+| Timetable & Activities | `timetable-activities` |
+| Student Presence | `student-presence` |
+| Workforce | `workforce` |
+| Appointments | `appointments` |
+| Communication | `communication` |
+| Device Fleet | `device-fleet` |
+| Meal Plan | `meal-plan` |
+| Feedback | `feedback` |
+| File Storage | `file-storage` |
+
+| Platform (9) | Policy owner |
+|---|---|
+| Tenant Runtime | `tenant-runtime` |
+| Transaction Runtime | `transaction-runtime` |
+| Security Runtime | `security-runtime` |
+| Settings Platform | `settings-platform` |
+| Delivery Platform | `delivery-platform` |
+| Observability | `observability` |
+| Audit Platform | `audit-platform` |
+| Scheduler Runtime | `scheduler-runtime` |
+| Document Rendering | `document-rendering` |
+
+Policy validation pins these exact IDs and kinds for the moto module path;
+missing, extra, renamed, or reclassified owners fail before graph analysis.
+Declaration order is irrelevant. Independent evaluator fixtures retain their
+own module maps. A future domain/platform change requires an explicit
+architecture decision, reflected in #2580, this map, and validation.
+
+File Storage owns the managed file lifecycle: file metadata, folders,
+folder-role/account grants, quota, and cleanup intents. Identity supplies
+account and role facts; File Storage applies school-scoped folder grants.
+Communication retains announcement-access rules, including for attachments.
+Document Rendering produces output without owning its audience or storage;
+rendering alone neither saves a file nor grants access.
+
+This decision does not change runtime write owners or ratchet entries.
+Missing mappings for `documents.files`, `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, and
+`documents.file_cleanup` remain migration work in #2707. Existing announcement
+attachment and cleanup ownership stays unchanged. `target.svg` is generated
+from the unchanged policy and shows File Storage as domain and Document
+Rendering as platform; do not commit the generated diagram.
+
 ## Commands
 
 Run commands from the repository root:
