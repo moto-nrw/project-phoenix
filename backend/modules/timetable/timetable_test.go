@@ -12,6 +12,8 @@ import (
 )
 
 type recordingEngine struct {
+	timetable.RecurrenceRuleQuery
+	timetable.CareExitRosterCommand
 	create     timetable.CreateCategory
 	update     timetable.UpdateCategory
 	group      timetable.GroupInput

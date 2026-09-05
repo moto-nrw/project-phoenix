@@ -22,7 +22,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -54,7 +53,6 @@ func newCareLifecycleServiceWithLockAt(
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	repos.BindTimetable(timetabletest.New(t, db))
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo:           repos.Student,
 		PersonRepo:            repos.Person,
@@ -326,7 +324,6 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 
 	student := testpkg.CreateTestStudent(t, db, "Ella", "Vogt", "2b")
 	group := testpkg.CreateTestActivityGroup(t, db, "Fußball")
@@ -712,7 +709,6 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")
 	staff := testpkg.CreateTestStaff(t, db, "Plan", "Verantwortlich")

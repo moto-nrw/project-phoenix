@@ -35,7 +35,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	// Activities consumes schedule reads and staff-directory reads only.
 	return ActivitiesTestModule{
 		Activities: activityService, UserContext: identity,
-		Schedule: schedule.NewServiceWithConfig(schedule.ServiceConfig{DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule}),
+		Schedule: schedule.NewServiceWithConfig(schedule.ServiceConfig{DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule, RecurrenceEvents: r.Timetable}),
 		Users:    users.NewPersonService(users.PersonServiceDependencies{PersonRepo: r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default()}),
 	}, nil
 }

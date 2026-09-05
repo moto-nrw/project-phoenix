@@ -35,7 +35,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
-		now := time.Now()
+		now := testpkg.WallClock(9, 0)
 		endTime := now.Add(2 * time.Hour)
 		timeframe := &schedule.Timeframe{
 			StartTime:   now,

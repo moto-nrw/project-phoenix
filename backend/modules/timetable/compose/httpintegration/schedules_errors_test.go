@@ -1,4 +1,4 @@
-package schedules
+package httpintegration_test
 
 import (
 	"errors"
@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestErrorRenderer_DateframeNotFound(t *testing.T) {
+func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -20,7 +21,7 @@ func TestErrorRenderer_DateframeNotFound(t *testing.T) {
 		Err: scheduleSvc.ErrDateframeNotFound,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -30,7 +31,7 @@ func TestErrorRenderer_DateframeNotFound(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "dateframe not found")
 }
 
-func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
+func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -38,7 +39,7 @@ func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
 		Err: scheduleSvc.ErrTimeframeNotFound,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -48,7 +49,7 @@ func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "timeframe not found")
 }
 
-func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
+func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -56,7 +57,7 @@ func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 		Err: scheduleSvc.ErrTimeframeRequiredByCareOffering,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -65,7 +66,7 @@ func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "geändert oder gelöscht")
 }
 
-func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
+func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -73,7 +74,7 @@ func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 		Err: scheduleSvc.ErrRecurrenceRuleNotFound,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -83,7 +84,7 @@ func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "recurrence rule not found")
 }
 
-func TestErrorRenderer_InvalidDateRange(t *testing.T) {
+func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -91,7 +92,7 @@ func TestErrorRenderer_InvalidDateRange(t *testing.T) {
 		Err: scheduleSvc.ErrInvalidDateRange,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -101,7 +102,7 @@ func TestErrorRenderer_InvalidDateRange(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "invalid date range")
 }
 
-func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
+func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -109,7 +110,7 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 		Err: scheduleSvc.ErrInvalidTimeRange,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -119,7 +120,7 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "invalid time range")
 }
 
-func TestErrorRenderer_InvalidDuration(t *testing.T) {
+func TestSchedulesErrorRenderer_InvalidDuration(t *testing.T) {
 	t.Parallel()
 
 	err := &scheduleSvc.ScheduleError{
@@ -127,7 +128,7 @@ func TestErrorRenderer_InvalidDuration(t *testing.T) {
 		Err: scheduleSvc.ErrInvalidDuration,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -137,23 +138,18 @@ func TestErrorRenderer_InvalidDuration(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "invalid duration")
 }
 
-func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+func TestSchedulesErrorRenderer_RoomCapacityExceeded(t *testing.T) {
 	t.Parallel()
 
-	err := &activeSvc.RoomCapacityError{
-		RoomID:           12,
-		RoomName:         "Mensa",
-		CurrentOccupancy: 43,
-		MaxCapacity:      43,
-	}
+	err := testpkg.CreateTestRoomCapacityError(t)
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
 }
 
-func TestErrorRenderer_UnknownScheduleError(t *testing.T) {
+func TestSchedulesErrorRenderer_UnknownScheduleError(t *testing.T) {
 	t.Parallel()
 
 	// ScheduleError with unknown underlying error should fall to default case
@@ -163,7 +159,7 @@ func TestErrorRenderer_UnknownScheduleError(t *testing.T) {
 		Err: unknownErr,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -173,13 +169,13 @@ func TestErrorRenderer_UnknownScheduleError(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "unknown schedule error")
 }
 
-func TestErrorRenderer_NonScheduleError(t *testing.T) {
+func TestSchedulesErrorRenderer_NonScheduleError(t *testing.T) {
 	t.Parallel()
 
 	// Non-ScheduleError should be treated as internal server error
 	err := errors.New("some random error")
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)
@@ -189,7 +185,7 @@ func TestErrorRenderer_NonScheduleError(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "some random error")
 }
 
-func TestErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
+func TestSchedulesErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
 	t.Parallel()
 
 	// ScheduleError with nil Err (Unwrap returns nil) should fall to default case
@@ -198,7 +194,7 @@ func TestErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
 		Err: nil,
 	}
 
-	renderer := ErrorRenderer(err)
+	renderer := schedulesAPI.SchedulesErrorRenderer(err)
 	require.NotNil(t, renderer)
 
 	errResp, ok := renderer.(*common.ErrResponse)

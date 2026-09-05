@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        259
+        258
       ],
       "tables": []
     },
@@ -10865,7 +10865,7 @@
       "declaration": "TestScheduleService_TimeframeCareOfferingGuard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        557
       ],
       "tables": []
     },
@@ -10875,7 +10875,7 @@
       "declaration": "setupScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        49
       ],
       "tables": []
     },
@@ -11597,7 +11597,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        626
+        623
       ],
       "tables": [
         "users.students"
@@ -11609,7 +11609,7 @@
       "declaration": "TestCareLifecycle_CancelOnlyBeforeItTakesEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        397
+        394
       ],
       "tables": []
     },
@@ -11619,7 +11619,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        714
+        711
       ],
       "tables": [
         "schedule.instance_students"
@@ -11631,7 +11631,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        467
+        464
       ],
       "tables": [
         "users.students"
@@ -11643,7 +11643,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        842
+        838
       ],
       "tables": []
     },
@@ -11653,7 +11653,7 @@
       "declaration": "TestCareLifecycle_ConfirmAuditsOnlyCareEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        96
       ],
       "tables": [
         "users.students"
@@ -11665,7 +11665,7 @@
       "declaration": "TestCareLifecycle_EndsBookingsAtTheLastCareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        328
+        326
       ],
       "tables": []
     },
@@ -11675,7 +11675,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        495
+        492
       ],
       "tables": [
         "users.students"
@@ -11687,7 +11687,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        910
+        906
       ],
       "tables": [
         "users.students"
@@ -11699,7 +11699,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        584
+        581
       ],
       "tables": [
         "users.students"
@@ -11711,7 +11711,7 @@
       "declaration": "TestCareLifecycle_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        315
+        313
       ],
       "tables": []
     },
@@ -11721,7 +11721,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        660
+        657
       ],
       "tables": [
         "users.students"
@@ -11733,7 +11733,7 @@
       "declaration": "loadStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        127
+        125
       ],
       "tables": []
     },
@@ -28871,22 +28871,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 160,
+          "line": 159,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 418,
+          "line": 417,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 581,
+          "line": 580,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1077,
+          "line": 1076,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28896,7 +28896,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 259,
+          "line": 258,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28906,12 +28906,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 161,
+          "line": 160,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 578,
+          "line": 577,
           "declaration": "type API"
         },
         {

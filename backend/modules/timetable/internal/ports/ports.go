@@ -8,6 +8,9 @@ import (
 )
 
 type Store interface {
+	LockPlannedRosterForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
+	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)
+	RestoreRosterForCareExit(context.Context, []int64, []domain.CareExitRosterRow) (int64, domain.OperationStats, error)
 	FindCategory(context.Context, int64, string) (domain.Category, bool, domain.OperationStats, error)
 	FindCategoryByName(context.Context, string, bool, string) (domain.Category, bool, domain.OperationStats, error)
 	ListCategories(context.Context) ([]domain.Category, domain.OperationStats, error)

@@ -6,6 +6,7 @@ import (
 )
 
 var ErrRecurrenceRuleNotFound = errors.New("recurrence rule not found")
+var ErrInvalidRecurrenceRange = errors.New("invalid date range")
 
 type RecurrenceRule struct {
 	ID            int64

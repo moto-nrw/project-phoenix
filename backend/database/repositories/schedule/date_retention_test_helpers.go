@@ -1,3 +1,5 @@
+// Retention helpers for the legacy SQL providers used by contract tests.
+// Production retention runs through the Timetable capability.
 package schedule
 
 import (

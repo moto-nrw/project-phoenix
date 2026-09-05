@@ -7,7 +7,6 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
@@ -81,11 +80,6 @@ func (f *Factory) registerRemainingRoomBinders() {
 			repo.BindRoomDirectory(iotRoomDirectory{rooms})
 		})
 	}
-	if repo, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(usersRoomDirectory{rooms})
-		})
-	}
 }
 
 // BindFacilities replaces the default room owner with the observed
@@ -155,20 +149,6 @@ func (d iotRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]iot
 	result := make([]iotRepo.DirectoryRoom, 0, len(rooms))
 	for _, room := range rooms {
 		result = append(result, iotRepo.DirectoryRoom{ID: room.ID, TenantID: room.TenantID, Name: room.Name})
-	}
-	return result, nil
-}
-
-type usersRoomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d usersRoomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]usersRepo.DirectoryRoom, error) {
-	rooms, err := d.rooms.LockRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]usersRepo.DirectoryRoom, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, usersRepo.DirectoryRoom{ID: room.ID, TenantID: room.TenantID})
 	}
 	return result, nil
 }
