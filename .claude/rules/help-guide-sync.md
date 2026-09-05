@@ -1,3 +1,8 @@
+---
+paths:
+  - "frontend/**"
+---
+
 # In-App Help Guide — Keep Docs in Sync With Features
 
 **RULE: When you add a user-facing feature flow, or substantially change a flow that is already documented, update the in-app help guide in the SAME PR.** The help guide is a living asset — it drifts the moment a screen, sidebar area, or step changes and nobody touches it.

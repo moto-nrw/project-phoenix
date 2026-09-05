@@ -1,3 +1,13 @@
+---
+paths:
+  - "backend/auth/**"
+  - "backend/api/**"
+  - "backend/services/**"
+  - "backend/models/users/**"
+  - "backend/database/repositories/**"
+  - "frontend/src/**"
+---
+
 # Guardian Parent Portal Permissions
 
 Parent portal authorization is relationship-scoped. A parent account can have different authority for different students, so parent portal checks must use the matching `users.students_guardians` row and its guardian role / permissions.

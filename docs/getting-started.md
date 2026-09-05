@@ -18,9 +18,38 @@ devbox run bootstrap
 ```
 
 Wait for Devbox to install the pinned tools, then let bootstrap install the
-frontend and browser dependencies. This only happens once. The Devbox lock
+frontend and browser dependencies. Each worktree gets its own frontend install;
+browser tooling is installed only when missing. The Devbox lock
 supports Apple Silicon macOS and Linux on arm64 or amd64; Intel macOS is not
 supported by the current Nixpkgs package set.
+
+### Worktree setup
+
+`wt add <reference>` runs bootstrap by default, leaving frontend tools ready to
+use. For backend or documentation work that does not need host-side frontend
+tools, use `wt add --no-bootstrap <reference>`. Run `devbox run bootstrap` from
+that worktree when you need the frontend later. Skipping bootstrap does not
+disable the other worktree setup steps, including Compose configuration.
+
+### Dependency audits
+
+Run `devbox run -- pnpm --dir frontend exec knip --include dependencies,unlisted`
+to check dependencies without starting services or seeding a database. Knip's
+Playwright plugin is disabled because it executes performance configurations
+that require test credentials. The `entry` list covers those configurations,
+E2E tests, performance tests, and the guide PDF generator as source files;
+keep it aligned when adding Playwright entry points.
+
+Tests use Node and happy-dom. jsdom is neither a direct dependency nor an
+installed optional dependency; the pnpm workspace excludes Vitest's unused
+optional jsdom peer.
+
+Both Lucide and Phosphor remain in use. Next.js optimizes Lucide imports by
+default, and the frontend config enables Phosphor import optimization. These
+optimizations affect compiled modules, not the contents of installed npm
+packages. Do not delete unused icon files from `node_modules`.
+
+### Local services
 
 Then run the setup script:
 

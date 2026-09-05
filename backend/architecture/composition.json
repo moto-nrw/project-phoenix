@@ -1670,7 +1670,7 @@
       "declaration": "TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        22
       ],
       "tables": []
     },

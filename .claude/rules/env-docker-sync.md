@@ -1,6 +1,34 @@
+---
+paths:
+  - "**/*.env*"
+  - "**/Dockerfile*"
+  - "**/*compose*.yml"
+  - "environments/**"
+  - "frontend/src/env.js"
+  - "frontend/src/lib/env-validation.js"
+  - ".github/workflows/build.yml"
+---
+
 # Environment & Docker File Sync
 
 **RULE: When adding, removing, or renaming an environment variable, update ALL affected files.** A variable added in one place but missing from its counterparts causes silent misconfiguration or lefthook sync warnings.
+
+## Required configuration and exceptions
+
+Required infrastructure configuration must fail at startup/build with a clear
+missing-key error. No implicit localhost URLs, credentials, or other runtime
+fallbacks via `??`, `||`, Zod defaults, or Compose `${VAR:-default}`.
+
+The explicit env-default exceptions are `NODE_ENV`, backend `LOG_LEVEL`, and
+frontend `NEXT_PUBLIC_LOG_LEVEL`. The frontend's optional PostHog/Sentry
+integration fields remain optional under `frontend/src/lib/env-validation.js`;
+PostHog's host is required when its key is set. Optional does not mean a
+fallback endpoint or credential may be invented.
+
+Tenant settings resolve only from tenant overrides or registry defaults;
+environment fallbacks are not allowed, including legacy compatibility chains.
+Follow `settings-system.md`; env vars are for infrastructure, not school-admin
+runtime settings.
 
 ## File Inventory
 
@@ -28,7 +56,7 @@
 
 ## How Docker Compose Uses Environment Variables
 
-**Docker Compose auto-loads the root `.env` file** for `${VAR}` substitution in `docker-compose.yml`. This is how all services receive their configuration when running `docker compose up`. Per the No-Fallbacks rule in `CLAUDE.md`, use bare `${VAR}` — never `${VAR:-default}` (only `NODE_ENV` and `LOG_LEVEL` may have defaults).
+**Docker Compose auto-loads the root `.env` file** for `${VAR}` substitution in `docker-compose.yml`. This is how all services receive their configuration when running `docker compose up`. Use bare `${VAR}` for required values; exceptions are defined above.
 
 The flow:
 ```
@@ -87,7 +115,7 @@ When modifying any file, update its counterpart:
 
 ## Deployed Environments (SOPS)
 
-Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`.
+Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
 
 Keep the frontend's explicit `PORT: 3000` and the serving backend's credential-free application DSN. Privileged `DB_DSN` interpolation belongs only to the explicit `migrate` job. Update the allowlist and its matrix when changing service variables; `scripts/env-check.sh` verifies the boundary.
 

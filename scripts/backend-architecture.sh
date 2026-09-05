@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
+# Hooks export repository-local Git variables. Clear them before child commands
+# change directory, so both the backend and isolated fixtures resolve correctly.
+while IFS= read -r git_variable; do
+  unset "$git_variable"
+done < <(git rev-parse --local-env-vars)
 cd "$repo_root/backend"
 export PHOENIX_ARCHITECTURE_PROJECT="$repo_root/backend"
 
@@ -24,6 +29,16 @@ run_with_default_baseline() {
 case "${1:-}" in
   check)
     shift
+    has_check_options=false
+    for argument in "$@"; do
+      case "$argument" in
+        --base-ref|--base-ref=*|--project|--project=*|--baseline|--baseline=*) has_check_options=true ;;
+      esac
+    done
+    if ! "$has_check_options"; then
+      base_sha=$(git merge-base HEAD origin/development)
+      set -- --base-ref "$base_sha" "$@"
+    fi
     run_with_default_baseline check "$@"
     ;;
   explain)

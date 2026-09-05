@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
@@ -29,34 +28,26 @@ type Worker struct {
 	provider      ports.Provider
 	observe       ports.Observer
 	leaseDuration time.Duration
-	mu            sync.RWMutex
-	maxAttempts   int
 }
 
 func NewWorker(store ports.Store, provider ports.Provider, observe ports.Observer) *Worker {
 	if store == nil || provider == nil || observe == nil {
 		panic("delivery worker: store, provider, and observer are required")
 	}
-	return &Worker{store: store, provider: provider, observe: observe, leaseDuration: defaultLeaseDuration, maxAttempts: len(retryBackoff)}
+	return &Worker{store: store, provider: provider, observe: observe, leaseDuration: defaultLeaseDuration}
 }
 
-func (w *Worker) SetMaxAttempts(attempts int) {
-	if attempts <= 0 {
-		return
+func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats domain.WorkerStats, err error) {
+	if maxAttempts <= 0 {
+		return stats, errors.New("delivery worker: max attempts must be positive")
 	}
-	w.mu.Lock()
-	w.maxAttempts = attempts
-	w.mu.Unlock()
-}
-
-func (w *Worker) RunOnce(ctx context.Context, batchSize int) (stats domain.WorkerStats, err error) {
 	emailLimit := (batchSize + 1) / 2
 	pushLimit := batchSize / 2
-	if err := w.runTransport(ctx, domain.TransportEmail, emailLimit, &stats); err != nil {
+	if err := w.runTransport(ctx, domain.TransportEmail, emailLimit, maxAttempts, &stats); err != nil {
 		return stats, err
 	}
 	if pushLimit > 0 {
-		err = w.runTransport(ctx, domain.TransportPush, pushLimit, &stats)
+		err = w.runTransport(ctx, domain.TransportPush, pushLimit, maxAttempts, &stats)
 	}
 	age, ageErr := w.store.OldestPendingAge(ctx, time.Now())
 	w.observe(domain.Observation{Operation: "oldest_pending_age", Duration: age, Count: 1, Err: ageErr})
@@ -66,7 +57,7 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize int) (stats domain.Worke
 	return stats, err
 }
 
-func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit int, stats *domain.WorkerStats) error {
+func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit, maxAttempts int, stats *domain.WorkerStats) error {
 	now := time.Now()
 	claimStarted := time.Now()
 	rows, err := w.store.Claim(ctx, transport, limit, now, now.Add(w.leaseDuration))
@@ -89,12 +80,12 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 			w.observe(domain.Observation{Operation: "stale_renew", Transport: string(transport), Template: rows[index].Template, Count: 1})
 			continue
 		}
-		w.process(ctx, rows[index], stats)
+		w.process(ctx, rows[index], maxAttempts, stats)
 	}
 	return nil
 }
 
-func (w *Worker) process(ctx context.Context, intent domain.Intent, stats *domain.WorkerStats) {
+func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts int, stats *domain.WorkerStats) {
 	started := time.Now()
 	providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	result, sendErr := w.provider.Send(providerCtx, intent)
@@ -105,12 +96,12 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, stats *domai
 		return
 	}
 	if sendErr != nil {
-		w.finalizeFailure(ctx, intent, sendErr, stats)
+		w.finalizeFailure(ctx, intent, sendErr, maxAttempts, stats)
 		return
 	}
 	encoded, err := json.Marshal(result)
 	if err != nil {
-		w.finalizeFailure(ctx, intent, fmt.Errorf("encode provider result: %w", err), stats)
+		w.finalizeFailure(ctx, intent, fmt.Errorf("encode provider result: %w", err), maxAttempts, stats)
 		return
 	}
 	finalized, err := w.store.FinalizeSent(ctx, intent.Transport, intent.ID, leaseToken(intent), encoded, time.Now())
@@ -142,11 +133,8 @@ func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, re
 	w.observe(domain.Observation{Operation: "cancelled", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, sendErr error, stats *domain.WorkerStats) {
+func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, sendErr error, maxAttempts int, stats *domain.WorkerStats) {
 	attempts := intent.Attempts + 1
-	w.mu.RLock()
-	maxAttempts := w.maxAttempts
-	w.mu.RUnlock()
 	nextAttempt := time.Now().Add(backoff(attempts))
 	result, err := w.store.FinalizeFailure(ctx, intent.Transport, intent.ID, leaseToken(intent), attempts, sendErr.Error(), nextAttempt, maxAttempts)
 	if err != nil {

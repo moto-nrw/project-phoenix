@@ -82,7 +82,6 @@
     "@vitest/coverage-v8": "^4.1.10",
     "dependency-cruiser": "^18.2.0",
     "happy-dom": "^20.11.2",
-    "jsdom": "^29.1.1",
     "knip": "^6.32.1",
     "lint-staged": "^17.3.0",
     "oxlint": "^1.78.0",
@@ -110,16 +109,14 @@
   },
   "knip": {
     "includeEntryExports": true,
-    "playwright": {
-      "config": [],
-      "entry": [
-        "**/*.@(spec|test).?(c|m)[jt]s?(x)",
-        "scripts/perf/*.perf.ts",
-        "playwright.config.ts",
-        "playwright.guides.config.ts",
-        "e2e/**/*.ts"
-      ]
-    },
+    "playwright": false,
+    "entry": [
+      "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+      "scripts/perf/*.perf.ts",
+      "scripts/generate-guides.ts",
+      "playwright*.config.ts",
+      "e2e/**/*.ts"
+    ],
     "project": [
       "src/**/*.{js,jsx,ts,tsx}!",
       "src/**/*.css!",

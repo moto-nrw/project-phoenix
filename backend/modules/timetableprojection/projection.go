@@ -4,6 +4,7 @@ package timetableprojection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -13,7 +14,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// ErrInvalidTenantID reports a missing or non-positive projection tenant.
+var ErrInvalidTenantID = errors.New("timetable projection: tenant ID must be positive")
+
 func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (map[int64]string, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
 	result := make(map[int64]string, len(ids))
 	if len(ids) == 0 {
 		return result, nil
@@ -25,10 +32,8 @@ func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (m
 	query := db.NewSelect().
 		TableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".id, "group".name`).
-		Where(`"group".id IN (?)`, bun.List(ids))
-	if tenantID > 0 {
-		query = query.Where(`"group".tenant_id = ?`, tenantID)
-	}
+		Where(`"group".id IN (?)`, bun.List(ids)).
+		Where(`"group".tenant_id = ?`, tenantID)
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("timetable projection: list group names: %w", err)
 	}
@@ -39,6 +44,9 @@ func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (m
 }
 
 func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]*activitiesModels.Group, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
 	if len(ids) == 0 {
 		return []*activitiesModels.Group{}, nil
 	}
@@ -52,6 +60,9 @@ func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []i
 }
 
 func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]enrollmentModels.ManualPlanningOccurrence, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
 	rows := make([]enrollmentModels.ManualPlanningOccurrence, 0)
 	err := db.NewRaw(`
 		SELECT activity_group.id AS activity_group_id, activity_group.name AS activity_group_name,
@@ -76,6 +87,9 @@ func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, st
 }
 
 func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64) (int, error) {
+	if tenantID <= 0 {
+		return 0, ErrInvalidTenantID
+	}
 	var count int
 	err := db.NewRaw(`SELECT COUNT(*)::int FROM activities.student_enrollments AS enrollment
 		JOIN enrollment.request_children AS child
@@ -85,6 +99,9 @@ func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, re
 }
 
 func CountChildSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, childID int64) (int, error) {
+	if tenantID <= 0 {
+		return 0, ErrInvalidTenantID
+	}
 	var count int
 	err := db.NewRaw(`SELECT COUNT(*)::int FROM activities.student_enrollments
 		WHERE tenant_id = ? AND enrollment_request_child_id = ?`, tenantID, childID).Scan(ctx, &count)
@@ -92,6 +109,9 @@ func CountChildSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, chil
 }
 
 func CountStudentEnrollments(ctx context.Context, db bun.IDB, tenantID, studentID int64) (int, error) {
+	if tenantID <= 0 {
+		return 0, ErrInvalidTenantID
+	}
 	var count int
 	err := db.NewRaw(`SELECT COUNT(*)::int FROM activities.student_enrollments
 		WHERE tenant_id = ? AND student_id = ?`, tenantID, studentID).Scan(ctx, &count)
@@ -99,6 +119,9 @@ func CountStudentEnrollments(ctx context.Context, db bun.IDB, tenantID, studentI
 }
 
 func CountRunningEnrollmentsAfter(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil timezone.Date, removals string) (map[int64]int, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
 	counts := make(map[int64]int, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return counts, nil

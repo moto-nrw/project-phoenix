@@ -34,6 +34,8 @@ ignoredBuiltDependencies:
   - msw
 
 overrides:
+  # Tests use happy-dom; do not retain Vitest's unused optional jsdom peer.
+  "vitest>jsdom": "-"
   "@radix-ui/react-focus-scope": ^1.1.12
   "picomatch@<2.3.2": 2.3.2
   "picomatch@>=4 <4.0.4": 4.0.4
