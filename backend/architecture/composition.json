@@ -30522,18 +30522,13 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 33,
+          "line": 32,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 41,
+          "line": 40,
           "declaration": "NewFactoryForTestsWithConfig"
-        },
-        {
-          "file": "services/factory_test_helpers.go",
-          "line": 52,
-          "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]
     }
