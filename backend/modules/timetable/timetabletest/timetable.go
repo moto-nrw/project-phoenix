@@ -92,13 +92,6 @@ func New(tb TB, db *bun.DB) timetable.Capability {
 	}))
 }
 
-func NewWithStudentDirectory(tb TB, db *bun.DB, students StudentDirectoryFunc) timetable.Capability {
-	if students == nil {
-		tb.Fatalf("compose test Timetable & Activities: student directory is required")
-	}
-	return NewWithDirectories(tb, db, students, testRooms())
-}
-
 func NewWithDirectories(tb TB, db *bun.DB, students StudentDirectoryFunc, rooms timetable.RoomDirectory) timetable.Capability {
 	if students == nil || rooms == nil {
 		tb.Fatalf("compose test Timetable & Activities: student and room directories are required")
