@@ -1,6 +1,16 @@
-# ADR 0001: Leseansicht Betreuungsplan über schedules:read, Kindernamen über schmalen Teilnehmer-Endpunkt
+# ADR 0011: Leseansicht Betreuungsplan über schedules:read, Kindernamen über schmalen Teilnehmer-Endpunkt
 
-Datum: 2026-08-15 · Status: angenommen · Issue: #2283
+Datum: 2026-08-15 · Status: deprecated (historisch, teilweise überholt) · Issue: #2283
+
+## Einordnung vom 2026-09-05
+
+Die folgenden Abschnitte dokumentieren den damaligen Stand, nicht die aktuelle
+Berechtigungsspezifikation. [#2329](https://github.com/moto-nrw/project-phoenix/issues/2329)
+hat den gruppenbezogenen Datenzugriff entfernt; die Aussage zu
+`gdpr.student_data_scope` gilt nicht mehr. Den aktuellen Zugriff auf Kinderdaten
+beschreibt [backend/CLAUDE.md](../../backend/CLAUDE.md). Auch die damaligen Rollen-
+und Navigationsannahmen unten sind nicht als aktuelle Implementierungsvorgabe
+zu verwenden.
 
 ## Kontext
 
