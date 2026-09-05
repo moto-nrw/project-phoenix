@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := repositories.NewSessionCleanupRepositories(db)
+	repos := repositories.NewSessionCleanupRepositories(db, timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)

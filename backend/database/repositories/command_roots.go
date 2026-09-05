@@ -19,6 +19,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -65,10 +66,13 @@ type SessionCleanupRepositories struct {
 	Visit           activeModels.VisitRepository
 	Supervisor      activeModels.GroupSupervisorRepository
 	Device          iotModels.DeviceRepository
-	TimetableBridge *scheduleRepo.ActivityInstanceRepository
+	TimetableBridge scheduleModels.ActivityInstanceRepository
 }
 
-func NewSessionCleanupRepositories(db *bun.DB) SessionCleanupRepositories {
+func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Capability) SessionCleanupRepositories {
+	if timetableCapability == nil {
+		panic("session cleanup repositories: timetable capability is required")
+	}
 	group := activeRepo.NewGroupRepository(db)
 	visit := activeRepo.NewVisitRepository(db)
 	device := iotRepo.NewDeviceRepository(db)
@@ -81,7 +85,7 @@ func NewSessionCleanupRepositories(db *bun.DB) SessionCleanupRepositories {
 	device.(*iotRepo.DeviceRepository).BindRoomDirectory(iotRoomDirectory{rooms})
 	return SessionCleanupRepositories{
 		Group: group, Visit: visit, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
-		TimetableBridge: scheduleRepo.NewActivityInstanceRepository(db),
+		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
 
@@ -110,11 +114,15 @@ type TimetableCleanupRepositories struct {
 	Deviation auditModels.DeviationEventRepository
 }
 
-func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command) TimetableCleanupRepositories {
+func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, timetableCapability timetable.Capability) TimetableCleanupRepositories {
+	if timetableCapability == nil {
+		panic("timetable cleanup repositories: timetable capability is required")
+	}
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return TimetableCleanupRepositories{
-		Instance: scheduleRepo.NewActivityInstanceRepository(db), Exception: scheduleRepo.NewActivityExceptionRepository(db),
-		Student: scheduleRepo.NewInstanceStudentRepository(db), Deletion: RouteDataDeletionWrites(deletions, command),
+		Instance:  timetableActivityInstanceRepository{timetable: timetableCapability},
+		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
+		Student:   scheduleRepo.NewInstanceStudentRepository(db), Deletion: RouteDataDeletionWrites(deletions, command),
 		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -48,6 +49,7 @@ type cleanupContext struct {
 	Logger                     *log.Logger
 	Audit                      services.AuditCommand
 	Schools                    services.SchoolCapability
+	Timetable                  services.TimetableCapability
 }
 
 type authCleanupService interface {
@@ -171,6 +173,11 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	timetableCapability, err := api.NewCleanupTimetable(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &cleanupContext{
 		DB:            db,
 		TenantRuntime: tenantRuntime,
@@ -178,6 +185,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		Logger:        log.Default(),
 		Audit:         auditCommand,
 		Schools:       schools,
+		Timetable:     timetableCapability,
 	}, nil
 }
 
@@ -238,7 +246,7 @@ func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
 }
 
 func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "session-cleanup-cli"))
+	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
 }
 
 // newCleanupContextWithCleanupService initializes database and cleanup service.
@@ -286,7 +294,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 }
 
 func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
-	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
+	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 
 // newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
