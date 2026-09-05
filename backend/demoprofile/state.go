@@ -235,6 +235,7 @@ type SeedStudent struct {
 }
 
 type SeedEnrollmentState struct {
+	SchemaID      int64                      `json:"schema_id,omitempty"`
 	PhaseID       int64                      `json:"phase_id,omitempty"`
 	Offerings     map[string]int64           `json:"offerings,omitempty"`
 	Requests      []SeedEnrollmentRequest    `json:"requests,omitempty"`
@@ -243,6 +244,7 @@ type SeedEnrollmentState struct {
 }
 
 type SeedEnrollmentRequest struct {
+	Key         string  `json:"key,omitempty"`
 	RequestID   int64   `json:"request_id"`
 	Source      string  `json:"source"`
 	Status      string  `json:"status,omitempty"`
@@ -585,7 +587,7 @@ func normalizeEnrollmentState(state *SeedEnrollmentState) {
 
 func CloneEnrollmentState(src SeedEnrollmentState) SeedEnrollmentState {
 	dst := SeedEnrollmentState{
-		PhaseID: src.PhaseID, Offerings: make(map[string]int64, len(src.Offerings)),
+		SchemaID: src.SchemaID, PhaseID: src.PhaseID, Offerings: make(map[string]int64, len(src.Offerings)),
 		Requests:      append([]SeedEnrollmentRequest(nil), src.Requests...),
 		ParentActions: append([]SeedParentPortalAction(nil), src.ParentActions...),
 		Settings:      make(map[string]json.RawMessage, len(src.Settings)),

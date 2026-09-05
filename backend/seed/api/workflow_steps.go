@@ -141,6 +141,14 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Entities.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Normalize()
 
+	if additional, ok := rt.Values[enrollmentWeeklyProfileKey].(*SeedState); ok {
+		state.Profiles[enrollmentWeeklyProfileKey] = additional.Profiles[enrollmentWeeklyProfileKey]
+		for key, org := range additional.Organizations {
+			state.Organizations[key] = org
+		}
+		state.Topology.Organizations++
+		state.Topology.Schools++
+	}
 	rt.State = state
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
 		return err
@@ -205,6 +213,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedCareWithdrawalsStep{seeder: seeder},
 			seedInactiveAccountStep{},
 			verifyProfileStep{definition: seeder.definition},
+			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},

@@ -421,7 +421,7 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed demo data
+      - name: Seed demo profiles and verify enrollment weekly-plan contracts
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \

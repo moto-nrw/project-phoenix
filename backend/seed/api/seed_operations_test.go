@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,14 +35,39 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	rt := &Runtime{Client: fs.client, FixedSeeder: fs, TenantAuth: AuthRef{Token: "admin"}}
 	require.NoError(t, (seedOperationsDemoStep{}).Run(t.Context(), rt))
 
+	mealDate := todaySeedDate()
+	for mealDate.Weekday() == time.Saturday || mealDate.Weekday() == time.Sunday {
+		mealDate = mealDate.AddDays(1)
+	}
 	assert.Equal(t, []string{
 		"/api/settings/values/operations.meal_plan_enabled",
 		"/api/settings/values/operations.meal_registration_enabled",
 		"/api/timetable/closing-days",
-		"/api/meal-plan/" + todaySeedDate().String(),
+		"/api/meal-plan/" + mealDate.String(),
 		"/api/shift-types/defaults",
 		"/api/staff-shifts",
 	}, paths)
 	assert.EqualValues(t, 17, shift["staff_id"])
 	assert.EqualValues(t, 81, shift["shift_type_id"])
+}
+
+func TestSeedMealPlanUsesNextSchoolWeekday(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct{ date, expected string }{
+		{"2026-09-04", "2026-09-04"},
+		{"2026-09-05", "2026-09-07"},
+		{"2026-09-06", "2026-09-07"},
+	} {
+		t.Run(scenario.date, func(t *testing.T) {
+			t.Parallel()
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				assert.Equal(t, "/api/meal-plan/"+scenario.expected, r.URL.Path)
+				_, _ = fmt.Fprint(w, `{"data":{}}`)
+			})
+			defer srv.Close()
+			date, err := parseSeedDate(scenario.date)
+			require.NoError(t, err)
+			require.NoError(t, seedMealPlan(&Runtime{Client: newTestClient(srv.URL, false)}, date))
+		})
+	}
 }
