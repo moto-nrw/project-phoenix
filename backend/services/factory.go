@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -1400,7 +1399,7 @@ func newFactory(
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
-	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
+	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,

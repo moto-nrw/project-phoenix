@@ -1,26 +1,10 @@
-package schedule
+package postgres
 
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
-
-// CourseStatisticsRepository implements schedule.CourseStatisticsRepository
-// (#2891). Like the attendance aggregates it does not fit the generic
-// Repository[T] filter surface: both reads group across instances and
-// children and are shaped for the Statistik page.
-type CourseStatisticsRepository struct {
-	db *bun.DB
-}
-
-// NewCourseStatisticsRepository creates a course statistics repository.
-func NewCourseStatisticsRepository(db *bun.DB) scheduleModels.CourseStatisticsRepository {
-	return &CourseStatisticsRepository{db: db}
-}
 
 // courseKeyExpr folds every segment a template split produced back onto the
 // original row: the original keeps series_root_id NULL and is its own root.
@@ -55,9 +39,13 @@ const heldInstance = `(
 // those materialize rows just as well; without the is_template gate they would
 // appear as courses. Archived templates stay in on purpose: the section is
 // retrospective, and a course archived in March still took place in February.
-func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, to, today scheduleModels.Date) ([]scheduleModels.CourseInstanceRow, error) {
-	var rows []scheduleModels.CourseInstanceRow
-	query := base.GetDB(ctx, r.db).NewSelect().
+func (s *Store) CourseInstances(ctx context.Context, from, to, today string) ([]domain.CourseInstanceRow, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []domain.CourseInstanceRow
+	query := db.NewSelect().
 		TableExpr(`schedule.activity_instances AS "instance"`).
 		Join(`JOIN activities.groups AS "template" ON "template".id = "instance".activity_group_id`).
 		Join(`JOIN activities.groups AS "root" ON "root".id = `+courseKeyExpr).
@@ -67,20 +55,18 @@ func (r *CourseStatisticsRepository) CourseInstances(ctx context.Context, from, 
 		ColumnExpr(`COALESCE("category".name, '') AS category_name`).
 		ColumnExpr(`COALESCE("root".max_participants, 0) AS max_participants`).
 		ColumnExpr(`COUNT(*) FILTER (WHERE `+heldInstance+`) AS held_instances`,
-			scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted,
-			scheduleModels.InstanceStatusPlanned, today).
-		ColumnExpr(`COUNT(*) FILTER (WHERE "instance".status = ?) AS cancelled_instances`, scheduleModels.InstanceStatusCancelled).
+			"active", "completed",
+			"planned", today).
+		ColumnExpr(`COUNT(*) FILTER (WHERE "instance".status = ?) AS cancelled_instances`, "cancelled").
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
 		Where(`"template".tenant_id = "instance".tenant_id`).
 		Where(`"root".tenant_id = "instance".tenant_id`).
 		Where(`"template".is_template`).
 		Where(`"root".is_template`).
 		GroupExpr(courseKeyExpr + `, "root".name, "root".max_participants, "category".name`)
-	query = base.WithTenantFilter(ctx, query, "instance")
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics course instances", Err: err}
-	}
-	return rows, nil
+	query = query.Where(`"instance".tenant_id = ?`, tenantID)
+	stats, err := scanAllInto(ctx, query, &rows, "statistics course instances")
+	return rows, stats, err
 }
 
 // enrolledOnInstanceDate keeps only the attendance rows the child's course
@@ -110,9 +96,9 @@ const enrolledOnInstanceDate = `(
 				AND ("enrollment".calendar_period_id IS NULL
 					OR "enrollment".calendar_period_id = "instance".calendar_period_id)
 				AND ("enrollment".weekday IS NULL
-					OR "enrollment".weekday = EXTRACT(ISODOW FROM "instance".date))
+					OR "enrollment".weekday = date_part('isodow', "instance".date))
 				AND (COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0
-					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[EXTRACT(ISODOW FROM "instance".date)::integer]))
+					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[date_part('isodow', "instance".date)::integer]))
 		)
 		OR NOT EXISTS (
 			SELECT 1 FROM activities.student_enrollments AS "enrollment"
@@ -136,30 +122,32 @@ const enrolledOnInstanceDate = `(
 // The three counters are returned separately instead of a ready-made quota so
 // the service can state the denominator on the screen: present + absent are
 // decided, open occurrences are not.
-func (r *CourseStatisticsRepository) CourseParticipation(ctx context.Context, from, to, today scheduleModels.Date) ([]scheduleModels.CourseParticipationRow, error) {
-	var rows []scheduleModels.CourseParticipationRow
-	query := base.GetDB(ctx, r.db).NewSelect().
+func (s *Store) CourseParticipation(ctx context.Context, from, to, today string) ([]domain.CourseParticipationRow, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []domain.CourseParticipationRow
+	query := db.NewSelect().
 		TableExpr(`schedule.instance_students AS "attendance"`).
 		Join(`JOIN schedule.activity_instances AS "instance" ON "instance".id = "attendance".instance_id`).
 		Join(`JOIN activities.groups AS "template" ON "template".id = "instance".activity_group_id`).
 		ColumnExpr(courseKeyExpr+` AS course_id`).
 		ColumnExpr(`"attendance".student_id AS student_id`).
-		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS present_days`, scheduleModels.AttendanceStatusPresent).
-		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS absent_days`, scheduleModels.AttendanceStatusAbsent).
-		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS open_days`, scheduleModels.AttendanceStatusExpected).
+		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS present_days`, "present").
+		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS absent_days`, domain.AttendanceAbsent).
+		ColumnExpr(`COUNT(*) FILTER (WHERE "attendance".status = ?) AS open_days`, domain.AttendanceExpected).
 		Where(`"instance".date >= ? AND "instance".date <= ?`, from, to).
 		Where(heldInstance,
-			scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted,
-			scheduleModels.InstanceStatusPlanned, today).
-		Where(`NOT ("attendance".not_scheduled AND "attendance".status = ?)`, scheduleModels.AttendanceStatusExpected).
+			"active", "completed",
+			"planned", today).
+		Where(`NOT ("attendance".not_scheduled AND "attendance".status = ?)`, domain.AttendanceExpected).
 		Where(enrolledOnInstanceDate).
 		Where(`"instance".tenant_id = "attendance".tenant_id`).
 		Where(`"template".tenant_id = "attendance".tenant_id`).
 		Where(`"template".is_template`).
 		GroupExpr(courseKeyExpr + `, "attendance".student_id`)
-	query = base.WithTenantFilter(ctx, query, "attendance")
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics course participation", Err: err}
-	}
-	return rows, nil
+	query = query.Where(`"attendance".tenant_id = ?`, tenantID)
+	stats, err := scanAllInto(ctx, query, &rows, "statistics course participation")
+	return rows, stats, err
 }

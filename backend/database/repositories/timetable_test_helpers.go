@@ -103,7 +103,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db),
+		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, careExitAssignments{capability: bookings}),
 		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
@@ -121,7 +121,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		Phase:                 enrollmentRepo.NewPhaseRepository(db),
 	}
 	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar)
+	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, bookings.CountPlannedSupervisorsByCalendarPeriod))
 	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
 	if err != nil {

@@ -10687,7 +10687,7 @@
       "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2198
+        2197
       ],
       "tables": []
     },
@@ -10697,7 +10697,7 @@
       "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2173
+        2172
       ],
       "tables": []
     },
@@ -10707,7 +10707,7 @@
       "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2042
+        2041
       ],
       "tables": []
     },
@@ -10717,7 +10717,7 @@
       "declaration": "buildLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        66
       ],
       "tables": []
     },
@@ -29019,12 +29019,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 428,
+          "line": 427,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 459,
+          "line": 458,
           "declaration": "newFactory"
         },
         {
