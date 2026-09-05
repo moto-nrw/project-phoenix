@@ -155,7 +155,13 @@ function createStore(): NavigationProgressStore {
     completeNavigation: (url) => {
       update(() => {
         if (pendingHistoryNavigation) {
-          if (pendingHistoryNavigation.target === url) {
+          if (
+            pendingHistoryNavigation.target === url ||
+            // Ein Redirect ersetzt die History-URL. Nur wenn der Commit der
+            // aktuellen Browser-URL entspricht, ist er kein verspäteter
+            // Zwischen-Commit eines schnellen Back-/Forward-Wechsels.
+            url === currentUrl()
+          ) {
             clearHistoryNavigation();
           }
           return;

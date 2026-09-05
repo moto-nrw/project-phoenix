@@ -493,6 +493,29 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("completes a redirected history navigation at its canonical URL", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell();
+
+    act(() => {
+      window.history.replaceState({}, "", "/staff/dienstplan");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/dienstplan");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("does not start progress when a history sentinel preserves an encoded URL", () => {
     navigateTo("/meal-plan?q=a%20b");
     renderShell();
