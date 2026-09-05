@@ -9,6 +9,10 @@ Use Docker Compose to run, build, migrate, and debug services. Host-side quality
 and test commands below are intentional exceptions; Go uses the repo toolchain.
 Add tools through `devbox search <tool>` / `devbox add <tool>@latest`, not a global install.
 
+For editor/LSP setup, fresh-worktree dependencies or mismatched tool versions,
+read [development environment](../development-environment.md). Run shell commands
+through `devbox run` when the current process has not loaded the project environment.
+
 | Task | Command |
 |---|---|
 | Start services | `docker compose up -d` |
