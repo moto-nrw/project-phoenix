@@ -19,7 +19,8 @@ func NewDate(year int, month time.Month, day int) Date {
 }
 
 func DateFromTime(value time.Time) Date {
-	return Date(value.In(berlin).Format(dateLayout))
+	year, month, day := value.In(berlin).Date()
+	return NewDate(year, month, day)
 }
 
 func ParseDate(value string) (Date, error) {
