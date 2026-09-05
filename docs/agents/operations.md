@@ -82,9 +82,10 @@ keys through 1Password/Signal, never Slack/email.
 | `scripts/deploy-remote.sh` | Exit 0: success; 1: aborted before migration; 10: rollback succeeded; 11: rollback failed (critical) |
 
 Both encrypted files must have identical keys and match `.env.example` except
-the script's dev-only whitelist. All deployed services share one `.env` via
-`env_file`; compose `environment:` supplies service-specific overrides
-(frontend `PORT: 3000`, backend `PORT=8080`).
+the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
+only. Each service receives an explicit environment allowlist; `migrate` alone
+receives the privileged DSN. Read [runtime environment boundaries](../runtime-environment-boundaries.md)
+before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;
 failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.

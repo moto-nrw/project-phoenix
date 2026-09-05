@@ -35,6 +35,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "api-node",
+          server: { deps: { inline: ["next-auth"] } },
           include: apiTestFiles,
           exclude: baseTestExcludes,
           environment: "node",
