@@ -37,8 +37,11 @@ function loadingBoundary(pageDirectory: string): string | null {
 
 const ALLOWED_SHARED_BOUNDARIES = new Set([
   "loading.tsx",
+  "[tenant]/(protected)/loading.tsx",
   "[tenant]/(protected)/database/loading.tsx",
 ]);
+
+const ALLOWED_ORPHANED_BOUNDARIES = new Set(["[tenant]/(protected)"]);
 
 /**
  * Die Regel im Personal-Portal (#2828): eine Seite hat entweder eine eigene,
@@ -46,10 +49,12 @@ const ALLOWED_SHARED_BOUNDARIES = new Set([
  * Seitenwechsel die vorherige Seite stehen, bis die neue bereit ist; der
  * Fortschrittsbalken der Hülle zeigt, dass etwas läuft.
  *
- * Was es nicht mehr geben darf, ist eine geteilte Hülle über mehreren
- * Seiten. Die alte `(protected)/loading.tsx` zeigte einen allgemeinen
- * Ladekringel in Inhaltshöhe: erst sprang das Layout auf Kringelhöhe
- * zusammen, dann auf das Skelett der Zielseite, dann auf den Inhalt.
+ * Was es nicht mehr geben darf, ist eine geteilte sichtbare Hülle über
+ * mehreren Seiten. `(protected)/loading.tsx` bleibt absichtlich leer: Sie
+ * fängt nur den ganzseitigen Root-Fallback ab, damit die Portalhülle und die
+ * bisherige Seite sichtbar bleiben. Die alte Fassung zeigte einen allgemeinen
+ * Ladekringel in Inhaltshöhe: erst sprang das Layout auf Kringelhöhe zusammen,
+ * dann auf das Skelett der Zielseite, dann auf den Inhalt.
  * Gemessen (`pnpm run perf:nav`, 150 ms RTT) trat das auf /settings und
  * /statistics bei jedem Wechsel auf.
  *
@@ -69,15 +74,15 @@ describe("App Router loading boundaries", () => {
     },
   );
 
-  it("keeps every loading boundary of the staff portal next to a page", () => {
+  it("keeps every visible loading boundary of the staff portal next to a page", () => {
     const orphaned = collect(PROTECTED_DIR, "loading.tsx")
       .filter((directory) => !existsSync(path.join(directory, "page.tsx")))
       .map((directory) => path.relative(APP_DIR, directory));
 
-    expect(orphaned).toEqual([]);
+    expect(orphaned).toEqual([...ALLOWED_ORPHANED_BOUNDARIES]);
   });
 
-  it("has no shared loading boundary between the shell and a staff page", () => {
+  it("has no shared visible loading boundary between the shell and a staff page", () => {
     const shared = collectPages(PROTECTED_DIR)
       .map((pageDirectory) => ({
         pageDirectory,

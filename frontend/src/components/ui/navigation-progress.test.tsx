@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import {
   AppRouterContext,
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import Link from "next/link";
 import { useContext, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const linkStatus = vi.hoisted(() => ({ pending: false }));
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
@@ -57,13 +57,25 @@ function renderShell(children?: ReactNode) {
   );
 }
 
+function navigateTo(url: string) {
+  window.history.replaceState({}, "", url);
+  const location = new URL(url, window.location.origin);
+  route.pathname = location.pathname;
+  route.search = location.search;
+}
+
 describe("NavigationProgress", () => {
   beforeEach(() => {
     linkStatus.pending = false;
-    route.pathname = "/dienstplan";
-    route.search = "";
+    navigateTo("/dienstplan");
     router.push.mockClear();
     router.replace.mockClear();
+    router.back.mockClear();
+    router.forward.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows nothing while no navigation is pending", () => {
@@ -93,15 +105,24 @@ describe("NavigationProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Seite wird geladen");
   });
 
-  it.each(["push", "replace"] as const)(
+  it.each(["push", "replace", "back", "forward"] as const)(
     "shows progress for router.%s until the target URL is active",
     (method) => {
+      const isHistoryNavigation = method === "back" || method === "forward";
+
       function ProgrammaticNavigation() {
         const progressRouter = useContext(AppRouterContext);
         return (
           <button
             type="button"
-            onClick={() => progressRouter?.[method]("/calendar-periods")}
+            onClick={() => {
+              if (!progressRouter) return;
+              if (method === "back" || method === "forward") {
+                progressRouter[method]();
+                return;
+              }
+              progressRouter[method]("/calendar-periods");
+            }}
           >
             Zu den Planungszeiträumen
           </button>
@@ -114,10 +135,14 @@ describe("NavigationProgress", () => {
         screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
       );
 
-      expect(router[method]).toHaveBeenCalledWith("/calendar-periods");
+      if (isHistoryNavigation) {
+        expect(router[method]).toHaveBeenCalledWith();
+      } else {
+        expect(router[method]).toHaveBeenCalledWith("/calendar-periods");
+      }
       expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
 
-      route.pathname = "/calendar-periods";
+      navigateTo("/calendar-periods");
       rendered.rerender(
         <AppRouterContext.Provider value={appRouter}>
           <NavigationProgressProvider>
@@ -130,6 +155,78 @@ describe("NavigationProgress", () => {
       expect(screen.queryByTestId("navigation-progress")).toBeNull();
     },
   );
+
+  it("keeps the latest programmatic navigation pending until its target URL is active", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useContext(AppRouterContext);
+      return (
+        <>
+          <button type="button" onClick={() => progressRouter?.push("/first")}>
+            Erstes Ziel
+          </button>
+          <button
+            type="button"
+            onClick={() => progressRouter?.push("/calendar-periods")}
+          >
+            Zweites Ziel
+          </button>
+        </>
+      );
+    }
+
+    const rendered = renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Erstes Ziel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zweites Ziel" }));
+
+    navigateTo("/first");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/calendar-periods");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("ends an aborted programmatic navigation after the fallback timeout", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useContext(AppRouterContext);
+      return (
+        <button
+          type="button"
+          onClick={() => progressRouter?.push("/calendar-periods")}
+        >
+          Zu den Planungszeiträumen
+        </button>
+      );
+    }
+
+    vi.useFakeTimers();
+    renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
+    );
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
 
   it("keeps the announcement region mounted so it can be read out at all", () => {
     linkStatus.pending = false;

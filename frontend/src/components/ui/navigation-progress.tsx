@@ -42,18 +42,31 @@ interface NavigationProgressStore {
   readonly isPending: () => boolean;
   readonly startLink: () => void;
   readonly endLink: () => void;
-  readonly startProgrammatic: () => void;
-  readonly endProgrammatic: () => void;
+  readonly startProgrammatic: (target: string | null) => number;
+  readonly completeProgrammatic: (currentUrl: string) => void;
+  readonly cancelProgrammatic: (id: number) => void;
+}
+
+const PROGRAMMATIC_NAVIGATION_TIMEOUT_MS = 10_000;
+
+interface PendingProgrammaticNavigation {
+  readonly id: number;
+  readonly target: string | null;
+  readonly origin: string;
+  readonly timeout: ReturnType<typeof setTimeout>;
 }
 
 function createStore(): NavigationProgressStore {
   let pendingLinks = 0;
-  let pendingProgrammaticNavigation = false;
+  let pendingProgrammaticNavigation: PendingProgrammaticNavigation | null =
+    null;
+  let nextProgrammaticNavigationId = 0;
   const listeners = new Set<() => void>();
   const notify = () => {
     for (const listener of listeners) listener();
   };
-  const isPending = () => pendingLinks > 0 || pendingProgrammaticNavigation;
+  const isPending = () =>
+    pendingLinks > 0 || pendingProgrammaticNavigation !== null;
   const update = (change: () => void) => {
     const wasPending = isPending();
     change();
@@ -77,14 +90,51 @@ function createStore(): NavigationProgressStore {
         pendingLinks = Math.max(0, pendingLinks - 1);
       });
     },
-    startProgrammatic: () => {
+    startProgrammatic: (target) => {
+      const id = nextProgrammaticNavigationId + 1;
+      nextProgrammaticNavigationId = id;
       update(() => {
-        pendingProgrammaticNavigation = true;
+        // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
+        // älteres Ziel würde nie mehr eintreffen und darf den Balken deshalb
+        // nicht bis zum Zeitlimit festhalten.
+        if (pendingProgrammaticNavigation) {
+          clearTimeout(pendingProgrammaticNavigation.timeout);
+        }
+        const origin = currentUrl();
+        pendingProgrammaticNavigation = {
+          id,
+          target,
+          origin,
+          timeout: setTimeout(() => {
+            if (pendingProgrammaticNavigation?.id !== id) return;
+            update(() => {
+              pendingProgrammaticNavigation = null;
+            });
+          }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
+        };
+      });
+      return id;
+    },
+    completeProgrammatic: (url) => {
+      const pending = pendingProgrammaticNavigation;
+      if (
+        !pending ||
+        (pending.target !== null
+          ? pending.target !== url
+          : pending.origin === url)
+      ) {
+        return;
+      }
+      update(() => {
+        clearTimeout(pending.timeout);
+        pendingProgrammaticNavigation = null;
       });
     },
-    endProgrammatic: () => {
+    cancelProgrammatic: (id) => {
+      if (pendingProgrammaticNavigation?.id !== id) return;
       update(() => {
-        pendingProgrammaticNavigation = false;
+        clearTimeout(pendingProgrammaticNavigation?.timeout);
+        pendingProgrammaticNavigation = null;
       });
     },
   };
@@ -96,8 +146,8 @@ const NavigationProgressContext = createContext<NavigationProgressStore | null>(
 
 /**
  * Umschließt die Hülle eines Portals. Außerhalb davon melden weder `NavLink`s
- * noch programmgesteuerte Wechsel etwas und der Balken erscheint nie — Tests
- * und Stories brauchen den Anbieter deshalb nicht.
+ * noch programmgesteuerte Wechsel etwas und der Balken erscheint nie —
+ * Tests und Stories brauchen den Anbieter deshalb nicht.
  */
 export function NavigationProgressProvider({
   children,
@@ -123,20 +173,24 @@ function NavigationProgressRouter({
 }) {
   const router = useContext(AppRouterContext);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
-  // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
-  // Schaltfläche auf einen eigenen Navigationshelfer umzustellen.
+  // Fortschrittsanzeige bestehende router.push/replace/back/forward-Aufrufe
+  // ab, ohne jede Schaltfläche auf einen eigenen Navigationshelfer umzustellen.
   const progressRouter = useMemo(() => {
     if (router === null) return null;
 
     return {
       ...router,
       push: (...args: Parameters<AppRouterInstance["push"]>) => {
-        startProgrammaticNavigation(store, args[0]);
-        router.push(...args);
+        navigateTo(store, args[0], () => router.push(...args));
       },
       replace: (...args: Parameters<AppRouterInstance["replace"]>) => {
-        startProgrammaticNavigation(store, args[0]);
-        router.replace(...args);
+        navigateTo(store, args[0], () => router.replace(...args));
+      },
+      back: () => {
+        navigateHistory(store, () => router.back());
+      },
+      forward: () => {
+        navigateHistory(store, () => router.forward());
       },
     } satisfies AppRouterInstance;
   }, [router, store]);
@@ -159,19 +213,47 @@ function NavigationProgressRouter({
   );
 }
 
-function startProgrammaticNavigation(
+function navigateTo(
   store: NavigationProgressStore,
   href: string,
+  navigate: () => void,
 ) {
-  const target = new URL(href, window.location.href);
-  if (
-    target.pathname === window.location.pathname &&
-    target.search === window.location.search
-  ) {
+  const target = navigationTarget(href);
+  if (target === null || target === currentUrl()) {
+    navigate();
     return;
   }
 
-  store.startProgrammatic();
+  const id = store.startProgrammatic(target);
+  try {
+    navigate();
+  } catch (error) {
+    store.cancelProgrammatic(id);
+    throw error;
+  }
+}
+
+function navigateHistory(store: NavigationProgressStore, navigate: () => void) {
+  const id = store.startProgrammatic(null);
+  try {
+    navigate();
+  } catch (error) {
+    store.cancelProgrammatic(id);
+    throw error;
+  }
+}
+
+function navigationTarget(href: string): string | null {
+  try {
+    const target = new URL(href, window.location.href);
+    return `${target.pathname}${target.search}`;
+  } catch {
+    return null;
+  }
+}
+
+function currentUrl() {
+  return `${window.location.pathname}${window.location.search}`;
 }
 
 function NavigationProgressCompletion({
@@ -184,7 +266,7 @@ function NavigationProgressCompletion({
   const search = searchParams?.toString() ?? "";
 
   useEffect(() => {
-    store.endProgrammatic();
+    store.completeProgrammatic(currentUrl());
   }, [pathname, search, store]);
 
   return null;
