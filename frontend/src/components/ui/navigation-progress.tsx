@@ -44,10 +44,8 @@ interface NavigationProgressStore {
   readonly startLink: () => void;
   readonly endLink: () => void;
   readonly startProgrammatic: (target: string | null) => number;
-  readonly startHistory: () => number | null;
-  readonly isHistoryPending: () => boolean;
+  readonly startHistory: () => void;
   readonly completeProgrammatic: (currentUrl: string) => void;
-  readonly completeHistory: (currentUrl: string) => void;
   readonly cancelProgrammatic: (id: number) => void;
 }
 
@@ -57,7 +55,6 @@ interface PendingProgrammaticNavigation {
   readonly id: number;
   readonly target: string | null;
   readonly supersededTargets: ReadonlySet<string>;
-  readonly origin: string;
   readonly timeout: ReturnType<typeof setTimeout>;
 }
 
@@ -89,13 +86,12 @@ function createStore(): NavigationProgressStore {
       if (previous?.target !== null && previous?.target !== undefined) {
         supersededTargets.add(previous.target);
       }
+      if (target !== null) supersededTargets.delete(target);
       if (previous) clearTimeout(previous.timeout);
-      const origin = currentUrl();
       pendingProgrammaticNavigation = {
         id,
         target,
         supersededTargets,
-        origin,
         timeout: setTimeout(() => {
           if (pendingProgrammaticNavigation?.id !== id) return;
           update(() => {
@@ -126,23 +122,11 @@ function createStore(): NavigationProgressStore {
     },
     startProgrammatic,
     startHistory: () => {
-      if (pendingProgrammaticNavigation?.target === null) return null;
-      return startProgrammatic(null);
+      startProgrammatic(null);
     },
-    isHistoryPending: () => pendingProgrammaticNavigation?.target === null,
     completeProgrammatic: (url) => {
       const pending = pendingProgrammaticNavigation;
       if (!pending || pending.supersededTargets.has(url)) {
-        return;
-      }
-      update(() => {
-        clearTimeout(pending.timeout);
-        pendingProgrammaticNavigation = null;
-      });
-    },
-    completeHistory: (url) => {
-      const pending = pendingProgrammaticNavigation;
-      if (!pending || pending.target !== null || pending.origin !== url) {
         return;
       }
       update(() => {
@@ -193,8 +177,9 @@ function NavigationProgressRouter({
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
-  // Fortschrittsanzeige bestehende router.push/replace/back/forward-Aufrufe
-  // ab, ohne jede Schaltfläche auf einen eigenen Navigationshelfer umzustellen.
+  // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
+  // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
+  // Forward laufen unverändert durch und werden über `popstate` gemeldet.
   const progressRouter = useMemo(() => {
     if (router === null) return null;
 
@@ -205,12 +190,6 @@ function NavigationProgressRouter({
       },
       replace: (...args: Parameters<AppRouterInstance["replace"]>) => {
         navigateTo(store, args[0], () => router.replace(...args));
-      },
-      back: () => {
-        navigateHistory(store, () => router.back());
-      },
-      forward: () => {
-        navigateHistory(store, () => router.forward());
       },
     } satisfies AppRouterInstance;
   }, [router, store]);
@@ -253,16 +232,6 @@ function navigateTo(
   }
 }
 
-function navigateHistory(store: NavigationProgressStore, navigate: () => void) {
-  const id = store.startHistory();
-  try {
-    navigate();
-  } catch (error) {
-    if (id !== null) store.cancelProgrammatic(id);
-    throw error;
-  }
-}
-
 function navigationTarget(href: string): string | null {
   try {
     const target = new URL(href, window.location.href);
@@ -295,12 +264,7 @@ function NavigationProgressCompletion({
   useEffect(() => {
     const handleHistoryNavigation = () => {
       const url = currentUrl();
-      if (store.isHistoryPending()) {
-        store.completeHistory(url);
-      } else if (
-        lastRouteUrl.current !== null &&
-        url !== lastRouteUrl.current
-      ) {
+      if (lastRouteUrl.current !== null && url !== lastRouteUrl.current) {
         store.startHistory();
       }
     };

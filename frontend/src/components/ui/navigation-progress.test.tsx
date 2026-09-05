@@ -49,6 +49,10 @@ import {
 
 const appRouter = router as unknown as AppRouterInstance;
 
+function useProgressRouter(): AppRouterInstance | null {
+  return useContext(AppRouterContext) as AppRouterInstance | null;
+}
+
 function renderShell(children?: ReactNode) {
   return render(
     <AppRouterContext.Provider value={appRouter}>
@@ -112,22 +116,16 @@ describe("NavigationProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Seite wird geladen");
   });
 
-  it.each(["push", "replace", "back", "forward"] as const)(
+  it.each(["push", "replace"] as const)(
     "shows progress for router.%s until the target URL is active",
     (method) => {
-      const isHistoryNavigation = method === "back" || method === "forward";
-
       function ProgrammaticNavigation() {
-        const progressRouter = useContext(AppRouterContext);
+        const progressRouter = useProgressRouter();
         return (
           <button
             type="button"
             onClick={() => {
               if (!progressRouter) return;
-              if (method === "back" || method === "forward") {
-                progressRouter[method]();
-                return;
-              }
               progressRouter[method]("/calendar-periods");
             }}
           >
@@ -142,11 +140,7 @@ describe("NavigationProgress", () => {
         screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
       );
 
-      if (isHistoryNavigation) {
-        expect(router[method]).toHaveBeenCalledWith();
-      } else {
-        expect(router[method]).toHaveBeenCalledWith("/calendar-periods");
-      }
+      expect(router[method]).toHaveBeenCalledWith("/calendar-periods");
       expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
 
       navigateTo("/calendar-periods");
@@ -165,7 +159,7 @@ describe("NavigationProgress", () => {
 
   it("keeps the latest programmatic navigation pending until its target URL is active", () => {
     function ProgrammaticNavigation() {
-      const progressRouter = useContext(AppRouterContext);
+      const progressRouter = useProgressRouter();
       return (
         <>
           <button type="button" onClick={() => progressRouter?.push("/first")}>
@@ -208,9 +202,45 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
-  it("ends a history navigation after a popstate event without a URL change", () => {
+  it("completes a repeated target after intervening navigations", () => {
     function ProgrammaticNavigation() {
-      const progressRouter = useContext(AppRouterContext);
+      const progressRouter = useProgressRouter();
+      return (
+        <>
+          <button type="button" onClick={() => progressRouter?.push("/first")}>
+            Erstes Ziel
+          </button>
+          <button
+            type="button"
+            onClick={() => progressRouter?.push("/calendar-periods")}
+          >
+            Zweites Ziel
+          </button>
+        </>
+      );
+    }
+
+    const rendered = renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Erstes Ziel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zweites Ziel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Erstes Ziel" }));
+
+    navigateTo("/first");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("does not show progress when router.back cannot traverse history", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useProgressRouter();
       return (
         <button type="button" onClick={() => progressRouter?.back()}>
           Zurück
@@ -220,12 +250,6 @@ describe("NavigationProgress", () => {
 
     renderShell(<ProgrammaticNavigation />);
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
-    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
-
-    act(() => {
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    });
-
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
@@ -254,7 +278,7 @@ describe("NavigationProgress", () => {
 
   it("ends a programmatic navigation after a redirected destination is active", () => {
     function ProgrammaticNavigation() {
-      const progressRouter = useContext(AppRouterContext);
+      const progressRouter = useProgressRouter();
       return (
         <button
           type="button"
@@ -285,7 +309,7 @@ describe("NavigationProgress", () => {
 
   it("ends an aborted programmatic navigation after the fallback timeout", () => {
     function ProgrammaticNavigation() {
-      const progressRouter = useContext(AppRouterContext);
+      const progressRouter = useProgressRouter();
       return (
         <button
           type="button"
