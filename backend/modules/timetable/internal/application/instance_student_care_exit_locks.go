@@ -17,17 +17,6 @@ func (s *Service) LockOpenStudentAssignments(ctx context.Context, studentIDs []i
 	})
 }
 
-func (s *Service) LockPlannedStudentAssignmentsAfter(ctx context.Context, studentIDs []int64, after string) error {
-	if len(studentIDs) == 0 {
-		return nil
-	}
-	return s.run("lock_planned_student_assignments_after", func(stats *domain.OperationStats) error {
-		queryStats, err := s.store.LockPlannedStudentAssignmentsAfter(ctx, studentIDs, after)
-		stats.Add(queryStats)
-		return err
-	})
-}
-
 func (s *Service) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []domain.InstanceStudent) error {
 	if len(studentIDs) == 0 {
 		return nil

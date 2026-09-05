@@ -23,7 +23,7 @@ func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 	instance := createOwnedActivityInstance(t, module, ctx, fixture, "2027-11-02", "08:00:00", "Runtime")
 	student := testpkg.CreateTestStudent(t, db, "Runtime", "Assignment", "3a")
 	row := createOwnedInstanceStudent(t, module, ctx, instance.ID, student.ID, timetable.InstanceAttendanceExpected)
-	ids, snapshot := []int64{student.ID}, []timetable.InstanceStudent{row}
+	ids, snapshot := []int64{student.ID}, []timetable.CareExitRosterRow{careExitSnapshot(row)}
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	ctx = counter.Context(ctx)
 	var commits, rollbacks, retries int
@@ -67,18 +67,18 @@ func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 				started := time.Now()
 				if name == "care-exit-remove-restore-duplicate" {
 					err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-						require.NoError(t, module.LockPlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01"))
-						removed, err := module.RemovePlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01")
+						require.NoError(t, module.LockPlannedRosterForCareExit(txCtx, ids, "2027-11-01"))
+						removed, err := module.RemovePlannedRosterForCareExit(txCtx, ids, "2027-11-01")
 						if err != nil {
 							return err
 						}
 						require.Len(t, removed, 1)
-						count, err := module.RestoreCareExitStudentAssignments(txCtx, ids, nil, nil, nil, removed)
+						count, err := module.RestoreRosterForCareExit(txCtx, ids, removed)
 						if err != nil {
 							return err
 						}
 						require.EqualValues(t, 1, count)
-						count, err = module.RestoreCareExitStudentAssignments(txCtx, ids, nil, nil, nil, removed)
+						count, err = module.RestoreRosterForCareExit(txCtx, ids, removed)
 						require.Zero(t, count)
 						return err
 					})
@@ -113,7 +113,7 @@ func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 				}
 				// Reset outside the measured region and transaction counters.
 				if name == "delete-rollback-retry" {
-					_, err := module.RestoreCareExitStudentAssignments(testpkg.Ctx(t), ids, nil, nil, nil, snapshot)
+					_, err := module.RestoreRosterForCareExit(testpkg.Ctx(t), ids, snapshot)
 					require.NoError(t, err)
 				}
 			}

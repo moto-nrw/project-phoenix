@@ -15,13 +15,6 @@ func (e engine) LockOpenStudentAssignments(ctx context.Context, studentIDs []int
 	return mapError(e.service.LockOpenStudentAssignments(ctx, studentIDs))
 }
 
-func (e engine) LockPlannedStudentAssignmentsAfter(ctx context.Context, studentIDs []int64, after string) error {
-	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return errors.New("timetable: assignment locks require a transaction")
-	}
-	return mapError(e.service.LockPlannedStudentAssignmentsAfter(ctx, studentIDs, after))
-}
-
 func (e engine) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []timetable.InstanceStudent) error {
 	return mapError(e.service.ReconnectCareExitAssignmentPickupExceptions(ctx, studentIDs, pickupExceptionIDs, domainCareExitAssignments(removals)))
 }

@@ -16,7 +16,18 @@ import (
 func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	ctx := testpkg.Ctx(t)
+	room := testpkg.CreateTestRoom(t, db, "Care exit snapshot room")
+	module, err := New(Dependencies{
+		DB:       db,
+		Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+		Rooms: timetable.RoomDirectoryFunc(func(_ context.Context, ids []int64) ([]timetable.RoomRef, error) {
+			assert.Equal(t, []int64{room.ID}, ids)
+			return []timetable.RoomRef{{ID: room.ID, TenantID: testpkg.Tenant(t)}}, nil
+		}),
+		CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, Observe: func(Observation) {},
+	})
+	require.NoError(t, err)
 	fixture := newOwnedActivityInstanceFixture(t, db, "care-exit-roster")
 	student := testpkg.CreateTestStudent(t, db, "CareExit", "Roster", "3a")
 	ids := []int64{student.ID}
@@ -26,44 +37,43 @@ func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 	createOwnedInstanceStudent(t, module, ctx, last.ID, student.ID, timetable.InstanceAttendanceExpected)
 	input := ownedInstanceStudentInput(future.ID, student.ID, timetable.InstanceAttendanceAbsent)
 	input.Note = stringText("Planned absence")
-	_, err := module.CreateInstanceStudent(ctx, input)
+	input.RoomID = &room.ID
+	_, err = module.CreateInstanceStudent(ctx, input)
 	require.NoError(t, err)
 	input = ownedInstanceStudentInput(actual.ID, student.ID, timetable.InstanceAttendancePresent)
 	at := time.Date(2027, 11, 3, 8, 0, 0, 0, time.UTC)
 	input.CheckedInAt = &at
 	_, err = module.CreateInstanceStudent(ctx, input)
 	require.NoError(t, err)
-	counts, err := module.CountPlannedStudentAssignmentsAfter(ctx, ids, "2027-11-01", nil)
-	require.NoError(t, err)
-	assert.Equal(t, 1, counts[student.ID])
 	abort := errors.New("fail after removing roster plans")
 	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		removed, removeErr := module.RemovePlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01")
+		removed, removeErr := module.RemovePlannedRosterForCareExit(txCtx, ids, "2027-11-01")
 		require.NoError(t, removeErr)
 		require.Len(t, removed, 1)
 		return abort
 	})
 	require.ErrorIs(t, err, abort)
-	removed, err := module.RemovePlannedStudentAssignmentsAfter(ctx, ids, "2027-11-01")
+	removed, err := module.RemovePlannedRosterForCareExit(ctx, ids, "2027-11-01")
 	require.NoError(t, err)
 	require.Len(t, removed, 1)
 	assert.Equal(t, future.ID, removed[0].InstanceID)
 	assert.Equal(t, "Planned absence", *removed[0].Note)
-	counts, err = module.CountPlannedStudentAssignmentsAfter(ctx, ids, "2027-11-01", removed)
-	require.NoError(t, err)
-	assert.Equal(t, 1, counts[student.ID], "preview includes the restorable ledger")
-	rows, err := module.RestoreCareExitStudentAssignments(ctx, ids, nil, nil, nil, removed)
+	rows, err := module.RestoreRosterForCareExit(ctx, ids, removed)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, rows)
-	rows, err = module.RestoreCareExitStudentAssignments(ctx, ids, nil, nil, nil, removed)
+	rows, err = module.RestoreRosterForCareExit(ctx, ids, removed)
 	require.NoError(t, err)
 	assert.Zero(t, rows)
-	counts, err = module.CountPlannedStudentAssignmentsAfter(ctx, ids, "2027-11-01", removed)
-	require.NoError(t, err)
-	assert.Equal(t, 1, counts[student.ID], "live rows must not also count as archived")
 	assignments, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{StudentIDs: ids})
 	require.NoError(t, err)
 	assert.Len(t, assignments, 3)
+	for _, assignment := range assignments {
+		if assignment.InstanceID == future.ID {
+			assert.Equal(t, &room.ID, assignment.RoomID, "restore resolves valid room references itself")
+			assert.Equal(t, stringText("Planned absence"), assignment.Note)
+			assert.Equal(t, timetable.InstanceAttendanceAbsent, assignment.Status)
+		}
+	}
 }
 
 func TestModuleCareExitClosesOnlyRecordedOpenPresence(t *testing.T) {
@@ -125,15 +135,12 @@ func TestModuleCareExitAssignmentsRespectTwoTenantRLS(t *testing.T) {
 		count, err := module.CountStudentAssignments(txCtx, foreign.StudentID)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		counts, err := module.CountPlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01", nil)
-		require.NoError(t, err)
-		assert.Equal(t, map[int64]int{student.ID: 1}, counts)
-		require.NoError(t, module.LockPlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01"))
-		removed, err := module.RemovePlannedStudentAssignmentsAfter(txCtx, ids, "2027-11-01")
+		require.NoError(t, module.LockPlannedRosterForCareExit(txCtx, ids, "2027-11-01"))
+		removed, err := module.RemovePlannedRosterForCareExit(txCtx, ids, "2027-11-01")
 		require.NoError(t, err)
 		require.Len(t, removed, 1)
-		assert.Equal(t, own.ID, removed[0].ID)
-		restored, err := module.RestoreCareExitStudentAssignments(txCtx, ids, nil, nil, nil, []timetable.InstanceStudent{own, foreign})
+		assert.Equal(t, own.InstanceID, removed[0].InstanceID)
+		restored, err := module.RestoreRosterForCareExit(txCtx, ids, []timetable.CareExitRosterRow{careExitSnapshot(own), careExitSnapshot(foreign)})
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, restored)
 		deleted, err := module.DeleteStudentAssignments(txCtx, foreign.StudentID)
@@ -155,10 +162,19 @@ func TestModuleCareExitAssignmentReadErrorsAreNotSwallowed(t *testing.T) {
 	cancel()
 	_, err := module.CountStudentAssignments(cancelled, student.ID)
 	require.ErrorIs(t, err, context.Canceled)
-	_, err = module.CountPlannedStudentAssignmentsAfter(cancelled, []int64{student.ID}, "2027-11-01", nil)
+	_, err = module.RemovePlannedRosterForCareExit(cancelled, []int64{student.ID}, "2027-11-01")
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = module.LatestStudentAssignmentAttendanceDate(cancelled, student.ID)
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = module.ListOpenStudentAssignments(cancelled, []int64{student.ID})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func careExitSnapshot(row timetable.InstanceStudent) timetable.CareExitRosterRow {
+	return timetable.CareExitRosterRow{
+		TenantID: row.TenantID, StudentID: row.StudentID, InstanceID: row.InstanceID,
+		RoomID: row.RoomID, Status: row.Status, Substatus: row.Substatus, Note: row.Note,
+		IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
+		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
+	}
 }

@@ -54,21 +54,6 @@ func (e *recordingEngine) CourseParticipation(context.Context, string, string, s
 	return nil, nil
 }
 
-func (e *recordingEngine) CountPlannedStudentAssignmentsAfter(ctx context.Context, studentIDs []int64, after string, removals []timetable.InstanceStudent) (map[int64]int, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) RemovePlannedStudentAssignmentsAfter(ctx context.Context, studentIDs []int64, after string) ([]timetable.InstanceStudent, error) {
-	e.calls++
-	return nil, nil
-}
-
-func (e *recordingEngine) RestoreCareExitStudentAssignments(ctx context.Context, studentIDs, roomIDs, statusDayIDs, pickupExceptionIDs []int64, removals []timetable.InstanceStudent) (int64, error) {
-	e.calls++
-	return 0, nil
-}
-
 func (e *recordingEngine) ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error) {
 	e.calls++
 	return nil, nil
@@ -95,11 +80,6 @@ func (e *recordingEngine) DeleteStudentAssignments(ctx context.Context, studentI
 }
 
 func (e *recordingEngine) LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error {
-	e.calls++
-	return nil
-}
-
-func (e *recordingEngine) LockPlannedStudentAssignmentsAfter(ctx context.Context, studentIDs []int64, after string) error {
 	e.calls++
 	return nil
 }
