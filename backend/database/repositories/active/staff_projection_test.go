@@ -26,7 +26,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	present := testpkg.CreateTestStaff(t, db, "Anwesende", "Betreuung")
 	offboarded := testpkg.CreateTestStaff(t, db, "Ehemalige", "Betreuung")
@@ -81,7 +81,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStaff(t, db, "Antrag", "Stellerin")
 	decider := testpkg.CreateTestStaff(t, db, "Antrag", "Entscheiderin")

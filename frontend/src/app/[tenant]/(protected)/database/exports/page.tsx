@@ -14,6 +14,7 @@ import {
   FileText,
   Printer,
 } from "lucide-react";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
@@ -23,8 +24,8 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import { InfoCard } from "~/components/ui/info-card";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
@@ -86,7 +87,6 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
  * duplicate the page that already does the job.
  */
 export default function DatabaseExportsPage() {
-  const isMobile = useIsMobile();
   const toast = useToast();
   const { data: session, status } = useSession();
   // Slot lists are part of the timetable feature; hide the entry when a tenant
@@ -110,18 +110,18 @@ export default function DatabaseExportsPage() {
   // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
   const canEditPlans = isAdmin(session);
   // Slot lists expose named children + presence, so the backend requires
-  // schedules:read AND users:read (#1565) — mirror that here. Der
+  // schedules:read AND users:read (#1565), mirror that here. Der
   // Betreuungsplan-Export verlangt dieselbe Kombination.
   const canUseSlotLists =
     isAdmin(session) ||
     (hasPermission(session, "schedules:read") &&
       hasPermission(session, "users:read"));
   // Die Personal-Geburtstagsliste zeigt volle Geburtsdaten und hängt deshalb
-  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542) —
+  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542):
   // users:read reicht bewusst nicht.
-  // Die Berechtigung heisst backendseitig `time_tracking:manage` mit
+  // Die Berechtigung heißt backendseitig `time_tracking:manage` mit
   // Unterstrich (permissions.ResourceTimeTracking); die Bindestrich-Variante
-  // trifft niemanden und haette die Karte fuer Leitungsrollen verschluckt.
+  // trifft niemanden und hätte die Karte für Leitungsrollen verschluckt.
   const canExportStaffBirthdays =
     isAdmin(session) ||
     hasPermission(session, "users:update") ||
@@ -134,6 +134,21 @@ export default function DatabaseExportsPage() {
   // value would let a finished export re-enable the buttons of one still
   // rendering, so two clicks could fire the same export twice.
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
+
+  // Statuszeile des Seitenkopfs: was auf dieser Seite tatsächlich sichtbar
+  // ist, also nach denselben Rechte-Schaltern wie die Karten selbst.
+  const listCount =
+    STUDENT_EXPORT_PRESETS.length +
+    (canExportStaffBirthdays ? 1 : 0) +
+    1 + // Notfallliste
+    (canReadRooms ? 1 : 0);
+  const linkCount =
+    (canUseSlotLists && !timetableDisabled ? 1 : 0) +
+    (canEditPlans && !timetableDisabled ? 1 : 0) +
+    (canUseSlotLists && !timetableDisabled ? 1 : 0) +
+    (isAdmin(session) ? 1 : 0) +
+    1; // Zeitnachweis
+  const statusLine = `${listCount} ${listCount === 1 ? "Liste" : "Listen"} · ${linkCount} auf anderen Seiten`;
 
   const runExport = async (key: string, task: () => Promise<void>) => {
     setBusy((current) => new Set(current).add(key));
@@ -155,15 +170,18 @@ export default function DatabaseExportsPage() {
   };
 
   return (
-    <div className="w-full">
-      {isMobile && <PageHeaderWithSearch title="Exporte" />}
-
+    <TenantPage title="Exporte" stats={statusLine} back>
       <div className="min-h-[60vh] space-y-6">
-        <p className="max-w-3xl text-sm text-gray-600">
-          Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die
-          Daten, die für die jeweilige Liste nötig sind. Bitte behandle die
-          erzeugten Dateien wie jede andere personenbezogene Unterlage.
-        </p>
+        {/* Der Hinweis steht auf einer Fläche, nicht auf dem Grund
+            (BAUARTEN-SPEC, Teil 3). Eine Karte ohne Titel ist die reine
+            Inhaltsfläche. */}
+        <SectionCard>
+          <p className="text-sm text-gray-600">
+            Jeder Export enthält nur die Daten, die für die jeweilige Liste
+            nötig sind. Bitte behandeln Sie die erzeugten Dateien wie jede
+            andere personenbezogene Unterlage.
+          </p>
+        </SectionCard>
 
         <ExportSection title="Kinderlisten">
           {STUDENT_EXPORT_PRESETS.map((preset) => (
@@ -318,7 +336,7 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           )}
           {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
-              auf ihrer Seite gerade zu sehen ist — ein Datumsdialog hier wäre
+              auf ihrer Seite gerade zu sehen ist. Ein Datumsdialog hier wäre
               eine zweite, konkurrierende Bedienung derselben Sache. */}
           {canEditPlans && !timetableDisabled && (
             <InfoCard
@@ -387,7 +405,7 @@ export default function DatabaseExportsPage() {
         isOpen={staffBirthdayModalOpen}
         onClose={() => setStaffBirthdayModalOpen(false)}
       />
-    </div>
+    </TenantPage>
   );
 }
 
@@ -395,13 +413,13 @@ function ExportSection({
   title,
   children,
 }: Readonly<{ title: string; children: ReactNode }>) {
+  // Der Abschnittstitel gehört auf eine Fläche: eine Überschrift, die frei auf
+  // dem gemusterten Grund steht, ist der häufigste Verstoß gegen Teil 3 des
+  // BAUARTEN-SPEC.
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-semibold text-gray-950">{title}</h2>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {children}
-      </div>
-    </section>
+    <SectionCard title={title}>
+      <CollectionGrid minTileWidth="18rem">{children}</CollectionGrid>
+    </SectionCard>
   );
 }
 

@@ -65,7 +65,7 @@ type apiContext struct {
 
 func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupFileStoreModule(t)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

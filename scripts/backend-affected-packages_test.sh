@@ -256,6 +256,10 @@ assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' pre
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules.sh' present
 assert_workflow_filter backend-test-infra '.claude/hooks/guard-absolute-rules_test.sh' present
+for filter in backend-tests backend-lint backend-architecture; do
+  assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
+  assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
+done
 for pattern in \
   'backend/go.mod' \
   'backend/go.sum' \
@@ -277,6 +281,54 @@ assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\
 assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains run-backend-architecture '${{ github.event_name == '\''push'\'' ||'
+
+# Execute the actual workflow guard: architecture-only changes may skip both
+# reusable jobs, but each independently requested job must run.
+ci_gate_script=$(awk '
+  /^      - name: Reject skipped mandatory checks$/ { active = 1; next }
+  active && /^        run: \|$/ { script = 1; next }
+  script && /^      - / { exit }
+  script { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/main.yml")
+if [[ -z "$ci_gate_script" ]]; then
+  echo 'mandatory-check guard missing from workflow' >&2
+  exit 1
+fi
+
+assert_ci_gate() {
+  expected=$1
+  shift
+  actual=pass
+  env ARCHITECTURE_REQUIRED=false BACKEND_LINT_REQUIRED=false FRONTEND_LINT_REQUIRED=false \
+    BACKEND_TEST_REQUIRED=false FRONTEND_TEST_REQUIRED=false SEED_SMOKE_REQUIRED=false \
+    ARCHITECTURE_RESULT=skipped LINT_RESULT=skipped TEST_RESULT=skipped \
+    "$@" bash -e -u -o pipefail <<<"$ci_gate_script" >/dev/null 2>&1 || actual=fail
+  if [[ "$actual" != "$expected" ]]; then
+    echo "ci-gate: expected $expected, got $actual for $*" >&2
+    exit 1
+  fi
+}
+
+assert_ci_gate pass
+assert_ci_gate pass ARCHITECTURE_REQUIRED=true ARCHITECTURE_RESULT=success
+assert_ci_gate fail ARCHITECTURE_REQUIRED=true
+for requirement in BACKEND_LINT_REQUIRED FRONTEND_LINT_REQUIRED; do
+  assert_ci_gate fail "$requirement=true"
+  assert_ci_gate pass "$requirement=true" LINT_RESULT=success
+done
+for requirement in BACKEND_TEST_REQUIRED FRONTEND_TEST_REQUIRED SEED_SMOKE_REQUIRED; do
+  assert_ci_gate fail "$requirement=true"
+  assert_ci_gate pass "$requirement=true" TEST_RESULT=success
+done
+# Failures/cancellations remain the alls-green action's responsibility. Do not
+# permit either outcome while allowing intentionally skipped reusable jobs.
+if ! grep -Fq 'jobs: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'allowed-skips: lint, test, backend-architecture-ratchet' "$repo_root/.github/workflows/main.yml" ||
+   grep -Eq 'allowed-failures:|allowed-cancelled:' "$repo_root/.github/workflows/main.yml"; then
+  echo 'ci-gate must still pass all results to alls-green without allowing failures' >&2
+  exit 1
+fi
 if ! grep -Fq 'packages_output=$(scripts/backend-lint-packages.sh)' \
   "$repo_root/.github/workflows/lint.yml"; then
   echo 'lint workflow does not propagate selector failures' >&2

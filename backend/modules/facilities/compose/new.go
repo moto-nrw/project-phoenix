@@ -24,10 +24,9 @@ type Dependencies struct {
 	Observe       func(Observation)
 }
 
-// New composes the Facilities module. Reads run on the caller's ambient
-// tenant transaction when one exists (tenant middleware, scheduler loops).
-// Shared connections require a caller tenant and apply an explicit predicate;
-// an ambient transaction without one relies on its RLS scope (device auth).
+// New composes the Facilities module. Every operation requires an explicit
+// caller tenant, including operations using an ambient transaction. The store
+// also applies that tenant as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*facilities.Module, error) {
 	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.DeletionGuard == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
@@ -43,29 +42,22 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 
 func databaseRuntime(db *bun.DB) postgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) {
-		tenantID, tenantErr := tenant.TenantFromContext(ctx)
-		id := int64(0)
-		if tenantErr == nil {
-			id = tenantID.Int64()
+		tenantID, err := tenant.TenantFromContext(ctx)
+		if err != nil {
+			return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", err)
 		}
 		transaction, hasTransaction := tenant.TransactionFromContext(ctx)
 		if !hasTransaction {
-			if tenantErr != nil {
-				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
-			}
-			return db, id, nil
+			return db, tenantID.Int64(), nil
 		}
 		switch tx := transaction.(type) {
 		case bun.Tx:
-			return tx, id, nil
+			return tx, tenantID.Int64(), nil
 		case *bun.Tx:
 			if tx != nil {
-				return tx, id, nil
+				return tx, tenantID.Int64(), nil
 			}
-			if tenantErr != nil {
-				return nil, 0, fmt.Errorf("facilities postgres: tenant is required: %w", tenantErr)
-			}
-			return db, id, nil
+			return db, tenantID.Int64(), nil
 		default:
 			return nil, 0, fmt.Errorf("facilities postgres: unsupported transaction %T", transaction)
 		}
@@ -75,6 +67,11 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 type engine struct {
 	service *application.Service
 	observe ports.Observer
+}
+
+func (engine) RequireTenant(ctx context.Context) error {
+	_, err := tenant.TenantFromContext(ctx)
+	return err
 }
 
 func (e engine) ObserveRejection(operation string, duration time.Duration, err error) {

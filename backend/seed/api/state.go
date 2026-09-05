@@ -5,6 +5,7 @@ import demoprofile "github.com/moto-nrw/project-phoenix/demoprofile"
 const DefaultSeedStatePath = demoprofile.DefaultSeedStatePath
 const CurrentSeedStateVersion = demoprofile.CurrentSeedStateVersion
 const DefaultProfileKey = demoprofile.DefaultProfileKey
+const ManualProfileKey = demoprofile.ManualProfileKey
 
 const (
 	SettingManagedByOperator = demoprofile.SettingManagedByOperator

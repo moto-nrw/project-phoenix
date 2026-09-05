@@ -604,7 +604,7 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -655,7 +655,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentArrivalNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: staffID,
 	}
@@ -703,7 +703,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentArrivalNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: existingNote.CreatedBy,
 	}

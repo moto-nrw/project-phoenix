@@ -25,7 +25,7 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates consent with valid data", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing consent", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds consents by student ID", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates consent", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("accepts consent", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("revokes consent", func(t *testing.T) {
@@ -262,7 +262,7 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active consents for student", func(t *testing.T) {
@@ -294,7 +294,7 @@ func TestPrivacyConsentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with accepted filter", func(t *testing.T) {
@@ -350,7 +350,7 @@ func TestPrivacyConsentRepository_ListAcceptedRetentionSettings(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PrivacyConsent
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)

@@ -21,6 +21,10 @@ monitoring setup before applying this overlay.
 
 ## Deploy
 
+For the prepared Grafana version upgrade, use the separate
+[`grafana-upgrade/README.md`](grafana-upgrade/README.md) release and full-volume
+rollback procedure. It preserves the server-local base and provisioning.
+
 On the server, merge these files into `/root/monitoring` next to the existing Loki/Grafana/Alloy setup. Do not delete the existing Loki, Grafana, or Alloy services when adding this stack.
 
 ```bash

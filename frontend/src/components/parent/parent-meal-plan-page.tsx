@@ -1126,7 +1126,7 @@ export function ParentMealPlanPage() {
                           <div className="text-sm font-semibold text-gray-900">
                             {weekdayLabel(today)}
                           </div>
-                          <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                          <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-semibold">
                             {t("today")}
                           </span>
                         </div>
@@ -1211,7 +1211,7 @@ export function ParentMealPlanPage() {
                             </div>
                           </div>
                           {isToday && (
-                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                            <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-semibold">
                               {t("today")}
                             </span>
                           )}

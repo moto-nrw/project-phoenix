@@ -53,8 +53,8 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 // TestDisplayFeatureGate below covers the off-by-default behavior directly.
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	ctx := testpkg.TenantContext(tenantID)
 	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
@@ -62,10 +62,11 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos, err := repositories.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	require.NoError(t, err)
 	rooms, err := repositories.NewFacilities(db)
 	require.NoError(t, err)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	svc := displayService.NewService(displayService.Dependencies{
 		DisplayRepo:       repos.Display,
@@ -344,7 +345,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 
 func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
-		Date:      timezone.DateFromTime(start),
+		Date:      scheduleModels.DateFromTime(start),
 		Title:     title,
 		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
 		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
@@ -663,8 +664,8 @@ func TestDisplayFeatureGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		repos := repositories.NewFactory(db)
-		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+		repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+		settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 
 		rec = doDashboardRequest(t, router, rawToken)

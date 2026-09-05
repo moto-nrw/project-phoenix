@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Lückenzähler plus Sprungliste des Betreuungsplan-Kopfzeilen-Kontexts
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 5.2). Der Chip
+ * Lückenzähler plus Sprungliste des Betreuungsplan-Kopfzeilen-Kontexts. Der Chip
  * zeigt die Zahl der offenen Personal-Lücken; ein Klick öffnet eine schmale
  * Sprungliste. Jede Zeile trägt Startzeit, Titel und das Soll/Ist-Paar; ein
  * Klick springt zum Block (der Aufrufer setzt `d` und `block`).
@@ -66,7 +65,7 @@ export function GapJumpList({
         className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
         title="Personal-Lücken werden geprüft"
       >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]" />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
         Lücken werden geprüft …
       </span>
     );
@@ -80,7 +79,7 @@ export function GapJumpList({
         className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
         title="Keine offenen Lücken im sichtbaren Zeitraum"
       >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]" />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
         Keine Lücken
       </span>
     );

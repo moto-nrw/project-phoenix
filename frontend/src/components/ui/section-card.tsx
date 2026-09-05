@@ -34,6 +34,8 @@ export function SectionCard({
   leading,
   action,
   actions,
+  bare = false,
+  testId,
   collapsible = false,
   defaultCollapsed = false,
   collapsed: collapsedProp,
@@ -42,20 +44,36 @@ export function SectionCard({
   titleClassName,
   bodyClassName,
   className = "",
+  /** `visible` lässt Dropdowns aus der Kopfzeile über den Kartenrand ragen. */
+  overflow = "hidden",
   children,
   id,
 }: Readonly<{
   kicker?: string;
-  title: string;
+  /**
+   * Ohne Titel rendert die Karte keinen Kopf und ist die reine Inhaltsfläche
+   * einer Seite. Genau dafür haben Seiten sich vorher `<section
+   * className="moto-content-surface …">` selbst gebaut.
+   */
+  title?: string;
   /** Small badge next to the title, e.g. a `StatusBadge` with a count. */
   titleBadge?: ReactNode;
-  description?: string;
+  description?: ReactNode;
   icon?: LucideIcon;
   /** Existing icon tile or other leading visual for non-Lucide icon systems. */
   leading?: ReactNode;
   /** Single header action. `actions` is the multi-element form. */
   action?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Ohne eigene Kartenfläche, wenn der Inhalt selbst schon aus Karten besteht
+   * (eine Reihe `StatCard`, eine Liste `TileCard`). Sonst steht eine weiße
+   * Karte auf einer weißen Karte und beide Ränder werden schwach. Dieselbe
+   * Entscheidung trifft das Eltern-Portal mit `ParentSection bare`.
+   */
+  bare?: boolean;
+  /** Testanker; erspart eine zusätzliche Hülle nur für den Selektor. */
+  testId?: string;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
   /** Controlled open state; `onCollapsedChange` then reports the requested one. */
@@ -67,6 +85,7 @@ export function SectionCard({
   /** Overrides the default `mt-4` spacing above the body. */
   bodyClassName?: string;
   className?: string;
+  overflow?: "hidden" | "visible";
   children?: ReactNode;
   id?: string;
 }>) {
@@ -75,83 +94,111 @@ export function SectionCard({
   const bodyId = useId();
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const headerActions = actions ?? action;
-  const showBody = children != null && !(collapsible && collapsed);
+  const hasBody = children != null && children !== false && children !== "";
+  const showBody = hasBody && !(collapsible && collapsed);
+  const hasHeader =
+    title != null ||
+    kicker != null ||
+    description != null ||
+    leading != null ||
+    Icon != null ||
+    headerActions != null ||
+    collapsible;
 
   return (
     <section
       id={id}
-      className={`moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`}
+      data-testid={testId}
+      className={
+        bare
+          ? cn("space-y-4", className)
+          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md max-sm:p-4 ${className}`
+      }
     >
-      <div className="flex flex-wrap items-start gap-3">
-        <div className="flex min-w-0 flex-1 gap-3">
-          {leading ??
-            (Icon && (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-            ))}
-          <div className="min-w-0">
-            {kicker && (
-              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-                {kicker}
-              </p>
-            )}
-            <div
-              className={cn(
-                "flex flex-wrap items-center gap-2",
-                kicker && "mt-1",
+      {hasHeader && (
+        // `flex-wrap` + `flex-1` am Titelblock: der Einklapp-Pfeil bleibt auf
+        // dem Telefon in der Titelzeile, nur die Aktionen brechen als volle
+        // Zeile um (dev-Fix "keep SectionCard collapse chevron on the title
+        // row on mobile").
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex min-w-0 flex-1 gap-3">
+            {leading ??
+              (Icon && (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+              ))}
+            <div className="min-w-0">
+              {kicker && (
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                  {kicker}
+                </p>
               )}
-            >
-              <Heading
-                className={cn(
-                  "text-base font-semibold text-balance text-gray-900",
-                  titleClassName,
-                )}
-              >
-                {title}
-              </Heading>
-              {titleBadge}
+              {(title != null || titleBadge != null) && (
+                <div
+                  className={cn(
+                    "flex flex-wrap items-center gap-2",
+                    kicker && "mt-1",
+                  )}
+                >
+                  {title != null && (
+                    <Heading
+                      className={cn(
+                        "text-base font-semibold text-balance text-gray-900",
+                        titleClassName,
+                      )}
+                    >
+                      {title}
+                    </Heading>
+                  )}
+                  {titleBadge}
+                </div>
+              )}
+              {description && (
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                  {description}
+                </p>
+              )}
             </div>
-            {description && (
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-                {description}
-              </p>
-            )}
           </div>
+          {headerActions != null && (
+            <div className="order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0">
+              {headerActions}
+            </div>
+          )}
+          {collapsible && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              aria-label={
+                collapsed
+                  ? `${title ?? "Abschnitt"} ausklappen`
+                  : `${title ?? "Abschnitt"} einklappen`
+              }
+              aria-expanded={!collapsed}
+              aria-controls={showBody ? bodyId : undefined}
+              onClick={() => {
+                const next = !collapsed;
+                if (collapsedProp === undefined) setCollapsedState(next);
+                onCollapsedChange?.(next);
+              }}
+            >
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                aria-hidden="true"
+              />
+            </Button>
+          )}
         </div>
-        {headerActions != null && (
-          <div className="order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0">
-            {headerActions}
-          </div>
-        )}
-        {collapsible && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            aria-label={
-              collapsed ? `${title} ausklappen` : `${title} einklappen`
-            }
-            aria-expanded={!collapsed}
-            aria-controls={showBody ? bodyId : undefined}
-            onClick={() => {
-              const next = !collapsed;
-              if (collapsedProp === undefined) setCollapsedState(next);
-              onCollapsedChange?.(next);
-            }}
-          >
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-              aria-hidden="true"
-            />
-          </Button>
-        )}
-      </div>
+      )}
       {showBody && (
         <div
           id={collapsible ? bodyId : undefined}
-          className={bodyClassName ?? "mt-4"}
+          className={
+            hasHeader && !bare ? (bodyClassName ?? "mt-4") : bodyClassName
+          }
         >
           {children}
         </div>

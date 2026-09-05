@@ -25,7 +25,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	reviewer := testpkg.CreateTestAccount(t, db, "co-guardian-notice-reviewer")
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
@@ -70,7 +70,7 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
@@ -117,7 +117,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	shared := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Mitleser")
 	uninvolved := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Rita", "Ohnezugang")
@@ -150,7 +150,7 @@ func TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 

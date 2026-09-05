@@ -196,9 +196,7 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 	var scheduleRows []*activitiesModels.Schedule
 	if len(groupIDs) > 0 {
 		var err error
-		scheduleRows, err = s.ActivityScheduleRepo.List(ctx, &modelBase.QueryOptions{
-			Filter: modelBase.NewFilter().In("activity_group_id", int64FilterArgs(groupIDs)...),
-		})
+		scheduleRows, err = s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
 		if err != nil {
 			return nil, false, fmt.Errorf("load care offering %d timetable schedules: %w", offeringID, err)
 		}

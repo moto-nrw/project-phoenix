@@ -3002,9 +3002,9 @@ func TestWSCheckOut_DeviationGate(t *testing.T) {
 			svc.nowFunc = func() time.Time { return tt.now }
 			svc.settings = tt.settings
 			shiftRepo := &wsMockStaffShiftRepository{}
-			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, staffIDs []int64, date timezone.Date) ([]*scheduleModels.StaffShift, error) {
+			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 				assert.Equal(t, []int64{100}, staffIDs)
-				assert.Equal(t, day, date)
+				assert.Equal(t, scheduleModels.Date(day), date)
 				return tt.shifts, nil
 			}
 			svc.SetStaffShiftRepo(shiftRepo)
@@ -3086,7 +3086,7 @@ func TestWSCheckOut_DeviationGateOffSkipsShiftLookup(t *testing.T) {
 	svc.settings = &wsMockSettingsResolver{} // setting resolves to false
 	lookedUp := false
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		lookedUp = true
 		return nil, nil
 	}
@@ -3175,7 +3175,7 @@ func TestWSCheckIn_DeviationGate(t *testing.T) {
 			svc.nowFunc = func() time.Time { return tt.now }
 			svc.settings = wsDeviationSettings(15)
 			shiftRepo := &wsMockStaffShiftRepository{}
-			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+			shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 				shifts := []*scheduleModels.StaffShift{shift}
 				if tt.extraShift {
 					shifts = append(shifts, shiftFor(100, day, 13, 16))
@@ -3241,7 +3241,7 @@ func TestWSCheckIn_SecondBlockSkipsDeviationGate(t *testing.T) {
 	svc.nowFunc = func() time.Time { return now }
 	svc.settings = wsDeviationSettings(15)
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		t.Fatal("a second block must not consult the deviation gate")
 		return nil, nil
 	}
@@ -3373,7 +3373,7 @@ func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	svc.nowFunc = func() time.Time { return now }
 	svc.settings = wsDeviationSettings(15)
 	shiftRepo := &wsMockStaffShiftRepository{}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		t.Fatal("EnsureCheckedIn must not consult the deviation gate")
 		return nil, nil
 	}

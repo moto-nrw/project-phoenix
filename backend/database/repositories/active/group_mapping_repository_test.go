@@ -32,7 +32,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "MappingActivity")
 	room := testpkg.CreateTestRoom(t, db, "MappingRoom")
 
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	groupRepo := factory.ActiveGroup
 	combinedGroupRepo := factory.CombinedGroup
 	ctx := testpkg.Ctx(t)
@@ -87,7 +87,7 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group mapping with valid data", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
@@ -255,7 +255,7 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes group from combination", func(t *testing.T) {
@@ -299,7 +299,7 @@ func TestGroupMappingRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with no results returns empty slice", func(t *testing.T) {

@@ -162,13 +162,13 @@ func loadTestDSN() (string, error) {
 }
 
 func resolvePackageTemplate(ctx context.Context, cfg *testdb.Config) (*testdb.Config, error) {
-	// The wrapper resolves the template once per run. Naked `go test` calls
-	// these steps in each binary and remains self-initializing.
-	if name := os.Getenv(testdb.TemplateEnv); name != "" {
-		return cfg.WithTemplate(name), nil
-	}
+	// Protect the server before connecting, even when the wrapper prepared the
+	// template. An idle server may have stopped during a long compilation.
 	if err := testdb.EnsureServer(ctx, cfg); err != nil {
 		return nil, err
+	}
+	if name := os.Getenv(testdb.TemplateEnv); name != "" {
+		return cfg.WithTemplate(name), nil
 	}
 	return testdb.EnsureTemplate(ctx, cfg)
 }

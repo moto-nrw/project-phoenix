@@ -5,6 +5,68 @@ roles, tenant-safe read projections, legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
+## Canonical module map
+
+[ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
+records File Storage as the eighteenth domain for
+[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
+[#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+The canonical owner lists are:
+
+| Domain (18) | Policy owner |
+|---|---|
+| Identity & Access | `identity-access` |
+| People Directory | `people-directory` |
+| School Membership | `school-membership` |
+| Organisation & Tenancy | `organization-tenancy` |
+| School Structure | `school-structure` |
+| School Calendar | `school-calendar` |
+| Facilities | `facilities` |
+| Enrollment | `enrollment` |
+| Care Plan | `care-plan` |
+| Timetable & Activities | `timetable-activities` |
+| Student Presence | `student-presence` |
+| Workforce | `workforce` |
+| Appointments | `appointments` |
+| Communication | `communication` |
+| Device Fleet | `device-fleet` |
+| Meal Plan | `meal-plan` |
+| Feedback | `feedback` |
+| File Storage | `file-storage` |
+
+| Platform (9) | Policy owner |
+|---|---|
+| Tenant Runtime | `tenant-runtime` |
+| Transaction Runtime | `transaction-runtime` |
+| Security Runtime | `security-runtime` |
+| Settings Platform | `settings-platform` |
+| Delivery Platform | `delivery-platform` |
+| Observability | `observability` |
+| Audit Platform | `audit-platform` |
+| Scheduler Runtime | `scheduler-runtime` |
+| Document Rendering | `document-rendering` |
+
+Policy validation pins these exact IDs and kinds for the moto module path;
+missing, extra, renamed, or reclassified owners fail before graph analysis.
+Declaration order is irrelevant. Independent evaluator fixtures retain their
+own module maps. A future domain/platform change requires an explicit
+architecture decision, reflected in #2580, this map, and validation.
+
+File Storage owns the managed file lifecycle: file metadata, folders,
+folder-role/account grants, quota, and cleanup intents. Identity supplies
+account and role facts; File Storage applies school-scoped folder grants.
+Communication retains announcement-access rules, including for attachments.
+Document Rendering produces output without owning its audience or storage;
+rendering alone neither saves a file nor grants access.
+
+This decision does not change runtime write owners or ratchet entries.
+Missing mappings for `documents.files`, `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, and
+`documents.file_cleanup` remain migration work in #2707. Existing announcement
+attachment and cleanup ownership stays unchanged. `target.svg` is generated
+from the unchanged policy and shows File Storage as domain and Document
+Rendering as platform; do not commit the generated diagram.
+
 ## Commands
 
 Run commands from the repository root:
@@ -23,7 +85,7 @@ scripts/backend-architecture.sh dependencies \
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
 scripts/backend-architecture.sh validate-ticket \
-  --ticket backend/architecture/migration-ticket-template.json
+  --ticket backend/architecture/checkpoint-ticket-template.json
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -75,7 +137,8 @@ The current backend still violates the target policy, so the normal `check`
 loads the committed exact baseline from `architecture/legacy.jsonl`. It passes
 only when the current violation set is exactly equal to that baseline. Pull
 request CI additionally reads the policy and baseline from the event's full
-base-commit SHA and permits only removal of existing tuples. The required
+base-commit SHA. Debt is shrink-only, except when a policy tightening exposes
+an exact import already present and allowed at that SHA (see below). The required
 status is `Backend architecture ratchet`.
 
 ## Generated projections
@@ -125,9 +188,42 @@ errors. The normal command has no init, approve, update, or rebaseline mode.
 Local mode requires exact equality between the current violations and the
 committed baseline. PR mode adds `--base-ref` with the event's full 40-character
 base commit SHA and reads the baseline and policy directly from that Git object.
-Candidate entries must be a subset of the base entries, unchanged entries must
-keep their issue, and candidate policy, package classification, and ownership
-changes may not weaken the checks enforced by the base policy.
+Candidate entries must be a subset of the base entries or meet the import-debt
+conversion rule below. Unchanged entries must keep their issue. Candidate
+policy, package classification, and ownership changes may not weaken the checks
+enforced by the base policy.
+
+### Converting temporary permissions to exact debt
+
+Temporary compatibility imports belong in `legacy.jsonl`, not target-allowed
+rules. Remove their policy permissions and record each resulting
+`imports.forbidden` tuple with its open cleanup issue. PR mode accepts a newly
+recorded tuple only when all three conditions hold:
+
+1. The base policy allowed that exact source, target, and scope.
+2. The source package imported that target in that scope at the immutable base
+   SHA, under the policy's fixed build context.
+3. The candidate policy no longer allows the import.
+
+The checker reads import headers from Git blobs and lets `go list` select the
+production, internal-test, and external-test files. Candidate imports cannot
+supply base evidence. New targets, new sources, scope changes, and imports
+excluded by build tags, OS, or cgo cannot become historical debt. Existing
+violations and semantic findings do not qualify for this conversion.
+
+Once recorded, the tuple follows the ordinary shrink-only and issue-audit
+rules. Restoring its target permission is still policy loosening. Removing the
+import requires removing its debt entry in the same change. No schema change
+or second allowlist is needed for the final contract step.
+
+The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
+representation. Its remaining imports and repository-composition caller are
+bound to #2743, the root API caller to #2750, and the test-support caller to
+#2748. The conversion in #3032 removes 13 target permissions and records 14
+existing imports; it adds no runtime dependency or composition caller.
+`target.svg` has no compatibility-rule edges. `migration.svg` renders these
+exact imports as orange-red `legacy` debt, separate from gray target-valid
+imports and dashed-red new violations, even when they share owner endpoints.
 
 PR mode allows a classification when the candidate adds the first Go file in
 that exact package. Rules added with it must be anchored to an owner and role
@@ -136,14 +232,36 @@ Existing unclassified packages and modified packages do not qualify. A legacy
 composition guard may be removed only after the guarded package declaration is
 deleted.
 
-One additive ownership case is allowed because otherwise the ratchet would
-freeze the database schema: a candidate may add a `data_objects` entry when a
-new Go file under `database/migrations/` in the same candidate creates that
-exact schema-qualified table through a literal `NewRaw(... CREATE TABLE ...)`
-statement. The table must not be mentioned by any migration at the base SHA,
-the write owner must already exist, and changing or newly assigning ownership
-for an existing table remains a policy loosening. Modified historical
-migrations never qualify for this exception.
+PR mode requires every new runtime data object created in candidate
+migrations to have exactly one valid `data_objects` write owner in the same
+candidate. This is a hard policy check, not baseline debt. A candidate may add
+the ownership entry when a new non-test Go file under `database/migrations/`
+creates that exact schema-qualified object through static SQL passed to
+`NewRaw`, `Exec`, `Query`, `QueryRow`, or their context variants. Detection
+includes ordinary, unlogged, and foreign tables, views, materialized views,
+explicit sequences, and `SELECT INTO`, including `CREATE OR REPLACE VIEW`
+and quoted identifiers. Implicit serial/identity sequences follow their table.
+Views are conservatively treated as writable because PostgreSQL can expose
+writes through them. SQL comments and string literals, test-only files,
+temporary tables, and non-data DDL such as schemas, indexes, and types do not
+require runtime write ownership.
+
+SQL discovery resolves string constants, concatenation, and singly assigned
+local query variables, and inspects executable `DO` and function bodies.
+It preserves quoted-name case: identifiers that the policy cannot represent
+fail rather than silently matching a different object. Unresolved queries,
+schema builders, dynamic procedural SQL, and encoded executable bodies fail
+closed with a request to use static SQL or dollar quoting. Adjacent continued
+SQL string literals are joined before body analysis. The lexer follows
+[PostgreSQL's lexical rules](https://www.postgresql.org/docs/current/sql-syntax-lexical.html)
+for identifier quoting, comments, and literal continuation; it does not
+execute migrations or attempt to interpret arbitrary Go or procedural code.
+
+The object must not be mentioned by any migration at the base SHA, the write
+owner must already exist, and changing or newly assigning ownership for an
+existing object remains a policy loosening. Modified historical migrations
+never qualify for this exception, and historical unowned objects do not need
+rebaselining. The check uses the immutable local Git base, not GitHub.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; callers must provide `--api-url`,
@@ -153,25 +271,119 @@ appear as a green audit.
 
 ## Migration evidence
 
-`migration-ticket-template.json` is the executable contract for later
-migration tickets. Copy it, replace its guidance text with the ticket's facts,
-then run `validate-ticket`. The command rejects unknown fields and missing
-prerequisites, owner/capability, packages, tables, cutover, tests, runtime
-evidence, rollback/cleanup, or exit criteria. `exact_ratchet_keys` may be empty
-for an explicit prerequisite or acceptance node.
+Schema version 2 separates ordinary waves from runtime checkpoints. Convert
+version 1 tickets explicitly. Both kinds retain prerequisites, owner/capability,
+packages, tables, exact ratchet keys, atomic cutover, tests, rollback/cleanup,
+and measurable exit criteria. Unknown fields and blank required evidence fail.
 
-Runtime evidence records its raw source, workload, and agreed thresholds. It
-also records query count, latency p50/p95, errors, DB-pool waits, measured lock
-waits, deadlocks, and Worker duration/retries/backlog. A metric that does not
-apply still needs a reason; an empty field fails validation. Full SQL statement
-duration is not lock-wait evidence because it also includes execution time.
+### Ordinary waves
 
-Keep raw Prometheus exports and load-run output in the issue or pull-request
-review evidence, outside the repository. The committed template checks ticket
-completeness; it is not a second architecture policy and does not invent
-environment-independent latency limits.
+Copy `migration-ticket-template.json` and replace all example/guidance values.
+Set `ticket_kind` to `migration`. `checkpoint_reference` must be the canonical
+issue URL of the latest accepted checkpoint in `runtime-checkpoints.json`.
+Missing, malformed, future, unaccepted, and superseded references fail.
+
+Record only flow-specific evidence needed for the cutover: raw source,
+workload/environment/observation window, thresholds, query counts, stable
+errors, failure-path and transaction rollback results, and smoke results.
+Keep deployment rollback and cleanup in `rollback_and_cleanup`. Non-applicable
+evidence needs a concrete reason. Additional metrics are allowed when the flow
+needs them; a reference does not waive failure, rollback, query-budget, or smoke
+checks. Ordinary waves do not repeat the full benchmark suite independently.
+
+### Checkpoint measurements
+
+Copy `checkpoint-ticket-template.json` and set `ticket_kind` to `checkpoint`.
+Only these canonical checkpoint issue URLs are valid:
+
+1. #3019 establishes the one-third baseline across completed migrations.
+2. #3020 compares with #3019 after its blocking core migrations and before
+   session-end, device-scan, and enrollment-acceptance workflow cutovers.
+3. #3021 compares with both predecessors after contract/storage cutovers and
+   before #2751 removes the remaining legacy composition.
+
+The `checkpoint` object requires an exact commit, reproducible PostgreSQL 17
+and production composition environment, toolchain, versioned workload, data
+volume, concurrency, and warm-up. Cover successful and failing HTTP/module
+flows and applicable Worker paths. `runs` contains exactly three measured runs
+after warm-up; `median` and `worst` report every applicable metric. Each report
+records source, workload, thresholds, query count, p50/p95, stable errors,
+pool waits, measured lock waits, deadlocks/serialization retries, Worker
+duration/retries/backlog, and affected rows. Non-applicable metrics need reasons.
+Full statement duration is not lock-wait evidence.
+
+`comparison` explains every metric against the required predecessors (or
+establishes #3019's baseline). Keep workload/environment equivalent;
+`workload_bridge` confirms equivalence or links old/new workloads measured on
+the same commit. `regression_issues` links focused optimization issues for
+material regressions; unexplained regressions block acceptance. `decision`
+records completed blockers and acceptance/rejection; #3021 permits or blocks
+#2751. Raw output and interpretation stay in the checkpoint issue or review
+evidence, not the repository. Template values are examples, not measurements.
+
+### Recording acceptance
+
+`runtime-checkpoints.json` is a reviewed acceptance registry, not architecture
+policy. It starts empty because no checkpoint has been accepted. Ordinary
+waves cannot pass until #3019 is accepted; checkpoint measurements can be
+validated before acceptance. After explicit acceptance in the checkpoint issue,
+append an entry in a reviewed change, in order without gaps:
+
+```json
+{"issue": "https://github.com/moto-nrw/project-phoenix/issues/3019", "acceptance": "https://github.com/moto-nrw/project-phoenix/issues/3019#issuecomment-123"}
+```
+
+Replace the example comment ID with the actual acceptance comment. Validation
+checks issue order and comment-link shape, not comment truth or measurement
+accuracy. Review must verify acceptance, closed blockers, comparable runs,
+and explanations. A ticket-local `accepted` flag cannot grant acceptance.
+`--checkpoints path/to/registry.json` supports a reviewed registry snapshot
+and isolated test fixtures; paths resolve from the repository root. Do not
+use a self-authored registry to bypass acceptance.
+
+No ownership or ratchet entries change. This contract sets no
+machine-independent latency limits.
 
 ## Composition inventory
+
+### Shrink-only fields and mutable wiring (#3030)
+
+The normal `scripts/backend-architecture.sh check` compares composition source
+with the merge-base of `HEAD` and `origin/development`. PR CI supplies the event's
+full base SHA through `--base-ref`. Fetch `origin/development` before a local
+check. Explicit project/baseline arguments remain available for isolated
+analyzer fixtures; CI always supplies the real base commit.
+
+The guard reads Go declarations directly from that Git object and the working
+tree. It rejects new named or embedded fields on `services.Factory`,
+`database/repositories.Factory`, and `api.API`, including local type aliases.
+There is no accepted field/setter manifest and no approve, regenerate,
+rebaseline, or wildcard option. Deletion spends the removed declaration's
+budget permanently once it reaches the base branch.
+
+Mutable wiring is identified by its destination, not by a `Set` prefix:
+assignments to interface/function dependencies, dependency-containing bundles,
+external pointer dependencies, and Worker/Scheduler scalar configuration are
+guarded. Receiver methods and pointer-parameter wiring functions are covered,
+including direct receiver aliases and whole-receiver replacement. The key
+includes the destination field, so an existing setter cannot acquire another
+dependency silently. Newly constructed local values are not mutable wiring.
+Domain/model receivers, ordinary result records, and scheduler task state are
+outside this guard. This is source analysis, not general interprocedural alias
+or reflection analysis; review still checks indirect wiring.
+
+Production, same-package tests, and external-package tests have separate keys.
+Test declarations cannot authorize production growth. Parsing includes
+build-tagged Go files, but excludes vendor, hidden directories, and fixture
+`testdata` trees. Fixtures cover both additions and permitted non-composition
+changes; the other architecture checks continue to enforce package boundaries.
+
+The existing Factory-removal and composition-contract tickets retain ownership
+of shrinking the current debt. This guard does not remove their work or change
+runtime composition. The historical inventory below is separate evidence:
+regenerating it cannot approve new fields or mutable wiring.
+
+### Typed-root migration evidence
 
 `composition.json` is the checked-in prerequisite inventory for the typed-root
 migration. It is pinned to evidence commit

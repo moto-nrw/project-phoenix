@@ -15,6 +15,7 @@ import (
 const DefaultSeedStatePath = ".seed-state.json"
 const CurrentSeedStateVersion = "3"
 const DefaultProfileKey = "vollbetrieb"
+const ManualProfileKey = "manuell"
 
 const (
 	SettingManagedByOperator = "operator"
@@ -95,6 +96,7 @@ type SeedSetting struct {
 
 type SeedProfileEntities struct {
 	Students   map[string]SeedStudent   `json:"students"`
+	Guardians  map[string]SeedEntityRef `json:"guardians,omitempty"`
 	Rooms      map[string]SeedEntityRef `json:"rooms"`
 	Activities map[string]SeedEntityRef `json:"activities"`
 	Groups     map[string]SeedEntityRef `json:"groups"`
@@ -117,6 +119,9 @@ type SeedExpectedState struct {
 	HasEnrollment       bool                       `json:"has_enrollment"`
 	HasAttendance       bool                       `json:"has_attendance"`
 	HasHistory          bool                       `json:"has_history"`
+	PresentStudents     int                        `json:"present_students,omitempty"`
+	CheckedOutStudents  int                        `json:"checked_out_students,omitempty"`
+	WeeklyPlans         int                        `json:"weekly_plans,omitempty"`
 	ScheduledActivities SeedScheduledActivityState `json:"scheduled_activities"`
 }
 
@@ -208,6 +213,7 @@ type BootstrapAdminCredentials struct {
 
 type AccountCredentials struct {
 	Key       string `json:"key"`
+	AccountID int64  `json:"account_id,omitempty"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	PIN       string `json:"pin"`
@@ -218,6 +224,7 @@ type AccountCredentials struct {
 }
 
 type SeedDevice struct {
+	ID         int64  `json:"id,omitempty"`
 	DeviceID   string `json:"device_id"`
 	DeviceType string `json:"device_type"`
 	APIKey     string `json:"api_key,omitempty"`

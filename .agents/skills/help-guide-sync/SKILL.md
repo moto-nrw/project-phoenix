@@ -8,7 +8,7 @@ metadata:
 
 # In-App Help Guide Sync
 
-Keeps the school-facing help guide (`/help`) in sync with the app. The full reference is in `.Codex/rules/help-guide-sync.md` — this skill points you at the right files and the update flow.
+Keeps the school-facing help guide (`/help`) in sync with the app. The full reference is in `.claude/rules/help-guide-sync.md` — this skill points you at the right files and the update flow.
 
 ## When to Use
 

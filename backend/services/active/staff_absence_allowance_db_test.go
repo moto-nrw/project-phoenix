@@ -21,7 +21,7 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Generation")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Leitung")
 
@@ -119,7 +119,7 @@ func TestCustomAbsenceAllowanceOverrunPolicy(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Block")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Block")
 	svc := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, nil)
@@ -194,7 +194,7 @@ func TestCustomAbsenceAllowanceDoesNotCarryAcrossYears(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Jahreswechsel")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Jahreswechsel")
 	svc := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, nil)
@@ -239,7 +239,7 @@ func TestCustomAbsenceAllowanceIsTenantIsolated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.NewTenantScope(t, db)
 	tenantB := testpkg.NewTenantScope(t, db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Rena", "Mandant A")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Lea", "Mandant A")
 	svc := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, nil)
@@ -281,7 +281,7 @@ func TestCustomAbsenceAllowanceSerializesConcurrentCorrections(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Parallel")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Parallel")
 	svc := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, nil)

@@ -45,7 +45,9 @@ func (e engine) observeRequest(operation string, started time.Time, stats Reques
 	e.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 }
 
-func requestValue[T any](e engine, operation string, call func() (T, RequestStoreStats, error)) (result T, err error) {
+func requestValue[T any](e interface {
+	observeRequest(string, time.Time, RequestStoreStats, error)
+}, operation string, call func() (T, RequestStoreStats, error)) (result T, err error) {
 	started := time.Now()
 	result, stats, err := call()
 	e.observeRequest(operation, started, stats, err)

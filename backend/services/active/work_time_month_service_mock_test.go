@@ -109,7 +109,7 @@ type wtmMockShiftReader struct {
 	shifts []*scheduleModels.StaffShift
 }
 
-func (m *wtmMockShiftReader) FindByStaffAndDateRange(_ context.Context, _ int64, from, to timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (m *wtmMockShiftReader) FindByStaffAndDateRange(_ context.Context, _ int64, from, to scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	var result []*scheduleModels.StaffShift
 	for _, s := range m.shifts {
 		if !s.Date.Before(from) && !s.Date.After(to) {
@@ -185,7 +185,7 @@ func wtmShift(date timezone.Date, minutes int, cancelled bool) *scheduleModels.S
 	start := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
 	return &scheduleModels.StaffShift{
 		StaffID:   wtmStaffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: start,
 		EndTime:   start.Add(time.Duration(minutes) * time.Minute),
 		Cancelled: cancelled,

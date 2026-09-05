@@ -33,7 +33,7 @@ func createPoolShift(t *testing.T, s *moveSetup, staffID int64, startHHMM, endHH
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      moveTestDate(),
+		Date:      scheduleModels.Date(moveTestDate()),
 		StartTime: parseMoveClock(t, startHHMM),
 		EndTime:   parseMoveClock(t, endHHMM),
 		Cancelled: cancelled,
@@ -74,7 +74,7 @@ func TestGetStaffPoolForInstance_Categories(t *testing.T) {
 	})
 	createPoolShift(t, s, absent.ID, "08:00", "16:00", false)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
@@ -119,7 +119,7 @@ func TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
 
 	s := makeMoveSetup(t)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, s.db, slog.Default())
 	require.NoError(t, err)
 	pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
@@ -141,7 +141,7 @@ func TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
 	createMoveStaffRow(t, s, before.ID, s.staffID, nil)
 	createPoolShift(t, s, s.staffID, "12:00", "16:00", false)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, s.db, slog.Default())
 	require.NoError(t, err)
 	// Target runs 14:30–15:30; the other block ends 14:30 sharp.
@@ -161,7 +161,7 @@ func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
 	s := makeMoveSetup(t)
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, s.db, slog.Default())
 	require.NoError(t, err)
 	pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
@@ -183,7 +183,7 @@ func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *tes
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
 	createPoolShift(t, s, s.otherID, "08:00", "12:00", true)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, s.db, slog.Default())
 	require.NoError(t, err)
 	pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
@@ -214,7 +214,7 @@ func TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T
 			createPoolShift(t, s, s.staffID, "08:00", "16:00", false)
 			createPoolShift(t, s, s.otherID, "08:00", "16:00", false)
 
-			repoFactory := repositories.NewFactory(s.db)
+			repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 			serviceFactory, err := services.NewFactoryForTests(repoFactory, s.db, slog.Default())
 			require.NoError(t, err)
 			pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)

@@ -138,22 +138,22 @@ func TestStaffNoticeTodayHonoursWeekPattern(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	// Anker Montag 2026-08-03 = Woche A; 2026-08-10 ist damit Woche B.
-	anchor := noticeMustDate(t, "2026-08-03")
+	anchor := scheduleModels.Date(noticeMustDate(t, "2026-08-03"))
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "Schuljahr",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       noticeMustDate(t, "2026-08-01"),
-		EndDate:         noticeMustDate(t, "2027-07-31"),
+		StartDate:       scheduleModels.Date(noticeMustDate(t, "2026-08-01")),
+		EndDate:         scheduleModels.Date(noticeMustDate(t, "2027-07-31")),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &anchor,
 		IsActive:        true,
 	}
-	holidayAnchor := noticeMustDate(t, "2026-08-10")
+	holidayAnchor := scheduleModels.Date(noticeMustDate(t, "2026-08-10"))
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            "Ferien",
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       noticeMustDate(t, "2026-08-01"),
-		EndDate:         noticeMustDate(t, "2026-08-31"),
+		StartDate:       scheduleModels.Date(noticeMustDate(t, "2026-08-01")),
+		EndDate:         scheduleModels.Date(noticeMustDate(t, "2026-08-31")),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &holidayAnchor,
 		IsActive:        true,
@@ -254,6 +254,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 	t.Parallel()
 	ctx := context.Background()
 	today := noticeMustDate(t, "2026-08-05")
+	scheduleToday := scheduleModels.Date(today)
 	otherWeekday := int16((int(today.Weekday())+6)%7 + 1)
 	otherWeekday = otherWeekday%7 + 1
 
@@ -310,10 +311,10 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			},
 			periods: &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{{
 				PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-				StartDate:       today.AddDays(-7),
-				EndDate:         today.AddDays(7),
+				StartDate:       scheduleModels.Date(today.AddDays(-7)),
+				EndDate:         scheduleModels.Date(today.AddDays(7)),
 				WeekCycleLength: 2,
-				WeekCycleAnchor: &today,
+				WeekCycleAnchor: &scheduleToday,
 				IsActive:        true,
 			}}},
 		},

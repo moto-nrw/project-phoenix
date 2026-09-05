@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
@@ -525,7 +524,11 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 }
 
 // NewFactory creates a new repository factory with all repositories
-func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
+func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
+	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil {
+		panic("repository factory: timetable and projection dependencies are required")
+	}
+	timetableCapability := timetableDependencies.Capability
 	var now func() time.Time
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
@@ -643,8 +646,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
 		// belong to School Calendar and are bound below.
-		Timeframe:                 schedule.NewTimeframeRepository(db),
-		RecurrenceRule:            schedule.NewRecurrenceRuleRepository(db),
+		Timeframe:                 nil, // bound to Timetable below
+		RecurrenceRule:            nil, // bound to Timetable below
 		StudentPickupSchedule:     nil, // bound to Care Plan below
 		StudentPickupException:    nil, // bound to Care Plan below
 		StudentPickupNote:         nil, // bound to Care Plan below
@@ -656,20 +659,20 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
-		PlanningTrack:             schedule.NewPlanningTrackRepository(db),
+		PlanningTrack:             nil, // bound to Timetable below
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
-		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
+		InstanceStudent:           timetableInstanceStudentRepository{timetable: timetableCapability},
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
-		ActivityGroup:      activities.NewGroupRepository(db),
-		ActivityCategory:   activities.NewCategoryRepository(db),
-		ActivitySchedule:   activities.NewScheduleRepository(db),
-		ActivitySupervisor: activities.NewSupervisorPlannedRepository(db),
-		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
+		ActivityGroup:      nil, // bound to Timetable below
+		ActivityCategory:   nil, // bound to Timetable below
+		ActivitySchedule:   nil, // bound to Timetable below
+		ActivitySupervisor: nil, // bound to Timetable below
+		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
 		ActiveGroup:                     active.NewGroupRepository(db),
@@ -826,7 +829,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	})
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
 	factory.bindAppointments(appointmentsModule)
-	factory.bindActivityTemplateShiftTypes()
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
@@ -865,6 +867,14 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	})
+	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, factory.ShiftType)
+	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
+	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
+	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
+	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
+	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
+	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
+	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

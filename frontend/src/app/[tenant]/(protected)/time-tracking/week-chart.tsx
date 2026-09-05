@@ -10,6 +10,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { SectionCard } from "~/components/ui/section-card";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -204,7 +205,7 @@ function WeekChartHeader({
       <h2 className="text-base font-bold text-gray-900 sm:text-lg">
         Wochenübersicht
       </h2>
-      <span className="text-[10px] text-gray-400 sm:text-xs">
+      <span className="text-xs text-gray-400">
         {chartData[0]?.label.split(" ")[1] ?? ""} –{" "}
         {chartData.at(-1)?.label.split(" ")[1] ?? ""}
       </span>
@@ -223,7 +224,10 @@ const WeekChart = memo(function WeekChart({
   const chartData = useWeekChartData({ history, weekOffset });
 
   return (
-    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl border shadow-sm md:h-full md:min-h-0">
+    <SectionCard
+      className="flex min-h-[280px] flex-col overflow-hidden p-0 md:h-full md:min-h-0"
+      bodyClassName="flex min-h-0 flex-1 flex-col"
+    >
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <WeekChartHeader chartData={chartData} />
         <ChartContainer
@@ -233,7 +237,7 @@ const WeekChart = memo(function WeekChart({
           <WeekChartPlot chartData={chartData} isMobile={isMobile} />
         </ChartContainer>
       </div>
-    </div>
+    </SectionCard>
   );
 });
 

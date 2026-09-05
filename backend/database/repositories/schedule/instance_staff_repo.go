@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -110,7 +109,7 @@ func (r *InstanceStaffRepository) FindByInstanceIDs(ctx context.Context, instanc
 
 // FindByStaffAndDate returns all staff assignments for a staff member across
 // all instances on the given date.
-func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*schedule.InstanceStaff, error) {
+func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date schedule.Date) ([]*schedule.InstanceStaff, error) {
 	var rows []*schedule.InstanceStaff
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -135,7 +134,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 // FindByStaffIDsAndDate is the batch form of FindByStaffAndDate. A generic
 // filter cannot express the date predicate because it belongs to the joined
 // activity_instances table.
-func (r *InstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*schedule.InstanceStaff, error) {
+func (r *InstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date schedule.Date) ([]*schedule.InstanceStaff, error) {
 	rows := make([]*schedule.InstanceStaff, 0)
 	if len(staffIDs) == 0 {
 		return rows, nil
@@ -163,7 +162,7 @@ func (r *InstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, sta
 // lives on the joined activity_instances table, which the generic filter
 // shape cannot express. Keeps the self-service assignment read (#1844)
 // proportional to one staff member's plan instead of the whole tenant window.
-func (r *InstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*schedule.InstanceStaff, error) {
+func (r *InstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to schedule.Date) ([]*schedule.InstanceStaff, error) {
 	var rows []*schedule.InstanceStaff
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -192,7 +191,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, s
 // when the instance starts. Same-day instances that already ran (or run right
 // now) keep their rows as history. Used by staff offboarding, where the staff
 // row is only soft-deleted and the RESTRICT FK no longer applies.
-func (r *InstanceStaffRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error) {
+func (r *InstanceStaffRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.InstanceStaff)(nil)).
 		ModelTableExpr(modelTblInstanceStaff).

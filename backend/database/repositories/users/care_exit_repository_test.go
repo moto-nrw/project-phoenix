@@ -25,7 +25,7 @@ func TestCareExitRepository_RecordedAtUsesTheBerlinDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).CareExit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareExit
 	ctx := testpkg.Ctx(t)
 
 	class := fmt.Sprintf("ce-%s", uuid.Must(uuid.NewV4()).String()[:8])
@@ -82,7 +82,7 @@ func TestCareExitCleanupRepository_LocksPersonImpactRows(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "CareExitLock", "Kid", "2a")
-	repo := repositories.NewFactory(db).CareExitCleanup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareExitCleanup
 	result := make(chan error, 1)
 
 	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {

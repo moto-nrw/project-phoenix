@@ -757,7 +757,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
 
     // Click the second room's tab - triggers switchToRoom -> mutateDashboard
-    const tabB = screen.getByTestId("tab-room-2");
+    const tabB = screen.getByRole("tab", { name: "Raum B" });
     fireEvent.click(tabB);
 
     await waitFor(() => {
@@ -862,17 +862,22 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
     render(<MeinRaumPage />);
 
-    const parallelTab = await screen.findByTestId("tab-yard-parallel");
+    // Beide Schulhof-Reiter tragen denselben Namen; der parallele steht vor
+    // dem festen Schulhof-Reiter.
+    const parallelTab = (
+      await screen.findAllByRole("tab", {
+        name: "Schulhof",
+      })
+    )[0]!;
     fireEvent.click(parallelTab);
 
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalled();
     });
     await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toHaveAttribute(
-        "data-count",
-        "2",
-      );
+      // Die Zahl stand früher als Zähler im Kopf; sie steht jetzt in der
+      // Statuszeile der Kopfkarte.
+      expect(screen.getByText("Schulhof · 2 Kinder")).toBeInTheDocument();
     });
     expect(
       screen.queryByRole("button", { name: "Aufsicht abgeben" }),
@@ -939,10 +944,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     render(<MeinRaumPage />);
 
     expect(await screen.findByText("Parallel Student")).toBeInTheDocument();
-    expect(screen.getByTestId("page-header")).toHaveAttribute(
-      "data-count",
-      "1",
-    );
+    expect(screen.getByText("Schulhof · 1 Kind")).toBeInTheDocument();
   });
 
   it("shows the permission notice when switching to a forbidden session", async () => {
@@ -1010,7 +1012,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
 
     // Click the second room's tab - triggers switchToRoom -> mutateDashboard
-    const tabB = screen.getByTestId("tab-room-2");
+    const tabB = screen.getByRole("tab", { name: "Raum B" });
     fireEvent.click(tabB);
 
     // The permission notice appears and the previous room's students are
@@ -1087,7 +1089,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
 
     // Click second room tab
-    const tabB = screen.getByTestId("tab-room-2");
+    const tabB = screen.getByRole("tab", { name: "Raum B" });
     fireEvent.click(tabB);
 
     // Generic error should appear
@@ -1159,7 +1161,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     });
 
     // Click the already-selected first room tab
-    const tabA = screen.getByTestId("tab-room-1");
+    const tabA = screen.getByRole("tab", { name: "Raum A" });
     fireEvent.click(tabA);
 
     // switchToRoom early-returns because roomId === selectedRoomId
@@ -1599,9 +1601,9 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
       expect(screen.getByText("Solo Student")).toBeInTheDocument();
     });
 
-    // Verify student count badge is shown (proves currentRoom is set)
-    const header = screen.getByTestId("page-header");
-    expect(header).toHaveAttribute("data-count", "1");
+    // Die Statuszeile nennt die Aufsicht und ihre Kinderzahl (beweist, dass
+    // currentRoom gesetzt ist).
+    expect(screen.getByText(/· 1 Kind$/)).toBeInTheDocument();
   });
 
   it("returns Schulhof room object when Schulhof tab is selected and user is supervising", async () => {
@@ -1661,8 +1663,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
 
     // The student count should reflect Schulhof's student count (5)
     await waitFor(() => {
-      const header = screen.getByTestId("page-header");
-      expect(header).toHaveAttribute("data-count", "5");
+      expect(screen.getByText("Schulhof · 5 Kinder")).toBeInTheDocument();
     });
   });
 });
@@ -1790,7 +1791,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     });
 
     // Click the restricted room tab
-    const restrictedTab = screen.getByTestId("tab-room-no-access");
+    const restrictedTab = screen.getByRole("tab", { name: "Restricted Room" });
     fireEvent.click(restrictedTab);
 
     // switchToRoom surfaces the permission notice and clears the previous

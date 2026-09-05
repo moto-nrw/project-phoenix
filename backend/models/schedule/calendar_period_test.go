@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,7 +11,7 @@ import (
 func TestCalendarPeriod_Validate(t *testing.T) {
 	t.Parallel()
 
-	anchor := timezone.NewDate(2025, 9, 1)
+	anchor := NewDate(2025, 9, 1)
 
 	tests := []struct {
 		name    string
@@ -24,8 +23,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Schuljahr 2025/2026",
 				PeriodType:      PeriodTypeSchoolYear,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 1,
 			},
 			wantErr: "",
@@ -35,8 +34,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Schuljahr 2025/2026",
 				PeriodType:      PeriodTypeSchoolYear,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 2,
 				WeekCycleAnchor: &anchor,
 			},
@@ -46,8 +45,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			name: "missing name",
 			period: &CalendarPeriod{
 				PeriodType:      PeriodTypeSchoolYear,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 1,
 			},
 			wantErr: "name is required",
@@ -57,8 +56,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Test",
 				PeriodType:      "invalid",
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 1,
 			},
 			wantErr: "invalid period type",
@@ -68,8 +67,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Test",
 				PeriodType:      PeriodTypeSemester,
-				StartDate:       timezone.NewDate(2026, 7, 31),
-				EndDate:         timezone.NewDate(2025, 8, 1),
+				StartDate:       NewDate(2026, 7, 31),
+				EndDate:         NewDate(2025, 8, 1),
 				WeekCycleLength: 1,
 			},
 			wantErr: "end_date must be after start_date",
@@ -79,8 +78,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Test",
 				PeriodType:      PeriodTypeSemester,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2025, 8, 1),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2025, 8, 1),
 				WeekCycleLength: 1,
 			},
 			wantErr: "end_date must be after start_date",
@@ -90,8 +89,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Test",
 				PeriodType:      PeriodTypeSchoolYear,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 2,
 			},
 			wantErr: "week_cycle_anchor is required when week_cycle_length > 1",
@@ -101,8 +100,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 			period: &CalendarPeriod{
 				Name:            "Test",
 				PeriodType:      PeriodTypeSchoolYear,
-				StartDate:       timezone.NewDate(2025, 8, 1),
-				EndDate:         timezone.NewDate(2026, 7, 31),
+				StartDate:       NewDate(2025, 8, 1),
+				EndDate:         NewDate(2026, 7, 31),
 				WeekCycleLength: 0,
 			},
 			wantErr: "week_cycle_length must be at least 1",
@@ -147,8 +146,8 @@ func TestCalendarPeriod_ContainsDate(t *testing.T) {
 	t.Parallel()
 
 	p := &CalendarPeriod{
-		StartDate: timezone.NewDate(2025, 8, 1),
-		EndDate:   timezone.NewDate(2026, 7, 31),
+		StartDate: NewDate(2025, 8, 1),
+		EndDate:   NewDate(2026, 7, 31),
 	}
 
 	assert.True(t, p.ContainsDate(time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC)))   // start inclusive
@@ -163,7 +162,7 @@ func TestCalendarPeriod_GetID(t *testing.T) {
 
 	p := &CalendarPeriod{}
 	p.ID = 42
-	assert.Equal(t, int64(42), p.GetID())
+	assert.Equal(t, int64(42), p.ID)
 }
 
 func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
@@ -172,7 +171,7 @@ func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.CreatedAt = now
-	assert.Equal(t, now, p.GetCreatedAt())
+	assert.Equal(t, now, p.CreatedAt)
 }
 
 func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
@@ -181,5 +180,5 @@ func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.UpdatedAt = now
-	assert.Equal(t, now, p.GetUpdatedAt())
+	assert.Equal(t, now, p.UpdatedAt)
 }

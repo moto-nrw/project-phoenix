@@ -15,9 +15,9 @@ whole point.
 
 Real files live in `frontend/.claude/skills/`; `frontend/.agents/skills/`
 symlinks to them for Codex and other agents that follow the `.agents`
-convention. One real copy per skill: two copies drift, and the root
-`.agents/skills/` mirror of our own skills shows what that costs: a naive
-mirror rewrote its `.claude/…` paths to `.Codex/…`, which resolve nowhere.
+convention. Root skills instead live in `.agents/skills/` with directory
+symlinks from `.claude/skills/`. Preserve one real copy per skill and use
+canonical paths; copying and rewriting paths for each agent causes drift.
 
 `react-doctor` points the other way (real files in `frontend/.agents/skills/`,
 symlink from here). Left as it was.

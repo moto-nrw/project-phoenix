@@ -17,6 +17,8 @@ type lifecycleEngine struct {
 	calls   int
 }
 
+func (e *lifecycleEngine) RequireTenant(context.Context) error { return nil }
+
 func (e *lifecycleEngine) FindRoom(context.Context, int64) (facilities.Room, error) {
 	return facilities.Room{}, nil
 }

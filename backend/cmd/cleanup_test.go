@@ -31,7 +31,7 @@ func render(fn func(io.Writer)) string {
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
 		repoFactory.Attendance,
@@ -52,7 +52,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 // setupTestCleanupContextWithServices creates the narrow session-cleanup service.
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sessionService := active.NewService(active.ServiceDependencies{
 		GroupRepo:                repoFactory.ActiveGroup,
 		VisitRepo:                repoFactory.ActiveVisit,

@@ -157,7 +157,7 @@ type pickupReader interface {
 }
 
 type instanceReader interface {
-	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*scheduleModel.ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
 }
 
 type roomReader interface {
@@ -696,7 +696,7 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 	if s.Instance == nil {
 		return nil, nextChange, nil
 	}
-	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
+	instances, err := s.Instance.FindByTenantAndDate(ctx, scheduleModel.Date(today))
 	if err != nil {
 		return nil, nextChange, err
 	}

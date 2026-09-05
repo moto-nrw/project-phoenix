@@ -1,10 +1,13 @@
+# Preserve the Devbox PATH instead of re-running host login profiles.
+allow_login_shell = false
+
 # Codex loads lifecycle hooks from .codex/hooks.json when this feature is enabled.
 [features]
 hooks = true
 
 [skills]
 config = [
-  # Prefer native Codex skills over their Claude variants.
+  # Prefer .agents discovery paths over .claude aliases of the same skills.
   { path = ".claude/skills/creating-team-skills/SKILL.md", enabled = false },
   { path = ".claude/skills/env-docker-sync/SKILL.md", enabled = false },
   { path = ".claude/skills/find-skills/SKILL.md", enabled = false },

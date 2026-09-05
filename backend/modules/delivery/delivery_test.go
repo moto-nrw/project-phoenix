@@ -2,6 +2,7 @@ package delivery
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,47 @@ type recordingEngine struct{ pushCalled bool }
 
 func (*recordingEngine) EnqueueEmail(context.Context, EmailIntent) (Enqueued, error) {
 	return Enqueued{}, nil
+}
+
+type recordingWorkerEngine struct {
+	batchSize, maxAttempts int
+	err                    error
+}
+
+func (e *recordingWorkerEngine) RunOnce(_ context.Context, batchSize, maxAttempts int) (WorkerStats, error) {
+	e.batchSize, e.maxAttempts = batchSize, maxAttempts
+	return WorkerStats{Claimed: 4}, e.err
+}
+
+func (*recordingWorkerEngine) Backlog(context.Context) (int, error) { return 0, nil }
+
+func TestWorkerValidatesRunInputsBeforeCallingEngine(t *testing.T) {
+	t.Parallel()
+	for _, input := range []struct {
+		batchSize, maxAttempts int
+		message                string
+	}{
+		{0, 6, "delivery worker: batch size must be positive"},
+		{25, 0, "delivery worker: max attempts must be positive"},
+		{25, -1, "delivery worker: max attempts must be positive"},
+	} {
+		engine := &recordingWorkerEngine{}
+		processed, err := NewWorker(engine).RunOnce(context.Background(), input.batchSize, input.maxAttempts)
+		require.EqualError(t, err, input.message)
+		assert.Zero(t, processed)
+		assert.Zero(t, engine.batchSize)
+	}
+}
+
+func TestWorkerPassesRunPolicyAndPreservesResult(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("claim failed")
+	engine := &recordingWorkerEngine{err: failure}
+	processed, err := NewWorker(engine).RunOnce(context.Background(), 25, 3)
+	assert.Equal(t, 25, engine.batchSize)
+	assert.Equal(t, 3, engine.maxAttempts)
+	assert.Equal(t, 4, processed)
+	assert.ErrorIs(t, err, failure)
 }
 func (e *recordingEngine) EnqueuePush(context.Context, PushIntent) (Enqueued, error) {
 	e.pushCalled = true

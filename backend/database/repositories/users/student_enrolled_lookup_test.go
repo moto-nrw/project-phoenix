@@ -35,7 +35,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	birthday := timezone.NewDate(2018, 5, 20)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := context.Background()
 
 	// Exact match → true.
@@ -85,7 +85,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	birthday := timezone.NewDate(2019, 3, 10)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := context.Background()
 
 	// Flip the student to pending (approved-but-not-yet-activated).

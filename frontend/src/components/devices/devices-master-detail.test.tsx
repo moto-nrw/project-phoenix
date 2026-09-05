@@ -54,7 +54,7 @@ function flatGroup(devices: Device[]): GroupDefinition<Device>[] {
 
 describe("DevicesMasterDetail", () => {
   const onSelect = vi.fn();
-  const onEditClick = vi.fn();
+  const onSaveDevice = vi.fn(async () => undefined);
   const onDeleteClick = vi.fn();
 
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe("DevicesMasterDetail", () => {
         selectedId={null}
         selectedDevice={null}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -84,7 +84,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="1"
         selectedDevice={onlineDevice}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -95,23 +95,31 @@ describe("DevicesMasterDetail", () => {
     expect(screen.getByText("Online")).toBeInTheDocument();
   });
 
-  it("triggers edit and delete callbacks from the header", () => {
+  it("opens the inline edit form from the header and triggers delete", () => {
     render(
       <DevicesMasterDetail
         groupDefinitions={flatGroup([onlineDevice])}
         selectedId="1"
         selectedDevice={onlineDevice}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
-    expect(onEditClick).toHaveBeenCalled();
-
     fireEvent.click(screen.getByText("Löschen"));
     expect(onDeleteClick).toHaveBeenCalled();
+
+    // Bearbeitet wird im Detailbereich, nicht in einem Modal daneben: der
+    // Knopf schaltet das Formular ein, mit Speichern und Abbrechen unten.
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abbrechen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
   });
 
   it("renders the API key section only when api_key is present", () => {
@@ -121,7 +129,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="1"
         selectedDevice={onlineDevice}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -134,7 +142,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="2"
         selectedDevice={offlineDeviceWithKey}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -171,7 +179,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="1"
         selectedDevice={onlineDevice}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -188,7 +196,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="2"
         selectedDevice={offlineDeviceWithKey}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -218,7 +226,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="2"
         selectedDevice={offlineDeviceWithKey}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -238,7 +246,7 @@ describe("DevicesMasterDetail", () => {
         selectedId="2"
         selectedDevice={offlineDeviceWithKey}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );
@@ -257,7 +265,7 @@ describe("DevicesMasterDetail", () => {
         selectedId={null}
         selectedDevice={null}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveDevice={onSaveDevice}
         onDeleteClick={onDeleteClick}
       />,
     );

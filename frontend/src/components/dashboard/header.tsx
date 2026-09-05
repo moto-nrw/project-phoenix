@@ -183,8 +183,8 @@ export function Header() {
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (
-      matchesPathPrefix(pathname, "/parents/enroll") ||
-      matchesPathPrefix(pathname, "/enroll")
+      matchesPathPrefix(pathname, "/parents/anmeldung") ||
+      matchesPathPrefix(pathname, "/anmeldung")
     )
       return tParentNav("enroll");
     return null;
@@ -242,6 +242,15 @@ export function Header() {
 
   const isSessionExpired = sessionExpired;
 
+  // Ortsangabe für Bildschirme unter md. Der Bereich der Seitenleiste steht
+  // voran, weil eine Seite wie "Vertretung" ohne ihn nicht verortet ist.
+  const mobileLocation =
+    mode === "parent"
+      ? displayedPageTitle
+      : sectionBreadcrumb
+        ? `${sectionBreadcrumb.sectionLabel} › ${sectionBreadcrumb.deepLabel ?? sectionBreadcrumb.pageLabel}`
+        : displayedPageTitle;
+
   return (
     <header
       // Stable hook so portaled overlays (e.g. the filter popover) can measure
@@ -297,22 +306,25 @@ export function Header() {
                 isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
+                hideLabelBelow="md"
               />
             ) : (
               <BrandLink
                 isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
-                hideLabelOnMobile={mode === "parent"}
+                hideLabelBelow={mode === "parent" ? "lg" : undefined}
               />
             )}
             <BreadcrumbDivider />
-            {/* Elternportal: Seitentitel auch auf Mobilgeräten anzeigen —
-                die Breadcrumb-Komponenten sind hidden md:flex, ohne diesen
-                Titel fehlt unterhalb md jede Ortsangabe (#Elternapp-Audit). */}
-            {mode === "parent" && (
+            {/* Ortsangabe auf dem Telefon: die Brotkrumen sind hidden md:flex,
+                und seit die Seiten keine Bereichs-Überschrift mehr tragen, wäre
+                unterhalb md sonst nirgends zu sehen, wo man ist. Im
+                Mitarbeiterportal zeigt sie den Bereich der Seitenleiste mit,
+                weil er dort die Brotkrume ersetzt. */}
+            {mobileLocation && (
               <span className="min-w-0 truncate text-sm font-semibold text-gray-900 md:hidden">
-                {displayedPageTitle}
+                {mobileLocation}
               </span>
             )}
             <HeaderBreadcrumb

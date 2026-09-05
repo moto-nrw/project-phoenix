@@ -26,7 +26,7 @@ func TestGroupRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group with valid data", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestGroupRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing group", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestGroupRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group name", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestGroupRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing group", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
@@ -201,7 +201,7 @@ func TestGroupRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group by exact name", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups by teacher ID", func(t *testing.T) {
@@ -269,7 +269,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -331,7 +331,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -358,7 +358,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by name_like", func(t *testing.T) {
@@ -433,7 +433,7 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with sorting by name", func(t *testing.T) {
@@ -485,7 +485,7 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {

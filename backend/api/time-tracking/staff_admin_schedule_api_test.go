@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,8 +21,8 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
-	repos := repositories.NewFactory(ctx.db)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(ctx.db))
+	repos := newWorkforceTestRepositories(t, ctx.db)
+	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
 	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
@@ -61,7 +60,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
 	assert.Equal(t, 360, activeRows[0].TargetMinutes)
 
-	reloadedStaff, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
+	reloadedStaff, err := newWorkforceTestRepositories(t, ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
 	// config.work_time_model_entries has no tenant of its own; it only goes
@@ -91,8 +90,8 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	ctx := setupStaffRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
-	repos := repositories.NewFactory(ctx.db)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(ctx.db))
+	repos := newWorkforceTestRepositories(t, ctx.db)
+	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
 	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{

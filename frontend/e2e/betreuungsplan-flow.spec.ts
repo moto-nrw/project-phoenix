@@ -4,9 +4,7 @@ import { loadSeedAccess } from "../scripts/seed-state";
 import { berlinTodayISO } from "../src/lib/date-helpers";
 import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
-// Chunk 9 des Planung-Redesigns Inkrement 4
-// (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 14): der
-// eigenständige /betreuungsplan-Bereich. Diese Spec testet die UI-Verdrahtung
+// Eigenständiger /betreuungsplan-Bereich. Diese Spec testet die UI-Verdrahtung
 // des Drei-Parameter-Vokabulars (d / view / block), das Kalenderraster als
 // erstes Inhaltselement, den Slide-Over, den Lückensprung, die "+ Neu"-Anlage
 // und den Alt-Einstieg-Redirect. Die Deviations-/Vertretungs-Backend-Semantik

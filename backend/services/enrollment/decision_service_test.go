@@ -129,7 +129,7 @@ func newDecisionServiceForTestWithDependencies(
 	careWithdrawal enrollmentService.CareWithdrawalReconciler,
 	studentConsents enrollmentService.StudentConsentAuditor,
 ) enrollmentService.DecisionService {
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := env.repos
 	if careWithdrawal == nil {
 		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
@@ -3283,7 +3283,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 
 	period := &scheduleModels.CalendarPeriod{
 		Name: "decision-split-series-" + t.Name(), PeriodType: scheduleModels.PeriodTypeCustom,
-		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
+		StartDate: scheduleModels.NewDate(2026, 8, 1), EndDate: scheduleModels.NewDate(2027, 8, 31),
 		WeekCycleLength: 1, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
@@ -3309,13 +3309,13 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 	boundary := timezone.NewDate(2027, 1, 1)
 	rootSchedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: root.ID,
-		ValidUntil: &boundary, TimeframeID: &timeframe.ID,
+		ValidUntil: activityDatePtr(&boundary), TimeframeID: &timeframe.ID,
 	}
 	rootSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, rootSchedule))
 	successorSchedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: successor.ID,
-		ValidFrom: &boundary, TimeframeID: &timeframe.ID,
+		ValidFrom: activityDatePtr(&boundary), TimeframeID: &timeframe.ID,
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, successorSchedule))
@@ -3880,7 +3880,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
@@ -4244,8 +4244,8 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	manualEnrollment := &activitiesModels.StudentEnrollment{
 		StudentID:       *outcome.Child.CreatedStudentID,
 		ActivityGroupID: oldGroup.ID,
-		ValidFrom:       env.sourcePhase.ServiceStartDate,
-		ValidUntil:      &env.sourcePhase.ServiceEndDate,
+		ValidFrom:       activitiesModels.Date(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      activityDatePtr(&env.sourcePhase.ServiceEndDate),
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
 	_, err = env.db.NewRaw(`
@@ -4346,8 +4346,8 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	manualEnrollment := &activitiesModels.StudentEnrollment{
 		StudentID:       *outcome.Child.CreatedStudentID,
 		ActivityGroupID: oldGroup.ID,
-		ValidFrom:       env.sourcePhase.ServiceStartDate,
-		ValidUntil:      &env.sourcePhase.ServiceEndDate,
+		ValidFrom:       activitiesModels.Date(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      activityDatePtr(&env.sourcePhase.ServiceEndDate),
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
 	_, err = env.db.NewRaw(`
@@ -4474,9 +4474,9 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	require.Len(t, rows, 1)
 	assert.NotEqual(t, initialFrom, rows[0].ValidFrom)
 	assert.NotEqual(t, initialUntil, *rows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(env.sourcePhase.ServiceEndDate.AddDays(1)), *rows[0].ValidUntil)
 }
 
 func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
@@ -4534,9 +4534,9 @@ func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
 	require.Len(t, rows, 1)
-	assert.Equal(t, serviceDay, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(serviceDay), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, serviceDay.AddDays(1), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(serviceDay.AddDays(1)), *rows[0].ValidUntil)
 }
 
 func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []activitiesModels.StudentEnrollment {

@@ -23,7 +23,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates work session with valid data", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing session by staff and date", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active session for staff today", func(t *testing.T) {
@@ -184,7 +184,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns sessions in date range", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 	today := timezone.NewDate(2026, 8, 24)
 
@@ -252,7 +252,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds sessions without check-out before date", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 
 	_, err := repo.GetOpenSessions(testpkg.Ctx(t), timezone.TodayDate())
 	require.Error(t, err)
@@ -407,7 +407,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all work sessions", func(t *testing.T) {
@@ -456,7 +456,7 @@ func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 
 	_, err := repo.List(testpkg.Ctx(t), nil)
 	require.Error(t, err)
@@ -472,7 +472,7 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates break minutes", func(t *testing.T) {
@@ -527,7 +527,7 @@ func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 
 	err := repo.UpdateBreakMinutes(testpkg.Ctx(t), 1, 30)
 	require.Error(t, err)
@@ -539,7 +539,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("closes session with check-out time", func(t *testing.T) {
@@ -625,7 +625,7 @@ func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 
 	_, err := repo.CloseSession(testpkg.Ctx(t), 1, time.Now(), false)
 	require.Error(t, err)
@@ -642,7 +642,7 @@ func TestWorkSessionRepository_GetLatestOpenByStaffID_LiveWindow(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns a block that crossed midnight", func(t *testing.T) {
@@ -706,7 +706,7 @@ func TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts(t *te
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Early", "Staff")

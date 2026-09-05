@@ -52,7 +52,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	mailer := email.NewMockMailer()
 
 	cfg := authService.GuardianInvitationServiceConfig{
@@ -632,7 +632,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	mailer := email.NewMockMailer()
 
 	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
@@ -746,7 +746,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := repositories.NewFactory(db).ParentEnrollmentRequest
+	realBackfiller := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")

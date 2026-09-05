@@ -3,9 +3,6 @@ package schedule
 import (
 	"context"
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // InstanceStaff assigns a staff member to a materialized activity instance.
@@ -13,8 +10,8 @@ import (
 // member stays in the instance's primary room; a non-nil value splits the
 // instance across multiple rooms (the Lernzeit split pattern).
 type InstanceStaff struct {
-	base.Model `bun:"schema:schedule,table:instance_staff"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:instance_staff"`
+	TenantModel
 
 	InstanceID   int64  `bun:"instance_id,notnull" json:"instance_id"`
 	StaffID      int64  `bun:"staff_id,notnull" json:"staff_id"`
@@ -48,7 +45,7 @@ func (s *InstanceStaff) Validate() error {
 // InstanceStaffRepository defines operations for managing staff assignments to
 // materialized activity instances.
 type InstanceStaffRepository interface {
-	base.Repository[*InstanceStaff]
+	repository[*InstanceStaff]
 
 	// UpdateColumns surfaces the embedded generic repository's single-column
 	// update: the #1843 sick cascade stamps/releases sick_absence_id without
@@ -69,18 +66,18 @@ type InstanceStaffRepository interface {
 	// FindByStaffAndDate returns all staff assignments for the given staff
 	// member across all instances on a given date. Used by the one-click
 	// substitute flow (E6) and gap detection.
-	FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*InstanceStaff, error)
+	FindByStaffAndDate(ctx context.Context, staffID int64, date Date) ([]*InstanceStaff, error)
 
 	// FindByStaffIDsAndDate batches the joined date lookup for several staff
 	// members. Empty input returns an empty slice without querying.
-	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*InstanceStaff, error)
+	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date Date) ([]*InstanceStaff, error)
 
 	// FindByStaffAndDateRange returns the staff member's assignments across
 	// all instances dated within [from, to] inclusive, ordered by instance
 	// date then start time. Used by the self-service assignment read (#1844)
 	// so its cost stays proportional to one staff member's plan, never the
 	// whole tenant window.
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*InstanceStaff, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to Date) ([]*InstanceStaff, error)
 
 	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
 	// instance_staff rows with is_absent=false. Single GROUP BY query; callers
@@ -97,5 +94,5 @@ type InstanceStaffRepository interface {
 	// instances dated strictly after the given date, plus same-day instances
 	// still in 'planned' status (staff offboarding cleanup). Past and same-day
 	// already-started assignments stay as history.
-	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error)
+	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after Date) (int64, error)
 }

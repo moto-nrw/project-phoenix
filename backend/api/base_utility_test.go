@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -22,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -251,10 +249,10 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 	}
 }
 
-func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
+func checkCaregiverWiring(t *testing.T, api *API) {
 	t.Parallel()
 
-	composition := setupCaregiverCompositionModule(t)
+	composition := setupCaregiverCompositionModule(api)
 
 	require.True(t, composition.authWired)
 	require.True(t, composition.operatorWired)
@@ -267,12 +265,7 @@ type caregiverComposition struct {
 	sharedCapability bool
 }
 
-func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
-	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
-	repoFactory := repositories.NewFactory(db)
-	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+func setupCaregiverCompositionModule(api *API) *caregiverComposition {
 	return &caregiverComposition{
 		authWired:        api.Auth != nil,
 		operatorWired:    api.Operator != nil,
@@ -280,57 +273,21 @@ func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
 	}
 }
 
-type settingsCallbackRoute struct {
-	router chi.Router
-	hub    *realtime.Hub
-}
-
-type enabledMealPlanSettings struct{}
-
-func (enabledMealPlanSettings) MealPlanEnabled(context.Context) (bool, error) {
-	return true, nil
-}
-
-func (enabledMealPlanSettings) MealRegistrationEnabled(context.Context) (bool, error) {
-	return true, nil
-}
-
-func (enabledMealPlanSettings) MealRegistrationCutoff(context.Context) (string, error) {
-	return "09:00", nil
-}
-
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
-	repoFactory := repositories.NewFactory(db)
-	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
-	initializeAPIResources(api, repoFactory, db, slog.Default())
-	return &settingsCallbackRoute{router: api.Settings.SettingsRouter(), hub: api.Services.RealtimeHub}
+	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
+	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	require.NoError(t, err)
+	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, repos.FormSchema.HasLegalDocumentReference, db).SettingsRouter(), hub: module.RealtimeHub}
 }
 
-func setupOperatorInvitationRoute(t *testing.T) chi.Router {
-	t.Helper()
-	db, serviceFactory, feedback := testutil.SetupFeedbackAPITest(t)
-	repoFactory := repositories.NewFactory(db)
-	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+func setupOperatorInvitationRoute(golden *API) chi.Router {
+	// Re-register a copy of the full golden with rate limiting enabled.
+	// The shared golden's router and flags remain unchanged.
+	api := *golden
+	api.Router = chi.NewRouter()
 	api.rateLimiting = true
 	api.authRateLimit = "5"
-	initializeAPIResources(api, repoFactory, db, slog.Default())
-	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
-		DB:       db,
-		Settings: enabledMealPlanSettings{},
-		Observe:  func(mealplanCompose.Observation) {},
-		Now:      time.Now,
-		Participants: func(context.Context, string) ([]mealplanCompose.ParticipantCandidate, error) {
-			return nil, nil
-		},
-	})
-	require.NoError(t, err)
-	api.MealPlan = newMealPlanResource(mealPlan, db, newMealPlanExportRenderer())
-	api.Feedback = newFeedbackResource(feedback, db)
-	persons, err := repositories.NewPeopleDirectory(db)
-	require.NoError(t, err)
-	api.Users = newUsersResource(persons, repoFactory, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router
 }
@@ -356,9 +313,9 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
+func checkOperatorInvitationMount(t *testing.T, api *API) {
 	t.Parallel()
-	router := setupOperatorInvitationRoute(t)
+	router := setupOperatorInvitationRoute(api)
 
 	req := httptest.NewRequest(http.MethodPost, "/operator/auth/invitations/validate", nil)
 	rr := httptest.NewRecorder()
@@ -908,13 +865,23 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 // front of every /api/users route (#2661).
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
-	apiInstance := newGoldenAPI(t)
 	db := testpkg.SetupTestDB(t)
+	people, err := repositories.NewPeopleDirectory(db)
+	require.NoError(t, err)
+	identity, err := repositories.NewRFIDTestRepositories(db)
+	require.NoError(t, err)
+	resource := newUsersResource(people, identity.Membership.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
+		cards, err := identity.RFID.List(ctx, map[string]any{"id": tagID})
+		return len(cards) > 0, err
+	}, db)
+	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
+	router.Mount("/api/users", resource.Router())
 	person := testpkg.CreateTestPerson(t, db, "Wired", "Route")
 
 	anonymous := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	anonymousRecorder := httptest.NewRecorder()
-	apiInstance.Router.ServeHTTP(anonymousRecorder, anonymous)
+	router.ServeHTTP(anonymousRecorder, anonymous)
 	assert.Equal(t, http.StatusUnauthorized, anonymousRecorder.Code)
 
 	forbiddenClaims := testutil.DefaultTestClaims()
@@ -924,7 +891,7 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	forbidden := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/users", nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, forbiddenClaims)))
 	forbiddenRecorder := httptest.NewRecorder()
-	apiInstance.Router.ServeHTTP(forbiddenRecorder, forbidden)
+	router.ServeHTTP(forbiddenRecorder, forbidden)
 	assert.Equal(t, http.StatusForbidden, forbiddenRecorder.Code, forbiddenRecorder.Body.String())
 
 	allowedClaims := testutil.DefaultTestClaims()
@@ -934,7 +901,12 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	allowed := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/users/"+strconv.FormatInt(person.ID, 10), nil,
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, allowedClaims)))
 	allowedRecorder := httptest.NewRecorder()
-	apiInstance.Router.ServeHTTP(allowedRecorder, allowed)
+	router.ServeHTTP(allowedRecorder, allowed)
 	require.Equal(t, http.StatusOK, allowedRecorder.Code, allowedRecorder.Body.String())
 	assert.Contains(t, allowedRecorder.Body.String(), `"first_name":"Wired"`)
+}
+
+type settingsCallbackRoute struct {
+	router chi.Router
+	hub    *realtime.Hub
 }

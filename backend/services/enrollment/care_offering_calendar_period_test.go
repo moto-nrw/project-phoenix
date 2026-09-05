@@ -33,7 +33,7 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
-	repos := repositories.NewFactory(db)
+	repos := testRepositories(t, db)
 
 	phase := &enrollmentModels.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
@@ -74,13 +74,13 @@ func (f *calendarPeriodValidationFixture) createPeriod(
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       timezone.NewDate(2026, time.August, 1),
-		EndDate:         timezone.NewDate(2027, time.August, 31),
+		StartDate:       scheduleModels.NewDate(2026, time.August, 1),
+		EndDate:         scheduleModels.NewDate(2027, time.August, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
 	period.SetTenantID(f.tenantID)
-	require.NoError(t, repositories.NewFactory(f.db).CalendarPeriod.Create(f.ctx, period))
+	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).CalendarPeriod.Create(f.ctx, period))
 	return period
 }
 
@@ -113,7 +113,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 		CalendarPeriodID: templatePeriodID,
 	}
 	group.SetTenantID(f.tenantID)
-	repos := repositories.NewFactory(f.db)
+	repos := testRepositories(t, f.db)
 	require.NoError(t, repos.ActivityGroup.Create(f.ctx, group))
 	timeframe := testpkg.CreateTestTimeframeForTenant(
 		t,
@@ -180,7 +180,7 @@ func (f *calendarPeriodValidationFixture) selectOfferingForSubmittedChild(
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon"},
 	}
-	require.NoError(t, repositories.NewFactory(f.db).RequestChildOffering.Create(f.ctx, row))
+	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).RequestChildOffering.Create(f.ctx, row))
 }
 
 func (f *calendarPeriodValidationFixture) validator(
@@ -221,7 +221,7 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	fixture.createLinkedTemplate(t, &period.ID, nil)
 
 	replacement := *period
-	replacement.EndDate = fixture.phase.ServiceEndDate.AddDays(-1)
+	replacement.EndDate = scheduleModels.Date(fixture.phase.ServiceEndDate.AddDays(-1))
 
 	err := fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)
@@ -246,14 +246,14 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	period := fixture.createPeriod(t, "care-period-cycle-change")
 	group, _ := fixture.createLinkedTemplate(t, &period.ID, nil)
 
-	schedules, err := repositories.NewFactory(fixture.db).ActivitySchedule.FindByGroupID(fixture.ctx, group.ID)
+	schedules, err := testActivityScheduleRepository(t, fixture.db).FindByGroupID(fixture.ctx, group.ID)
 	require.NoError(t, err)
 	require.Len(t, schedules, 1)
 	schedules[0].WeekPattern = 1
-	require.NoError(t, repositories.NewFactory(fixture.db).ActivitySchedule.Update(fixture.ctx, schedules[0]))
+	require.NoError(t, testActivityScheduleRepository(t, fixture.db).Update(fixture.ctx, schedules[0]))
 
 	replacement := *period
-	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
+	anchor := scheduleModels.NewDate(2026, time.August, 31) // Monday, week A
 	replacement.WeekCycleLength = 2
 	replacement.WeekCycleAnchor = &anchor
 	err = fixture.validate(t, period.ID, &replacement)
@@ -270,7 +270,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, repositories.NewFactory(fixture.db).CareOffering.Update(fixture.ctx, offering))
+	require.NoError(t, repositories.NewFactory(fixture.db, repositories.NewUnobservedTimetableDependencies(fixture.db)).CareOffering.Update(fixture.ctx, offering))
 
 	replacement := *period
 	replacement.IsActive = false
@@ -286,12 +286,12 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	rootPeriod := fixture.createPeriod(t, "care-period-linked-root")
 	successorPeriod := fixture.createPeriod(t, "care-period-linked-successor")
 	root, _ := fixture.createLinkedTemplate(t, &rootPeriod.ID, nil)
-	repos := repositories.NewFactory(fixture.db)
+	repos := testRepositories(t, fixture.db)
 
 	rootSchedules, err := repos.ActivitySchedule.FindByGroupID(fixture.ctx, root.ID)
 	require.NoError(t, err)
 	require.Len(t, rootSchedules, 1)
-	rootSchedules[0].ValidUntil = &fixture.phase.ServiceStartDate
+	rootSchedules[0].ValidUntil = activityDatePtr(&fixture.phase.ServiceStartDate)
 	require.NoError(t, repos.ActivitySchedule.Update(fixture.ctx, rootSchedules[0]))
 
 	seriesRootID := root.ID
@@ -312,7 +312,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 		ActivityGroupID:  successor.ID,
 		WeekPattern:      0,
 		CalendarPeriodID: &successorPeriod.ID,
-		ValidFrom:        &fixture.phase.ServiceStartDate,
+		ValidFrom:        activityDatePtr(&fixture.phase.ServiceStartDate),
 	}
 	successorSchedule.SetTenantID(fixture.tenantID)
 	require.NoError(t, repos.ActivitySchedule.Create(fixture.ctx, successorSchedule))

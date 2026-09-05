@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Administrative activity")
 	room := testpkg.CreateTestRoom(t, db, "Administrative room")
@@ -30,7 +31,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNamesInAdminTransaction(t
 	}))
 
 	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
-		found, err := repo.FindActiveByDeviceIDWithNames(adminCtx, device.ID)
+		found, err := repo.FindActiveByDeviceIDWithNames(tenant.WithTenantID(adminCtx, testpkg.Tenant(t)), device.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		require.NotNil(t, found.ActualGroup)

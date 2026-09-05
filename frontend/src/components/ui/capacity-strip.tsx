@@ -2,8 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 /**
- * CapacityStrip is the symmetric summary row of the planning grids
- * (docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2): a gray
+ * CapacityStrip is the symmetric summary row of the planning grids: a gray
  * footer/header band with one preformatted value per column and a leading row
  * label. By default it renders as a single <tr> so it drops straight into a
  * ResourceGrid <tfoot> slot and lines up with the same columns (`as="tr"`,
@@ -35,7 +34,7 @@ export type CapacityStripCell =
     })
   | (CapacityStripCellBase & {
       /** Raw registered count — reductions are subtracted from this to get
-       *  the displayed value (docs/06-betreuungsplan.md Abschnitt 7, F10). */
+       *  the displayed value. */
       readonly content: number;
       /**
        * F10 change-request docking point: when set, the cell shows the
@@ -74,7 +73,7 @@ interface CapacityStripProps {
   /**
    * Footer (default, `border-t`) or header (`border-b`) position — the
    * Betreuungsplan day-header renders above its grid and needs the border
-   * flipped (docs/04-designsprache.md Abschnitt 6.2).
+   * flipped.
    */
   readonly position?: "footer" | "header";
   /**

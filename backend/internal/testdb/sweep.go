@@ -26,6 +26,9 @@ type SweepResult struct {
 // runs. It is the wrapper's post-run companion to CreateClone; aborted runs
 // without a sweep are collected by the next run's GC instead.
 func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, error) {
+	if err := HoldServer(ctx, cfg); err != nil {
+		return nil, err
+	}
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 

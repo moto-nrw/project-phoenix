@@ -7,6 +7,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -143,7 +145,7 @@ func (f *fakeInstanceRepo) Update(_ context.Context, _ *scheduleModel.ActivityIn
 	return nil
 }
 func (f *fakeInstanceRepo) Delete(_ context.Context, _ any) error { return nil }
-func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -152,13 +154,13 @@ func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Dat
 func (f *fakeInstanceRepo) List(_ context.Context, _ *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
@@ -168,7 +170,7 @@ func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleM
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 
@@ -230,7 +232,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
 		inst := &scheduleModel.ActivityInstance{
-			Date:          today,
+			Date:          scheduleModel.Date(today),
 			StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 			EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 			Status:        scheduleModel.InstanceStatusPlanned,
@@ -267,7 +269,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 
 	today := timezone.NewDate(2026, 4, 20)
 	inst := &scheduleModel.ActivityInstance{
-		Date:          today,
+		Date:          scheduleModel.Date(today),
 		StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Status:        scheduleModel.InstanceStatusPlanned,
@@ -412,20 +414,122 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 type fakeAutoStartService struct {
+	run    func(context.Context) (*scheduleSvc.AutoStartResult, error)
 	mu     sync.Mutex
 	calls  int
 	err    error
 	result *scheduleSvc.AutoStartResult
 }
 
-func (f *fakeAutoStartService) RunForTenant(_ context.Context, _ time.Time) (*scheduleSvc.AutoStartResult, error) {
+func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*scheduleSvc.AutoStartResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	if f.run != nil {
+		return f.run(ctx)
+	}
 	if f.result != nil {
 		return f.result, f.err
 	}
 	return &scheduleSvc.AutoStartResult{}, f.err
+}
+
+type autoStartFailureObservations struct {
+	returned []error
+	called   []int64
+	batches  []TenantBatchEvidence
+	reported error
+	runs     []string
+}
+
+func TestAutoStartTenantFailureOutcomes(t *testing.T) {
+	t.Parallel()
+	for _, cancelled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cancelled=%t", cancelled), func(t *testing.T) {
+			const jobID JobID = "timetable-auto-start"
+			tenantIDs := []int64{81, 82}
+			commandErr := errors.New("auto-start command failed")
+			var cancel context.CancelFunc
+			s, observed := autoStartFailureScheduler(t, tenantIDs, commandErr, func() {
+				if cancelled {
+					cancel()
+				}
+			})
+			s.workerTracer.Batch = func(event TenantBatchEvidence) { observed.batches = append(observed.batches, event) }
+			s.workerTracer.Failure = func(_ context.Context, name, outcome string, err error) {
+				assert.Equal(t, string(jobID), name)
+				assert.Equal(t, "command_failure", outcome)
+				observed.reported = err
+			}
+			s.workerTracer.Run = func(id JobID, outcome string, _ time.Duration) {
+				assert.Equal(t, jobID, id)
+				observed.runs = append(observed.runs, outcome)
+			}
+			task := &ScheduledTask{Name: string(jobID)}
+			s.runJobCheck(task, func(runCtx context.Context, task *ScheduledTask) {
+				ctx, cancelRun := context.WithCancel(runCtx)
+				cancel = cancelRun
+				defer cancel()
+				s.checkAndRunAutoStart(ctx, task)
+			})
+			assertAutoStartFailureOutcomes(t, s, observed, tenantIDs, commandErr, cancelled)
+			assert.False(t, task.Running)
+		})
+	}
+}
+
+func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error, onFailure func()) (*Scheduler, *autoStartFailureObservations) {
+	t.Helper()
+	observed := &autoStartFailureObservations{}
+	s := newTenantBatchTestSchedulerWithTenantRunner(t, func(ctx context.Context, _ int64, run func(context.Context, any) error) error {
+		err := run(ctx, struct{}{})
+		observed.returned = append(observed.returned, err)
+		return err
+	}, func(error) bool { return false })
+	s.settings = &stubSettingsResolver{hasOverride: true, boolVal: true}
+	s.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
+		return &schedulerMinuteSnapshot{tenantIDs: tenantIDs}, errSchedulerSettingsBatchUnsupported
+	}
+	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*scheduleSvc.AutoStartResult, error) {
+		id := tenant.FromContext(ctx)
+		observed.called = append(observed.called, id)
+		if id == tenantIDs[0] {
+			onFailure()
+			return nil, commandErr
+		}
+		_, stored := s.tenantBatchCursors.Load(JobID("timetable-auto-start"))
+		assert.False(t, stored, "failed tenant must not advance the successful cursor")
+		return &scheduleSvc.AutoStartResult{}, nil
+	}}
+	return s, observed
+}
+
+func assertAutoStartFailureOutcomes(t *testing.T, s *Scheduler, observed *autoStartFailureObservations, tenantIDs []int64, commandErr error, cancelled bool) {
+	t.Helper()
+	const jobID JobID = "timetable-auto-start"
+	require.NotEmpty(t, observed.returned)
+	assert.Same(t, commandErr, observed.returned[0])
+	assert.ErrorIs(t, observed.reported, commandErr)
+	assert.ErrorContains(t, observed.reported, "timetable-auto-start tenant 81: auto-start command failed")
+	assert.Equal(t, []string{"failed"}, observed.runs)
+	require.Len(t, observed.batches, 1)
+	batch := observed.batches[0]
+	assert.Equal(t, jobID, batch.JobID)
+	assert.Equal(t, 1, batch.Failed)
+	cursor, stored := s.tenantBatchCursors.Load(jobID)
+	if cancelled {
+		assert.Equal(t, tenantIDs[:1], observed.called)
+		assert.Equal(t, 1, batch.Backlog)
+		assert.False(t, stored)
+		assert.ErrorIs(t, observed.reported, context.Canceled)
+	} else {
+		assert.Equal(t, tenantIDs, observed.called)
+		require.Len(t, observed.returned, 2)
+		assert.NoError(t, observed.returned[1])
+		assert.Zero(t, batch.Backlog)
+		assert.Equal(t, tenantIDs[1], cursor)
+	}
+	assert.Equal(t, len(observed.called), batch.Processed)
 }
 
 func TestScheduleAutoStartTask_MissingService(t *testing.T) {
@@ -630,7 +734,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	today := timezone.NewDate(2026, 4, 20)
 	startTime := time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC) // 10:00 local
 	inst := &scheduleModel.ActivityInstance{
-		Date:          today,
+		Date:          scheduleModel.Date(today),
 		StartTime:     startTime,
 		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Status:        scheduleModel.InstanceStatusPlanned,
@@ -972,19 +1076,19 @@ func (f *fakeInstanceRepo) CountWithOptions(context.Context, *base.QueryOptions)
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *scheduleModel.Date) (*scheduleModel.Date, error) {
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, scheduleModel.Date, *scheduleModel.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 

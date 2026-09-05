@@ -210,7 +210,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
 	instanceRepo := &absorbInstanceRepo{byGroup: map[int64]*scheduleModel.ActivityInstance{
 		13: {
-			Date:          timezone.TodayDate(),
+			Date:          scheduleModel.Date(timezone.TodayDate()),
 			Status:        scheduleModel.InstanceStatusActive,
 			ActiveGroupID: &bridged.ID,
 		},

@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
@@ -100,6 +99,7 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -156,6 +156,7 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
+	repositories  *repositories.Factory
 	services      *services.Factory
 	communication *communicationModule.Module
 	mealPlan      *mealplanModule.Module
@@ -167,7 +168,21 @@ type moduleServices struct {
 	membership *schoolMembershipModule.Module
 }
 
-func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
+// NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
+// The serving root uses initializeModuleServices so it can attach metrics.
+func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
+	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	if err != nil {
+		return nil, err
+	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return nil, err
+	}
+	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
+}
+
+func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -220,8 +235,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
+		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db,
+		CarePlan: careQueries,
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -233,6 +255,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -327,7 +350,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -494,7 +517,7 @@ func renderMealParticipationExport(renderer services.SimpleListRenderer, list me
 	return mealplanAPI.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
 
-func newUsersResource(module peopleModule.Capability, repoFactory *repositories.Factory, db *bun.DB) *usersAPI.Resource {
+func newUsersResource(module peopleModule.Capability, accountEmails func(context.Context, []int64) (map[int64]string, error), tagExists func(context.Context, string) (bool, error), db *bun.DB) *usersAPI.Resource {
 	return usersAPI.NewResource(module, usersAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
 			apiCommon.ProtectedTenantGroup(router, db, register)
@@ -520,14 +543,8 @@ func newUsersResource(module peopleModule.Capability, repoFactory *repositories.
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 			}
 		},
-		AccountEmails: repoFactory.Account.FindEmailsByAccountIDs,
-		TagExists: func(ctx context.Context, tagID string) (bool, error) {
-			cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
-			if err != nil {
-				return false, err
-			}
-			return len(cards) > 0, nil
-		},
+		AccountEmails: accountEmails,
+		TagExists:     tagExists,
 		ObserveResponse: func(status int, code string) {
 			observability.ObservePeopleDirectoryHTTPResponse(status, code)
 		},
@@ -581,7 +598,7 @@ type API struct {
 	Groups           *groupsAPI.Resource
 	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
-	Activities       *activitiesAPI.Resource
+	Activities       *timetableHTTPAdapter.Resource
 	Staff            *staffHTTP.Resource
 	StaffAdmin       *timeTrackingAPI.StaffAdminResource
 	WorkTimeModels   *worktimemodelsAPI.Resource
@@ -683,15 +700,13 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
 	}
 
-	// Initialize repository factory with DB connection
-	repoFactory := repositories.NewFactory(db)
-
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(repoFactory, db, logger)
+	modules, err := initializeModuleServices(db, logger)
 	if err != nil {
 		return nil, err
 	}
 	serviceFactory := modules.services
+	repoFactory := modules.repositories
 	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
@@ -781,7 +796,13 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	initializeAPIResources(api, repoFactory, db, logger)
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
-	api.Users = newUsersResource(modules.persons, repoFactory, db)
+	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
+		cards, err := repoFactory.RFIDCard.List(ctx, map[string]any{"id": tagID})
+		if err != nil {
+			return false, err
+		}
+		return len(cards) > 0, nil
+	}, db)
 
 	// Register routes with rate limiting
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
@@ -1138,10 +1159,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services, db, viper.GetString("app_env"), logger.With("handler", "guardians"))
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
@@ -1169,73 +1190,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
-		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(r, db, fn)
-		},
-		Permission: func(access configAPI.Access) configAPI.Middleware {
-			switch access {
-			case configAPI.AccessRead:
-				return apiCommon.RequireConfigRead()
-			case configAPI.AccessManage:
-				return apiCommon.RequireConfigManage()
-			case configAPI.AccessReadOrWrite:
-				return apiCommon.RequireConfigReadOrWrite()
-			default:
-				return apiCommon.RequireConfigWrite()
-			}
-		},
-		TenantGuard: apiCommon.TenantOperationMiddleware,
-		RequestActor: func(ctx context.Context) (int64, int64, []string) {
-			principal, err := apiCommon.CurrentPrincipal(ctx)
-			if err != nil {
-				return 0, 0, nil
-			}
-			return principal.TenantID(), principal.AccountID(), principal.Permissions()
-		},
-		Editable:  apiCommon.CanEditConfig,
-		Success:   apiCommon.Respond,
-		NoContent: apiCommon.RespondNoContent,
-		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
-			switch status {
-			case http.StatusBadRequest:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
-			case http.StatusForbidden:
-				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
-			case http.StatusNotFound:
-				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
-			default:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
-			}
-		},
-		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
-			file, err := apiCommon.ParseImage(w, r, field, maxBody)
-			if err != nil {
-				return nil, err
-			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
-		},
-		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
-			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
-			if err != nil {
-				return nil, err
-			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
-		},
-		ImageSave:  apiCommon.SaveImage,
-		PDFSave:    apiCommon.SavePDF,
-		FileRemove: apiCommon.RemoveImage,
-		StoredPath: apiCommon.ResolveStoredPath,
-		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
-			publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
-			referenced, err := repoFactory.FormSchema.HasLegalDocumentReference(ctx, storedURL, publicURL)
-			if err != nil {
-				return false, fmt.Errorf("check AGB document references: %w", err)
-			}
-			return referenced, nil
-		},
-	})
-	api.Settings = configAPI.NewSettingsResource(api.Services.TenantSettings, settingsRuntime)
+	api.Settings = newSettingsResource(api.Services.TenantSettings, repoFactory.FormSchema.HasLegalDocumentReference, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -1636,17 +1591,21 @@ func (a *API) registerTenantRoutes() {
 }
 
 func (a *API) databaseStatsRouter() chi.Router {
+	return newDatabaseStatsRouter(a.db, services.NewDatabaseStatsReader(a.Services.Database, a.Services.DatabaseStatsCapabilities), a.getDatabaseLogger())
+}
+
+func newDatabaseStatsRouter(db *bun.DB, read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
-	apiCommon.ProtectedTenantGroup(router, a.db, func(router chi.Router, withTx apiCommon.Middleware) {
-		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", a.getDatabaseStats)
+	apiCommon.ProtectedTenantGroup(router, db, func(router chi.Router, withTx apiCommon.Middleware) {
+		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
 	})
 	return router
 }
 
-func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := a.Services.Database.GetStats(r.Context(), a.Services.DatabaseStatsCapabilities(r.Context()))
+func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read services.DatabaseStatsReader, logger *slog.Logger) {
+	stats, err := read(r.Context())
 	if err != nil {
-		a.getDatabaseLogger().Error("failed to get database stats",
+		logger.Error("failed to get database stats",
 			"error", err,
 		)
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))

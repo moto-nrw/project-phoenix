@@ -24,7 +24,7 @@ import (
 
 // setupPickupScheduleService creates a PickupScheduleService with real database connection
 func setupPickupScheduleService(t *testing.T, db *bun.DB) schedule.PickupScheduleService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.PickupSchedule
@@ -324,7 +324,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.NewDate(2024, 3, 15),
+			ExceptionDate: scheduleModels.NewDate(2024, 3, 15),
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -343,7 +343,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		firstPickupTime := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
 		exception1 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModels.Date(exceptionDate),
 			PickupTime:    &firstPickupTime,
 			Reason:        testpkg.StrPtr("First exception"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -355,7 +355,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		secondPickupTime := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 		exception2 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModels.Date(exceptionDate),
 			PickupTime:    &secondPickupTime,
 			Reason:        testpkg.StrPtr("Changed pickup"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -372,7 +372,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0,
-			ExceptionDate: timezone.NewDate(2024, 3, 15),
+			ExceptionDate: scheduleModels.NewDate(2024, 3, 15),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -388,7 +388,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -401,7 +401,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	guardianID := guardian.ID
 	guardianPickup := &scheduleModels.StudentPickupException{
 		StudentID:         student.ID,
-		ExceptionDate:     date,
+		ExceptionDate:     scheduleModels.Date(date),
 		PickupTime:        &pickupTime,
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &guardianID,
@@ -454,7 +454,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 		for i := -2; i <= 2; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDays(i),
+				ExceptionDate: scheduleModels.Date(baseDate.AddDays(i)),
 				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
@@ -486,7 +486,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 		for i := -5; i < 0; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDays(i),
+				ExceptionDate: scheduleModels.Date(baseDate.AddDays(i)),
 				Reason:        testpkg.StrPtr("Past"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
@@ -497,7 +497,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDays(i),
+				ExceptionDate: scheduleModels.Date(baseDate.AddDays(i)),
 				Reason:        testpkg.StrPtr("Future"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
@@ -528,7 +528,7 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.NewDate(2024, 4, 1),
+			ExceptionDate: scheduleModels.NewDate(2024, 4, 1),
 			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -562,7 +562,7 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
-		ExceptionDate: exceptionDate,
+		ExceptionDate: scheduleModels.Date(exceptionDate),
 		PickupTime:    &pickupTime,
 		Reason:        testpkg.StrPtr("Original reason"),
 		CreatedBy:     staffID,
@@ -604,7 +604,7 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
-		ExceptionDate: exceptionDate,
+		ExceptionDate: scheduleModels.Date(exceptionDate),
 		PickupTime:    &pickupTime,
 		Reason:        testpkg.StrPtr("Original reason"),
 		CreatedBy:     staffID,
@@ -641,7 +641,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:             student.ID,
-		ExceptionDate:         exceptionDate,
+		ExceptionDate:         scheduleModels.Date(exceptionDate),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
@@ -656,7 +656,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 	newPickup := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	override := &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
-		ExceptionDate: exceptionDate,
+		ExceptionDate: scheduleModels.Date(exceptionDate),
 		PickupTime:    &newPickup,
 		Source:        scheduleModels.ExceptionSourceStaff,
 		CreatedBy:     staffID,
@@ -687,7 +687,7 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 	pickupTime := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:             student.ID,
-		ExceptionDate:         exceptionDate,
+		ExceptionDate:         scheduleModels.Date(exceptionDate),
 		PickupTime:            &pickupTime,
 		ExcusedFrom:           &pickupTime,
 		ExcusedCreatedBy:      &staffID,
@@ -731,7 +731,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.NewDate(2024, 5, 1),
+			ExceptionDate: scheduleModels.NewDate(2024, 5, 1),
 			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -758,7 +758,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:             student.ID,
-			ExceptionDate:         date,
+			ExceptionDate:         scheduleModels.Date(date),
 			PickupTime:            &from,
 			ExcusedFrom:           &from,
 			ExcusedCreatedBy:      &staffID,
@@ -792,7 +792,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDays(i),
+				ExceptionDate: scheduleModels.Date(baseDate.AddDays(i)),
 				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
@@ -815,7 +815,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		date := timezone.TodayDate().AddDays(6)
 		ordinary := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: date.AddDays(-1),
+			ExceptionDate: scheduleModels.Date(date.AddDays(-1)),
 			PickupTime:    testpkg.TimePtr(timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
 			CreatedBy:     staffID,
 		}
@@ -823,7 +823,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		partial := &scheduleModels.StudentPickupException{
 			StudentID:             student.ID,
-			ExceptionDate:         date,
+			ExceptionDate:         scheduleModels.Date(date),
 			PickupTime:            &from,
 			ExcusedFrom:           &from,
 			ExcusedCreatedBy:      &staffID,
@@ -868,7 +868,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.TodayDate().AddDays(5),
+			ExceptionDate: scheduleModels.Date(timezone.TodayDate().AddDays(5)),
 			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -912,7 +912,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    &earlyTime,
 			Reason:        testpkg.StrPtr("Early pickup"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -1026,7 +1026,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		blankReason := "   "
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    &updatedTime,
 			Reason:        &blankReason,
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -1084,7 +1084,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception2 := &scheduleModels.StudentPickupException{
 			StudentID:     student2.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    &earlyTime,
 			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -1094,7 +1094,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 		exception3 := &scheduleModels.StudentPickupException{
 			StudentID:     student3.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    nil,
 			Reason:        testpkg.StrPtr("Sick"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -1189,7 +1189,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		blankReason := " "
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    &updatedTime,
 			Reason:        &blankReason,
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
@@ -1223,7 +1223,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 3, 15),
+			NoteDate:  scheduleModels.NewDate(2024, 3, 15),
 			Content:   "Please call before pickup",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1237,7 +1237,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 	t.Run("fails validation for invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  timezone.NewDate(2024, 3, 15),
+			NoteDate:  scheduleModels.NewDate(2024, 3, 15),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1252,7 +1252,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 3, 15),
+			NoteDate:  scheduleModels.NewDate(2024, 3, 15),
 			Content:   "",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1277,7 +1277,7 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 3, 16),
+			NoteDate:  scheduleModels.NewDate(2024, 3, 16),
 			Content:   "Test note",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1308,7 +1308,7 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  baseDate.AddDays(i),
+				NoteDate:  scheduleModels.Date(baseDate.AddDays(i)),
 				Content:   "Note content",
 				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
@@ -1347,7 +1347,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  targetDate,
+				NoteDate:  scheduleModels.Date(targetDate),
 				Content:   fmt.Sprintf("Note %d", i),
 				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
@@ -1359,7 +1359,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 		differentDate := targetDate.AddDays(1)
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  differentDate,
+			NoteDate:  scheduleModels.Date(differentDate),
 			Content:   "Different date note",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1386,7 +1386,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 4, 1),
+			NoteDate:  scheduleModels.NewDate(2024, 4, 1),
 			Content:   "Original content",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1408,7 +1408,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: 0, // Invalid
-			NoteDate:  timezone.NewDate(2024, 4, 1),
+			NoteDate:  scheduleModels.NewDate(2024, 4, 1),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1432,7 +1432,7 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.NewDate(2024, 5, 1),
+			NoteDate:  scheduleModels.NewDate(2024, 5, 1),
 			Content:   "Test",
 			CreatedBy: createPickupServiceTestStaffID(t, db),
 		}
@@ -1464,7 +1464,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentPickupNote{
 				StudentID: student.ID,
-				NoteDate:  baseDate.AddDays(i),
+				NoteDate:  scheduleModels.Date(baseDate.AddDays(i)),
 				Content:   "Note",
 				CreatedBy: createPickupServiceTestStaffID(t, db),
 			}
@@ -1617,7 +1617,7 @@ func TestPickupScheduleService_EffectiveTimeKeepsRegularTime(t *testing.T) {
 		earlier := time.Date(2024, 1, 1, 12, 15, 0, 0, time.UTC)
 		require.NoError(t, service.CreateStudentPickupException(ctx, &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: testDate,
+			ExceptionDate: scheduleModels.Date(testDate),
 			PickupTime:    &earlier,
 			Reason:        testpkg.StrPtr("Arzttermin"),
 			CreatedBy:     staffID,

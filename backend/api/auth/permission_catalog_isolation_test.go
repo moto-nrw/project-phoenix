@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -14,7 +13,6 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -139,8 +137,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, serveDB.Close()) })
 
-	repos := repositories.NewFactory(serveDB)
-	svc, err := services.NewFactoryForTests(repos, serveDB, slog.Default())
+	svc, err := services.NewAuthTestModule(serveDB, testpkg.TenantRuntime(t, serveDB))
 	require.NoError(t, err)
 	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, serveDB)
 	router := testutil.NewTenantRouter(serveDB)

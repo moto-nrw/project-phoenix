@@ -18,9 +18,38 @@ devbox run bootstrap
 ```
 
 Wait for Devbox to install the pinned tools, then let bootstrap install the
-frontend and browser dependencies. This only happens once. The Devbox lock
+frontend and browser dependencies. Each worktree gets its own frontend install;
+browser tooling is installed only when missing. The Devbox lock
 supports Apple Silicon macOS and Linux on arm64 or amd64; Intel macOS is not
 supported by the current Nixpkgs package set.
+
+### Worktree setup
+
+`wt add <reference>` runs bootstrap by default, leaving frontend tools ready to
+use. For backend or documentation work that does not need host-side frontend
+tools, use `wt add --no-bootstrap <reference>`. Run `devbox run bootstrap` from
+that worktree when you need the frontend later. Skipping bootstrap does not
+disable the other worktree setup steps, including Compose configuration.
+
+### Dependency audits
+
+Run `devbox run -- pnpm --dir frontend exec knip --include dependencies,unlisted`
+to check dependencies without starting services or seeding a database. Knip's
+Playwright plugin is disabled because it executes performance configurations
+that require test credentials. The `entry` list covers those configurations,
+E2E tests, performance tests, and the guide PDF generator as source files;
+keep it aligned when adding Playwright entry points.
+
+Tests use Node and happy-dom. jsdom is neither a direct dependency nor an
+installed optional dependency; the pnpm workspace excludes Vitest's unused
+optional jsdom peer.
+
+Both Lucide and Phosphor remain in use. Next.js optimizes Lucide imports by
+default, and the frontend config enables Phosphor import optimization. These
+optimizations affect compiled modules, not the contents of installed npm
+packages. Do not delete unused icon files from `node_modules`.
+
+### Local services
 
 Then run the setup script:
 
@@ -82,7 +111,7 @@ through the API before it writes the state file.
 The same command also creates `anmeldung-wochenplan` as the first school of
 `Demo-Träger Süd` / `demo-traeger-sued`. Its isolated school-admin login is
 `anmeldung-wochenplan-admin@example.test` / `Wochenplan1234%` (the shared
-`--staff-password` flag overrides both school-admin passwords). The developer
+`--staff-password` flag overrides all school-admin passwords). The developer
 admin `demo1@mail.de` can switch between the two organizations using the normal
 tenant switch. The school-admin accounts remain school-local.
 
@@ -96,13 +125,27 @@ weekly plan, despite the Monday booking. Sixteen requests cover approval,
 submission through a parent account, waiting list, rejection, and withdrawal.
 The active phase, schema, offerings, request keys, and parent credentials are
 recorded under `profiles["anmeldung-wochenplan"]` in the version 3 state.
-Both profiles are provisioned and checked exclusively through production HTTP
+All three profiles are provisioned and checked exclusively through production HTTP
 endpoints as part of the fresh-stack seed smoke test.
+The same organization also contains `Demo-Schule Manuell` / `manuell`. Its
+school-admin login is `manuell-admin@example.test` / `Manuell1234%`. This
+profile uses binary presence, web attendance without NFC terminals, open care,
+open rooms, disabled enrollment, and weekly-plan-driven care. It contains 12
+children with contacts and weekly plans. Four children are present and four
+have already checked out; room-visit history stays empty. The account with the
+semantic key `entwickler-admin` can switch between `vollbetrieb` and `manuell`.
+Each school's dedicated school-admin account remains isolated to that school.
 
 The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
 
 ```bash
 docker compose run server go run . simulate full-day --profile vollbetrieb
+```
+
+Inspect the manual profile without starting an IoT simulation:
+
+```bash
+docker compose run server go run . simulate status --profile manuell
 ```
 
 Reset the development database before recreating this deterministic profile:

@@ -233,6 +233,39 @@ vi.mock("~/components/staff/staff-session-table", () => ({
   },
 }));
 
+// Der Bearbeiten-Dialog der Zeiterfassung ist ein SlideOver (Dialog-Diät):
+// derselbe Ersatz wie beim Modal daneben, damit die Struktur im Test steht und
+// die vorhandenen Selektoren weiter greifen.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    children,
+  }: {
+    open?: boolean;
+    children: React.ReactNode;
+  }) => (open === false ? null : <div data-testid="modal">{children}</div>),
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-body">{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h3>{children}</h3>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-footer">{children}</div>
+  ),
+  SlideOverCloseButton: () => (
+    <button type="button" data-testid="slide-over-close">
+      close
+    </button>
+  ),
+}));
+
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -739,7 +772,7 @@ describe("TimeTrackingPage", () => {
 
       render(<TimeTrackingPage />);
       expect(
-        screen.getByLabelText("Zeiterfassung wird geladen"),
+        screen.getByLabelText("Zeiterfassung wird geladen…"),
       ).toBeInTheDocument();
     });
 
@@ -905,7 +938,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.error).toHaveBeenCalledWith(
-          "Du bist bereits eingestempelt.",
+          "Sie sind bereits eingestempelt.",
         );
       });
     });
@@ -1228,7 +1261,7 @@ describe("TimeTrackingPage", () => {
     it("shows KW heading with week number", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
-      const kwText = screen.getByText(/^KW \d+:/);
+      const kwText = screen.getByText(/^KW \d+ ·/);
       expect(kwText).toBeInTheDocument();
     });
 
@@ -1265,7 +1298,9 @@ describe("TimeTrackingPage", () => {
     it("shows loading indicator in weekly total when history is loading", () => {
       setupDefaultMocks({ historyLoading: true });
       render(<TimeTrackingPage />);
-      expect(screen.getByText("...")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Einträge werden geladen…"),
+      ).toBeInTheDocument();
     });
 
     it("shows Kein Eintrag for past days without session", () => {
@@ -1792,7 +1827,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.error).toHaveBeenCalledWith(
-          "Du hast heute bereits gearbeitet.",
+          "Sie haben heute bereits gearbeitet.",
         );
       });
     });
@@ -2274,7 +2309,7 @@ describe("TimeTrackingPage", () => {
 
         // Fill in the notes field (required for save)
         const notesArea = screen.queryByPlaceholderText(
-          "Oder eigenen Grund eingeben...",
+          "Oder eigenen Grund eingeben…",
         );
         if (notesArea) {
           fireEvent.change(notesArea, {
@@ -2426,7 +2461,7 @@ describe("TimeTrackingPage", () => {
       await openEditModal(makePastSession());
       fireEvent.click(screen.getByText("Vergessen auszustempeln"));
       const textarea = screen.getByPlaceholderText(
-        "Oder eigenen Grund eingeben...",
+        "Oder eigenen Grund eingeben…",
       );
       expect((textarea as HTMLTextAreaElement).value).toBe(
         "Vergessen auszustempeln",
@@ -2436,7 +2471,7 @@ describe("TimeTrackingPage", () => {
     it("typing in notes textarea updates the value", async () => {
       await openEditModal(makePastSession());
       const textarea = screen.getByPlaceholderText(
-        "Oder eigenen Grund eingeben...",
+        "Oder eigenen Grund eingeben…",
       );
       fireEvent.change(textarea, { target: { value: "Custom reason" } });
       expect((textarea as HTMLTextAreaElement).value).toBe("Custom reason");
@@ -2666,9 +2701,9 @@ describe("TimeTrackingPage", () => {
 
     it("modal title is 'Eintrag bearbeiten' for session-only", async () => {
       await openEditModal(makePastSession());
-      expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-        "Eintrag bearbeiten",
-      );
+      expect(
+        screen.getByRole("heading", { name: "Eintrag bearbeiten" }),
+      ).toBeInTheDocument();
     });
 
     it("modal title is 'Abwesenheit bearbeiten' for absence-only", async () => {
@@ -2688,9 +2723,9 @@ describe("TimeTrackingPage", () => {
       if (row) {
         fireEvent.click(row);
         await waitFor(() => {
-          expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-            "Abwesenheit bearbeiten",
-          );
+          expect(
+            screen.getByRole("heading", { name: "Abwesenheit bearbeiten" }),
+          ).toBeInTheDocument();
         });
       }
     });
@@ -2705,9 +2740,9 @@ describe("TimeTrackingPage", () => {
       };
 
       await openEditModal(pastSession, { absences: [pastAbsence] });
-      expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-        "Tag bearbeiten",
-      );
+      expect(
+        screen.getByRole("heading", { name: "Tag bearbeiten" }),
+      ).toBeInTheDocument();
     });
 
     it("shows tabs when both session and absence exist", async () => {
@@ -2720,8 +2755,14 @@ describe("TimeTrackingPage", () => {
       };
 
       await openEditModal(pastSession, { absences: [pastAbsence] });
-      expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
-      expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+      // Als Rolle statt als freier Text: seit der Kopfkarte steht
+      // "Arbeitszeit" auch als Kicker auf der Seite, der Reiter ist der Knopf.
+      expect(
+        screen.getByRole("button", { name: "Arbeitszeit" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Abwesenheit" }),
+      ).toBeInTheDocument();
     });
 
     it("switches to absence tab and shows absence fields", async () => {
@@ -2891,7 +2932,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         const noteArea = screen.getByPlaceholderText(
-          "z.B. Arzttermin, Schulung ...",
+          "z. B. Arzttermin, Schulung …",
         );
         expect((noteArea as HTMLTextAreaElement).value).toBe("Some note");
       });
@@ -3220,8 +3261,8 @@ describe("TimeTrackingPage", () => {
     it("shows dash for absent location column when no session on past day", () => {
       setupDefaultMocks({ history: [] });
       render(<TimeTrackingPage />);
-      // Past days without sessions show "—" in the Ort column
-      const dashes = screen.queryAllByText("—");
+      // Past days without sessions show "–" in the Ort column
+      const dashes = screen.queryAllByText("–");
       expect(dashes.length).toBeGreaterThanOrEqual(0);
     });
 
@@ -3558,7 +3599,7 @@ describe("TimeTrackingPage", () => {
     it("allows note input", () => {
       openAbsenceModal();
       const noteArea = screen.getByPlaceholderText(
-        "z.B. Arzttermin, Schulung ...",
+        "z. B. Arzttermin, Schulung …",
       );
       fireEvent.change(noteArea, { target: { value: "Arzttermin" } });
       expect((noteArea as HTMLTextAreaElement).value).toBe("Arzttermin");
@@ -3782,7 +3823,7 @@ describe("TimeTrackingPage", () => {
             });
             await waitFor(() => {
               expect(mockToast.error).toHaveBeenCalledWith(
-                "Du kannst nur eigene Abwesenheiten löschen.",
+                "Sie können nur eigene Abwesenheiten löschen.",
               );
             });
           }
@@ -3849,7 +3890,7 @@ describe("TimeTrackingPage", () => {
 
         await waitFor(() => {
           expect(mockToast.error).toHaveBeenCalledWith(
-            "Du kannst nur eigene Abwesenheiten bearbeiten.",
+            "Sie können nur eigene Abwesenheiten bearbeiten.",
           );
         });
       }
@@ -4405,7 +4446,7 @@ describe("TimeTrackingPage", () => {
 
         await waitFor(() => {
           expect(mockToast.error).toHaveBeenCalledWith(
-            "Du kannst nur eigene Einträge bearbeiten.",
+            "Sie können nur eigene Einträge bearbeiten.",
           );
         });
       }
@@ -4862,8 +4903,14 @@ describe("empty-day hint dialog (#2361)", () => {
         screen.getByRole("button", { name: "Nachtragen" }),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
-    expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+    // Als Rolle statt als freier Text: seit der Kopfkarte steht "Arbeitszeit"
+    // auch als Kicker auf der Seite, der Reiter ist der Knopf.
+    expect(
+      screen.getByRole("button", { name: "Arbeitszeit" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abwesenheit" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
     expect(push).toHaveBeenCalledWith(

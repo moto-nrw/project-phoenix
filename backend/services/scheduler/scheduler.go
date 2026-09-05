@@ -270,9 +270,8 @@ type Scheduler struct {
 // platform outbox worker. Defined here so the scheduler doesn't import
 // services/platform.
 type OutboxWorkerRunner interface {
-	RunOnce(ctx context.Context, batchSize int) (int, error)
+	RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error)
 	Backlog(ctx context.Context) (int, error)
-	SetMaxAttempts(n int)
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -1928,11 +1927,7 @@ func (s *Scheduler) checkAndRunAutoStart(ctx context.Context, task *ScheduledTas
 
 		result, err := s.autoStart.RunForTenant(tenantCtx, time.Now())
 		if err != nil {
-			s.getLogger().Warn("timetable auto-start failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return nil
+			return err
 		}
 		if result.Started > 0 || result.SkippedConflict > 0 || result.Failed > 0 {
 			s.getLogger().Info("timetable auto-start completed for tenant",
@@ -2101,7 +2096,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 
 	today := timezone.DateFromTime(now)
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
 	if err != nil {
 		s.getLogger().Warn("overdue tick: load today's instances failed",
 			slog.Int64("tenant_id", tenantID),

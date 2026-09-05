@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
-  StudentDetailHeader,
+  StudentHeaderStats,
   SupervisorsCard,
   PersonalInfoReadOnly,
   StudentHistorySection,
@@ -42,22 +42,19 @@ const mockSupervisors: SupervisorContact[] = [
 ];
 
 // =============================================================================
-// StudentDetailHeader
+// Bausteine des Kindakten-Kopfs
 // =============================================================================
 
-const headerMeta = {
-  title: "students/StudentDetailHeader",
-  component: StudentDetailHeader,
+const meta = {
+  title: "students/StudentHeaderStats",
+  component: StudentHeaderStats,
   args: {
     student: mockStudent,
-    myGroups: [],
-    myGroupRooms: [],
-    mySupervisedRooms: [],
   },
-} satisfies Meta<typeof StudentDetailHeader>;
+} satisfies Meta<typeof StudentHeaderStats>;
 
-export default headerMeta;
-type HeaderStory = StoryObj<typeof headerMeta>;
+export default meta;
+type HeaderStory = StoryObj<typeof meta>;
 
 export const Default: HeaderStory = {};
 
@@ -71,14 +68,10 @@ export const WithTodayTimes: HeaderStory = {
 
 export const AbsentToday: HeaderStory = {
   args: {
-    student: { ...mockStudent, sick: true },
-    sickReason: "Erkältung",
+    isArrivalAbsent: true,
+    todayArrivalNote: "Arzttermin",
   },
 };
-
-// =============================================================================
-// SupervisorsCard
-// =============================================================================
 
 export const SupervisorsCardStory: StoryObj<typeof SupervisorsCard> = {
   render: () => (

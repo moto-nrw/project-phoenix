@@ -36,8 +36,8 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	require.NoError(t, (seedOperationsDemoStep{}).Run(t.Context(), rt))
 
 	mealDate := todaySeedDate()
-	for mealDate.Weekday() == time.Saturday || mealDate.Weekday() == time.Sunday {
-		mealDate = mealDate.AddDays(1)
+	if mealDate.Weekday() == time.Saturday || mealDate.Weekday() == time.Sunday {
+		mealDate = seedDate{Time: nextWeekday(mealDate.UTCMidnight(), time.Monday)}
 	}
 	assert.Equal(t, []string{
 		"/api/settings/values/operations.meal_plan_enabled",
@@ -51,23 +51,32 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	assert.EqualValues(t, 81, shift["shift_type_id"])
 }
 
-func TestSeedMealPlanUsesNextSchoolWeekday(t *testing.T) {
+func TestSeedMealPlanUsesTodayOrNextSchoolDay(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []struct{ date, expected string }{
-		{"2026-09-04", "2026-09-04"},
-		{"2026-09-05", "2026-09-07"},
-		{"2026-09-06", "2026-09-07"},
+	for _, tt := range []struct {
+		day  int
+		want string
+	}{
+		{4, "2026-09-04"},
+		{5, "2026-09-07"},
+		{6, "2026-09-07"},
+		{7, "2026-09-07"},
 	} {
-		t.Run(scenario.date, func(t *testing.T) {
+		t.Run(fmt.Sprint(tt.day), func(t *testing.T) {
 			t.Parallel()
 			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-				assert.Equal(t, "/api/meal-plan/"+scenario.expected, r.URL.Path)
-				_, _ = fmt.Fprint(w, `{"data":{}}`)
+				if r.URL.Path != "/api/meal-plan/"+tt.want {
+					w.WriteHeader(400)
+					_, _ = fmt.Fprint(w, "meal plan must use today or the next school day")
+					return
+				}
+				assert.Equal(t, "PUT", r.Method)
+				_, _ = fmt.Fprint(w, `{"status":"success"}`)
 			})
 			defer srv.Close()
-			date, err := parseSeedDate(scenario.date)
-			require.NoError(t, err)
-			require.NoError(t, seedMealPlan(&Runtime{Client: newTestClient(srv.URL, false)}, date))
+			rt := &Runtime{Client: newTestClient(srv.URL, false)}
+			today := seedDate{Time: time.Date(2026, time.September, tt.day, 0, 0, 0, 0, time.UTC)}
+			require.NoError(t, seedMealPlan(rt, today))
 		})
 	}
 }

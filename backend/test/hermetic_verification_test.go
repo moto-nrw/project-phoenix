@@ -1029,13 +1029,13 @@ func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]b
 // `db := testpkg.SetupTestDB(t)` or a two-result api/testutil setup builder.
 // Only the first identifier can hold the pool in either signature.
 var sharedPoolAssign = regexp.MustCompile(
-	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
+	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest|Setup\w+Module)\(`)
 
 // routeSizedSetupCall matches an actual builder invocation at the start of a
 // statement. It deliberately does not match function declarations or test
 // names that merely contain "Route(t".
 var routeSizedSetupCall = regexp.MustCompile(
-	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Router|Module)\(t(?:,|\))`)
+	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:\w+\.)?(?:setup|Setup|build)\w+(?:Route|Router|Module)\(t(?:,|\))`)
 
 func usesSharedDBSetup(content []byte) bool {
 	return bytes.Contains(content, []byte("SetupTestDB(")) ||
