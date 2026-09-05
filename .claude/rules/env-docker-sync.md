@@ -115,9 +115,9 @@ When modifying any file, update its counterpart:
 
 ## Deployed Environments (SOPS)
 
-Staging and production use SOPS-encrypted env files in `environments/`. All services on the server share a single `.env` (decrypted from `*.sops.env` by CI). Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
+Staging and production use SOPS-encrypted env files in `environments/`. CI decrypts one `.env` for Compose interpolation. Explicit service allowlists control what enters each container; see `docs/runtime-environment-boundaries.md` and `environments/runtime-env-allowlist.json`. Read `docs/agents/operations.md` Environment Management (SOPS) for deployment and rollback details.
 
-**Key gotcha**: The shared `.env` means vars like `PORT` leak across services. The frontend `environment:` block in each compose file must override `PORT: 3000` to prevent Next.js from picking up the backend's `PORT=8080`.
+Keep the frontend's explicit `PORT: 3000` and the serving backend's credential-free application DSN. Privileged `DB_DSN` interpolation belongs only to the explicit `migrate` job. Update the allowlist and its matrix when changing service variables; `scripts/env-check.sh` verifies the boundary.
 
 ## Automated Sync Checks
 

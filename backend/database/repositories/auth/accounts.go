@@ -457,26 +457,6 @@ func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// SetActive toggles only the active flag for an account. Targeted update so
-// it does not clobber password_hash or other in-memory stale fields.
-func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("active = ?", active).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "set active",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return nil
-}
-
 // UpdateAvatar updates the global avatar path for an account.
 func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
 	account := &auth.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}

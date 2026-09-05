@@ -201,7 +201,7 @@ describe("InvitePage", () => {
       expect(screen.getByText("Konto einrichten")).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Bestätige deine Einladung/)).toBeInTheDocument();
+    expect(screen.getByText(/Nehmen Sie die Einladung an/)).toBeInTheDocument();
   });
 
   it("should show link to login page on error", async () => {
