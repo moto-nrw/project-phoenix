@@ -7,7 +7,7 @@ receive only their explicit `environment` entries.
 ## Reviewed service-to-variable matrix
 
 The exact, machine-checked key sets live in
-[`environments/runtime-env-allowlist.json`](../environments/runtime-env-allowlist.json).
+[`environments/runtime-env-allowlist.json`](../../environments/runtime-env-allowlist.json).
 The groups below explain why each set exists.
 
 | Consumer | Configuration and authority | Source |

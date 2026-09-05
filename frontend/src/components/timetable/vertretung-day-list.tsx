@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * VertretungDayList — die Störungsliste des Vertretungsbereichs
- * (docs/planung-redesign/docs/07-vertretung.md Abschnitt 2.2).
+ * VertretungDayList: die Störungsliste des Vertretungsbereichs.
  *
  * Reine Präsentationskomponente: kein Datenabruf, kein URL-Zugriff. Welcher
  * Tag angezeigt wird und der Umschalter "Nur Störungen"/"Ganzer Tag" leben im
@@ -80,7 +79,7 @@ export interface VertretungDayListProps {
  * Pure Soll/Ist/Abwesend-Berechnung aus instance.staff — für Zeilen, die nur
  * über Bedingung 3 (abgesagt) oder 4 (Abwesenheit) in die Liste kommen und
  * daher keine GapInstance-Zahlen für diese Instanz haben. Spiegelt die
- * Backend-Semantik von presentStaffCount (docs/07-vertretung.md 2.2):
+ * Backend-Semantik von presentStaffCount:
  * geplante Positionen = Zeilen ohne isSubstitute; anwesend = nicht-abwesende
  * geplante Zeilen plus deckende (nicht-abwesende) Substitut-Zeilen; abwesend
  * = alle isAbsent-Zeilen.
@@ -132,7 +131,7 @@ function classify(
   const isAcknowledged = ackMatch !== undefined;
   const isDisturbed = isGap || isAcknowledged || isCancelled || hasAbsence;
 
-  // Schwere-Reihenfolge aus docs/07-vertretung.md 2.2: offene Lücke vor
+  // Schwere-Reihenfolge: offene Lücke vor
   // Abwesenheit-mit-Ersatz (Bedingung 4 ohne offene Lücke) vor quittiert vor
   // abgesagt. Ungestörte Zeilen (nur im Ganztags-Fallback sichtbar) tragen
   // den niedrigsten Rang, damit sie bei einer Zeitgleichheit hinter jeder
@@ -317,7 +316,7 @@ function VertretungDayListRow({
     coverageState,
   } = row;
   // "Ganzer Tag" blendet ungestörte Positionen gedämpft grau ein, ohne
-  // Störungsvermerke (docs/07-vertretung.md 2.2) — die Vermerke selbst bleiben
+  // Störungsvermerke — die Vermerke selbst bleiben
   // ohnehin aus, weil ihre Bedingungen für eine ungestörte Zeile nie zutreffen.
   const titleClass = isDisturbed ? "text-gray-900" : "text-gray-400";
   const timeClass = isDisturbed ? "text-gray-500" : "text-gray-400";

@@ -13,8 +13,6 @@ import {
 } from "../src/lib/date-helpers";
 import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 
-// Chunk 9 des Planung-Redesigns Inkrement 3
-// (docs/planung-redesign/docs/05-dienstplan.md Abschnitt 12): der neue
 // /dienstplan-Bereich (ResourceGrid-Wochenraster, Halbjahres-Sicht,
 // Verschieben-nach, URL-State d/view). Diese Spec prüft die UI-Verdrahtung des
 // Bereichs gegen den lokalen Stack, nicht die Schicht-/Serien-Backend-Semantik
@@ -272,7 +270,7 @@ function personRow(page: Page, staff: StaffLite) {
     .filter({ hasText: `${staff.last_name}, ${staff.first_name}` });
 }
 
-test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", () => {
+test.describe("Dienstplan UI-Flow", () => {
   // Diese Flows mutieren dieselbe lokale Dev-DB und lösen mehrere kalte
   // Next.js-Routen aus. Seriell bleiben die Ownership-Snapshots eindeutig und
   // der Dev-Server wird nicht mit sechs parallelen Kompiliervorgängen blockiert.
