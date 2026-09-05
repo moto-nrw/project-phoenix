@@ -5,12 +5,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DateframeRepository defines operations for managing date frames
 type DateframeRepository interface {
-	base.Repository[*Dateframe]
+	repository[*Dateframe]
 
 	// FindByName finds a dateframe by its name
 	FindByName(ctx context.Context, name string) (*Dateframe, error)
@@ -24,7 +23,8 @@ type DateframeRepository interface {
 
 // TimeframeRepository defines operations for managing time frames
 type TimeframeRepository interface {
-	base.Repository[*Timeframe]
+	repository[*Timeframe]
+	ListAll(ctx context.Context) ([]*Timeframe, error)
 
 	// FindActive finds all active timeframes
 	FindActive(ctx context.Context) ([]*Timeframe, error)
@@ -32,8 +32,6 @@ type TimeframeRepository interface {
 	// FindByTimeRange finds all timeframes that overlap with the given time range
 	FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*Timeframe, error)
 }
-
-type TimeframeQueryOptions = base.QueryOptions
 
 // StaffShiftRepository is the data-access boundary for planned staff shifts
 // (Dienstplan). CRUD comes from the generic repository; the finders below
@@ -49,7 +47,6 @@ type StaffShiftRepository interface {
 	// #1843 sick cascade filters by sick_absence_id and stamps/clears that
 	// single column without whole-model writes.
 	List(ctx context.Context, filters map[string]any) ([]*StaffShift, error)
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*StaffShift, error)
 	UpdateColumns(ctx context.Context, shift *StaffShift, columns ...string) (int64, error)
 
 	// FindByDateRange returns all shifts with start <= date <= end for the
@@ -138,7 +135,7 @@ type StaffShiftSeriesExceptionRepository interface {
 // returns every type for the current tenant (active and inactive), ordered by
 // name, for the management UI. The Dienstplan shift picker filters to active.
 type ShiftTypeRepository interface {
-	base.Repository[*ShiftType]
+	repository[*ShiftType]
 
 	// ListAll returns all shift types for the current tenant, ordered by name.
 	ListAll(ctx context.Context) ([]*ShiftType, error)
@@ -153,7 +150,7 @@ type ShiftTypeRepository interface {
 
 // RecurrenceRuleRepository defines operations for managing recurrence rules
 type RecurrenceRuleRepository interface {
-	base.Repository[*RecurrenceRule]
+	repository[*RecurrenceRule]
 
 	// FindByFrequency finds all recurrence rules with the specified frequency
 	FindByFrequency(ctx context.Context, frequency string) ([]*RecurrenceRule, error)
@@ -168,7 +165,7 @@ type RecurrenceRuleRepository interface {
 // ClassArrivalExceptionRepository is the data access boundary for class-wide
 // arrival day exceptions (#2962).
 type ClassArrivalExceptionRepository interface {
-	base.CRUDRepository[*ClassArrivalException]
+	crudRepository[*ClassArrivalException]
 
 	// FindByClassesAndDateRange returns the exceptions of the given classes
 	// with from <= date <= to, matched case-insensitively on the normalized

@@ -64,7 +64,9 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	assert.GreaterOrEqual(t, probe.calls, 1)
 	options := modelBase.NewQueryOptions()
 	options.Filter.ILike("description", "%"+probe.description+"%")
-	rows, err := repos.Timeframe.List(testpkg.Ctx(t), options)
+	rows, err := repos.Timeframe.(interface {
+		List(context.Context, *modelBase.QueryOptions) ([]*scheduleModels.Timeframe, error)
+	}).List(testpkg.Ctx(t), options)
 	require.NoError(t, err)
 	assert.Empty(t, rows,
 		"returning the worker error must roll back writes made in that tenant tick")

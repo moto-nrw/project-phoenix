@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 var planningTrackColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
@@ -43,7 +41,7 @@ func (p *PlanningTrack) IsArchived() bool {
 }
 
 type PlanningTrackRepository interface {
-	base.CRUDRepository[*PlanningTrack]
+	crudRepository[*PlanningTrack]
 	ListAll(ctx context.Context) ([]*PlanningTrack, error)
 	// FindByIDs returns the tracks matching the given IDs in one
 	// tenant-scoped IN query (missing IDs are simply absent). Archived

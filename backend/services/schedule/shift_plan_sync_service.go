@@ -295,7 +295,7 @@ func (s *shiftPlanSyncService) lockSickReversalStaffWrites(ctx context.Context, 
 	originShiftIDs := staffShiftIDs(shifts)
 	var covers []*scheduleModel.StaffShift
 	if len(originShiftIDs) > 0 {
-		covers, err = s.shiftRepo.ListWithOptions(ctx, &modelBase.QueryOptions{
+		covers, err = legacyListWithOptions[*scheduleModel.StaffShift](ctx, s.shiftRepo, &modelBase.QueryOptions{
 			Filter: modelBase.NewFilter().In("origin_shift_id", int64FilterArgs(originShiftIDs)...),
 		})
 	}
@@ -447,7 +447,7 @@ type stampedSickBlockRow struct {
 func (s *shiftPlanSyncService) loadStampedBlockRows(ctx context.Context, absenceID int64) ([]*scheduleModel.InstanceStaff, error) {
 	listOptions := modelBase.NewQueryOptions()
 	listOptions.Filter.Equal("sick_absence_id", absenceID)
-	rows, err := s.instanceStaffRepo.List(ctx, listOptions)
+	rows, err := legacyList[*scheduleModel.InstanceStaff](ctx, s.instanceStaffRepo, listOptions)
 	if err != nil {
 		return nil, fmt.Errorf("sick clear: load stamped rows: %w", err)
 	}
@@ -574,7 +574,7 @@ func (s *shiftPlanSyncService) ReassignSickStamps(ctx context.Context, fromAbsen
 	}
 	listOptions := modelBase.NewQueryOptions()
 	listOptions.Filter.Equal("sick_absence_id", fromAbsenceID)
-	rows, err := s.instanceStaffRepo.List(ctx, listOptions)
+	rows, err := legacyList[*scheduleModel.InstanceStaff](ctx, s.instanceStaffRepo, listOptions)
 	if err != nil {
 		return fmt.Errorf("sick reassign: load stamped rows: %w", err)
 	}

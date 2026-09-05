@@ -319,17 +319,13 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, row))
 
 	t.Run("nil options returns rows", func(t *testing.T) {
-		rows, err := repo.List(ctx, nil)
+		rows, err := repo.FindByInstanceID(ctx, inst.ID)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(rows), 1)
 	})
 
 	t.Run("with filter + pagination", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("instance_id", inst.ID)
-		options.WithPagination(1, 50)
-
-		rows, err := repo.List(ctx, options)
+		rows, err := repo.FindByInstanceID(ctx, inst.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, rows)
 		for _, r := range rows {
@@ -341,12 +337,12 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 		cancelledCtx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		rows, err := repo.List(cancelledCtx, nil)
+		rows, err := repo.FindByInstanceID(cancelledCtx, inst.ID)
 		assert.Nil(t, rows)
 		require.Error(t, err)
 		var dbErr *modelBase.DatabaseError
 		require.ErrorAs(t, err, &dbErr)
-		assert.Equal(t, "list with options", dbErr.Op)
+		assert.Equal(t, "find by instance id", dbErr.Op)
 	})
 }
 

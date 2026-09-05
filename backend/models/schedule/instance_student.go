@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Attendance status constants (system-controlled, E18).
@@ -193,7 +192,7 @@ type InstanceStudentKey struct {
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
-	base.Repository[*InstanceStudent]
+	repository[*InstanceStudent]
 
 	// FindPresentInOtherActiveInstances returns, for the given students, rows
 	// where the student is recorded status='present' in another instance

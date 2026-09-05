@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // InstanceStaff assigns a staff member to a materialized activity instance.
@@ -48,7 +47,7 @@ func (s *InstanceStaff) Validate() error {
 // InstanceStaffRepository defines operations for managing staff assignments to
 // materialized activity instances.
 type InstanceStaffRepository interface {
-	base.Repository[*InstanceStaff]
+	repository[*InstanceStaff]
 
 	// UpdateColumns surfaces the embedded generic repository's single-column
 	// update: the #1843 sick cascade stamps/releases sick_absence_id without

@@ -1714,7 +1714,7 @@ func (s *instanceService) findCreateByIdempotencyKey(
 ) (*scheduleModel.ActivityInstance, error) {
 	options := modelBase.NewQueryOptions().WithPagination(1, 1)
 	options.Filter.Equal("idempotency_key", key)
-	instances, err := s.deps.InstanceRepo.List(ctx, options)
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
 	if err != nil || len(instances) == 0 {
 		return nil, err
 	}
@@ -2869,7 +2869,7 @@ func (s *instanceService) matchRegeneratedInstances(
 		In("date", dateFilterArgs(dates)...).
 		Equal("status", scheduleModel.InstanceStatusPlanned).
 		Equal("is_spontaneous", false)
-	candidates, err := s.deps.InstanceRepo.List(ctx, options)
+	candidates, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
 	if err != nil {
 		return nil, err
 	}

@@ -7,12 +7,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // RecurrenceRuleQueryOptions keeps the legacy repository method signature
 // without making the composition adapter import the base model package.
 type RecurrenceRuleQueryOptions = modelBase.QueryOptions
+type TimeframeQueryOptions = modelBase.QueryOptions
 type ActivityExceptionQueryOptions = modelBase.QueryOptions
 type ActivityInstanceQueryOptions = modelBase.QueryOptions
 type InstanceStaffQueryOptions = modelBase.QueryOptions
@@ -111,7 +111,7 @@ func WrapNotFoundDatabaseError(operation string) error {
 	return WrapDatabaseError(operation, modelBase.ErrNotFound)
 }
 
-func TimeframeListOptions(options *scheduleModels.TimeframeQueryOptions) (string, int, int, error) {
+func TimeframeListOptions(options *TimeframeQueryOptions) (string, int, int, error) {
 	if options == nil {
 		return "", 0, 0, nil
 	}

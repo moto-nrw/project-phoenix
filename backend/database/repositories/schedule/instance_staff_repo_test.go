@@ -18,11 +18,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func instanceStaffRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStaffRepository {
+func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
 	factory := repositories.NewFactory(db)
 	factory.BindTimetable(timetabletest.New(t, db))
-	return factory.InstanceStaff
+	return factory.InstanceStaff.(instanceStaffQueryRepository)
 }
 
 func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezone.Date) (*scheduleModels.ActivityInstance, func()) {

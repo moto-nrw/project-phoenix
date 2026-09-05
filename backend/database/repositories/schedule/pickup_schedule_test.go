@@ -18,16 +18,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newPickupScheduleRepository(db *bun.DB) scheduleModels.StudentPickupScheduleRepository {
-	return repositories.NewFactory(db).StudentPickupSchedule
+func newPickupScheduleRepository(db *bun.DB) pickupScheduleQueryRepository {
+	return repositories.NewFactory(db).StudentPickupSchedule.(pickupScheduleQueryRepository)
 }
 
-func newPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return repositories.NewFactory(db).StudentPickupException
+func newPickupExceptionRepository(db *bun.DB) pickupExceptionQueryRepository {
+	return repositories.NewFactory(db).StudentPickupException.(pickupExceptionQueryRepository)
 }
 
-func newPickupNoteRepository(db *bun.DB) scheduleModels.StudentPickupNoteRepository {
-	return repositories.NewFactory(db).StudentPickupNote
+func newPickupNoteRepository(db *bun.DB) pickupNoteQueryRepository {
+	return repositories.NewFactory(db).StudentPickupNote.(pickupNoteQueryRepository)
 }
 
 // =============================================================================

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Period type constants
@@ -139,7 +138,7 @@ type CalendarPeriodUsage struct {
 
 // CalendarPeriodRepository defines operations for managing calendar periods
 type CalendarPeriodRepository interface {
-	base.Repository[*CalendarPeriod]
+	repository[*CalendarPeriod]
 
 	// FindByTenantID finds all calendar periods for a tenant
 	FindByTenantID(ctx context.Context) ([]*CalendarPeriod, error)

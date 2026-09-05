@@ -640,6 +640,13 @@ func (r materializationFakeTimeframeRepo) List(context.Context, *modelBase.Query
 	return r.timeframes, nil
 }
 
+func (r materializationFakeTimeframeRepo) ListAll(context.Context) ([]*schedule.Timeframe, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.timeframes, nil
+}
+
 type materializationAllowCalendarService struct{}
 
 func (materializationAllowCalendarService) GetAllPeriods(context.Context) ([]*schedule.CalendarPeriod, error) {

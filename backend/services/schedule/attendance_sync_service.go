@@ -634,7 +634,7 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 	if len(groupIDs) == 0 {
 		return
 	}
-	instances, err := s.instanceRepo.List(ctx, &modelBase.QueryOptions{
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instanceRepo, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
 	})
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Activity exception type constants.
@@ -90,7 +89,7 @@ func (e *ActivityException) IsCancellation() bool {
 // ActivityExceptionRepository defines operations for managing activity
 // exceptions.
 type ActivityExceptionRepository interface {
-	base.Repository[*ActivityException]
+	repository[*ActivityException]
 
 	// FindByActivityGroupID returns all exceptions for a given template.
 	FindByActivityGroupID(ctx context.Context, activityGroupID int64) ([]*ActivityException, error)
@@ -110,7 +109,6 @@ type ActivityExceptionRepository interface {
 
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the timetable retention cleanup.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
 	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }

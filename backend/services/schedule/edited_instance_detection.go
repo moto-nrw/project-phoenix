@@ -134,7 +134,7 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
 		}
-		timeframes, err := s.timeframeRepo.List(ctx, nil)
+		timeframes, err := s.timeframeRepo.ListAll(ctx)
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load timeframes", Err: err}
 		}

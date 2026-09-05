@@ -16,7 +16,7 @@ func TestDateframeRepositoryListPreservesQueryOptionsBehavior(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Dateframe
+	repo := repositories.NewFactory(db).Dateframe.(dateframeQueryRepository)
 	ctx := testpkg.Ctx(t)
 
 	alpha := &schedule.Dateframe{

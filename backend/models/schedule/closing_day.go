@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ClosingDayReasonMaxLength is the maximum length of the reason field.
@@ -49,7 +48,7 @@ func (c *ClosingDay) Validate() error {
 
 // ClosingDayRepository defines operations for managing closing days
 type ClosingDayRepository interface {
-	base.Repository[*ClosingDay]
+	repository[*ClosingDay]
 
 	// FindByTenantID finds all closing days for the current tenant,
 	// ordered by start_date.

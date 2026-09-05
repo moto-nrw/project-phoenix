@@ -228,7 +228,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	timeframes, err := repo.List(ctx42, nil)
+	timeframes, err := repo.ListAll(ctx42)
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -243,7 +243,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	timeframes, err = repo.List(ctx43, nil)
+	timeframes, err = repo.ListAll(ctx43)
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {

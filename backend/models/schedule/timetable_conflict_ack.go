@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // conflictAckFingerprintPattern matches the hex fingerprints produced by the
@@ -64,7 +62,7 @@ func ValidConflictAckFingerprint(fingerprint string) bool {
 // WithTenantFilter path; the account scoping is an explicit parameter because
 // acks are per-user data, not per-tenant data.
 type TimetableConflictAckRepository interface {
-	base.Repository[*TimetableConflictAck]
+	repository[*TimetableConflictAck]
 
 	// ListFingerprintsByAccount returns every fingerprint the account has
 	// acknowledged in the current tenant.

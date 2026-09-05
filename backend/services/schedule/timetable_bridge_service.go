@@ -104,7 +104,7 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 		return nil, nil
 	}
 
-	instances, err := s.deps.Instances.List(ctx, &modelBase.QueryOptions{
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.Instances, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(activeGroupIDs)...),
 	})
 	if err != nil {

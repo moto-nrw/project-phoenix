@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Common validation error messages for pickup schedule models.
@@ -240,7 +239,7 @@ func (e *StudentPickupException) IsAbsent() bool {
 
 // StudentPickupScheduleRepository defines operations for managing student pickup schedules
 type StudentPickupScheduleRepository interface {
-	base.Repository[*StudentPickupSchedule]
+	repository[*StudentPickupSchedule]
 
 	// FindByStudentID finds all pickup schedules for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupSchedule, error)
@@ -265,7 +264,7 @@ type StudentPickupScheduleRepository interface {
 
 // StudentPickupExceptionRepository defines operations for managing student pickup exceptions
 type StudentPickupExceptionRepository interface {
-	base.Repository[*StudentPickupException]
+	repository[*StudentPickupException]
 
 	// FindByIDForUpdate retrieves and locks an exception for an atomic
 	// invariant check followed by mutation.
@@ -334,7 +333,7 @@ func (n *StudentPickupNote) Validate() error {
 
 // StudentPickupNoteRepository defines operations for managing student pickup notes
 type StudentPickupNoteRepository interface {
-	base.Repository[*StudentPickupNote]
+	repository[*StudentPickupNote]
 
 	// FindByStudentID finds all pickup notes for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupNote, error)

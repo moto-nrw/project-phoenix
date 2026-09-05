@@ -17,11 +17,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func activityExceptionRepository(t *testing.T, db *bun.DB) scheduleModels.ActivityExceptionRepository {
+func activityExceptionRepository(t *testing.T, db *bun.DB) activityExceptionQueryRepository {
 	t.Helper()
 	factory := repositories.NewFactory(db)
 	factory.BindTimetable(timetabletest.New(t, db))
-	return factory.ActivityException
+	return factory.ActivityException.(activityExceptionQueryRepository)
 }
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {

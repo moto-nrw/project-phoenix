@@ -65,13 +65,17 @@ func (r timetableTimeframeRepository) Delete(ctx context.Context, id any) error 
 	return nil
 }
 
-func (r timetableTimeframeRepository) List(ctx context.Context, options *scheduleModels.TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
+func (r timetableTimeframeRepository) List(ctx context.Context, options *scheduleRepo.TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
 	description, limit, offset, err := scheduleRepo.TimeframeListOptions(options)
 	if err != nil {
 		return nil, scheduleRepo.WrapDatabaseError("list with options", err)
 	}
 	description = strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%")
 	return r.list(ctx, timetable.TimeframeFilter{DescriptionContains: description, Limit: limit, Offset: offset}, "list with options")
+}
+
+func (r timetableTimeframeRepository) ListAll(ctx context.Context) ([]*scheduleModels.Timeframe, error) {
+	return r.list(ctx, timetable.TimeframeFilter{}, "list")
 }
 
 func (r timetableTimeframeRepository) FindActive(ctx context.Context) ([]*scheduleModels.Timeframe, error) {

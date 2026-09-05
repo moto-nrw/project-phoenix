@@ -59,7 +59,7 @@ type templateSetup struct {
 
 func listTimeframesByDescription(
 	t *testing.T,
-	repo scheduleModel.TimeframeRepository,
+	repo timeframeQueryRepository,
 	ctx context.Context,
 	description string,
 ) []*scheduleModel.Timeframe {
@@ -71,11 +71,16 @@ func listTimeframesByDescription(
 	return timeframes
 }
 
-func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) scheduleModel.TimeframeRepository {
+type timeframeQueryRepository interface {
+	scheduleModel.TimeframeRepository
+	List(context.Context, *modelBase.QueryOptions) ([]*scheduleModel.Timeframe, error)
+}
+
+func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) timeframeQueryRepository {
 	tb.Helper()
 	factory := repositories.NewFactory(db)
 	factory.BindTimetable(timetabletest.New(tb, db))
-	return factory.Timeframe
+	return factory.Timeframe.(timeframeQueryRepository)
 }
 
 type mockMaterializationService struct {

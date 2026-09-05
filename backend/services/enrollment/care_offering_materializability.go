@@ -60,7 +60,7 @@ func loadCareOfferingMaterializationState(
 	if phase == nil {
 		return nil, errors.New("care offering materialization phase is required")
 	}
-	timeframes, err := deps.timeframeRepo.List(ctx, nil)
+	timeframes, err := deps.timeframeRepo.ListAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load timeframes for care offering materialization: %w", err)
 	}

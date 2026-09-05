@@ -235,12 +235,12 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := s.cutoffFor(retentionDays)
 
-	instancesToDelete, err := s.instanceRepo.CountWithOptions(ctx, expiredOptions(instanceDateColumn, cutoff))
+	instancesToDelete, err := legacyCount(ctx, s.instanceRepo, expiredOptions(instanceDateColumn, cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	exceptionsToDelete, err := s.exceptionRepo.CountWithOptions(ctx, expiredOptions(exceptionDateColumn, cutoff))
+	exceptionsToDelete, err := legacyCount(ctx, s.exceptionRepo, expiredOptions(exceptionDateColumn, cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}
@@ -282,12 +282,12 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := s.cutoffFor(retentionDays)
 
-	totalInstances, err := s.instanceRepo.CountWithOptions(ctx, nil)
+	totalInstances, err := legacyCount(ctx, s.instanceRepo, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	totalExceptions, err := s.exceptionRepo.CountWithOptions(ctx, nil)
+	totalExceptions, err := legacyCount(ctx, s.exceptionRepo, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}

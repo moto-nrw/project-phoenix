@@ -15,11 +15,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func timeframeRepository(t *testing.T, db *bun.DB) schedule.TimeframeRepository {
+func timeframeRepository(t *testing.T, db *bun.DB) timeframeQueryRepository {
 	t.Helper()
 	factory := repositories.NewFactory(db)
 	factory.BindTimetable(timetabletest.New(t, db))
-	return factory.Timeframe
+	return factory.Timeframe.(timeframeQueryRepository)
 }
 
 // ============================================================================

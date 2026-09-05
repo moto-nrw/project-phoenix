@@ -219,7 +219,7 @@ func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, st))
 
 	// nil options exercises the base List override without extra clauses.
-	rows, err := repo.List(ctx, nil)
+	rows, err := repo.ListAll(ctx)
 	require.NoError(t, err)
 	found := false
 	for _, row := range rows {

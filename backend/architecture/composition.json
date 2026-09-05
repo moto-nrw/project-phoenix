@@ -1322,7 +1322,7 @@
       "declaration": "TestListTemplatesCapacityUsesActualOccurrences",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1409
+        1414
       ],
       "tables": [
         "activities.groups",
@@ -1336,8 +1336,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1960,
-        1961
+        1965,
+        1966
       ],
       "tables": []
     },
@@ -1347,7 +1347,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        135
+        140
       ],
       "tables": []
     },
@@ -1357,7 +1357,7 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        145
+        150
       ],
       "tables": []
     },
@@ -1367,7 +1367,7 @@
       "declaration": "ownedTimeframeRepository",
       "target": "database/repositories.NewFactory",
       "lines": [
-        76
+        81
       ],
       "tables": []
     },
@@ -30250,27 +30250,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 169,
+          "line": 186,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 393,
+          "line": 410,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 496,
+          "line": 513,
           "declaration": "newUsersResource"
         },
         {
           "file": "api/base.go",
-          "line": 562,
+          "line": 579,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1054,
+          "line": 1071,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -30280,7 +30280,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 686,
+          "line": 703,
           "declaration": "New"
         }
       ]
@@ -30290,12 +30290,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 158,
+          "line": 159,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 559,
+          "line": 576,
           "declaration": "type API"
         },
         {
@@ -30415,17 +30415,17 @@
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 34,
+          "line": 35,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 42,
+          "line": 43,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 53,
+          "line": 54,
           "declaration": "NewFactoryForTestsWithFeedback"
         }
       ]

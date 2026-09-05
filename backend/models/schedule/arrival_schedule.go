@@ -7,7 +7,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Common validation error messages for arrival schedule models.
@@ -163,7 +162,7 @@ func (n *StudentArrivalNote) Validate() error {
 
 // StudentArrivalScheduleRepository defines operations for managing student arrival schedules
 type StudentArrivalScheduleRepository interface {
-	base.Repository[*StudentArrivalSchedule]
+	repository[*StudentArrivalSchedule]
 
 	// FindByStudentID finds all arrival schedules for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalSchedule, error)
@@ -189,7 +188,7 @@ type StudentArrivalScheduleRepository interface {
 
 // StudentArrivalExceptionRepository defines operations for managing student arrival exceptions
 type StudentArrivalExceptionRepository interface {
-	base.Repository[*StudentArrivalException]
+	repository[*StudentArrivalException]
 
 	// FindByIDForUpdate retrieves and locks an exception for an atomic
 	// invariant check followed by mutation.
@@ -227,7 +226,7 @@ type StudentArrivalExceptionRepository interface {
 
 // StudentArrivalNoteRepository defines operations for managing student arrival notes
 type StudentArrivalNoteRepository interface {
-	base.Repository[*StudentArrivalNote]
+	repository[*StudentArrivalNote]
 
 	// FindByStudentID finds all arrival notes for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalNote, error)

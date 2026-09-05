@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Activity instance status constants. Stored as TEXT with a CHECK constraint
@@ -196,7 +195,7 @@ func (i *ActivityInstance) IsLive() bool {
 
 // ActivityInstanceRepository defines operations for managing activity instances.
 type ActivityInstanceRepository interface {
-	base.Repository[*ActivityInstance]
+	repository[*ActivityInstance]
 
 	// CreateTemplateBackedIfAbsent inserts a template-backed instance and
 	// returns inserted=false when the unique template slot already exists.
@@ -304,7 +303,6 @@ type ActivityInstanceRepository interface {
 
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the timetable retention cleanup.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
 	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }

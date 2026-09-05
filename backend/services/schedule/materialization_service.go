@@ -354,7 +354,7 @@ func (s *materializationService) materializeForTenantLocked(
 	exceptionIdx := buildExceptionIndex(exceptions)
 
 	// Load timeframes in one query and cache by ID.
-	timeframes, err := s.timeframeRepo.List(ctx, nil)
+	timeframes, err := s.timeframeRepo.ListAll(ctx)
 	if err != nil {
 		return nil, &ScheduleError{Op: "materialize for tenant: load timeframes", Err: err}
 	}

@@ -106,7 +106,7 @@ func TestCalendarPeriodAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	})
 
 	t.Run("List serves the unfiltered listing", func(t *testing.T) {
-		periods, err := repo.List(ctx, nil)
+		periods, err := repo.FindByTenantID(ctx)
 		require.NoError(t, err)
 		require.Len(t, periods, 2)
 		assert.Equal(t, fixture.ID, periods[0].ID, "ordered by start date, then id")
@@ -353,7 +353,7 @@ func TestClosingDayAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, foreign, "the other tenant must not see this tenant's closing days")
 
-	all, err := repo.List(ctx, nil)
+	all, err := repo.FindByTenantID(ctx)
 	require.NoError(t, err)
 	require.Len(t, all, 2)
 	assert.Equal(t, fixture.ID, all[0].ID, "ordered by start date")

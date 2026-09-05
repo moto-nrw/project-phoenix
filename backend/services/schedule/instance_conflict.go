@@ -280,7 +280,7 @@ func loadActiveStaffConflictRooms(
 		result.roomsLoaded = true
 		return result
 	}
-	instances, err := deps.InstanceRepo.List(ctx, &modelBase.QueryOptions{
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, deps.InstanceRepo, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
 	})
 	if err != nil {
