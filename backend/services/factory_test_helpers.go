@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -70,7 +70,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
+	timetableCapability, err := repositories.NewTimetable(db, persons, rooms, schedule.TimetableCareDayLocker(db))
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

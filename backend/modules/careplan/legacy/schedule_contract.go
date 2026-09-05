@@ -79,6 +79,3 @@ func NotFoundError(op string) error {
 func NoRowsError() error { return sql.ErrNoRows }
 
 func TodayScheduleDate() careplan.Date { return careplan.Date(timezone.TodayDate().String()) }
-func PublicScheduleDate(value ScheduleDate) careplan.Date {
-	return careplan.Date(value.String())
-}

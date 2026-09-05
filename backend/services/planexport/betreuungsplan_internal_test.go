@@ -19,7 +19,7 @@ type stubInstances struct {
 	instances []*scheduleModel.ActivityInstance
 }
 
-func (s stubInstances) FindByTenantAndDateRange(_ context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (s stubInstances) FindByTenantAndDateRange(_ context.Context, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	kept := make([]*scheduleModel.ActivityInstance, 0, len(s.instances))
 	for _, instance := range s.instances {
 		if instance.Date.Before(from) || instance.Date.After(to) {
@@ -76,7 +76,7 @@ func (s stubStudentCounts) CountNonAbsentByInstanceIDs(context.Context, []int64)
 
 func instance(id int64, date timezone.Date, from, to time.Time, title string, roomID int64) *scheduleModel.ActivityInstance {
 	i := &scheduleModel.ActivityInstance{
-		Date:      date,
+		Date:      scheduleModel.Date(date),
 		Title:     title,
 		StartTime: from,
 		EndTime:   to,

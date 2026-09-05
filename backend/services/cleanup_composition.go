@@ -10,6 +10,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -21,6 +22,7 @@ import (
 type School = organizationtenancy.School
 type SchoolQuery = organizationtenancy.Query
 type SchoolCapability = organizationtenancy.Capability
+type TimetableCapability = timetable.Capability
 
 func NewOrganizationTenancy(db *bun.DB) (SchoolCapability, error) {
 	return repositories.NewOrganizationTenancy(db)
@@ -75,8 +77,8 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.Invitatio
 	})
 }
 
-func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger) active.Service {
-	repos := repositories.NewSessionCleanupRepositories(db)
+func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
+	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
 	service := active.NewService(active.ServiceDependencies{
 		GroupRepo: repos.Group, VisitRepo: repos.Visit, SupervisorRepo: repos.Supervisor,
 		DeviceRepo: repos.Device, TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
@@ -94,8 +96,8 @@ func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCo
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
-	repos := repositories.NewTimetableCleanupRepositories(db, command)
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
+	repos := repositories.NewTimetableCleanupRepositories(db, command, timetableCapability)
 	return schedule.NewTimetableCleanupService(
 		repos.Instance, repos.Exception, repos.Student, repos.Deletion, repos.Deviation,
 		NewCleanupSettingsService(db, runtime, schools, logger), logger,

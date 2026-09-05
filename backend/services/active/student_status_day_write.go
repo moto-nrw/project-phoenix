@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -241,15 +242,15 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 	if s.pickupExceptions == nil || len(dates) == 0 {
 		return nil
 	}
-	requested := make(map[timezone.Date]struct{}, len(dates))
+	requested := make(map[scheduleModels.Date]struct{}, len(dates))
 	for _, date := range dates {
-		requested[date] = struct{}{}
+		requested[scheduleModels.Date(date)] = struct{}{}
 	}
 	rows, err := s.pickupExceptions.FindByStudentIDAndDateRange(
 		ctx,
 		studentID,
-		slices.MinFunc(dates, timezone.Date.Compare),
-		slices.MaxFunc(dates, timezone.Date.Compare),
+		scheduleModels.Date(slices.MinFunc(dates, timezone.Date.Compare)),
+		scheduleModels.Date(slices.MaxFunc(dates, timezone.Date.Compare)),
 	)
 	if err != nil {
 		return err

@@ -19,7 +19,7 @@ func TestAccountRoleRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account-role mapping", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds roles by account ID", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role ID", func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds specific account-role mapping", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestAccountRoleRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account role mapping", func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing account-role mapping", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
@@ -269,7 +269,7 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all roles for account", func(t *testing.T) {
@@ -306,7 +306,7 @@ func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all account-role mappings for a role", func(t *testing.T) {
@@ -350,7 +350,7 @@ func TestAccountRoleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).AccountRole
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all account-role mappings", func(t *testing.T) {

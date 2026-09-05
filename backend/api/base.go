@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
@@ -100,6 +99,7 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -156,6 +156,7 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
+	repositories  *repositories.Factory
 	services      *services.Factory
 	communication *communicationModule.Module
 	mealPlan      *mealplanModule.Module
@@ -167,7 +168,21 @@ type moduleServices struct {
 	membership *schoolMembershipModule.Module
 }
 
-func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
+// NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
+// The serving root uses initializeModuleServices so it can attach metrics.
+func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
+	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	if err != nil {
+		return nil, err
+	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return nil, err
+	}
+	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
+}
+
+func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -220,8 +235,15 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	careQueries, err := repositories.NewTimetableCarePlanQueries(db, func(observation carePlanCompose.Observation) {
+		observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
 	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db,
+		CarePlan: careQueries,
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -233,6 +255,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 	if err != nil {
 		return moduleServices{}, err
 	}
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -327,7 +350,7 @@ func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, log
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -575,7 +598,7 @@ type API struct {
 	Groups           *groupsAPI.Resource
 	Guardians        *usersAPI.GuardianResource
 	Import           *importAPI.Resource
-	Activities       *activitiesAPI.Resource
+	Activities       *timetableHTTPAdapter.Resource
 	Staff            *staffHTTP.Resource
 	StaffAdmin       *timeTrackingAPI.StaffAdminResource
 	WorkTimeModels   *worktimemodelsAPI.Resource
@@ -677,15 +700,13 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
 	}
 
-	// Initialize repository factory with DB connection
-	repoFactory := repositories.NewFactory(db)
-
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(repoFactory, db, logger)
+	modules, err := initializeModuleServices(db, logger)
 	if err != nil {
 		return nil, err
 	}
 	serviceFactory := modules.services
+	repoFactory := modules.repositories
 	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
@@ -1141,7 +1162,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))

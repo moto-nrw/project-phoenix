@@ -1,15 +1,16 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,6 +21,7 @@ import (
 func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Daily Sync Room %d", time.Now().UnixNano()))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Daily Sync Activity %d", time.Now().UnixNano()))
@@ -43,11 +45,13 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Table("schedule.instance_students").
 		Set("checked_in_at = ?", checkedInAt).
 		Where("id = ?", presentRow.ID).
-		Exec(context.Background())
+		Exec(ctx)
 	require.NoError(t, err)
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
-	instanceStudentRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory.BindTimetable(timetabletest.New(t, db))
+	instanceStudentRepo := factory.InstanceStudent
 	s := unitScheduler(&Scheduler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
@@ -58,7 +62,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		}),
 		logger: slog.Default()})
 
-	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &activeSvc.DailySessionCleanupResult{
+	completed, err := s.completeTimetableInstancesForEndedSessions(ctx, &activeSvc.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
 	})
 	require.NoError(t, err)
@@ -69,7 +73,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Model(&reloaded).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".id = ?`, instance.ID).
-		Scan(context.Background())
+		Scan(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
 	assert.NotNil(t, reloaded.CompletedAt)
@@ -79,7 +83,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Model(&reloadedStudent).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".id = ?`, instanceStudent.ID).
-		Scan(context.Background())
+		Scan(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, reloadedStudent.Status)
 
@@ -88,7 +92,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Model(&reloadedPresent).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".id = ?`, presentRow.ID).
-		Scan(context.Background())
+		Scan(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
 	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")

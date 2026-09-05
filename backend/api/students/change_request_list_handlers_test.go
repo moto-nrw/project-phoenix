@@ -277,7 +277,7 @@ func aggMasterPending(id int64, first, last string, createdAt time.Time) *userSe
 
 func aggCarePending(id int64, first, last string, createdAt time.Time) *scheduleService.CareRequestReviewItem {
 	req := &scheduleModels.CareScheduleChangeRequest{
-		Model:       modelBase.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
+		Model:       scheduleModels.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
 		StudentID:   200 + id,
 		RequestKind: "weekly_schedule",
 		Status:      "pending",

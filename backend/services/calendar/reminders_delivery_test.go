@@ -160,7 +160,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	render := calendarSvc.NewAppointmentRenderer(calendarSvc.EmailConfig{
 		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
 		DB:          db,
-		Guardians:   repositories.NewFactory(db).StudentGuardian,
+		Guardians:   repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian,
 	})
 
 	msg, err := render(testpkg.WithPackageTenantRuntime(context.Background()), row)

@@ -115,8 +115,8 @@ func (rs *Resource) createClosingDay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	day := &schedule.ClosingDay{
-		StartDate: startDate,
-		EndDate:   endDate,
+		StartDate: schedule.Date(startDate),
+		EndDate:   schedule.Date(endDate),
 		Reason:    req.Reason,
 	}
 
@@ -156,8 +156,8 @@ func (rs *Resource) updateClosingDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	day.StartDate = startDate
-	day.EndDate = endDate
+	day.StartDate = schedule.Date(startDate)
+	day.EndDate = schedule.Date(endDate)
 	day.Reason = req.Reason
 
 	if err := rs.ClosingDayService.Update(r.Context(), day); err != nil {

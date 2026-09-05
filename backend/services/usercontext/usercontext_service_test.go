@@ -21,7 +21,7 @@ import (
 func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContextService {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	repos := usercontextSvc.UserContextRepositories{
 		AccountRepo:        repoFactory.Account,
@@ -571,7 +571,7 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, avatarURL, result["avatar"])
 
-		accountRecord, err := repositories.NewFactory(db).Account.FindByID(ctx, account.ID)
+		accountRecord, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account.FindByID(ctx, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, avatarURL, accountRecord.Avatar)
 	})

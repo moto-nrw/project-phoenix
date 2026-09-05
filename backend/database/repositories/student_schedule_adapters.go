@@ -59,10 +59,8 @@ func legacyScheduleQueryOptions(options *carePlanLegacy.ScheduleQueryOptions) *c
 func legacyScheduleError(op string, err error) error {
 	return carePlanLegacy.ScheduleError(op, err)
 }
-func today() careplan.Date { return carePlanLegacy.TodayScheduleDate() }
-func date(value carePlanLegacy.ScheduleDate) careplan.Date {
-	return carePlanLegacy.PublicScheduleDate(value)
-}
+func today() careplan.Date                         { return carePlanLegacy.TodayScheduleDate() }
+func date(value scheduleModels.Date) careplan.Date { return careplan.Date(value) }
 
 func (r arrivalScheduleRepository) Create(ctx context.Context, row *scheduleModels.StudentArrivalSchedule) error {
 	if row == nil {
@@ -221,20 +219,20 @@ func (r arrivalExceptionRepository) FindByStudentID(ctx context.Context, id int6
 func (r arrivalExceptionRepository) FindUpcomingByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, UpcomingFrom: today()}, "find upcoming by student id")
 }
-func (r arrivalExceptionRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d carePlanLegacy.ScheduleDate) (*scheduleModels.StudentArrivalException, error) {
+func (r arrivalExceptionRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) (*scheduleModels.StudentArrivalException, error) {
 	values, err := r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: date(d)}, "find by student id and date")
 	if err != nil || len(values) == 0 {
 		return nil, err
 	}
 	return values[0], nil
 }
-func (r arrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentArrivalException, error) {
+func (r arrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, Date: date(d)}, "find by student ids and date")
 }
-func (r arrivalExceptionRepository) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentArrivalException, error) {
+func (r arrivalExceptionRepository) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, From: date(from), To: date(to)}, "find by student id and date range")
 }
-func (r arrivalExceptionRepository) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentArrivalException, error) {
+func (r arrivalExceptionRepository) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, From: date(from), To: date(to)}, "find by student ids and date range")
 }
 func (r arrivalExceptionRepository) list(ctx context.Context, filter careplan.StudentScheduleFilter, op string) ([]*scheduleModels.StudentArrivalException, error) {
@@ -247,7 +245,7 @@ func (r arrivalExceptionRepository) list(ctx context.Context, filter careplan.St
 func (r arrivalExceptionRepository) DeleteByStudentID(ctx context.Context, id int64) error {
 	return legacyScheduleError("delete by student id", r.DeleteArrivalExceptionsByStudent(ctx, id))
 }
-func (r arrivalExceptionRepository) DeletePastExceptions(ctx context.Context, d carePlanLegacy.ScheduleDate) (int64, error) {
+func (r arrivalExceptionRepository) DeletePastExceptions(ctx context.Context, d scheduleModels.Date) (int64, error) {
 	rows, err := r.DeleteArrivalExceptionsBefore(ctx, date(d))
 	return rows, legacyScheduleError("delete past exceptions", err)
 }
@@ -299,10 +297,10 @@ func (r arrivalNoteRepository) List(ctx context.Context, options *carePlanLegacy
 func (r arrivalNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
 }
-func (r arrivalNoteRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentArrivalNote, error) {
+func (r arrivalNoteRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: date(d)}, "find by student id and date")
 }
-func (r arrivalNoteRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentArrivalNote, error) {
+func (r arrivalNoteRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, Date: date(d)}, "find by student ids and date")
 }
 func (r arrivalNoteRepository) list(ctx context.Context, filter careplan.StudentScheduleFilter, op string) ([]*scheduleModels.StudentArrivalNote, error) {
@@ -315,7 +313,7 @@ func (r arrivalNoteRepository) list(ctx context.Context, filter careplan.Student
 func (r arrivalNoteRepository) DeleteByStudentID(ctx context.Context, id int64) error {
 	return legacyScheduleError("delete by student id", r.DeleteArrivalNotesByStudent(ctx, id))
 }
-func (r arrivalNoteRepository) DeletePastNotes(ctx context.Context, d carePlanLegacy.ScheduleDate) (int64, error) {
+func (r arrivalNoteRepository) DeletePastNotes(ctx context.Context, d scheduleModels.Date) (int64, error) {
 	rows, err := r.DeleteArrivalNotesBefore(ctx, date(d))
 	return rows, legacyScheduleError("delete past notes", err)
 }
@@ -478,20 +476,20 @@ func (r pickupExceptionRepository) FindByStudentID(ctx context.Context, id int64
 func (r pickupExceptionRepository) FindUpcomingByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, UpcomingFrom: today()}, "find upcoming by student id")
 }
-func (r pickupExceptionRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d carePlanLegacy.ScheduleDate) (*scheduleModels.StudentPickupException, error) {
+func (r pickupExceptionRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) (*scheduleModels.StudentPickupException, error) {
 	values, err := r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: date(d)}, "find by student id and date")
 	if err != nil || len(values) == 0 {
 		return nil, err
 	}
 	return values[0], nil
 }
-func (r pickupExceptionRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentPickupException, error) {
+func (r pickupExceptionRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, Date: date(d)}, "find by student ids and date")
 }
-func (r pickupExceptionRepository) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentPickupException, error) {
+func (r pickupExceptionRepository) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, From: date(from), To: date(to)}, "find by student id and date range")
 }
-func (r pickupExceptionRepository) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentPickupException, error) {
+func (r pickupExceptionRepository) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, From: date(from), To: date(to)}, "find by student ids and date range")
 }
 func (r pickupExceptionRepository) list(ctx context.Context, filter careplan.StudentScheduleFilter, op string) ([]*scheduleModels.StudentPickupException, error) {
@@ -504,7 +502,7 @@ func (r pickupExceptionRepository) list(ctx context.Context, filter careplan.Stu
 func (r pickupExceptionRepository) DeleteByStudentID(ctx context.Context, id int64) error {
 	return legacyScheduleError("delete by student id", r.DeletePickupExceptionsByStudent(ctx, id))
 }
-func (r pickupExceptionRepository) DeletePastExceptions(ctx context.Context, d carePlanLegacy.ScheduleDate) (int64, error) {
+func (r pickupExceptionRepository) DeletePastExceptions(ctx context.Context, d scheduleModels.Date) (int64, error) {
 	rows, err := r.DeletePickupExceptionsBefore(ctx, date(d))
 	return rows, legacyScheduleError("delete past exceptions", err)
 }
@@ -556,10 +554,10 @@ func (r pickupNoteRepository) List(ctx context.Context, options *carePlanLegacy.
 func (r pickupNoteRepository) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}}, "find by student id")
 }
-func (r pickupNoteRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentPickupNote, error) {
+func (r pickupNoteRepository) FindByStudentIDAndDate(ctx context.Context, id int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: date(d)}, "find by student id and date")
 }
-func (r pickupNoteRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d carePlanLegacy.ScheduleDate) ([]*scheduleModels.StudentPickupNote, error) {
+func (r pickupNoteRepository) FindByStudentIDsAndDate(ctx context.Context, ids []int64, d scheduleModels.Date) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, careplan.StudentScheduleFilter{StudentIDs: ids, Date: date(d)}, "find by student ids and date")
 }
 func (r pickupNoteRepository) list(ctx context.Context, filter careplan.StudentScheduleFilter, op string) ([]*scheduleModels.StudentPickupNote, error) {
@@ -572,7 +570,7 @@ func (r pickupNoteRepository) list(ctx context.Context, filter careplan.StudentS
 func (r pickupNoteRepository) DeleteByStudentID(ctx context.Context, id int64) error {
 	return legacyScheduleError("delete by student id", r.DeletePickupNotesByStudent(ctx, id))
 }
-func (r pickupNoteRepository) DeletePastNotes(ctx context.Context, d carePlanLegacy.ScheduleDate) (int64, error) {
+func (r pickupNoteRepository) DeletePastNotes(ctx context.Context, d scheduleModels.Date) (int64, error) {
 	rows, err := r.DeletePickupNotesBefore(ctx, date(d))
 	return rows, legacyScheduleError("delete past notes", err)
 }
@@ -607,7 +605,7 @@ func arrivalExceptionToLegacy(v careplan.ArrivalException) *scheduleModels.Stude
 }
 func applyArrivalException(r *scheduleModels.StudentArrivalException, v careplan.ArrivalException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, carePlanLegacy.ScheduleDate(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
+	r.StudentID, r.ExceptionDate, r.ExpectedArrival, r.Reason, r.Source, r.CreatedBy, r.CreatedByGuardian = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.ExpectedArrival, v.Reason, v.Source, v.CreatedBy, v.CreatedByGuardian
 }
 func arrivalNoteToPublic(v *scheduleModels.StudentArrivalNote) careplan.ArrivalNote {
 	return careplan.ArrivalNote{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, NoteDate: date(v.NoteDate), Content: v.Content, CreatedBy: v.CreatedBy}
@@ -619,7 +617,7 @@ func arrivalNoteToLegacy(v careplan.ArrivalNote) *scheduleModels.StudentArrivalN
 }
 func applyArrivalNote(r *scheduleModels.StudentArrivalNote, v careplan.ArrivalNote) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, carePlanLegacy.ScheduleDate(v.NoteDate), v.Content, v.CreatedBy
+	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Content, v.CreatedBy
 }
 func pickupScheduleToPublic(v *scheduleModels.StudentPickupSchedule) careplan.PickupSchedule {
 	return careplan.PickupSchedule{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, Weekday: v.Weekday, PickupTime: v.PickupTime, Notes: v.Notes, CreatedBy: v.CreatedBy, Source: v.Source, CareOfferingID: v.CareOfferingID}
@@ -643,7 +641,7 @@ func pickupExceptionToLegacy(v careplan.PickupException) *scheduleModels.Student
 }
 func applyPickupException(r *scheduleModels.StudentPickupException, v careplan.PickupException) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, carePlanLegacy.ScheduleDate(v.ExceptionDate), v.PickupTime, v.Reason
+	r.StudentID, r.ExceptionDate, r.PickupTime, r.Reason = v.StudentID, scheduleModels.Date(v.ExceptionDate), v.PickupTime, v.Reason
 	r.ExcusedFrom, r.ExcusedReason, r.ExcusedCreatedBy, r.ExcusedOwnsPickupTime, r.ExcusedAuto = v.ExcusedFrom, v.ExcusedReason, v.ExcusedCreatedBy, v.ExcusedOwnsPickupTime, v.ExcusedAuto
 	r.Source, r.CreatedBy, r.CreatedByGuardian = v.Source, v.CreatedBy, v.CreatedByGuardian
 }
@@ -657,7 +655,7 @@ func pickupNoteToLegacy(v careplan.PickupNote) *scheduleModels.StudentPickupNote
 }
 func applyPickupNote(r *scheduleModels.StudentPickupNote, v careplan.PickupNote) {
 	r.ID, r.TenantID, r.CreatedAt, r.UpdatedAt = v.ID, v.TenantID, v.CreatedAt, v.UpdatedAt
-	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, carePlanLegacy.ScheduleDate(v.NoteDate), v.Content, v.CreatedBy
+	r.StudentID, r.NoteDate, r.Content, r.CreatedBy = v.StudentID, scheduleModels.Date(v.NoteDate), v.Content, v.CreatedBy
 }
 
 var (

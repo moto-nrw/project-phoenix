@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestCategoryValidate(t *testing.T) {
@@ -101,12 +99,12 @@ func TestCategory_GetID(t *testing.T) {
 	t.Parallel()
 
 	cat := &Category{
-		Model: base.Model{ID: 42},
+		Model: Model{ID: 42},
 		Name:  "Test",
 	}
 
-	if got, ok := cat.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", cat.GetID())
+	if cat.ID != 42 {
+		t.Errorf("ID = %v, want 42", cat.ID)
 	}
 }
 
@@ -115,11 +113,11 @@ func TestCategory_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{CreatedAt: now},
+		Model: Model{CreatedAt: now},
 		Name:  "Test",
 	}
 
-	if got := cat.GetCreatedAt(); !got.Equal(now) {
+	if got := cat.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -129,11 +127,11 @@ func TestCategory_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{UpdatedAt: now},
+		Model: Model{UpdatedAt: now},
 		Name:  "Test",
 	}
 
-	if got := cat.GetUpdatedAt(); !got.Equal(now) {
+	if got := cat.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

@@ -297,24 +297,24 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 		if len(covered) == 0 || weekdays.reachesBeyondEdit(row.Weekday, seg.Weekdays, covered) {
 			continue
 		}
-		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {
+		if !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) {
 			continue
 		}
-		if seriesRowStaysCorrect(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) &&
+		if seriesRowStaysCorrect(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) &&
 			wantedOnAllWeekdays(want, covered, row.StudentID, false) {
 			for _, weekday := range covered {
 				satisfied[seriesWeekdayPerson{weekday: weekday, personID: row.StudentID}] = true
 			}
 			continue
 		}
-		action := classifyOwnedRosterRetirement(row.ValidFrom, row.ValidUntil, true, rowFrom, rowUntil)
+		action := classifyOwnedRosterRetirement(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), true, rowFrom, rowUntil)
 		switch action {
 		case rosterRetirementDelete:
 			if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
 				return nil, &ScheduleError{Op: "update template: delete predecessor enrollment", Err: err}
 			}
 		case rosterRetirementClose:
-			if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, rowFrom); err != nil {
+			if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(rowFrom)); err != nil {
 				return nil, &ScheduleError{Op: "update template: close predecessor enrollment", Err: err}
 			}
 		default:
@@ -334,8 +334,8 @@ func (s *TimetableDataService) reconcilePredecessorEnrollmentRows(
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        key.personID,
 			ActivityGroupID:  seg.Group.ID,
-			ValidFrom:        rowFrom,
-			ValidUntil:       cloneOptionalDate(rowUntil),
+			ValidFrom:        activitiesModel.Date(rowFrom),
+			ValidUntil:       activityDatePtr(rowUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          &weekday,
 		}
@@ -398,10 +398,10 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 		if len(covered) == 0 || weekdays.reachesBeyondEdit(row.Weekday, seg.Weekdays, covered) {
 			continue
 		}
-		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {
+		if !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) {
 			continue
 		}
-		if seriesRowStaysCorrect(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) &&
+		if seriesRowStaysCorrect(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) &&
 			wantedOnAllWeekdays(want, covered, row.StaffID, false) &&
 			(!in.SeriesRosterPrimaryChanged ||
 				primaryFlagMatches(primaryWanted, covered, row.StaffID, row.IsPrimary)) {
@@ -410,14 +410,14 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 			}
 			continue
 		}
-		action := classifyOwnedRosterRetirement(row.ValidFrom, row.ValidUntil, true, rowFrom, rowUntil)
+		action := classifyOwnedRosterRetirement(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), true, rowFrom, rowUntil)
 		switch action {
 		case rosterRetirementDelete:
 			if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return nil, &ScheduleError{Op: "update template: delete predecessor supervisor", Err: err}
 			}
 		case rosterRetirementClose:
-			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, rowFrom); err != nil {
+			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(rowFrom)); err != nil {
 				return nil, &ScheduleError{Op: "update template: close predecessor supervisor", Err: err}
 			}
 		default:
@@ -438,8 +438,8 @@ func (s *TimetableDataService) reconcilePredecessorSupervisorRows(
 			StaffID:          key.personID,
 			GroupID:          seg.Group.ID,
 			IsPrimary:        primaryWanted[key],
-			ValidFrom:        rowFrom,
-			ValidUntil:       cloneOptionalDate(rowUntil),
+			ValidFrom:        activitiesModel.Date(rowFrom),
+			ValidUntil:       activityDatePtr(rowUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          &weekday,
 		}
@@ -472,7 +472,7 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 	if today := s.deps.Today(); from.Before(today) {
 		from = today
 	}
-	all, err := s.deps.ActivityInstanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
+	all, err := s.deps.ActivityInstanceRepo.FindPlannedTemplateBackedFrom(ctx, scheduleModel.Date(from))
 	if err != nil {
 		return &ScheduleError{Op: "reconcile predecessor staff: load future instances", Err: err}
 	}
@@ -517,14 +517,15 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 		if inst.CalendarPeriodID != nil {
 			periodID = *inst.CalendarPeriodID
 		}
-		primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, inst.Date, periodID)
+		instanceDate := timezone.Date(inst.Date)
+		primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID)
 		for _, staffID := range staffIDs {
-			desired := supervisorsPlanStaffOn(byStaff[staffID], inst.Date, periodID)
+			desired := supervisorsPlanStaffOn(byStaff[staffID], instanceDate, periodID)
 			key := instanceStudentPair{instanceID: inst.ID, studentID: staffID}
 			row, exists := existing[key]
 			switch {
 			case desired && !exists:
-				if supervisorsPlanStaffOn(priorByStaff[staffID], inst.Date, periodID) {
+				if supervisorsPlanStaffOn(priorByStaff[staffID], instanceDate, periodID) {
 					// The pre-edit rows already planned this occurrence and the
 					// row is gone regardless — a hand removal that stays.
 					continue
@@ -698,7 +699,7 @@ func protectedPredecessorEnrollments(
 		if row == nil || !enrollmentIsProtected(row) {
 			continue
 		}
-		if !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, rowFrom, rowUntil) {
+		if !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) {
 			continue
 		}
 		out = append(out, row)

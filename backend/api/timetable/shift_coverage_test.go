@@ -43,7 +43,7 @@ func setupShiftCoverageRoute(t *testing.T) chi.Router {
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
 	t.Helper()
 	shift := &scheduleModel.StaffShift{
-		StaffID: staffID, Date: date,
+		StaffID: staffID, Date: scheduleModel.Date(date),
 		StartTime: coverageClock(t, start), EndTime: coverageClock(t, end),
 		CreatedBy: staffID,
 	}
@@ -141,10 +141,10 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 	createCoverageShift(t, s, activator.ID, weekA, "07:00", "08:00")
 	createCoverageShift(t, s, activator.ID, weekB, "07:00", "08:00")
 
-	anchor := weekA
+	anchor := scheduleModel.Date(weekA)
 	period := &scheduleModel.CalendarPeriod{
 		Name: fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), PeriodType: scheduleModel.PeriodTypeSchoolYear,
-		StartDate: weekA, EndDate: weekB.AddDays(6), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
+		StartDate: scheduleModel.Date(weekA), EndDate: scheduleModel.Date(weekB.AddDays(6)), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, mustTimetableTestRepositories(s.db).CalendarPeriod.Create(s.ctx, period))

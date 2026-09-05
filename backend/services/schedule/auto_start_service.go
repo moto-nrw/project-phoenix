@@ -116,7 +116,7 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 	}()
 
 	today := timezone.DateFromTime(now)
-	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, today)
+	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
 	}

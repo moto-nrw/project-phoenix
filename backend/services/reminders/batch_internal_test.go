@@ -229,7 +229,7 @@ func (w *world) GetBulkEffectivePickupTimesForDate(_ context.Context, ids []int6
 
 // --- instanceReader -----------------------------------------------------------
 
-func (w *world) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (w *world) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	w.hit("FindByTenantAndDate")
 	return w.instances, nil
 }

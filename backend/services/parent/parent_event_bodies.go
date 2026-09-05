@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -95,12 +96,12 @@ func careExceptionEventBody(date timezone.Date, pickupTime, arrivalTime *time.Ti
 // submission wrote (pickup preferred, else arrival). Best-effort: a lookup
 // failure just leaves the pill without a ref.
 func (s *service) careExceptionRef(ctx context.Context, studentID int64, date timezone.Date) (string, *int64) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 	if err == nil && pickup != nil {
 		id := pickup.ID
 		return "schedule.student_pickup_exceptions", &id
 	}
-	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 	if err == nil && arrival != nil {
 		id := arrival.ID
 		return "schedule.student_arrival_exceptions", &id

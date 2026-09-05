@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -55,7 +56,7 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 		ShiftID:        existing.ID,
 		SourceStaffID:  7,
 		TargetStaffID:  8,
-		Date:           existing.Date,
+		Date:           timezone.Date(existing.Date),
 		StartTime:      existing.StartTime,
 		EndTime:        existing.EndTime,
 		BreakMinutes:   existing.BreakMinutes,
@@ -99,7 +100,7 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 7,
-		Date:          existing.Date,
+		Date:          timezone.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,
@@ -127,7 +128,7 @@ func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: 7,
 		TargetStaffID: 8,
-		Date:          existing.Date,
+		Date:          timezone.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,

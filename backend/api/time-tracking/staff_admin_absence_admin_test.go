@@ -44,7 +44,7 @@ func setupAbsenceAdminTest(t *testing.T, clocks ...func() time.Time) (tc *testCo
 	tomorrow := today.AddDays(1)
 	shift := &scheduleModels.StaffShift{
 		StaffID:   subject.ID,
-		Date:      tomorrow,
+		Date:      scheduleModels.Date(tomorrow),
 		StartTime: time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		CreatedBy: subject.ID,

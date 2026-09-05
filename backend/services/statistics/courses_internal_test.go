@@ -19,11 +19,11 @@ type courseRepoStub struct {
 	participErr   error
 }
 
-func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]scheduleModels.CourseInstanceRow, error) {
+func (s courseRepoStub) CourseInstances(context.Context, scheduleModels.Date, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.CourseInstanceRow, error) {
 	return s.instances, s.instanceErr
 }
 
-func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]scheduleModels.CourseParticipationRow, error) {
+func (s courseRepoStub) CourseParticipation(context.Context, scheduleModels.Date, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.CourseParticipationRow, error) {
 	return s.participation, s.participErr
 }
 

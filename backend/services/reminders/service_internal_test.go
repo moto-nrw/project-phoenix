@@ -101,7 +101,7 @@ func (f fakeRoom) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesModel.
 	return rooms, nil
 }
 
-func (f fakeInstance) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f fakeInstance) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return f.instances, f.err
 }
 

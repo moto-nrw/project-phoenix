@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,7 +210,7 @@ func TestStudentPickupSchedule_GetID(t *testing.T) {
 
 	schedule := &StudentPickupSchedule{}
 	schedule.ID = 42
-	assert.Equal(t, int64(42), schedule.GetID())
+	assert.Equal(t, int64(42), schedule.ID)
 }
 
 func TestStudentPickupSchedule_GetCreatedAt(t *testing.T) {
@@ -220,7 +219,7 @@ func TestStudentPickupSchedule_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	schedule := &StudentPickupSchedule{}
 	schedule.CreatedAt = now
-	assert.Equal(t, now, schedule.GetCreatedAt())
+	assert.Equal(t, now, schedule.CreatedAt)
 }
 
 func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
@@ -229,7 +228,7 @@ func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	schedule := &StudentPickupSchedule{}
 	schedule.UpdatedAt = now
-	assert.Equal(t, now, schedule.GetUpdatedAt())
+	assert.Equal(t, now, schedule.UpdatedAt)
 }
 
 // =============================================================================
@@ -239,7 +238,7 @@ func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
 func TestStudentPickupException_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -370,7 +369,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 func TestStudentPickupException_IsAbsent(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -420,7 +419,7 @@ func TestStudentPickupException_GetID(t *testing.T) {
 
 	exception := &StudentPickupException{}
 	exception.ID = 42
-	assert.Equal(t, int64(42), exception.GetID())
+	assert.Equal(t, int64(42), exception.ID)
 }
 
 func TestStudentPickupException_GetCreatedAt(t *testing.T) {
@@ -429,7 +428,7 @@ func TestStudentPickupException_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	exception := &StudentPickupException{}
 	exception.CreatedAt = now
-	assert.Equal(t, now, exception.GetCreatedAt())
+	assert.Equal(t, now, exception.CreatedAt)
 }
 
 func TestStudentPickupException_GetUpdatedAt(t *testing.T) {
@@ -438,7 +437,7 @@ func TestStudentPickupException_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	exception := &StudentPickupException{}
 	exception.UpdatedAt = now
-	assert.Equal(t, now, exception.GetUpdatedAt())
+	assert.Equal(t, now, exception.UpdatedAt)
 }
 
 // =============================================================================
@@ -476,7 +475,7 @@ func TestWeekdayNames(t *testing.T) {
 func TestStudentPickupNote_Validate(t *testing.T) {
 	t.Parallel()
 
-	validDate := timezone.NewDate(2024, 1, 15)
+	validDate := NewDate(2024, 1, 15)
 
 	tests := []struct {
 		name    string
@@ -620,7 +619,7 @@ func TestStudentPickupNote_GetID(t *testing.T) {
 
 	note := &StudentPickupNote{}
 	note.ID = 42
-	assert.Equal(t, int64(42), note.GetID())
+	assert.Equal(t, int64(42), note.ID)
 }
 
 func TestStudentPickupNote_GetCreatedAt(t *testing.T) {
@@ -629,7 +628,7 @@ func TestStudentPickupNote_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	note := &StudentPickupNote{}
 	note.CreatedAt = now
-	assert.Equal(t, now, note.GetCreatedAt())
+	assert.Equal(t, now, note.CreatedAt)
 }
 
 func TestStudentPickupNote_GetUpdatedAt(t *testing.T) {
@@ -638,5 +637,5 @@ func TestStudentPickupNote_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	note := &StudentPickupNote{}
 	note.UpdatedAt = now
-	assert.Equal(t, now, note.GetUpdatedAt())
+	assert.Equal(t, now, note.UpdatedAt)
 }

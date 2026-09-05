@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -237,14 +238,14 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 				{
 					StudentID:        s.studentA,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 				},
 				{
 					StudentID:        s.studentB,
 					ActivityGroupID:  in.TemplateID,
-					ValidFrom:        in.EffectiveFrom,
+					ValidFrom:        activitiesModel.Date(in.EffectiveFrom),
 					CalendarPeriodID: in.CalendarPeriodID,
 					SelectedWeekdays: []int{activitiesModel.WeekdayTuesday},
 				},
@@ -373,7 +374,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)
-	assert.Equal(t, seedDate, seed.Date)
+	assert.Equal(t, scheduleModels.Date(seedDate), seed.Date)
 }
 
 func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {

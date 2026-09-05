@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -83,7 +82,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 
 // FindByActivityGroupAndDate returns the exception for a specific
 // (template, date) pair, or nil if none exists.
-func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) (*schedule.ActivityException, error) {
+func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date schedule.Date) (*schedule.ActivityException, error) {
 	var row schedule.ActivityException
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&row).
@@ -113,7 +112,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Con
 func (r *ActivityExceptionRepository) FindByActivityGroupAndDateRange(
 	ctx context.Context,
 	activityGroupID int64,
-	from, to timezone.Date,
+	from, to schedule.Date,
 ) ([]*schedule.ActivityException, error) {
 	var rows []*schedule.ActivityException
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -136,7 +135,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDateRange(
 }
 
 // FindByDateRange returns all exceptions within an inclusive date range.
-func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityException, error) {
+func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to schedule.Date) ([]*schedule.ActivityException, error) {
 	var rows []*schedule.ActivityException
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).

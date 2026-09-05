@@ -51,7 +51,7 @@ func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -77,7 +77,7 @@ func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// ACT
@@ -96,7 +96,7 @@ func TestInvitationTokenRepository_FindByID_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -121,7 +121,7 @@ func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// ACT
@@ -140,7 +140,7 @@ func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -165,7 +165,7 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -195,7 +195,7 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -230,7 +230,7 @@ func TestInvitationTokenRepository_FindByEmail_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -256,7 +256,7 @@ func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -284,7 +284,7 @@ func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -316,7 +316,7 @@ func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -352,7 +352,7 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -415,7 +415,7 @@ func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -439,7 +439,7 @@ func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -469,7 +469,7 @@ func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -502,7 +502,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -533,7 +533,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -568,7 +568,7 @@ func TestInvitationTokenRepository_Update_Success(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// Create dependencies
@@ -601,7 +601,7 @@ func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 	ctx := testpkg.Ctx(t)
 
 	// ACT
@@ -621,7 +621,7 @@ func TestInvitationTokenRepository_InvalidateByTenantID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).InvitationToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
 
 	t.Run("marks pending invitations as used and returns count", func(t *testing.T) {
 		// ARRANGE

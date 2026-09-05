@@ -20,7 +20,7 @@ func TestClassListEntryAdapter_KeepsTheLegacyErrorContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestClassListEntry(t, db, "Zoe", "Aalders", "1a")
@@ -50,7 +50,7 @@ func TestClassListEntryAdapter_ClassLookupsMatchCaseInsensitivelyAndOrderByName(
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	zander := testpkg.CreateTestClassListEntry(t, db, "Anna", "Zander", "3c")
