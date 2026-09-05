@@ -4,7 +4,12 @@
  * Arten und der Umgang mit einer zwischenzeitlich geänderten Anfrage.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,6 +23,8 @@ import {
   listAggregatedRequestHistory,
   listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
@@ -52,6 +59,9 @@ vi.mock("~/components/students/excused-request-review-item", () => ({
     <div>excused-item-{row.id}</div>
   ),
 }));
+
+const render = (ui: React.ReactNode) =>
+  renderComponent(ui, { wrapper: ToastProvider });
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);
