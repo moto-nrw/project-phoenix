@@ -141,7 +141,7 @@ describe("ParentEnrollFormPage", () => {
     // Adresszeile sauber (siehe lib/parent-url.ts).
     expect(
       screen.getByRole("link", { name: "Andere Anmeldung wählen" }),
-    ).toHaveAttribute("href", "/enroll");
+    ).toHaveAttribute("href", "/anmeldung");
     expect(form.closest(".w-full")).toBeInTheDocument();
     expect(form.closest(".max-w-4xl")).not.toBeInTheDocument();
     expect(form).toHaveAttribute("data-grade-level-max", "13");

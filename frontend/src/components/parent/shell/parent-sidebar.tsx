@@ -86,7 +86,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
   };
 
   const settingsActive = isParentNavActive("/parents/settings", pathname);
-  const enrollActive = isParentNavActive("/parents/enroll", pathname);
+  const enrollActive = isParentNavActive("/parents/anmeldung", pathname);
 
   return (
     <>
@@ -123,7 +123,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
               </li>
               <li>
                 <NavLink
-                  href={parentPath("/parents/enroll")}
+                  href={parentPath("/parents/anmeldung")}
                   data-parent-nav-item="enroll"
                   data-active={enrollActive ? "true" : "false"}
                   aria-current={enrollActive ? "page" : undefined}

@@ -19,7 +19,9 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useTenant } from "~/lib/tenant-context";
+import { formatDate } from "~/lib/date-helpers";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   fetchPublicEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
@@ -31,7 +33,7 @@ interface PageProps {
 
 /**
  * Per-phase enrollment form page. The parent picks a phase on the
- * landing page (`/enroll`); this page renders the form scoped to that
+ * landing page (`/anmeldung`); this page renders the form scoped to that
  * phase. The form fetches its own schema + offerings using the phaseId,
  * and posts to /api/enrollment/{tenantSlug}/submit with phase_id set.
  *
@@ -54,6 +56,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
   const searchParams = useSearchParams();
   const lateInviteToken = searchParams.get("late_invite")?.trim();
   const { tenantSlug, tenant } = useTenant();
+  const tenantPath = useTenantAwarePath();
   const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(
     null,
   );
@@ -138,7 +141,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-8">
-            <PublicEnrollmentBackLink href="/enroll">
+            <PublicEnrollmentBackLink href={tenantPath("/anmeldung")}>
               {t("backToPicker")}
             </PublicEnrollmentBackLink>
             <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
@@ -188,8 +191,8 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
                   </dt>
                   <dd>
                     {t("dateRange", {
-                      from: formatDate(phase.service_start_date, locale),
-                      to: formatDate(phase.service_end_date, locale),
+                      from: formatDate(phase.service_start_date, false, locale),
+                      to: formatDate(phase.service_end_date, false, locale),
                     })}
                   </dd>
                 </div>
@@ -237,15 +240,6 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       </div>
     </PublicEnrollmentPageShell>
   );
-}
-
-function formatDate(value: string, locale: string): string {
-  return new Date(value).toLocaleDateString(locale, {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 function formatDateTime(value: string, locale: string): string {

@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 /**
  * Public enrollment is the only parent-facing surface on a tenant subdomain,
  * so it is localized while the rest of the tenant (staff) portal stays German.
- * The proxy flags /enroll/* as localized; this Server Component provider
+ * The proxy flags /anmeldung/* as localized; this Server Component provider
  * auto-inherits the resolved locale + message catalog from request.ts.
  *
  * Scoping the provider here (rather than app-wide in the root layout) keeps the

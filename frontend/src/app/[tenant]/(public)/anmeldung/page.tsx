@@ -6,6 +6,8 @@ import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
 import { useTenant } from "~/lib/tenant-context";
+import { formatDate } from "~/lib/date-helpers";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import type { TenantInfo } from "~/lib/tenant-api";
 import {
   PublicEnrollmentBrand,
@@ -25,7 +27,7 @@ const logger = createLogger({ component: "EnrollPhasePicker" });
 /**
  * Phase picker for the new public landing page for parents. Lists every
  * currently-open phase as a card. Clicking a phase navigates to
- * /{tenant}/enroll/{phaseId} which renders the per-phase form. Was
+ * /{tenant}/anmeldung/{phaseId} which renders the per-phase form. Was
  * previously a school-year dropdown above the form; PR B's phase
  * model splits the picker out so each phase carries its own form.
  */
@@ -33,6 +35,7 @@ export default function EnrollPhasePickerPage() {
   const t = useTranslations("enrollmentPublic");
   const locale = useLocale();
   const { tenantSlug, tenant } = useTenant();
+  const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<PublicPhase[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +127,9 @@ export default function EnrollPhasePickerPage() {
                   {phases.map((phase) => (
                     <li key={phase.id}>
                       <Link
-                        href={`/enroll/${encodeURIComponent(phase.id)}`}
+                        href={tenantPath(
+                          `/anmeldung/${encodeURIComponent(phase.id)}`,
+                        )}
                         className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="min-w-0">
@@ -163,9 +168,14 @@ export default function EnrollPhasePickerPage() {
                             {t("serviceRange", {
                               from: formatDate(
                                 phase.service_start_date,
+                                false,
                                 locale,
                               ),
-                              to: formatDate(phase.service_end_date, locale),
+                              to: formatDate(
+                                phase.service_end_date,
+                                false,
+                                locale,
+                              ),
                             })}
                           </p>
                         </div>
@@ -218,14 +228,6 @@ function PhasePickerHeader({ tenant }: { readonly tenant: TenantInfo | null }) {
       </div>
     </div>
   );
-}
-
-function formatDate(value: string, locale: string): string {
-  return new Date(value).toLocaleDateString(locale, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 function formatDateTime(value: string, locale: string): string {

@@ -111,8 +111,8 @@ Reserved slug lists in `backend/models/platform/organization.go` and
 
 ### Embedded enrollment
 
-The parents portal serves `/parents/enroll/{slug}/{phaseId}` with the same
-`EnrollmentForm` used by `{slug}.TENANT_DOMAIN/enroll/{phaseId}`, injecting
+The parents portal serves `/parents/anmeldung/{slug}/{phaseId}` with the same
+`EnrollmentForm` used by `{slug}.TENANT_DOMAIN/anmeldung/{phaseId}`, injecting
 `profileFetcher`, `submitter`, and `skipCaptcha`. Authenticated parent submissions
 stamp `enrollment.requests.guardian_account_id`; decisions prefer attachment by
 that ID over email matching.
