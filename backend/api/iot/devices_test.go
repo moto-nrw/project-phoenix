@@ -51,7 +51,7 @@ func (rs devicesTestResource) Router() chi.Router {
 func setupDevicesModule(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupDeviceModule(t)
 
 	resource := devicesTestResource{DevicesResource: NewDevicesResource(svc.IoT), tb: t}
 

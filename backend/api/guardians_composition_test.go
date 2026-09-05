@@ -91,8 +91,8 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 	if len(appEnvs) > 0 {
 		appEnv = appEnvs[0]
 	}
-	db, svc := testutil.SetupAPITest(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc, db, appEnv, slog.Default())
+	db, svc := testutil.SetupGuardianModule(t)
+	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), db, appEnv, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

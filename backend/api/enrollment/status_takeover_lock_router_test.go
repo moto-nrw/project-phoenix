@@ -92,7 +92,8 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
 	account := testpkg.CreateTestAccount(t, db, "takeover-lock")
