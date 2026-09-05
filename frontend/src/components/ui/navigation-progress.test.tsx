@@ -222,6 +222,29 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("shows progress for a browser history navigation", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell();
+
+    act(() => {
+      window.history.replaceState({}, "", "/calendar-periods");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    route.pathname = "/calendar-periods";
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("ends a programmatic navigation after a redirected destination is active", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useContext(AppRouterContext);

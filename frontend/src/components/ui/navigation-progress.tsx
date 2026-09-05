@@ -12,6 +12,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -43,6 +44,8 @@ interface NavigationProgressStore {
   readonly startLink: () => void;
   readonly endLink: () => void;
   readonly startProgrammatic: (target: string | null) => number;
+  readonly startHistory: () => number | null;
+  readonly isHistoryPending: () => boolean;
   readonly completeProgrammatic: (currentUrl: string) => void;
   readonly completeHistory: (currentUrl: string) => void;
   readonly cancelProgrammatic: (id: number) => void;
@@ -74,6 +77,35 @@ function createStore(): NavigationProgressStore {
     change();
     if (wasPending !== isPending()) notify();
   };
+  const startProgrammatic = (target: string | null) => {
+    const id = nextProgrammaticNavigationId + 1;
+    nextProgrammaticNavigationId = id;
+    update(() => {
+      const previous = pendingProgrammaticNavigation;
+      // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
+      // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
+      // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
+      const supersededTargets = new Set(previous?.supersededTargets);
+      if (previous?.target !== null && previous?.target !== undefined) {
+        supersededTargets.add(previous.target);
+      }
+      if (previous) clearTimeout(previous.timeout);
+      const origin = currentUrl();
+      pendingProgrammaticNavigation = {
+        id,
+        target,
+        supersededTargets,
+        origin,
+        timeout: setTimeout(() => {
+          if (pendingProgrammaticNavigation?.id !== id) return;
+          update(() => {
+            pendingProgrammaticNavigation = null;
+          });
+        }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
+      };
+    });
+    return id;
+  };
   return {
     subscribe: (onChange) => {
       listeners.add(onChange);
@@ -92,35 +124,12 @@ function createStore(): NavigationProgressStore {
         pendingLinks = Math.max(0, pendingLinks - 1);
       });
     },
-    startProgrammatic: (target) => {
-      const id = nextProgrammaticNavigationId + 1;
-      nextProgrammaticNavigationId = id;
-      update(() => {
-        const previous = pendingProgrammaticNavigation;
-        // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
-        // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
-        // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
-        const supersededTargets = new Set(previous?.supersededTargets);
-        if (previous?.target !== null && previous?.target !== undefined) {
-          supersededTargets.add(previous.target);
-        }
-        if (previous) clearTimeout(previous.timeout);
-        const origin = currentUrl();
-        pendingProgrammaticNavigation = {
-          id,
-          target,
-          supersededTargets,
-          origin,
-          timeout: setTimeout(() => {
-            if (pendingProgrammaticNavigation?.id !== id) return;
-            update(() => {
-              pendingProgrammaticNavigation = null;
-            });
-          }, PROGRAMMATIC_NAVIGATION_TIMEOUT_MS),
-        };
-      });
-      return id;
+    startProgrammatic,
+    startHistory: () => {
+      if (pendingProgrammaticNavigation?.target === null) return null;
+      return startProgrammatic(null);
     },
+    isHistoryPending: () => pendingProgrammaticNavigation?.target === null,
     completeProgrammatic: (url) => {
       const pending = pendingProgrammaticNavigation;
       if (!pending || pending.supersededTargets.has(url)) {
@@ -182,7 +191,7 @@ function NavigationProgressRouter({
   readonly children: ReactNode;
   readonly store: NavigationProgressStore;
 }) {
-  const router = useContext(AppRouterContext);
+  const router: AppRouterInstance | null = useContext(AppRouterContext);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace/back/forward-Aufrufe
   // ab, ohne jede Schaltfläche auf einen eigenen Navigationshelfer umzustellen.
@@ -245,11 +254,11 @@ function navigateTo(
 }
 
 function navigateHistory(store: NavigationProgressStore, navigate: () => void) {
-  const id = store.startProgrammatic(null);
+  const id = store.startHistory();
   try {
     navigate();
   } catch (error) {
-    store.cancelProgrammatic(id);
+    if (id !== null) store.cancelProgrammatic(id);
     throw error;
   }
 }
@@ -275,15 +284,29 @@ function NavigationProgressCompletion({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams?.toString() ?? "";
+  const lastRouteUrl = useRef<string | null>(null);
 
   useEffect(() => {
-    store.completeProgrammatic(currentUrl());
+    const url = currentUrl();
+    store.completeProgrammatic(url);
+    lastRouteUrl.current = url;
   }, [pathname, search, store]);
 
   useEffect(() => {
-    const completeHistory = () => store.completeHistory(currentUrl());
-    window.addEventListener("popstate", completeHistory);
-    return () => window.removeEventListener("popstate", completeHistory);
+    const handleHistoryNavigation = () => {
+      const url = currentUrl();
+      if (store.isHistoryPending()) {
+        store.completeHistory(url);
+      } else if (
+        lastRouteUrl.current !== null &&
+        url !== lastRouteUrl.current
+      ) {
+        store.startHistory();
+      }
+    };
+    window.addEventListener("popstate", handleHistoryNavigation);
+    return () =>
+      window.removeEventListener("popstate", handleHistoryNavigation);
   }, [store]);
 
   return null;
