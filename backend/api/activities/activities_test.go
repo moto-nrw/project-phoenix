@@ -44,7 +44,7 @@ type testContext struct {
 func setupActivitiesRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActivitiesModule(t)
 
 	resource := activitiesAPI.NewResource(
 		svc.Activities,

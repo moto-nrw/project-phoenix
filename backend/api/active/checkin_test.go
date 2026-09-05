@@ -220,7 +220,7 @@ func TestAttendance_Fields(t *testing.T) {
 func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
 
-	_, serviceFactory := testutil.SetupAPITest(t)
+	_, serviceFactory := testutil.SetupActiveModule(t)
 
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default())
 }

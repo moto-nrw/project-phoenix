@@ -74,10 +74,10 @@ func TestRouterManagesCustomTypeAllowance(t *testing.T) {
 func setupAbsenceTypesRoute(t *testing.T) (*testpkg.DB, *absencetypes.Resource) {
 	t.Helper()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-	resource := absencetypes.NewResource(serviceFactory.StaffAbsenceType, db, slog.Default())
+	db, svc := testutil.SetupAbsenceTypeModule(t)
+	resource := absencetypes.NewResource(svc.StaffAbsenceType, db, slog.Default())
 	resource.SetActorResolver(func(ctx context.Context) (int64, error) {
-		current, err := serviceFactory.UserContext.GetCurrentStaff(ctx)
+		current, err := svc.UserContext.GetCurrentStaff(ctx)
 		if err != nil {
 			return 0, err
 		}

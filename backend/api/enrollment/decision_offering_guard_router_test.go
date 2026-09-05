@@ -44,7 +44,7 @@ type offeringGuardHarness struct {
 	router             http.Handler
 	requestID, childID int64
 	token              string
-	repos              *repositories.Factory
+	repos              repositories.EnrollmentTestRepositories
 	ctx                context.Context
 }
 
@@ -112,7 +112,8 @@ func setupOfferingGuardRouterTest(
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	require.NoError(t, repoErr)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)
 	request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
@@ -130,7 +131,7 @@ func setupOfferingGuardRouterTest(
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}
 }
 
-func createOfferingGuardPhase(t *testing.T, repos *repositories.Factory, ctx context.Context, mode string) *enrollmentModels.Phase {
+func createOfferingGuardPhase(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, mode string) *enrollmentModels.Phase {
 	t.Helper()
 	phase := &enrollmentModels.Phase{
 		Name:                      "Angebotspruefung " + t.Name(),
@@ -146,7 +147,7 @@ func createOfferingGuardPhase(t *testing.T, repos *repositories.Factory, ctx con
 	return phase
 }
 
-func createOfferingGuardChild(t *testing.T, repos *repositories.Factory, ctx context.Context, phaseID int64) (*enrollmentModels.Request, *enrollmentModels.RequestChild) {
+func createOfferingGuardChild(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phaseID int64) (*enrollmentModels.Request, *enrollmentModels.RequestChild) {
 	t.Helper()
 	request := &enrollmentModels.Request{
 		PhaseID:           phaseID,
@@ -176,7 +177,7 @@ func createOfferingGuardChild(t *testing.T, repos *repositories.Factory, ctx con
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos *repositories.Factory, ctx context.Context, phase *enrollmentModels.Phase, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phase *enrollmentModels.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
@@ -227,7 +228,7 @@ func datePointers(from, until timezone.Date) (*timezone.Date, *timezone.Date) {
 	return &from, &until
 }
 
-func newOfferingGuardDecisionService(repos *repositories.Factory, offeringsEnabled bool, offeringRepo enrollmentModels.RequestChildOfferingRepository) enrollmentService.DecisionService {
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, offeringRepo enrollmentModels.RequestChildOfferingRepository) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo: repos.Request, RequestChildRepo: repos.RequestChild, RequestGuardianRepo: repos.RequestGuardian,
 		LateInviteRepo: repos.LateInvite, RequestChildOfferingRepo: offeringRepo, CareOfferingRepo: repos.CareOffering,

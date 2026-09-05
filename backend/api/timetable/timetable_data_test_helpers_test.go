@@ -40,15 +40,7 @@ func testTimetableDataWithOfferingCallbacks(
 	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
-	// Template rows resolve their education group name through the School
-	// Structure owner, so the activity group repository must come from the
-	// bound factory, exactly as in production composition.
-	groups, err := repositories.NewSchoolStructure(db)
-	if err != nil {
-		panic(err)
-	}
-	boundRepos := repositories.NewFactory(db)
-	boundRepos.BindSchoolStructure(groups)
+	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
 	var today func() timezone.Date
@@ -105,4 +97,12 @@ func testTimetableDataWithOfferingCallbacks(
 		Today:                      today,
 	}
 	return scheduleSvc.NewTimetableDataService(deps)
+}
+
+func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repositories.TimetableTestRepositories {
+	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	if err != nil {
+		panic(err)
+	}
+	return repos
 }

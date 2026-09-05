@@ -20,12 +20,13 @@
 //
 // Regenerate after an INTENTIONAL route change:
 //
-//	go test ./api/ -run 'TestRouteTableGolden|TestIoTAuthMatrixGolden' -update-goldens
+//	go test ./api/ -run TestFullProductionRouterGolden -update-goldens
 //
 // and justify the diff in the PR description.
 package api
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -38,7 +39,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -49,49 +49,8 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table and IoT auth-matrix golden files")
 
-var (
-	goldenAPIOnce sync.Once
-	goldenAPI     *API
-	goldenAPIErr  error
-)
-
-// newGoldenAPI builds the production Serve root exactly once per test binary.
-// newRuntime is the builder owned by WithRuntime. It calls api.New, which
-// registers Prometheus collectors and DB stats
-// providers on global registries — a second construction in the same process
-// would panic on duplicate registration.
-func newGoldenAPI(t *testing.T) *API {
-	t.Helper()
-
-	// SetupTestDB loads the root .env (TEST_DB_DSN, PHOENIX_AUTH_PASSWORD),
-	// forces APP_ENV=test, and points viper's test_db_dsn at the
-	// package-isolated clone — api.New's DBConnForServe resolves through the
-	// same viper key, so the whole router builds against the clone. Its
-	// bootstrap also serializes the cluster-global phoenix_auth role setup.
-	testpkg.SetupTestDB(t)
-
-	goldenAPIOnce.Do(func() {
-		runtime, err := newRuntime(ServeConfig{
-			Port:   "0",
-			Logger: slog.Default(),
-		})
-		if err != nil {
-			goldenAPIErr = err
-			return
-		}
-		var ok bool
-		goldenAPI, ok = runtime.Handler().(*API)
-		if !ok {
-			goldenAPIErr = fmt.Errorf("Serve root handler has type %T, want *api.API", runtime.Handler())
-		}
-	})
-	require.NoError(t, goldenAPIErr, "api.WithRuntime builder failed — route goldens need the assembled production Serve root")
-	return goldenAPI
-}
-
-func TestRouteTableGolden(t *testing.T) {
+func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
-	apiInstance := newGoldenAPI(t)
 
 	var routes, middlewareRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
@@ -227,9 +186,8 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-func TestIoTAuthMatrixGolden(t *testing.T) {
+func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 	t.Parallel()
-	apiInstance := newGoldenAPI(t)
 
 	var iotRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -312,4 +270,30 @@ func unifiedDiff(want, got string) string {
 		return "(same line sets — ordering or duplicate-count changed)"
 	}
 	return b.String()
+}
+
+// TestFullProductionRouterGolden is the only API test that composes the complete
+// production graph. Its subtests cover contracts of the assembled router.
+func TestFullProductionRouterGolden(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	called := false
+	err := WithRuntime(context.Background(), ServeConfig{Port: "127.0.0.1:0", Logger: slog.Default()}, func(runtime *Runtime) error {
+		called = true
+		require.NotNil(t, runtime.worker)
+		api, ok := runtime.Handler().(*API)
+		require.True(t, ok)
+		// Wait for parallel contract subtests before WithRuntime closes its resources.
+		t.Run("contracts", func(t *testing.T) {
+			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
+			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
+			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
+			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
+			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
+		})
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, called)
+	t.Run("invalid runtime dependencies", checkRuntimeRejectsMissingDependencies)
 }
