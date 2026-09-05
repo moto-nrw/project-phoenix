@@ -15,7 +15,7 @@ import (
 func setupActivitiesInternalRoute(t *testing.T) (*bun.DB, *Resource) {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActivitiesModule(t)
 	resource := NewResource(svc.Activities, svc.Schedule, svc.Users, svc.UserContext, db)
 	return db, resource
 }

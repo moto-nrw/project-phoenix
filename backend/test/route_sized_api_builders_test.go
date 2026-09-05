@@ -80,8 +80,12 @@ func routeSizedBuilderViolations(backendRoot string) ([]string, error) {
 
 	var violations []string
 	for _, source := range files {
+		if !strings.HasSuffix(source.relPath, "_test.go") || !routeBuilderScope(source.relPath) {
+			continue
+		}
 		violations = append(violations, inspectRouteBuilderFile(source)...)
 	}
+	violations = append(violations, compositionGraphViolations(files)...)
 
 	sort.Strings(violations)
 	return violations, nil
@@ -103,7 +107,7 @@ func inspectRouteBuilderFunction(source routeBuilderFile, function *ast.FuncDecl
 	kind := classifyRouteBuilder(name)
 	result := inspectRouteBuilderResults(source, function.Type.Results)
 	var violations []string
-	if kind != notRouteBuilder && result.hasFactory {
+	if result.hasFactory {
 		violations = append(violations, source.relPath+"#"+name+" returns services.Factory")
 	}
 	if kind != notRouteBuilder && result.hasUntyped {
@@ -112,10 +116,10 @@ func inspectRouteBuilderFunction(source routeBuilderFile, function *ast.FuncDecl
 	if kind == routeBuilder && !result.hasRoute {
 		violations = append(violations, source.relPath+"#"+name+" does not return a router, handler, or API resource")
 	}
-	return append(violations, broadCompositionCalls(source, function, kind)...)
+	return append(violations, broadCompositionCalls(source, function)...)
 }
 
-func broadCompositionCalls(source routeBuilderFile, function *ast.FuncDecl, kind routeBuilderKind) []string {
+func broadCompositionCalls(source routeBuilderFile, function *ast.FuncDecl) []string {
 	var violations []string
 	name := function.Name.Name
 	ast.Inspect(function.Body, func(node ast.Node) bool {
@@ -125,11 +129,10 @@ func broadCompositionCalls(source routeBuilderFile, function *ast.FuncDecl, kind
 			return true
 		}
 		importPath := source.imports[identifier.Name]
-		smokeTest := source.relPath == "api/testutil/helpers_test.go" && name == "TestSetupAPITest"
-		if importPath == testutilImport && selector.Sel.Name == "SetupAPITest" && kind == notRouteBuilder && !smokeTest {
+		if importPath == testutilImport && selector.Sel.Name == "SetupAPITest" {
 			violations = append(violations, source.relPath+"#"+name+" calls SetupAPITest outside a route/module builder")
 		}
-		if importPath == rootServicesImport && selector.Sel.Name == "NewFactory" && kind == notRouteBuilder {
+		if importPath == rootServicesImport && selector.Sel.Name == "NewFactory" {
 			violations = append(violations, source.relPath+"#"+name+" calls services.NewFactory outside a route/module builder")
 		}
 		return true
@@ -189,9 +192,6 @@ func (state *routeBuilderParseState) parse(path string, entry fs.DirEntry, walkE
 		}
 		collectRouteBuilderTypes(file, imports, pkgKey, state.typesByImportPath[importPath])
 	}
-	if !strings.HasSuffix(relPath, "_test.go") || !routeBuilderScope(relPath) {
-		return nil
-	}
 	state.parsed = append(state.parsed, parsedRouteBuilderFile{
 		relPath: relPath,
 		file:    file,
@@ -235,6 +235,7 @@ func (state *routeBuilderParseState) files() []routeBuilderFile {
 
 func routeBuilderScope(relPath string) bool {
 	return strings.HasPrefix(relPath, "api/") ||
+		(strings.HasPrefix(relPath, "modules/") && (strings.Contains(relPath, "/http/") || strings.Contains(relPath, "/compose/httpadapter/"))) ||
 		strings.HasPrefix(relPath, "test/e2e/calendar/") ||
 		strings.HasPrefix(relPath, "test/e2e/timetable/")
 }
@@ -315,7 +316,7 @@ func inspectRouteBuilderIdentifier(source routeBuilderFile, identifier *ast.Iden
 	if identifier.Name == "any" {
 		return routeBuilderResult{hasUntyped: true}
 	}
-	if (identifier.Name == "Resource" && strings.HasPrefix(source.relPath, "api/")) ||
+	if (identifier.Name == "Resource" && routeBuilderScope(source.relPath)) ||
 		(identifier.Name == "API" && filepath.Dir(source.relPath) == "api") {
 		return routeBuilderResult{hasRoute: true}
 	}
@@ -346,7 +347,7 @@ func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.Selector
 		hasFactory: importPath == rootServicesImport && selector.Sel.Name == "Factory",
 		hasRoute: (importPath == chiImport && selector.Sel.Name == "Router") ||
 			(importPath == httpImport && selector.Sel.Name == "Handler") ||
-			(strings.Contains(importPath, "/api/") && strings.HasSuffix(selector.Sel.Name, "Resource")),
+			(isHTTPResourceImport(importPath) && strings.HasSuffix(selector.Sel.Name, "Resource")),
 	}
 	if result.hasFactory || result.hasRoute {
 		return result
@@ -444,7 +445,7 @@ func inspectImportedSelectorUntyped(source routeBuilderFile, selector *ast.Selec
 		return false
 	}
 	importPath := source.imports[identifier.Name]
-	if strings.Contains(importPath, "/api/") && strings.HasSuffix(selector.Sel.Name, "Resource") {
+	if isHTTPResourceImport(importPath) && strings.HasSuffix(selector.Sel.Name, "Resource") {
 		return false
 	}
 	declaration, ok := source.typesByImportPath[importPath][selector.Sel.Name]
@@ -462,6 +463,10 @@ func inspectImportedSelectorUntyped(source routeBuilderFile, selector *ast.Selec
 	result := inspectImportedCarrierUntyped(nested, declaration.expression, visited)
 	delete(visited, key)
 	return result
+}
+
+func isHTTPResourceImport(path string) bool {
+	return strings.Contains(path, "/api/") || strings.Contains(path, "/http/") || strings.Contains(path, "/compose/httpadapter")
 }
 
 func importedInterfaceIsUntyped(source routeBuilderFile, typed *ast.InterfaceType, visited map[string]bool) bool {

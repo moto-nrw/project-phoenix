@@ -1,7 +1,7 @@
 // Package checkin_test holds the DB-backed and stub-based unit tests for the
 // extracted CheckinService (issue #575 B8). These live in the EXTERNAL
 // checkin_test package (not package checkin) because the module builder uses
-// the shared API graph — importing that graph from an internal checkin test
+// the narrow check-in composition — importing that graph from an internal checkin test
 // would recreate the services ↔ services/iot/checkin cycle.
 package checkin_test
 
@@ -33,13 +33,13 @@ type svcTestContext struct {
 func setupCheckinServiceModule(t *testing.T) *svcTestContext {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	db, module := testutil.SetupCheckinModule(t)
 
 	// Belt-and-suspenders: ensure the FK target row for this test's tenant exists on
 	// the exact connection pool used by the services.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	return &svcTestContext{svc: factory.Checkin, db: db}
+	return &svcTestContext{svc: module.Checkin, db: db}
 }
 
 // createTestActiveGroupWithDevice creates an active group linked to a device.
