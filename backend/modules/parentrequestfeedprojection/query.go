@@ -89,23 +89,23 @@ func ListNewParentRequests(ctx context.Context, db bun.IDB, tenantID int64, sinc
 		FROM (
 			SELECT 'master_data'::text AS kind, id, created_at
 			FROM users.student_data_change_requests
-			WHERE tenant_id = ? AND created_at >= ? AND status <> 'auto_applied' AND ?
+			WHERE tenant_id = ? AND created_at >= ? AND status = 'pending' AND ?
 			UNION ALL
 			SELECT 'care_schedule'::text, id, created_at
 			FROM schedule.care_schedule_change_requests
-			WHERE tenant_id = ? AND created_at >= ? AND ?
+			WHERE tenant_id = ? AND created_at >= ? AND status = 'pending' AND ?
 			UNION ALL
 			SELECT 'offering'::text, id, created_at
 			FROM enrollment.offering_change_requests
-			WHERE tenant_id = ? AND created_at >= ? AND ?
+			WHERE tenant_id = ? AND created_at >= ? AND status = 'pending' AND ?
 			UNION ALL
 			SELECT 'excused_absence'::text, id, created_at
 			FROM active.excused_absence_requests
-			WHERE tenant_id = ? AND created_at >= ? AND ?
+			WHERE tenant_id = ? AND created_at >= ? AND status = 'pending' AND ?
 			UNION ALL
 			SELECT 'enrollment'::text, id, created_at
 			FROM enrollment.change_requests
-			WHERE tenant_id = ? AND created_at >= ? AND origin = 'parent' AND ?
+			WHERE tenant_id = ? AND created_at >= ? AND origin = 'parent' AND status = 'pending_review' AND ?
 		) AS requests
 		ORDER BY created_at DESC, kind ASC, id DESC
 	`,
