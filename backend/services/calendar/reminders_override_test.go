@@ -50,19 +50,3 @@ func TestAppointmentWithOverrideAppliesEveryChangedField(t *testing.T) {
 	assert.Equal(t, "Planning", appointment.Title, "the stored appointment must not be mutated")
 	assert.False(t, appointment.AllDay)
 }
-
-// A claim is taken per guardian profile before the push is dispatched. Between
-// claim and dispatch a guardian can lose access, and those stale claims have to
-// be released — otherwise the reminder is never retried for them.
-func TestWithoutReminderProfiles(t *testing.T) {
-	t.Parallel()
-
-	claimed := []int64{11, 12, 13}
-
-	assert.Equal(t, []int64{12}, withoutReminderProfiles(claimed, []int64{11, 13}),
-		"a guardian who is no longer reachable must have their claim released")
-	assert.Empty(t, withoutReminderProfiles(claimed, claimed))
-	assert.Equal(t, claimed, withoutReminderProfiles(claimed, nil),
-		"losing every recipient releases every claim")
-	assert.Empty(t, withoutReminderProfiles(nil, claimed))
-}

@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -154,13 +153,6 @@ func (f *fakeCalendarService) RecipientOptions(_ context.Context, query string, 
 	f.gotOptionsQ = query
 	f.gotOptionsLim = limit
 	return f.options, f.optionsErr
-}
-
-// EnqueueDueAppointmentReminders exists only to satisfy the service interface:
-// the guardian reminder scan (#1671) is driven by the scheduler, never by an
-// HTTP handler, so no test in this file calls it.
-func (f *fakeCalendarService) EnqueueDueAppointmentReminders(context.Context, time.Time, time.Time) (int, error) {
-	return 0, nil
 }
 
 func requestWithURLParam(req *http.Request, key, value string) *http.Request {

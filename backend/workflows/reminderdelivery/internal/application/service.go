@@ -1,9 +1,9 @@
-// Package reminders computes visual-only staff reminders (issue #1457):
+// Package application computes visual-only staff reminders (issue #1457):
 // upcoming pickups, overdue pickups, and activity starts. There is no sound and
 // no push — the data is derived on request from schedules already in the system
 // and rendered on the staff "Erinnerungen" page. All thresholds (which types
 // are on, lead-time minutes) are tenant settings resolved at request time.
-package reminders
+package application
 
 import (
 	"context"
@@ -16,220 +16,26 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
-// Reminder event types.
-const (
-	TypePickupUpcoming  = "pickup_upcoming"
-	TypePickupOverdue   = "pickup_overdue"
-	TypeActivityStart   = "activity_start"
-	TypeActivityOverdue = "activity_overdue"
-)
-
-// Reminder is a single visual reminder shown to staff.
-type Reminder struct {
-	Type string `json:"type"`
-	// Entity IDs are serialized as strings to honor the repo's int64→string API
-	// contract (JS loses precision on int64 as a JSON number). Exactly one is set
-	// according to Type and gives frontend lists a stable reconciliation key.
-	StudentID          *string `json:"student_id,omitempty"`
-	ActivityInstanceID *string `json:"activity_instance_id,omitempty"`
-	Title              string  `json:"title"`              // student name OR activity title
-	Subtitle           string  `json:"subtitle,omitempty"` // school class or room — optional
-	DueTime            string  `json:"due_time"`           // "HH:MM" of the relevant time
-	MinutesAway        int     `json:"minutes_away"`       // negative when overdue
-}
-
-// Result is the computed reminder list plus a convenience count for the badge.
-// Enabled reports whether the tenant has switched on at least one reminder
-// type — the header bell uses it to show/hide itself (and the /reminders page
-// link it exposes) regardless of whether anything is currently due.
-type Result struct {
-	Reminders []Reminder `json:"reminders"`
-	Count     int        `json:"count"`
-	Enabled   bool       `json:"enabled"`
-	// NextChangeAt is the wall-clock "HH:MM" of the soonest future moment at
-	// which this list would change purely by time passing — the next pickup or
-	// activity entering/leaving its window. The frontend schedules a timer to
-	// exactly this time to refetch, so a reminder appears on its threshold
-	// instead of only on the next fixed poll. Omitted when nothing time-based is
-	// pending (the poll then remains the only cadence). Data-driven changes
-	// (check-ins, edits) are still delivered via the SSE-stale event, not this.
-	NextChangeAt string `json:"next_change_at,omitempty"`
-	// AssignedActivityInstanceIDs names the activity instances this person is
-	// personally planned on, keyed exactly like Reminder.ActivityInstanceID.
-	//
-	// Set by ComputeBatch only and never serialized: the /reminders page shows
-	// one activity list and does not care where an entry came from. A consumer
-	// that addresses people individually does care — "an activity in the room
-	// you are watching" and "the slot you have to show up for" are two
-	// different messages, and a person may want to hear one and not the other.
-	AssignedActivityInstanceIDs map[string]struct{} `json:"-"`
-}
-
-// Scope describes whose reminders to compute. Admins see all present children
-// and all activities; caregivers see only the children currently in the rooms
-// they supervise and the activities in those rooms (issue #1457 decision).
-type Scope struct {
-	IsAdmin bool
-	StaffID int64
-}
-
-// Service is the reminder computation entry point for one caller.
-type Service interface {
-	Compute(ctx context.Context, scope Scope) (*Result, error)
-}
-
-// BatchComputer computes personally-scoped reminder lists for many staff
-// members with a number of queries that does not grow with the number of staff.
-// It exists for callers with no authenticated user (the scheduler), which is
-// also why it takes staff IDs rather than deriving the person from the context.
-//
-// It is deliberately separate from Service: Service is implemented by several
-// test doubles that have no business growing a batch method.
-type BatchComputer interface {
-	// ComputeBatch returns one result per requested scope, keyed by ResultKey
-	// when set and otherwise by StaffID. Every requested scope gets an entry, so
-	// callers may index the map without checking. Any read failure fails the
-	// whole batch, matching Compute's all-or-nothing contract.
-	ComputeBatch(ctx context.Context, scopes []BatchScope) (map[int64]*Result, error)
-}
-
-// Computer is the full surface the concrete service provides. It is assignable
-// to Service, so consumers that only need Compute keep their narrower type.
-type Computer interface {
-	Service
-	BatchComputer
-}
-
-// BatchScope is one recipient of a batch computation. IsAdmin is the caller's
-// assertion, exactly as with Scope — the service does not verify it.
-type BatchScope struct {
-	Scope
-	// ResultKey lets callers address an effective admin who has no staff row.
-	// It is an opaque, non-zero map key; ordinary staff scopes leave it unset
-	// and remain keyed by StaffID.
-	ResultKey int64
-	// IncludeAssignedActivityStart enables upcoming reminders for activity
-	// instances this person is planned on. Unlike room-scoped activity
-	// reminders, this personal type has no tenant-level reminder gate.
-	IncludeAssignedActivityStart bool
-}
-
-func (s BatchScope) resultKey() int64 {
-	if s.ResultKey != 0 {
-		return s.ResultKey
+func resultKey(scope reminder.BatchScope) int64 {
+	if scope.ResultKey != 0 {
+		return scope.ResultKey
 	}
-	return s.StaffID
-}
-
-type settingsResolver interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-}
-
-var reminderSettingKeys = []string{
-	configModel.KeyRemindersPickupUpcomingEnabled,
-	configModel.KeyRemindersPickupOverdueEnabled,
-	configModel.KeyRemindersActivityStartEnabled,
-	configModel.KeyRemindersActivityOverdueEnabled,
-	configModel.KeyRemindersPickupUpcomingLeadMinutes,
-	configModel.KeyRemindersActivityStartLeadMinutes,
-	configModel.KeyTimetableOverdueThresholdMinutes,
-	configModel.KeyPresenceMode,
-}
-
-type attendanceReader interface {
-	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
-}
-
-type pickupReader interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error)
-}
-
-type instanceReader interface {
-	FindByTenantAndDate(ctx context.Context, date scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
-}
-
-type roomReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error)
-}
-
-type studentReader interface {
-	// FindReadScopeByIDs returns only the id/group_id/person_id/school_class
-	// projection this service needs — read-access gating plus name display. It
-	// deliberately avoids the repository's full FindByIDs hydration (weekday
-	// bus-day / departure jsonb + an information_schema probe), which would run on
-	// every 60s header poll for the whole present population and buys this service
-	// nothing.
-	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
-}
-
-type personReader interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Person, error)
-}
-
-type supervisionReader interface {
-	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
-	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*activeModel.Group, error)
-}
-
-type roomPresenceReader interface {
-	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
-}
-
-// Dependencies wires the readers the service needs. They mirror existing
-// services/repositories so no new query construction lives here.
-type Dependencies struct {
-	Settings    settingsResolver
-	Attendance  attendanceReader
-	Pickup      pickupReader
-	Instance    instanceReader
-	Room        roomReader
-	Student     studentReader
-	Person      personReader
-	Supervision supervisionReader
-	Visits      roomPresenceReader
-	Logger      *slog.Logger
-
-	// The bulk readers below are used only by ComputeBatch. They are optional so
-	// every existing Dependencies literal keeps compiling; a nil one fails
-	// closed (empty room set or nobody readable), never open.
-	BulkSupervision bulkSupervisionReader
-	// BulkInstanceStaff resolves the planned staff of today's activity
-	// instances. Without it the batch falls back to room supervision alone,
-	// which never reaches the person who is supposed to START a slot.
-	BulkInstanceStaff bulkInstanceStaffReader
-}
-
-// bulkInstanceStaffReader answers who is planned on which activity instance.
-type bulkInstanceStaffReader interface {
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error)
-}
-
-// bulkSupervisionReader answers "who supervises which room right now" for the
-// whole tenant in one query.
-type bulkSupervisionReader interface {
-	ListActiveSupervisedRooms(ctx context.Context) ([]activeModel.StaffRoomSupervision, error)
+	return scope.StaffID
 }
 
 type service struct {
-	Dependencies
+	ports.QueryDependencies
 }
 
-// NewService builds the reminder service. It returns Computer so wiring can
-// reach ComputeBatch; the value stays assignable to Service for the consumers
-// that only compute for one caller.
-func NewService(deps Dependencies) Computer {
+// NewQuery builds the reminder query from tenant-scoped input ports.
+func NewQuery(deps ports.QueryDependencies) reminder.Query {
+	if deps.Clock == nil {
+		panic("reminders.NewService: Clock is required")
+	}
 	if deps.Room == nil {
 		panic("reminders.NewService: Room is required")
 	}
@@ -239,11 +45,26 @@ func NewService(deps Dependencies) Computer {
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
-	return &service{Dependencies: deps}
+	return &service{QueryDependencies: deps}
 }
 
-func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
-	empty := &Result{Reminders: []Reminder{}}
+func (s *service) ComputeForCaller(ctx context.Context, effectiveAdmin bool) (*reminder.Result, error) {
+	scope := reminder.Scope{IsAdmin: effectiveAdmin}
+	if !effectiveAdmin {
+		if s.CurrentStaff == nil {
+			return nil, errors.New("user context is not configured")
+		}
+		staffID, err := s.CurrentStaff(ctx)
+		if err != nil {
+			return nil, err
+		}
+		scope.StaffID = staffID
+	}
+	return s.Compute(ctx, scope)
+}
+
+func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.Result, error) {
+	empty := &reminder.Result{Reminders: []reminder.Reminder{}}
 	if s.Settings == nil {
 		return empty, nil
 	}
@@ -256,21 +77,21 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	// A resolution failure (DB/RLS/tenant-tx error) must surface, not be treated
 	// as "disabled" — otherwise a broken config read looks like a healthy empty
 	// result and silently hides reminders the tenant switched on.
-	pickupUpcoming, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
+	pickupUpcoming, err := s.Settings.PickupUpcomingEnabled(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupUpcomingEnabled, err)
+		return nil, err
 	}
-	pickupOverdue, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
+	pickupOverdue, err := s.Settings.PickupOverdueEnabled(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupOverdueEnabled, err)
+		return nil, err
 	}
-	activityStart, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
+	activityStart, err := s.Settings.ActivityStartEnabled(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityStartEnabled, err)
+		return nil, err
 	}
-	activityOverdue, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
+	activityOverdue, err := s.Settings.ActivityOverdueEnabled(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityOverdueEnabled, err)
+		return nil, err
 	}
 
 	// Default-off: nothing enabled means no work and no data exposure.
@@ -278,10 +99,9 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		return empty, nil
 	}
 
-	today := timezone.TodayDate()
-	nowMin := minutesOfDay(timezone.Now())
+	today, nowMin := s.Clock()
 
-	var pickupPart, activityPart []Reminder
+	var pickupPart, activityPart []reminder.Reminder
 	// -1 = no future time-based change pending. Both branches feed their soonest
 	// boundary in; the earliest across pickups and activities wins.
 	nextChange := -1
@@ -294,7 +114,7 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		if serr != nil {
 			return nil, serr
 		}
-		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		lead, lerr := s.leadMinutes(ctx, s.Settings.PickupLeadMinutes)
 		if lerr != nil {
 			return nil, lerr
 		}
@@ -317,7 +137,7 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 			}
 			roomIDs = rooms
 		}
-		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes)
+		lead, lerr := s.leadMinutes(ctx, s.Settings.ActivityLeadMinutes)
 		if lerr != nil {
 			return nil, lerr
 		}
@@ -338,16 +158,16 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 
 func (s *service) withSettingsSnapshot(ctx context.Context) (context.Context, error) {
 	batch, ok := s.Settings.(interface {
-		ResolveMany(context.Context, []string) (*configService.SettingsSnapshot, error)
+		Snapshot(context.Context) (context.Context, error)
 	})
 	if !ok {
 		return ctx, nil
 	}
-	snapshot, err := batch.ResolveMany(ctx, reminderSettingKeys)
+	snapshotCtx, err := batch.Snapshot(ctx)
 	if err != nil {
 		return ctx, fmt.Errorf("resolve reminder settings: %w", err)
 	}
-	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+	return snapshotCtx, nil
 }
 
 // errActivityRoomReaderMissing is returned when overdue activity reminders are
@@ -362,8 +182,8 @@ var errActivityRoomReaderMissing = errors.New("activity reminder room reader is 
 //
 // Pickups are appended before activities and the sort is stable, so the two
 // groups keep their relative order when they tie on urgency.
-func assembleResult(pickupPart, activityPart []Reminder, nextChange int) *Result {
-	reminders := make([]Reminder, 0, len(pickupPart)+len(activityPart))
+func assembleResult(pickupPart, activityPart []reminder.Reminder, nextChange int) *reminder.Result {
+	reminders := make([]reminder.Reminder, 0, len(pickupPart)+len(activityPart))
 	reminders = append(reminders, pickupPart...)
 	reminders = append(reminders, activityPart...)
 
@@ -372,7 +192,7 @@ func assembleResult(pickupPart, activityPart []Reminder, nextChange int) *Result
 		return reminders[i].MinutesAway < reminders[j].MinutesAway
 	})
 
-	result := &Result{Reminders: reminders, Count: len(reminders), Enabled: true}
+	result := &reminder.Result{Reminders: reminders, Count: len(reminders), Enabled: true}
 	if nextChange >= 0 {
 		result.NextChangeAt = formatMinutes(nextChange)
 	}
@@ -393,7 +213,7 @@ func assembleResult(pickupPart, activityPart []Reminder, nextChange int) *Result
 //     empty even when checked-in students have due pickups). Fall back to all
 //     present students from attendance and let the read predicate in
 //     pickupReminders lock the set down to the caregiver's own education groups.
-func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today timezone.Date) ([]int64, error) {
+func (s *service) pickupScopeStudentIDs(ctx context.Context, scope reminder.Scope, today string) ([]int64, error) {
 	if scope.IsAdmin {
 		return s.presentStudentIDsFromAttendance(ctx, today)
 	}
@@ -416,7 +236,7 @@ func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today 
 // presentStudentIDsFromAttendance lists all students with an open attendance
 // row today. Used for admins (all present children) and for caregivers in
 // binary mode, where room-scoped visit rows do not exist.
-func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today timezone.Date) ([]int64, error) {
+func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today string) ([]int64, error) {
 	if s.Attendance == nil {
 		return nil, nil
 	}
@@ -431,15 +251,11 @@ func (s *service) binaryMode(ctx context.Context) (bool, error) {
 	if s.Settings == nil {
 		return false, nil
 	}
-	v, err := s.Settings.ResolveString(ctx, configModel.KeyPresenceMode)
-	if err != nil {
-		return false, fmt.Errorf("resolve %s: %w", configModel.KeyPresenceMode, err)
-	}
-	return v == configModel.PresenceModeBinary, nil
+	return s.Settings.BinaryPresence(ctx)
 }
 
 // supervisedRoomIDs returns the room IDs the caregiver currently supervises.
-func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, error) {
+func (s *service) supervisedRoomIDs(ctx context.Context, scope reminder.Scope) ([]int64, error) {
 	if s.Supervision == nil {
 		return nil, nil
 	}
@@ -490,7 +306,7 @@ func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) (
 	return slices.Collect(maps.Keys(studentSet)), nil
 }
 
-func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, int, error) {
+func (s *service) pickupReminders(ctx context.Context, scope reminder.Scope, studentIDs []int64, today string, nowMin, lead int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
 	nextChange := -1
 	if len(studentIDs) == 0 || s.Pickup == nil {
 		return nil, nextChange, nil
@@ -584,8 +400,8 @@ type duePickup struct {
 // must run before any boundary is derived.
 func duePickups(
 	studentIDs []int64,
-	times map[int64]*scheduleService.EffectivePickupTime,
-	readable map[int64]*userModel.Student,
+	times map[int64]*ports.EffectivePickupTime,
+	readable map[int64]*ports.Student,
 	w pickupWindow,
 ) ([]duePickup, int) {
 	nextChange := -1
@@ -645,8 +461,8 @@ func duePickups(
 // buildPickupReminders renders due pickups into reminders. Pure: it neither
 // reads nor logs, and returns the students it had to drop so the caller can emit
 // the log line. Both entry points share it, so the drop rule cannot diverge.
-func buildPickupReminders(dues []duePickup, names map[int64]studentNameInfo) ([]Reminder, []int64) {
-	out := make([]Reminder, 0, len(dues))
+func buildPickupReminders(dues []duePickup, names map[int64]studentNameInfo) ([]reminder.Reminder, []int64) {
+	out := make([]reminder.Reminder, 0, len(dues))
 	var dropped []int64
 
 	for _, d := range dues {
@@ -664,11 +480,11 @@ func buildPickupReminders(dues []duePickup, names map[int64]studentNameInfo) ([]
 			dropped = append(dropped, d.id)
 			continue
 		}
-		reminderType := TypePickupUpcoming
+		reminderType := reminder.TypePickupUpcoming
 		if d.isOverdue {
-			reminderType = TypePickupOverdue
+			reminderType = reminder.TypePickupOverdue
 		}
-		out = append(out, Reminder{
+		out = append(out, reminder.Reminder{
 			Type:        reminderType,
 			StudentID:   int64String(d.id),
 			Title:       info.name,
@@ -691,12 +507,12 @@ func (s *service) logDroppedPickups(dropped []int64) {
 	}
 }
 
-func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]Reminder, int, error) {
+func (s *service) activityReminders(ctx context.Context, scope reminder.Scope, roomIDs []int64, today string, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
 	nextChange := -1
 	if s.Instance == nil {
 		return nil, nextChange, nil
 	}
-	instances, err := s.Instance.FindByTenantAndDate(ctx, scheduleModel.Date(today))
+	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
 	if err != nil {
 		return nil, nextChange, err
 	}
@@ -744,11 +560,11 @@ type activityWindow struct {
 // The room filter alone answers "what is happening where I am watching", which
 // systematically misses the slot someone is about to start: at that moment they
 // supervise nothing yet. A nil room filter (admin) still means "everything".
-func activityScopeFilter(roomFilter map[int64]struct{}, assignedInstanceIDs map[int64]struct{}) func(*scheduleModel.ActivityInstance) bool {
+func activityScopeFilter(roomFilter map[int64]struct{}, assignedInstanceIDs map[int64]struct{}) func(*ports.ActivityInstance) bool {
 	if roomFilter == nil {
 		return nil
 	}
-	return func(inst *scheduleModel.ActivityInstance) bool {
+	return func(inst *ports.ActivityInstance) bool {
 		if _, ok := roomFilter[inst.RoomID]; ok {
 			return true
 		}
@@ -764,7 +580,7 @@ func activityScopeFilter(roomFilter map[int64]struct{}, assignedInstanceIDs map[
 // correct only for admins, an empty map means "no room at all" and is what a
 // caregiver without a live supervision must get. Deriving nil from an empty
 // room list would hand that caregiver every activity in the school.
-func activityRoomFilter(scope Scope, roomIDs []int64) map[int64]struct{} {
+func activityRoomFilter(scope reminder.Scope, roomIDs []int64) map[int64]struct{} {
 	if scope.IsAdmin {
 		return nil
 	}
@@ -777,10 +593,10 @@ func activityRoomFilter(scope Scope, roomIDs []int64) map[int64]struct{} {
 
 // plannedInstanceRoomIDs collects the rooms of today's planned instances, which
 // is the set that has to be resolvable before overdue reminders can be judged.
-func plannedInstanceRoomIDs(instances []*scheduleModel.ActivityInstance) map[int64]struct{} {
+func plannedInstanceRoomIDs(instances []*ports.ActivityInstance) map[int64]struct{} {
 	wanted := make(map[int64]struct{})
 	for _, inst := range instances {
-		if inst != nil && inst.Status == scheduleModel.InstanceStatusPlanned {
+		if inst != nil && inst.Status == ports.InstanceStatusPlanned {
 			wanted[inst.RoomID] = struct{}{}
 		}
 	}
@@ -800,7 +616,7 @@ func sortedIDs(set map[int64]struct{}) []int64 {
 
 // resolveActivityRooms enforces that every wanted room actually resolved.
 // Pure, and shared by both entry points: a missing room is a hard error.
-func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct{}) error {
+func resolveActivityRooms(rooms []*ports.Room, wanted map[int64]struct{}) error {
 	resolved := make(map[int64]struct{}, len(rooms))
 	for _, room := range rooms {
 		if room == nil {
@@ -822,17 +638,17 @@ func resolveActivityRooms(rooms []*facilitiesModel.Room, wanted map[int64]struct
 //
 // A nil roomFilter means every room; see activityRoomFilter.
 func buildActivityReminders(
-	instances []*scheduleModel.ActivityInstance,
-	inScope func(*scheduleModel.ActivityInstance) bool,
+	instances []*ports.ActivityInstance,
+	inScope func(*ports.ActivityInstance) bool,
 	w activityWindow,
-) ([]Reminder, int) {
+) ([]reminder.Reminder, int) {
 	nextChange := -1
-	out := make([]Reminder, 0)
+	out := make([]reminder.Reminder, 0)
 
 	for _, inst := range instances {
 		// Only planned instances are relevant: started/completed/cancelled rows
 		// are neither "starting soon" nor "not started in time".
-		if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
+		if inst == nil || inst.Status != ports.InstanceStatusPlanned {
 			continue
 		}
 		if inScope != nil && !inScope(inst) {
@@ -865,8 +681,8 @@ func buildActivityReminders(
 
 		switch {
 		case w.upcoming && diff >= 0 && diff <= w.lead:
-			out = append(out, Reminder{
-				Type:               TypeActivityStart,
+			out = append(out, reminder.Reminder{
+				Type:               reminder.TypeActivityStart,
 				ActivityInstanceID: int64String(inst.ID),
 				Title:              inst.Title,
 				DueTime:            formatMinutes(startMin),
@@ -875,8 +691,8 @@ func buildActivityReminders(
 		// Overdue: planned, started late by at least the threshold, and the
 		// slot is not over yet (after end_time a reminder is pointless).
 		case w.overdue && diff < 0 && -diff >= w.overdueThreshold && w.nowMin < endMin:
-			out = append(out, Reminder{
-				Type:               TypeActivityOverdue,
+			out = append(out, reminder.Reminder{
+				Type:               reminder.TypeActivityOverdue,
 				ActivityInstanceID: int64String(inst.ID),
 				Title:              inst.Title,
 				DueTime:            formatMinutes(startMin),
@@ -899,11 +715,11 @@ type studentNameInfo struct {
 //
 // A DB/RLS lookup error is propagated rather than treated as no-access, so a
 // broken read fails the request instead of silently hiding reminders.
-func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64) (map[int64]*userModel.Student, error) {
+func (s *service) readableStudents(ctx context.Context, scope reminder.Scope, ids []int64) (map[int64]*ports.Student, error) {
 	if s.Student == nil {
 		// Without a student reader we can neither verify read access nor build a
 		// title. Fail closed (return nothing) rather than expose unverified data.
-		return map[int64]*userModel.Student{}, nil
+		return map[int64]*ports.Student{}, nil
 	}
 
 	students, err := s.Student.FindReadScopeByIDs(ctx, ids)
@@ -916,7 +732,7 @@ func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64
 		return nil, err
 	}
 
-	readable := make(map[int64]*userModel.Student, len(students))
+	readable := make(map[int64]*ports.Student, len(students))
 	for id, st := range students {
 		if st == nil || !allowed(st) {
 			continue
@@ -930,7 +746,7 @@ func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64
 // read-gated) students. Only the due subset is hydrated: the pickup-reminder API
 // contract promises a student name as the title, so a failed person read must
 // fail the request rather than emit unusable reminders with empty titles.
-func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userModel.Student, ids []int64) (map[int64]studentNameInfo, error) {
+func (s *service) hydrateNames(ctx context.Context, readable map[int64]*ports.Student, ids []int64) (map[int64]studentNameInfo, error) {
 	result := make(map[int64]studentNameInfo, len(ids))
 
 	personIDs := make([]int64, 0, len(ids))
@@ -940,7 +756,7 @@ func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userMode
 		}
 	}
 
-	var persons map[int64]*userModel.Person
+	var persons map[int64]*ports.Person
 	if s.Person != nil && len(personIDs) > 0 {
 		var err error
 		persons, err = s.Person.FindByIDs(ctx, personIDs)
@@ -957,7 +773,7 @@ func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userMode
 		info := studentNameInfo{class: st.SchoolClass}
 		if persons != nil {
 			if p := persons[st.PersonID]; p != nil {
-				info.name = p.GetFullName()
+				info.name = p.Name
 			}
 		}
 		result[id] = info
@@ -969,19 +785,19 @@ func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userMode
 // authorize.CanReadStudent for the pickup read path. Every reminder recipient
 // is staff, so since #2329 all present students are readable — per-group
 // gating is gone.
-func (s *service) pickupReadPredicate(_ context.Context, _ Scope) (func(*userModel.Student) bool, error) {
-	return func(st *userModel.Student) bool { return st != nil }, nil
+func (s *service) pickupReadPredicate(_ context.Context, _ reminder.Scope) (func(*ports.Student) bool, error) {
+	return func(st *ports.Student) bool { return st != nil }, nil
 }
 
 // leadMinutes resolves a lead-time setting. A resolution failure is surfaced —
 // like the boolean toggle reads, a broken numeric read must fail the request
 // rather than silently compute reminders at the wrong time. A non-positive
 // configured value is a valid input that normalizes to the registry default.
-func (s *service) leadMinutes(ctx context.Context, key string) (int, error) {
+func (s *service) leadMinutes(ctx context.Context, resolve func(context.Context) (int, error)) (int, error) {
 	const fallback = 10
-	v, err := s.Settings.ResolveInt(ctx, key)
+	v, err := resolve(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("resolve %s: %w", key, err)
+		return 0, err
 	}
 	if v <= 0 {
 		return fallback, nil
@@ -995,9 +811,9 @@ func (s *service) leadMinutes(ctx context.Context, key string) (int, error) {
 // As with leadMinutes, a resolution error is surfaced rather than defaulted.
 func (s *service) overdueThresholdMinutes(ctx context.Context) (int, error) {
 	const fallback = 5
-	v, err := s.Settings.ResolveInt(ctx, configModel.KeyTimetableOverdueThresholdMinutes)
+	v, err := s.Settings.OverdueThresholdMinutes(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyTimetableOverdueThresholdMinutes, err)
+		return 0, err
 	}
 	if v <= 0 {
 		return fallback, nil
@@ -1029,8 +845,8 @@ func minFuture(cur, cand int) int {
 }
 
 // minutesOfDay returns the wall-clock minute of t. TIME columns are stored as a
-// fixed-date instant whose Hour/Minute are the wall clock, and timezone.Now()
-// is already in Berlin — both sides are wall-clock minutes, so this comparison
+// fixed-date instant whose Hour/Minute are the wall clock, and the injected clock
+// supplies Berlin minutes — both sides are wall-clock minutes, so this comparison
 // is timezone-safe.
 func minutesOfDay(t time.Time) int {
 	return t.Hour()*60 + t.Minute()

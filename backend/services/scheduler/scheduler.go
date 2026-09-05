@@ -27,6 +27,7 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/uptrace/bun"
 )
 
@@ -261,7 +262,7 @@ type Scheduler struct {
 	// appointmentReminderScannedAt holds the upper bound of each tenant's last
 	// successful scan. Failed scans deliberately leave their tenant's boundary
 	// untouched so the next tick retries its bounded window.
-	appointmentReminders         AppointmentReminderQueuer
+	appointmentReminders         reminder.Command
 	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
 }

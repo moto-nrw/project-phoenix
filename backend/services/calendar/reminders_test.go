@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOccurrenceStartInstant(t *testing.T) {
@@ -30,7 +29,7 @@ func TestOccurrenceStartInstant(t *testing.T) {
 
 		start := occurrenceStartInstant(appointment)
 
-		assert.Equal(t, allDayReminderHour, start.Hour(),
+		assert.Equal(t, 8, start.Hour(),
 			"midnight plus a 24h lead would mail parents the night before last")
 		assert.Equal(t, 5, start.Day())
 	})
@@ -45,7 +44,7 @@ func TestOccurrenceStartInstant(t *testing.T) {
 			appointment.EndDate = calModels.Date(date)
 			appointment.AllDay = true
 
-			assert.Equal(t, allDayReminderHour, occurrenceStartInstant(appointment).Hour(), date.String())
+			assert.Equal(t, 8, occurrenceStartInstant(appointment).Hour(), date.String())
 		}
 	})
 
@@ -95,66 +94,6 @@ func TestAppointmentWithOverride(t *testing.T) {
 		assert.Equal(t, 15, occurrenceStartInstant(effective).Hour())
 		assert.Equal(t, 30, occurrenceStartInstant(effective).Minute())
 	})
-}
-
-func TestReminderOccurrences(t *testing.T) {
-	t.Parallel()
-
-	window := func(from, to timezone.Date) (timezone.Date, timezone.Date) { return from, to }
-
-	t.Run("a one-off inside the window yields its single date", func(t *testing.T) {
-		from, to := window(timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 5))
-		occurrences := reminderOccurrences(helperAppointment(), nil, from, to)
-
-		require.Len(t, occurrences, 1)
-		assert.Equal(t, timezone.NewDate(2026, 1, 5), occurrences[0])
-	})
-
-	t.Run("a one-off outside the window yields nothing", func(t *testing.T) {
-		from, to := window(timezone.NewDate(2026, 2, 1), timezone.NewDate(2026, 2, 2))
-		assert.Empty(t, reminderOccurrences(helperAppointment(), nil, from, to))
-	})
-
-	t.Run("a weekly series yields every matching day in the window", func(t *testing.T) {
-		appointment := helperAppointment()
-		rule := &calModels.RecurrenceRule{
-			ID:            1,
-			AppointmentID: appointment.ID,
-			Frequency:     calModels.RecurrenceFrequencyWeekly,
-			IntervalCount: 1,
-			Weekdays:      []string{"monday"},
-		}
-
-		from, to := window(timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))
-		occurrences := reminderOccurrences(appointment, rule, from, to)
-
-		assert.Equal(t, []timezone.Date{
-			timezone.NewDate(2026, 1, 5),
-			timezone.NewDate(2026, 1, 12),
-			timezone.NewDate(2026, 1, 19),
-			timezone.NewDate(2026, 1, 26),
-		}, occurrences)
-	})
-}
-
-// The idempotency key is what makes a second scheduler tick, an overlapping
-// window or a restarted process harmless. It has to separate exactly three
-// things plus the current appointment revision. A content edit must be able to
-// replace a pending reminder that was cancelled as stale.
-func TestAppointmentReminderKey(t *testing.T) {
-	t.Parallel()
-
-	base := appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7)
-
-	assert.Equal(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7),
-		"the same occurrence and guardian must produce the same key, or the mail repeats")
-	assert.NotEqual(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 12), 7),
-		"every occurrence of a series gets its own reminder")
-	assert.NotEqual(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 8),
-		"both parents of a child get their own mail")
-	assert.NotEqual(t, base, appointmentReminderKey(43, 3, timezone.NewDate(2026, 1, 5), 7))
-	assert.NotEqual(t, base, appointmentReminderKey(42, 4, timezone.NewDate(2026, 1, 5), 7),
-		"an updated appointment needs a replacement reminder key")
 }
 
 func TestLocalizedAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {

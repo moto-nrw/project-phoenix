@@ -34,15 +34,6 @@ const (
 	appointmentReminderMaxLookback = time.Hour
 )
 
-// AppointmentReminderQueuer is the narrow slice of the calendar service the
-// scheduler needs. Declared here so the scheduler does not depend on the whole
-// calendar service interface.
-type AppointmentReminderQueuer interface {
-	// EnqueueDueAppointmentReminders queues reminders for every guardian-facing
-	// occurrence starting in [from, to) and returns how many mails it queued.
-	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
-}
-
 func (s *Scheduler) scheduleAppointmentReminderTask() {
 	if s.appointmentReminders == nil {
 		s.getLogger().Info("appointment reminder tick not configured (no queuer)")
