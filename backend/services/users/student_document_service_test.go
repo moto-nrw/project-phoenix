@@ -107,7 +107,7 @@ func (s *studentDocumentScenario) input(category string) usersSvc.CreateStudentD
 		StudentID:       s.studentID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
-		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, time.Now().UnixNano()),
+		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, testpkg.UniqueSuffix()),
 		SizeBytes:       42,
 		ContentType:     "application/pdf",
 	}
