@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,7 +34,8 @@ func (r consumedAfterReadInvitationRepository) FindByID(ctx context.Context, id 
 func TestInvitationResendCannotResurrectConsumedToken(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "resend-creator")
 	role := testpkg.CreateTestRole(t, db, "resend-staff")

@@ -20,7 +20,15 @@ import (
 func TestValidateSessionTokens(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	// NewService retains the aggregate type; validation uses only these five repositories.
+	persistence := repositories.NewSessionValidationPersistence(db)
+	repos := &repositories.Factory{
+		Account:              persistence.Account,
+		AccountTenant:        persistence.AccountTenant,
+		Token:                persistence.Token,
+		Operator:             persistence.Operator,
+		OperatorRefreshToken: persistence.OperatorRefreshToken,
+	}
 	signer, err := jwt.NewTokenAuthWithDurations("session-validation-test-signing-key", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	cfg, err := authService.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)

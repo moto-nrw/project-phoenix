@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +20,8 @@ func TestInvitationTokenCannotTakeOverExistingAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	service := setupInvitationService(t, db)
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("invitation-owner-%d@example.com", testpkg.Tenant(t)), testPassword)
 	original, err := repos.Account.FindByID(context.Background(), owner.ID)
 	require.NoError(t, err)
@@ -54,7 +56,8 @@ func TestInvitationExistingOwnerProof(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupInvitationService(t, db)
-			repos := repositories.NewFactory(db)
+			repos, compositionErr := repositories.NewInvitationPersistence(db)
+			require.NoError(t, compositionErr)
 			owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("owner-%d@example.com", testpkg.Tenant(t)), testPassword)
 			credential := &authModels.MFACredential{AccountID: owner.ID, Method: authModels.MFAMethodEmail}
 			require.NoError(t, repos.MFACredential.Create(context.Background(), credential))
@@ -112,7 +115,8 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupInvitationService(t, db)
-			repos := repositories.NewFactory(db)
+			repos, compositionErr := repositories.NewInvitationPersistence(db)
+			require.NoError(t, compositionErr)
 			owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("rejected-owner-%d@example.com", testpkg.Tenant(t)), testPassword)
 			schoolA := testpkg.UniqueTestTenantID(t)
 			testpkg.EnsureTestTenant(t, db, schoolA)
@@ -184,7 +188,8 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupInvitationService(t, db)
-			repos := repositories.NewFactory(db)
+			repos, compositionErr := repositories.NewInvitationPersistence(db)
+			require.NoError(t, compositionErr)
 			ctx := testpkg.Ctx(t)
 			role := testpkg.CreateTestRole(t, db, "invited-staff")
 			if strings.Contains(name, "school") {
@@ -253,7 +258,8 @@ func TestInvitationConcurrentOwnerAcceptanceIsSingleUse(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	service := setupInvitationService(t, db)
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("concurrent-owner-%d@example.com", testpkg.Tenant(t)), testPassword)
 	schoolA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, schoolA)

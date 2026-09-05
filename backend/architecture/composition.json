@@ -175,16 +175,6 @@
     },
     {
       "scope": "test",
-      "file": "api/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationHTTPRequiresVerifiedOwner",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/auth/permission_catalog_isolation_test.go",
       "declaration": "setupPlatformPermissionRoute",
       "target": "database/repositories.NewFactory",
@@ -9849,17 +9839,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/auth_core_test.go",
-      "declaration": "setupInvitationService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        59
+        52
       ],
       "tables": []
     },
@@ -9950,97 +9930,6 @@
       ],
       "tables": [
         "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationConcurrentOwnerAcceptanceIsSingleUse",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        256
-      ],
-      "tables": [
-        "auth.account_roles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationExistingOwnerProof",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        57
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationLifecycleAndImportedSchoolIdentity",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        187
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationRejectsInvalidOwnerProofWithoutWrites",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        115
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_ownership_test.go",
-      "declaration": "TestInvitationTokenCannotTakeOverExistingAccount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_resend_race_test.go",
-      "declaration": "TestInvitationResendCannotResurrectConsumedToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_rollback_internal_test.go",
-      "declaration": "TestAcceptInvitationRollsBackAccountMappingAndRole",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        90
-      ],
-      "tables": [
-        "auth.account_roles",
-        "auth.account_tenants",
-        "auth.accounts",
-        "auth.invitation_tokens",
-        "users.persons"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_rollback_internal_test.go",
-      "declaration": "TestExistingInvitationOwnerMembershipRollsBack",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
-      ],
-      "tables": [
-        "auth.account_roles",
-        "users.persons"
       ]
     },
     {
@@ -10164,16 +10053,6 @@
       "tables": [
         "auth.roles"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/session_validation_test.go",
-      "declaration": "TestValidateSessionTokens",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
     },
     {
       "scope": "test",

@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -18,8 +20,24 @@ import (
 func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	router := setupPublicRouter(t)
-	repos := repositories.NewFactory(db)
+	signer, err := jwt.NewTokenAuth()
+	require.NoError(t, err)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
+	service := authService.NewInvitationService(authService.InvitationServiceConfig{
+		TokenAuth: signer, InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
+		AccountTenantRepo: repos.AccountTenant,
+		RoleRepo:          repos.Role,
+		PermissionRepo:    repos.Permission,
+		AccountRoleRepo:   repos.AccountRole,
+		PersonRepo:        repos.Person, StaffRepo: repos.Staff, TeacherRepo: repos.Teacher,
+		StudentRepo: repos.Student, SchoolRepo: repos.School, DB: db,
+	})
+	testpkg.SetTenantRuntime(t, service, db)
+	// Unrelated route registrations capture method values but never call this auth service.
+	resource := authAPI.NewResource(&authService.Service{}, service, nil, db)
+	router := testutil.NewTenantRouter(db)
+	router.Mount("/auth", resource.Router())
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")
 	other := testpkg.CreateTestAccount(t, db, "wrong-http-owner")
 	schoolA := testpkg.UniqueTestTenantID(t)

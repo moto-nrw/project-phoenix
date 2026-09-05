@@ -33,7 +33,8 @@ func (r failingStaffRepo) Create(context.Context, *userModels.Staff) error {
 func TestExistingInvitationOwnerMembershipRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("rollback-owner-%d@example.com", testpkg.Tenant(t)), testStrongCredential)
 	schoolA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, schoolA)
@@ -87,7 +88,8 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	role := testpkg.CreateTestRoleForTenant(t, db, "rollback-kraft", tenantID)
 
 	provisioningErr := errors.New("staff insert failed")
