@@ -7,8 +7,7 @@
  * Planner surface for calendar periods, series, materialized instances,
  * one-off appointments, lifecycle actions, and plan-quality checks.
  *
- * URL-Vokabular (Planung-Redesign, docs/planung-redesign/docs/06-betreuungsplan.md
- * Abschnitt 2.1): genau `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
+ * URL-Vokabular: genau `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
  * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailModal).
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die

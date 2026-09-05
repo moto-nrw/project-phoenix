@@ -5,8 +5,7 @@
  *
  * Die Block-Rezeptur (weiße Fläche, 3px Farbkante, 10-Prozent-Tönung,
  * `cancelled`-Rendering, genau ein Status-Icon) lebt ausschließlich im
- * Kit-Baustein `ui/plan-block.tsx` (docs/planung-redesign/docs/06-betreuungsplan.md
- * Abschnitt 2.2, plan-design-guards.test.ts). InstanceBlock baut keine eigene
+ * Kit-Baustein `ui/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
  * Farbfläche mehr: es leitet nur die Kategoriefarbe ab, komponiert den
  * datenreichen Fuß (Besetzung als `CoverageIndicator`, Personen-/Kinderzahlen,
  * Spontan-, Abwesend- und Ersatz-Marker) und positioniert den Block absolut in

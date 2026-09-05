@@ -51,7 +51,7 @@ function makeGap(
   };
 }
 
-// Bedingung 1 (docs/07-vertretung.md 2.2): offene Lücke, unbesetzte
+// Bedingung 1: offene Lücke, unbesetzte
 // Position ohne Ersatz. 09:00, damit die Sortierung mit der nächsten Fixture
 // bei Gleichstand die Schwere prüft.
 const gapInstance = makeInstance({

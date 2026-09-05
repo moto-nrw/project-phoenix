@@ -126,7 +126,7 @@ keys through 1Password/Signal, never Slack/email.
 Both encrypted files must have identical keys and match `.env.example` except
 the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
 only. Each service receives an explicit environment allowlist; `migrate` alone
-receives the privileged DSN. Read [runtime environment boundaries](../runtime-environment-boundaries.md)
+receives the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, and `PRODUCTION_SSH_*` secrets;

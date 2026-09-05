@@ -7,13 +7,11 @@ import type { ReactNode } from "react";
 import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 
 /**
- * ResourceGrid is the generic rows-by-columns planning grid of the planning
- * redesign — the table skeleton spec'd in
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2. It carries no
+ * ResourceGrid is the generic rows-by-columns planning grid. It carries no
  * domain knowledge: rows are opaque objects, columns are plain data, and every
  * cell/header is a render-prop slot filled by the caller. The mapping of any
- * domain entity onto a row or a cell lives in the screen views, never here
- * (Fertig-Kriterium Y7). The half-year view and other consumers reuse the same
+ * domain entity onto a row or a cell lives in the screen views, never here.
+ * The half-year view and other consumers reuse the same
  * grid with entirely different cell content.
  */
 

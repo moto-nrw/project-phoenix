@@ -8,12 +8,10 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 /**
  * PlanningContextBar is the shared header of all three planning surfaces
- * (Betreuungsplan, Dienstplan, Vertretung) —
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2. It carries
+ * (Betreuungsplan, Dienstplan, Vertretung). It carries
  * no domain logic, no date math, and no data fetching: every value it shows
  * is a prop, and every navigation step is a callback the caller resolves.
- * The bar is generic on purpose (see Akzeptanzkriterium 11 in 04-designsprache.md,
- * "Y7"); domain-specific content (a week strip of day chips, a Lückenzähler
+ * The bar is generic on purpose; domain-specific content (a week strip of day chips, a Lückenzähler
  * chip, …) is composed by the caller via `navigationSlot`/`viewSwitcher`/
  * `actions`/`children`.
  *
