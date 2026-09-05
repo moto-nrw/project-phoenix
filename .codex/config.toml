@@ -1,3 +1,6 @@
+# Preserve the Devbox PATH instead of re-running host login profiles.
+allow_login_shell = false
+
 # Codex loads lifecycle hooks from .codex/hooks.json when this feature is enabled.
 [features]
 hooks = true

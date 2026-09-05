@@ -130,10 +130,7 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	state.Topology.Organizations = 1
 	state.Topology.Schools = 1 + len(rt.AdditionalProfiles)
-	if rt.CareWithdrawals != nil {
-		state.Topology.Schools++
-		state.CareWithdrawals = rt.CareWithdrawals
-	}
+
 	state.Topology.Mode = "profiles"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
@@ -143,6 +140,14 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Entities.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Normalize()
 	mergeAdditionalProfiles(state, rt.AdditionalProfiles)
+
+	for _, key := range []string{enrollmentWeeklyProfileKey, enrollmentBookingsProfileKey} {
+		if additional, ok := rt.Values[key].(*SeedState); ok {
+			mergeAdditionalProfiles(state, additional.Profiles)
+		}
+	}
+	state.Topology.Organizations = len(state.Organizations)
+	state.Topology.Schools = len(state.Profiles)
 
 	rt.State = state
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
@@ -222,10 +227,11 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedParentEngagementStep{},
 			seedGradeTransitionStep{},
 			seedParentLetterStep{},
-			seedCareWithdrawalsStep{seeder: seeder},
 			seedInactiveAccountStep{},
 			verifyProfileStep{definition: seeder.definition},
 			manualProfileStep{seeder: seeder},
+			seedEnrollmentWeeklyProfileStep{seeder: seeder},
+			seedEnrollmentBookingsProfileStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},
