@@ -251,14 +251,19 @@ function navigateTo(
 function navigationTarget(href: string): string | null {
   try {
     const target = new URL(href, window.location.href);
-    return `${target.pathname}${target.search}`;
+    return normalizedUrl(target.pathname, target.search);
   } catch {
     return null;
   }
 }
 
 function currentUrl() {
-  return `${window.location.pathname}${window.location.search}`;
+  return normalizedUrl(window.location.pathname, window.location.search);
+}
+
+function normalizedUrl(pathname: string, search: string) {
+  const normalizedSearch = new URLSearchParams(search).toString();
+  return normalizedSearch === "" ? pathname : `${pathname}?${normalizedSearch}`;
 }
 
 function NavigationProgressCompletion({
@@ -272,7 +277,7 @@ function NavigationProgressCompletion({
   const lastRouteUrl = useRef<string | null>(null);
 
   useEffect(() => {
-    const url = search === "" ? pathname : `${pathname}?${search}`;
+    const url = normalizedUrl(pathname, search);
     store.completeNavigation(url);
     lastRouteUrl.current = url;
   }, [pathname, search, store]);

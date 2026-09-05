@@ -286,6 +286,39 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("completes a history navigation when its query uses encoded spaces", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell();
+
+    act(() => {
+      window.history.replaceState({}, "", "/calendar-periods?q=a%20b");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    route.pathname = "/calendar-periods";
+    route.search = "?q=a+b";
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("does not start progress when a history sentinel preserves an encoded URL", () => {
+    navigateTo("/meal-plan?q=a%20b");
+    renderShell();
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("keeps progress visible until the final rapid history destination commits", () => {
     navigateTo("/rooms");
     const rendered = renderShell();
