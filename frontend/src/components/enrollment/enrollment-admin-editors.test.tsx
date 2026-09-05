@@ -2216,6 +2216,9 @@ describe("PhasesEditor", () => {
       name: /Anmeldungen ansehen/,
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+    expect(
+      screen.getByRole("menuitem", { name: "Formular ansehen" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/12");
   });
 
   it("opens late invite and manual enrollment actions from the phase action menu", async () => {
@@ -2277,7 +2280,7 @@ describe("PhasesEditor", () => {
 
     render(<PhasesEditor />);
 
-    // The row-level copy-link button is gone: the plain /enroll/{id} URL is
+    // The row-level copy-link button is gone: the plain /anmeldung/{id} URL is
     // rejected by the backend without a late-invite token, so copying it would
     // hand out a 404.
     await screen.findByRole("button", { name: "Aktionen für Nur Konto" });
@@ -2589,6 +2592,17 @@ const defaultLegalBlocksForSave = [
 ];
 
 describe("EnrollmentFormEditor", () => {
+  it("uses tenant-aware links for public previews", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByRole("link", { name: "Vorschau" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/preview?base=1");
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);

@@ -467,10 +467,10 @@ function EnrollmentStatusContent({
   const showOptInBanner = pendingRenewalCount > 0;
   const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
   const editHref = pathname?.startsWith("/parents")
-    ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
+    ? `/parents/anmeldung/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
   const adjustHref = pathname?.startsWith("/parents")
-    ? `/parents/enroll/status/${encodeURIComponent(token)}/adjust`
+    ? `/parents/anmeldung/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
   const parentsHref = pathname?.startsWith("/parents") ? "/" : "/parents";
 

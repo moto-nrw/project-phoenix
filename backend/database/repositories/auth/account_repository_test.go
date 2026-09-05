@@ -22,7 +22,7 @@ func TestAccountRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account with valid data", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestAccountRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing account", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestAccountRepository_FindByEmail(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by email", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by username", func(t *testing.T) {
@@ -143,7 +143,7 @@ func TestAccountRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account email", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing account", func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestAccountRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all accounts", func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role name", func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
@@ -306,7 +306,7 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates password hash", func(t *testing.T) {
@@ -328,7 +328,7 @@ func TestAccountRepository_UpdateAvatar(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates global avatar path", func(t *testing.T) {
@@ -353,7 +353,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts with their roles and permissions", func(t *testing.T) {
@@ -383,7 +383,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by email", func(t *testing.T) {
@@ -523,7 +523,7 @@ func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns emails for valid IDs", func(t *testing.T) {
@@ -563,7 +563,7 @@ func TestAccountRepository_CreateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
@@ -578,7 +578,7 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
@@ -593,7 +593,7 @@ func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "feedtoken")
@@ -631,7 +631,7 @@ func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "ensurefeedtoken")

@@ -40,7 +40,7 @@ func isProfileLockTimeout(err error) bool {
 
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Guardian
@@ -749,7 +749,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 
 		// An open invitation: not accepted, not expired, not rejected.
 		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
-		repoFactory := repositories.NewFactory(db)
+		repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 		invitation := &authModels.GuardianInvitation{
 			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
 			GuardianProfileID: guardian.ID,
@@ -1635,7 +1635,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 
 // setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
 func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) *users.GuardianService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	// Create dispatcher from the capturing mailer
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
@@ -2541,7 +2541,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
 
 	cases := []struct {
@@ -2649,7 +2649,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		}},
 	}
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	for _, w := range writers {
 		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
 			// Hold the profile FOR UPDATE lock from an uncommitted tx.
@@ -2690,7 +2690,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")

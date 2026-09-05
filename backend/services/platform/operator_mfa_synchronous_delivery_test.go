@@ -37,7 +37,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())

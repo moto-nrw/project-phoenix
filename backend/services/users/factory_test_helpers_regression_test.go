@@ -14,7 +14,7 @@ func TestNewFactoryWithPeopleDirectoryBindsTimetableForCareExit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 
 	student := testpkg.CreateTestStudent(t, db, "Care", "Exit", "1a")

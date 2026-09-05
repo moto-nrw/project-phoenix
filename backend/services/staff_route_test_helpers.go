@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -79,15 +78,11 @@ type ShiftTypeTestModule struct {
 }
 
 func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
-	categories, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
-	if err != nil {
-		return ShiftTypeTestModule{}, err
-	}
-	linker, err := activities.NewService(categories, nil, nil, nil, nil, nil, nil, nil)
-	if err != nil {
-		return ShiftTypeTestModule{}, err
-	}
 	repos := repositories.NewShiftTypeTestRepositories(db)
+	linker, err := activities.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
+	if err != nil {
+		return ShiftTypeTestModule{}, err
+	}
 	return ShiftTypeTestModule{
 		ShiftTypes: schedule.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
 	}, nil

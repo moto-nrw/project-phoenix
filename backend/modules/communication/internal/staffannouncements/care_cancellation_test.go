@@ -40,7 +40,7 @@ func noticeSettings(enabled, email bool) *configtest.Mock {
 func buildNoticeService(t *testing.T, settings *configtest.Mock) (announcement.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := announcement.NewService(announcement.ServiceConfig{
 		Repo:       repos.ParentAnnouncement,
 		Settings:   settings,

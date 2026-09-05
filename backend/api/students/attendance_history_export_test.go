@@ -56,7 +56,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Morgenbetreuung",
+				Date: scheduleModel.Date(date), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
@@ -66,7 +66,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 		},
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Nachmittagsbetreuung",
+				Date: scheduleModel.Date(date), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -103,7 +103,7 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: date, Title: "Ganztagsbetreuung",
+				Date: scheduleModel.Date(date), Title: "Ganztagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -191,7 +191,7 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: day2, Title: "Nachmittagsbetreuung",
+				Date: scheduleModel.Date(day2), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -201,7 +201,7 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 		},
 		{
 			Instance: &scheduleModel.ActivityInstance{
-				Date: day1, Title: "Morgenbetreuung",
+				Date: scheduleModel.Date(day1), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},

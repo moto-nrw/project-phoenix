@@ -89,7 +89,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(400))
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewStudentChangeLogCleanupService(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
@@ -119,7 +119,7 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewStudentChangeLogCleanupService(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,

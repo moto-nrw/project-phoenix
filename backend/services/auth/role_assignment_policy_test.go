@@ -23,7 +23,7 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	roleRepo := repoFactory.Role
 	ctx := context.Background()
 
@@ -136,7 +136,7 @@ func createPlatformRole(t *testing.T, db *bun.DB, name string, isSystem bool) in
 	).Scan(context.Background(), &id)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, repositories.NewFactory(db).Role.Delete(context.Background(), id))
+		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role.Delete(context.Background(), id))
 	})
 	return id
 }

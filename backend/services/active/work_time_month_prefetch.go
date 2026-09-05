@@ -160,7 +160,7 @@ func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, st
 
 type prefetchedShiftReader struct{ p *monthPrefetch }
 
-func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	return r.p.shifts[staffID], nil
 }
 

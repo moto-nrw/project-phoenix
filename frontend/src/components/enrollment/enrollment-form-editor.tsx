@@ -73,6 +73,7 @@ import {
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   copyStableObjectKey,
   getStableObjectKey,
@@ -340,6 +341,7 @@ export function EnrollmentFormEditor({
 } = {}) {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
@@ -848,7 +850,7 @@ export function EnrollmentFormEditor({
 
   const openPreviewWindow = (schemaId: string) => {
     window.open(
-      `/enroll/preview?schemaId=${encodeURIComponent(schemaId)}`,
+      tenantPath(`/anmeldung/preview?schemaId=${encodeURIComponent(schemaId)}`),
       "_blank",
       "noopener,noreferrer",
     );
@@ -905,7 +907,9 @@ export function EnrollmentFormEditor({
       return;
     }
     if (pending === "preview") {
-      const href = `/enroll/preview?schemaId=${encodeURIComponent(savedSchema.id)}`;
+      const href = tenantPath(
+        `/anmeldung/preview?schemaId=${encodeURIComponent(savedSchema.id)}`,
+      );
       if (previewWindow) {
         previewWindow.location.href = href;
       } else {
@@ -1122,7 +1126,9 @@ export function EnrollmentFormEditor({
               isSaved={currentSchema !== null}
               previewHref={
                 currentSchema && !hasUnsavedChanges
-                  ? `/enroll/preview?schemaId=${encodeURIComponent(currentSchema.id)}`
+                  ? tenantPath(
+                      `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
+                    )
                   : undefined
               }
               onPreviewClick={requestExternalPreview}
@@ -1283,6 +1289,8 @@ function TemplateOverviewList({
 }
 
 function BaseTemplateOverviewRow() {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
@@ -1308,7 +1316,7 @@ function BaseTemplateOverviewRow() {
       </div>
       <div className="flex justify-start gap-2 md:justify-end">
         <a
-          href="/enroll/preview?base=1"
+          href={tenantPath("/anmeldung/preview?base=1")}
           target="_blank"
           rel="noreferrer"
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -1336,6 +1344,7 @@ function TemplateOverviewRow({
   onDelete: () => void;
   isAssigned: boolean;
 }>) {
+  const tenantPath = useTenantAwarePath();
   const requiredCount = schema.fields.filter((field) =>
     Boolean(field.required),
   ).length;
@@ -1379,7 +1388,9 @@ function TemplateOverviewRow({
               icon: <ExternalLink className="h-4 w-4" aria-hidden />,
               onClick: () => {
                 window.open(
-                  `/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                  tenantPath(
+                    `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                  ),
                   "_blank",
                   "noopener,noreferrer",
                 );
@@ -1508,6 +1519,7 @@ function FormTemplateDetail({
   onEdit: () => void;
   assignedPhases: Phase[];
 }>) {
+  const tenantPath = useTenantAwarePath();
   const requiredCount = schema.fields.filter((field) =>
     Boolean(field.required),
   ).length;
@@ -1587,7 +1599,9 @@ function FormTemplateDetail({
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
-                previewHref={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
+                previewHref={tenantPath(
+                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                )}
                 assignedPhaseCount={assignedPhases.length}
                 sticky={false}
               />
@@ -1629,7 +1643,9 @@ function FormTemplateDetail({
               </ButtonLink>
 
               <a
-                href={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
+                href={tenantPath(
+                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                )}
                 target="_blank"
                 rel="noreferrer"
                 className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"

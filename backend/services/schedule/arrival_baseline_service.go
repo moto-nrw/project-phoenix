@@ -376,7 +376,7 @@ func (s *arrivalBaselineService) loadClassExceptions(
 	if len(classes) == 0 {
 		return nil, nil
 	}
-	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, classes, from, to)
+	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, classes, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, fmt.Errorf("project arrival baselines: load class arrival exceptions: %w", err)
 	}
@@ -389,7 +389,7 @@ func (s *arrivalBaselineService) loadClassExceptions(
 		if out[key] == nil {
 			out[key] = make(classExceptionsByDate)
 		}
-		out[key][row.Date] = row
+		out[key][timezone.Date(row.Date)] = row
 	}
 	return out, nil
 }

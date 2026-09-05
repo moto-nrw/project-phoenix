@@ -34,7 +34,7 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB) *combinedGroupTestDat
 	room2 := testpkg.CreateTestRoom(t, db, "CombinedRoom2")
 
 	// Create active groups for combination
-	groupRepo := repositories.NewFactory(db).ActiveGroup
+	groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
 
@@ -78,7 +78,7 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	createCombinedGroupTestData(t, db)
 
@@ -121,7 +121,7 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	createCombinedGroupTestData(t, db)
 
@@ -268,7 +268,7 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	createCombinedGroupTestData(t, db)
 
@@ -313,7 +313,7 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	createCombinedGroupTestData(t, db)
 
@@ -349,7 +349,7 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	createCombinedGroupTestData(t, db)
 
@@ -375,8 +375,8 @@ func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).CombinedGroup
-	mappingRepo := repositories.NewFactory(db).GroupMapping
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
+	mappingRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupMapping
 	ctx := testpkg.Ctx(t)
 	data := createCombinedGroupTestData(t, db)
 

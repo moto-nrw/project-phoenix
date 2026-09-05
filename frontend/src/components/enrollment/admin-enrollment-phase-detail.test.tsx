@@ -79,7 +79,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/lib/enrollment-public-url", () => ({
-  useEnrollmentPublicUrl: () => "http://demo.localhost:3000/enroll/1",
+  useEnrollmentPublicUrl: () => "http://demo.localhost:3000/anmeldung/1",
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -252,7 +252,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     expect(
       screen.getByRole("link", { name: "Elternansicht öffnen" }),
-    ).toHaveAttribute("href", "/demo/enroll/1");
+    ).toHaveAttribute("href", "/demo/anmeldung/1");
   });
 
   it("renders care offerings and starts with all statuses", async () => {

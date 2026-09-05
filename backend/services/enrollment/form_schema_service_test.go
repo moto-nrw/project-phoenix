@@ -22,7 +22,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
@@ -472,7 +472,7 @@ func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T)
 	}, creatorID)
 	require.NoError(t, err)
 
-	wrapped := newSchemaServiceWithRepo(existsCheckFailsRepo{repositories.NewFactory(db).FormSchema})
+	wrapped := newSchemaServiceWithRepo(existsCheckFailsRepo{repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).FormSchema})
 	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "check existing name")
@@ -489,7 +489,7 @@ func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) 
 	}, creatorID)
 	require.NoError(t, err)
 
-	wrapped := newSchemaServiceWithRepo(renameExecFailsRepo{repositories.NewFactory(db).FormSchema})
+	wrapped := newSchemaServiceWithRepo(renameExecFailsRepo{repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).FormSchema})
 	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
 	require.Error(t, err)
 	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,

@@ -345,7 +345,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 
 func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
-		Date:      timezone.DateFromTime(start),
+		Date:      scheduleModels.DateFromTime(start),
 		Title:     title,
 		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
 		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),

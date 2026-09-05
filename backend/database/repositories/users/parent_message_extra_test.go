@@ -132,7 +132,7 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	readRepo := repositories.NewFactory(db).ParentMessageRead
+	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)

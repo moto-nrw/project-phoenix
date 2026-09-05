@@ -63,7 +63,7 @@ func normalizeShiftWallClock(shifts []*schedule.StaffShift) {
 
 // FindByDateRange returns all shifts with start <= date <= end for the
 // current tenant, ordered by date, staff, start time.
-func (r *StaffShiftRepository) FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*schedule.StaffShift, error) {
+func (r *StaffShiftRepository) FindByDateRange(ctx context.Context, start, end schedule.Date) ([]*schedule.StaffShift, error) {
 	var shifts []*schedule.StaffShift
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&shifts).
@@ -84,7 +84,7 @@ func (r *StaffShiftRepository) FindByDateRange(ctx context.Context, start, end t
 }
 
 // FindByStaffAndDateRange returns one staff member's shifts in the range.
-func (r *StaffShiftRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*schedule.StaffShift, error) {
+func (r *StaffShiftRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end schedule.Date) ([]*schedule.StaffShift, error) {
 	var shifts []*schedule.StaffShift
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&shifts).
@@ -106,7 +106,7 @@ func (r *StaffShiftRepository) FindByStaffAndDateRange(ctx context.Context, staf
 
 // FindByStaffIDsAndDate returns the shifts of the given staff members on one
 // date (batch lookup for the auto-checkout job).
-func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*schedule.StaffShift, error) {
+func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date schedule.Date) ([]*schedule.StaffShift, error) {
 	if len(staffIDs) == 0 {
 		return nil, nil
 	}
@@ -150,7 +150,7 @@ func (r *StaffShiftRepository) FindByOriginShiftID(ctx context.Context, originSh
 // FindByStaffIDsAndDates returns only shifts that can affect the supplied
 // staff/date coverage comparisons. This avoids scanning every tenant shift in
 // the continuous span between sparse candidate dates.
-func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*schedule.StaffShift, error) {
+func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []schedule.Date) ([]*schedule.StaffShift, error) {
 	if len(staffIDs) == 0 || len(dates) == 0 {
 		return nil, nil
 	}
@@ -178,9 +178,9 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staff
 // them in its per-staff data, so counting them here would report a Dienstplan
 // as "in use" that offers nobody a usable shift. The result is small even for
 // multi-week probes.
-func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error) {
+func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start, end schedule.Date) ([]schedule.Date, error) {
 	type usedWeekRow struct {
-		WeekStart timezone.Date `bun:"week_start,type:date"`
+		WeekStart schedule.Date `bun:"week_start,type:date"`
 	}
 	var rows []usedWeekRow
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -195,7 +195,7 @@ func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start,
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find used staff-shift calendar weeks", Err: base.TranslateNotFound(err)}
 	}
-	weeks := make([]timezone.Date, 0, len(rows))
+	weeks := make([]schedule.Date, 0, len(rows))
 	for _, row := range rows {
 		weeks = append(weeks, row.WeekStart)
 	}
@@ -224,7 +224,7 @@ func (r *StaffShiftRepository) BulkCreate(ctx context.Context, shifts []*schedul
 
 // DeleteNonDetachedBySeriesFrom removes a series' regenerable rows on or
 // after from. Detached rows ("Nur diese Woche" edits) survive re-plans.
-func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error) {
+func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Table("schedule.staff_shifts").
 		Where("series_id = ?", seriesID).
@@ -250,7 +250,7 @@ func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context
 // from to the successor series created by a split, preserving the deviations.
 // A moved row's current date is not its recurrence slot; use the immutable
 // source date so a cross-boundary move remains attached to the right segment.
-func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
+func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("schedule.staff_shifts").
 		Set("series_id = ?", toSeriesID).
@@ -275,7 +275,7 @@ func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fr
 
 // DeleteUpcomingByStaffID removes planned shifts from the given date onwards.
 // Past Dienstplan rows stay as history after staff offboarding.
-func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
+func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Table("schedule.staff_shifts").
 		Where("staff_id = ?", staffID).
@@ -300,7 +300,7 @@ func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staf
 // in one round trip, keyed by staff ID. A batched IN-lookup the generic filter
 // API cannot express as a single query. Wall-clock normalization is applied
 // exactly as in the single-staff twin — shiftNetMinutes depends on it.
-func (r *StaffShiftRepository) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end timezone.Date) (map[int64][]*schedule.StaffShift, error) {
+func (r *StaffShiftRepository) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end schedule.Date) (map[int64][]*schedule.StaffShift, error) {
 	result := make(map[int64][]*schedule.StaffShift, len(staffIDs))
 	if len(staffIDs) == 0 {
 		// bun renders an empty IN list as invalid SQL.

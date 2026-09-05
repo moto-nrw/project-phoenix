@@ -405,7 +405,7 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	}
 
 	if cfg.anyActivity() && s.Instance != nil {
-		instances, err := s.Instance.FindByTenantAndDate(ctx, in.today)
+		instances, err := s.Instance.FindByTenantAndDate(ctx, scheduleModel.Date(in.today))
 		if err != nil {
 			return nil, err
 		}

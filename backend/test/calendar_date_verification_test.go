@@ -124,9 +124,12 @@ func TestDateColumnTypes(t *testing.T) {
 							col+" uses domain.Date outside modules/appointments — use timezone.Date"))
 					}
 				case "Date", "*Date":
-					// Audit and Calendar own the same ISO calendar-date value shape
+					// Domain owners may keep the same ISO calendar-date value shape
 					// without importing the legacy shared timezone package.
-					if !strings.HasPrefix(f.file, "models/audit/") && !strings.HasPrefix(f.file, "models/calendar/") {
+					if !strings.HasPrefix(f.file, "models/activities/") &&
+						!strings.HasPrefix(f.file, "models/audit/") &&
+						!strings.HasPrefix(f.file, "models/calendar/") &&
+						!strings.HasPrefix(f.file, "models/schedule/") {
 						violations = append(violations, formatViolation(f.file, f.line,
 							col+" uses Date outside an approved owner package — use timezone.Date"))
 					}

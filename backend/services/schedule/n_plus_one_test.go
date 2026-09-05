@@ -3,7 +3,6 @@ package schedule
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -11,7 +10,7 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-func (r *autoStartStaffRepo) FindByStaffIDsAndDate(context.Context, []int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
+func (r *autoStartStaffRepo) FindByStaffIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
 

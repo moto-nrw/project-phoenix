@@ -27,7 +27,7 @@ var errActivityInstanceNil = fmt.Errorf("activity instance cannot be nil")
 type ActivityInstanceRepository struct {
 	*base.Repository[*schedule.ActivityInstance]
 	db    *bun.DB
-	today func() timezone.Date
+	today func() schedule.Date
 }
 
 // NewActivityInstanceRepository creates a new ActivityInstanceRepository.
@@ -37,7 +37,9 @@ func NewActivityInstanceRepository(db *bun.DB, clocks ...func() time.Time) *Acti
 	return &ActivityInstanceRepository{
 		Repository: repo,
 		db:         db,
-		today:      timezone.CalendarDateClock(clocks...),
+		today: func() schedule.Date {
+			return schedule.Date(timezone.CalendarDateClock(clocks...)())
+		},
 	}
 }
 
@@ -169,7 +171,7 @@ func (r *ActivityInstanceRepository) List(ctx context.Context, options *modelBas
 }
 
 // FindByTenantAndDate returns instances for the current tenant on a given date.
-func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date schedule.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -209,7 +211,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 // materializer never created the alumnus's row), so nothing else can repair it
 // afterwards. Instances that already started or finished today drop out via the
 // planned-status filter (#405 review).
-func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from schedule.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -255,7 +257,7 @@ func (r *ActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
 }
 
 // FindByTenantAndDateRange returns instances within an inclusive date range.
-func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to schedule.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -304,7 +306,7 @@ func (r *ActivityInstanceRepository) FindByIDs(ctx context.Context, ids []int64)
 }
 
 // FindByActivityGroupAndDate returns instances for a template on a given date.
-func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date schedule.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -332,7 +334,7 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 func (r *ActivityInstanceRepository) FindByActivityGroupAndDateRange(
 	ctx context.Context,
 	activityGroupID int64,
-	from, to timezone.Date,
+	from, to schedule.Date,
 ) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -449,7 +451,7 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 // hard-deletes every still-planned non-spontaneous row in the window,
 // deviations included; started/completed/cancelled/spontaneous rows always
 // survive regardless of this flag.
-func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from schedule.Date, to *schedule.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).
@@ -549,7 +551,7 @@ func (r *ActivityInstanceRepository) PropagateListKindToFutureInstances(
 	activityGroupID int64,
 	previousKind *string,
 	newKind *string,
-	after timezone.Date,
+	after schedule.Date,
 ) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*schedule.ActivityInstance)(nil)).

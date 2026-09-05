@@ -26,7 +26,7 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates invitation with valid data", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing invitation", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitation by token", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates existing invitation", func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitations by guardian profile ID", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds pending invitations", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("marks invitation as accepted", func(t *testing.T) {
@@ -275,7 +275,7 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates email status", func(t *testing.T) {
@@ -339,7 +339,7 @@ func TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedErro
 	t.Cleanup(func() { _ = sqlDB.Close() })
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	rowsErr := errors.New("rows affected failed")
 	mock.ExpectExec(`UPDATE "auth"\."guardian_invitations" AS "guardian_invitation"`).
 		WillReturnResult(sqlmock.NewErrorResult(rowsErr))
@@ -355,7 +355,7 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianInvitation
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired invitations", func(t *testing.T) {

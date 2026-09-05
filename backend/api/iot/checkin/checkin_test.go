@@ -2567,7 +2567,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 
 	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  todayUTC,
+		NoteDate:  scheduleModels.Date(todayUTC),
 		Content:   "Mama holt heute frueher ab",
 		CreatedBy: staff.ID,
 	})
@@ -2806,7 +2806,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 
 	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  todayUTC,
+		NoteDate:  scheduleModels.Date(todayUTC),
 		Content:   "Heute holt Oma ab",
 		CreatedBy: staff.ID,
 	})
@@ -2814,7 +2814,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 
 	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  todayUTC,
+		NoteDate:  scheduleModels.Date(todayUTC),
 		Content:   "Bitte am Seiteneingang warten",
 		CreatedBy: staff.ID,
 	})
@@ -2880,7 +2880,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 	blankReason := "   "
 	err = ctx.resource.PickupScheduleService.CreateStudentPickupException(tenantCtx, &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
-		ExceptionDate: todayUTC,
+		ExceptionDate: scheduleModels.Date(todayUTC),
 		PickupTime:    &updatedTime,
 		Reason:        &blankReason,
 		CreatedBy:     staff.ID,

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -45,7 +44,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := testRepositories(t, env.db)
 
 	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,

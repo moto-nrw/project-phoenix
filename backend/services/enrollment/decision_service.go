@@ -3163,8 +3163,8 @@ func studentEnrollmentFromCareDraft(
 	row := &activities.StudentEnrollment{
 		StudentID:                studentID,
 		ActivityGroupID:          draft.activityGroupID,
-		ValidFrom:                validFrom,
-		ValidUntil:               &validUntil,
+		ValidFrom:                activities.Date(validFrom),
+		ValidUntil:               enrollmentActivityDatePtr(&validUntil),
 		CalendarPeriodID:         draft.calendarPeriodID,
 		EnrollmentRequestChildID: &requestChildID,
 	}
@@ -3304,9 +3304,7 @@ func (s *decisionService) loadSourcedTemplateDraftInputs(
 	}
 	var schedules []*activities.Schedule
 	if len(groupIDs) > 0 {
-		schedules, err = s.ActivityScheduleRepo.List(ctx, &modelBase.QueryOptions{
-			Filter: modelBase.NewFilter().In("activity_group_id", int64FilterArgs(groupIDs)...),
-		})
+		schedules, err = s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
 		if err != nil {
 			return nil, nil, fmt.Errorf("decision: load sourced template schedules: %w", err)
 		}

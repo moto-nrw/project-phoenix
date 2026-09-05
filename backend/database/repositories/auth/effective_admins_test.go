@@ -59,7 +59,7 @@ func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("includes the admin role and excludes a plain user", func(t *testing.T) {

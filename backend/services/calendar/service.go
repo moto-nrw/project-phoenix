@@ -1504,7 +1504,7 @@ func (s *service) timetableRoomNames(ctx context.Context, roomIDs []int64) (map[
 // instance. Interactive reads drop cancelled instances; subscription feeds
 // retain them so external calendars receive STATUS:CANCELLED.
 func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]staffTimetableAssignment, error) {
-	assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -1622,7 +1622,7 @@ func (s *service) staffShiftEventsWithCancelled(ctx context.Context, staffID int
 	if s.cfg.StaffShiftRepo == nil {
 		return []Event{}, nil
 	}
-	shifts, err := s.cfg.StaffShiftRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	shifts, err := s.cfg.StaffShiftRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err
 	}

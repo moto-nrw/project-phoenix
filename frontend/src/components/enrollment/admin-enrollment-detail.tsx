@@ -265,7 +265,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
+  const statusHref = tenantPath(`/anmeldung/status/${data.status_token}`);
   // The restore action shows whenever at least one child is withdrawn —
   // exactly the backend's restore precondition. Individual child withdraws
   // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn

@@ -21,7 +21,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 

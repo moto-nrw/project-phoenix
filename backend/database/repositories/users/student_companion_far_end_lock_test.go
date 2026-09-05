@@ -52,7 +52,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	// The companion is created FIRST so its id is the lower one — the direction
 	// that cannot wait.
@@ -105,7 +105,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")

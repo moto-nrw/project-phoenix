@@ -5,9 +5,6 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // classArrivalExceptionReasonMaxLength caps the free-text reason, mirroring
@@ -24,13 +21,13 @@ const classArrivalExceptionReasonMaxLength = 255
 // Like ClassArrivalTime the class is the free-text users.students.school_class
 // value, matched via LOWER(BTRIM(...)); there is no class entity.
 type ClassArrivalException struct {
-	base.Model `bun:"schema:education,table:class_arrival_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:education,table:class_arrival_exceptions"`
+	TenantModel
 
-	SchoolClass string        `bun:"school_class,notnull" json:"school_class"`
-	Date        timezone.Date `bun:"date,notnull,type:date" json:"date"`
+	SchoolClass string `bun:"school_class,notnull" json:"school_class"`
+	Date        Date   `bun:"date,notnull,type:date" json:"date"`
 	// ArrivalTime is a wall-clock TIME column; normalize via
-	// timezone.NormalizeWallClock before persisting.
+	// NormalizeWallClock before persisting.
 	ArrivalTime time.Time `bun:"arrival_time,notnull" json:"arrival_time"`
 	Reason      *string   `bun:"reason" json:"reason,omitempty"`
 	CreatedBy   *int64    `bun:"created_by,nullzero" json:"created_by,omitempty"`

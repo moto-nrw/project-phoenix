@@ -88,7 +88,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 
 	moved := *existing
 	moved.StaffID = input.TargetStaffID
-	moved.Date = input.Date
+	moved.Date = scheduleModels.Date(input.Date)
 	moved.StartTime = input.StartTime
 	moved.EndTime = input.EndTime
 	moved.BreakMinutes = input.BreakMinutes
@@ -120,7 +120,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	}
 
 	vacatesSeriesOccurrence := existing.SeriesID != nil &&
-		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
+		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != timezone.Date(moved.Date))
 	if vacatesSeriesOccurrence {
 		if s.exceptionRepo == nil {
 			return nil, errors.New("series exception repository is required for shift move")
@@ -217,9 +217,9 @@ func staffShiftMoveChanged(existing, moved *scheduleModels.StaffShift) bool {
 // migration 1.15.202 backfills every persisted series row.
 func seriesOccurrenceDate(shift *scheduleModels.StaffShift) timezone.Date {
 	if shift.SeriesOccurrenceDate != nil {
-		return *shift.SeriesOccurrenceDate
+		return timezone.Date(*shift.SeriesOccurrenceDate)
 	}
-	return shift.Date
+	return timezone.Date(shift.Date)
 }
 
 func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*scheduleModels.StaffShift, error) {
@@ -238,7 +238,7 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*sc
 
 func moveAlreadyApplied(shift *scheduleModels.StaffShift, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
-		shift.Date == input.Date &&
+		timezone.Date(shift.Date) == input.Date &&
 		timezone.SameClockTime(shift.StartTime, input.StartTime) &&
 		timezone.SameClockTime(shift.EndTime, input.EndTime) &&
 		shift.BreakMinutes == input.BreakMinutes &&
@@ -268,7 +268,7 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *scheduleModels.StaffShift, date timezone.Date) error {
 	exception := &scheduleModels.StaffShiftSeriesException{
 		SeriesID:  *shift.SeriesID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		CreatedBy: shift.CreatedBy,
 	}
 	exception.TenantID = shift.TenantID

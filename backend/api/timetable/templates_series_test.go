@@ -164,16 +164,16 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 	w := doTemplateJSON(t, s.router, http.MethodPut, fmt.Sprintf("/templates/%d", s.newID), body)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	rows, err := mustTimetableTestRepositories(s.db).StudentEnrollment.FindByGroupID(s.ctx, s.oldID)
+	rows, err := s.enrollments.FindByGroupID(s.ctx, s.oldID)
 	require.NoError(t, err)
 	weekdays := make([]int, 0, 2)
 	for _, row := range rows {
 		if row.StudentID != latecomer.ID {
 			continue
 		}
-		assert.Equal(t, anchor, row.ValidFrom, "the predecessor row starts at the anchor")
+		assert.Equal(t, activitiesModel.Date(anchor), row.ValidFrom, "the predecessor row starts at the anchor")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, s.effective, *row.ValidUntil, "and ends with the predecessor segment")
+		assert.Equal(t, activitiesModel.Date(s.effective), *row.ValidUntil, "and ends with the predecessor segment")
 		require.NotNil(t, row.Weekday, "predecessor rows are written weekday-explicit")
 		weekdays = append(weekdays, *row.Weekday)
 	}

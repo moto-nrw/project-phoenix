@@ -16,7 +16,7 @@ import (
 // the shortcut the rollover would otherwise take via renewalInitialStatus.
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
-	require.NoError(t, repositories.NewFactory(env.db).RequestChild.UpdateStatus(
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.UpdateStatus(
 		testpkg.TenantContext(env.phase.GetTenantID()), childID, status, nil, env.creatorID,
 	))
 }
@@ -47,7 +47,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 
@@ -86,7 +86,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 }
@@ -108,7 +108,7 @@ func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
 }

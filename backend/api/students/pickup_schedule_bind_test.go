@@ -486,7 +486,7 @@ func createTestExceptionModel(studentID int64, date, pickupTime, reason string) 
 	parsedTime, _ := parseTimeOnly(pickupTime)
 	return &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: parsedDate,
+		ExceptionDate: schedule.Date(parsedDate),
 		PickupTime:    &parsedTime,
 		Reason:        &reason,
 		CreatedBy:     1,
@@ -497,7 +497,7 @@ func createTestExceptionModelAbsent(studentID int64, date, reason string) *sched
 	parsedDate, _ := timezone.ParseDate(date)
 	return &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: parsedDate,
+		ExceptionDate: schedule.Date(parsedDate),
 		PickupTime:    nil,
 		Reason:        &reason,
 		CreatedBy:     1,
@@ -767,7 +767,7 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		reason := "Test"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
-			ExceptionDate: timezone.NewDate(2026, 2, 15),
+			ExceptionDate: schedule.NewDate(2026, 2, 15),
 			PickupTime:    &pickupTime,
 			Reason:        &reason,
 			CreatedBy:     createdBy,
@@ -1092,7 +1092,7 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		reason := "Student is absent"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
-			ExceptionDate: timezone.NewDate(2026, 2, 15),
+			ExceptionDate: schedule.NewDate(2026, 2, 15),
 			PickupTime:    nil, // Explicitly nil
 			Reason:        &reason,
 			CreatedBy:     createdBy,
