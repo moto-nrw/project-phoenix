@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 const (
@@ -21,8 +20,8 @@ const (
 // weekday — this table carries the actual planned wall-clock times that the
 // auto-checkout job (#1798) closes forgotten sessions against.
 type StaffShift struct {
-	base.Model `bun:"schema:schedule,table:staff_shifts"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:staff_shifts"`
+	TenantModel
 	StaffID int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Date    timezone.Date `bun:"date,notnull,type:date" json:"date"`
 	// StartTime/EndTime map TIME WITHOUT TIME ZONE columns; only the

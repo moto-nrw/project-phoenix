@@ -1135,7 +1135,7 @@ func AttendanceUnchangedSinceCompletion(instance *scheduleModel.ActivityInstance
 		return true
 	}
 	for _, row := range rows {
-		if row != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+		if row != nil && row.UpdatedAt.After(*instance.CompletedAt) {
 			return false
 		}
 	}
@@ -1231,7 +1231,7 @@ func (s *instanceService) validateReopenAttendanceUnchanged(ctx context.Context,
 		return &ScheduleError{Op: "reopen instance: load attendance", Err: err}
 	}
 	for _, row := range rows {
-		if row.GetUpdatedAt().After(*instance.CompletedAt) {
+		if row.UpdatedAt.After(*instance.CompletedAt) {
 			return fmt.Errorf("%w: attendance changed after completion", ErrTimetableOperationConflict)
 		}
 	}
@@ -1276,7 +1276,7 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 		if !ok {
 			return fmt.Errorf("%w: supervisor snapshot missing", ErrTimetableOperationConflict)
 		}
-		if instance.CompletedAt != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+		if instance.CompletedAt != nil && row.UpdatedAt.After(*instance.CompletedAt) {
 			return fmt.Errorf("%w: supervisor changed after completion", ErrTimetableOperationConflict)
 		}
 		for _, other := range activeByStaff[row.StaffID] {

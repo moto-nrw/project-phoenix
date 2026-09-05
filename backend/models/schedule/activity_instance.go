@@ -32,8 +32,8 @@ const (
 // in the "instance layer" between the template layer (activities.*) and the
 // live layer (active.*) — see docs/timetable-system-plan.md §5.1.
 type ActivityInstance struct {
-	base.Model `bun:"schema:schedule,table:activity_instances"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:activity_instances"`
+	TenantModel
 
 	Date             timezone.Date `bun:"date,notnull" json:"date"`
 	ActivityGroupID  *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`

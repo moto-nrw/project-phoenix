@@ -39,8 +39,8 @@ const (
 
 // StudentArrivalSchedule represents a recurring weekly arrival schedule for a student
 type StudentArrivalSchedule struct {
-	base.Model `bun:"schema:schedule,table:student_arrival_schedules"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_arrival_schedules"`
+	TenantModel
 
 	StudentID int64 `bun:"student_id,notnull" json:"student_id"`
 	Weekday   int   `bun:"weekday,notnull" json:"weekday"`
@@ -96,8 +96,8 @@ func (s *StudentArrivalSchedule) GetWeekdayName() string {
 
 // StudentArrivalException represents a date-specific arrival exception
 type StudentArrivalException struct {
-	base.Model `bun:"schema:schedule,table:student_arrival_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_arrival_exceptions"`
+	TenantModel
 
 	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
 	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
@@ -132,8 +132,8 @@ func (e *StudentArrivalException) IsAbsent() bool {
 
 // StudentArrivalNote represents a date-specific note for a student's arrival
 type StudentArrivalNote struct {
-	base.Model `bun:"schema:schedule,table:student_arrival_notes"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_arrival_notes"`
+	TenantModel
 
 	StudentID int64         `bun:"student_id,notnull" json:"student_id"`
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`

@@ -13,8 +13,8 @@ import (
 // member stays in the instance's primary room; a non-nil value splits the
 // instance across multiple rooms (the Lernzeit split pattern).
 type InstanceStaff struct {
-	base.Model `bun:"schema:schedule,table:instance_staff"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:instance_staff"`
+	TenantModel
 
 	InstanceID   int64  `bun:"instance_id,notnull" json:"instance_id"`
 	StaffID      int64  `bun:"staff_id,notnull" json:"staff_id"`

@@ -13,8 +13,8 @@ import (
 var planningTrackColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 type PlanningTrack struct {
-	base.Model `bun:"schema:schedule,table:planning_tracks"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:planning_tracks"`
+	TenantModel
 	Name       string     `bun:"name,notnull" json:"name"`
 	Color      string     `bun:"color,notnull" json:"color"`
 	SortOrder  int        `bun:"sort_order,notnull" json:"sort_order"`

@@ -34,8 +34,8 @@ const MaxConflictAcksPerAccount = 500
 // This is per-user data state, NOT a tenant-wide setting: two admins of the
 // same school each dismiss their own banner entries.
 type TimetableConflictAck struct {
-	base.Model `bun:"schema:schedule,table:timetable_conflict_acks"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:timetable_conflict_acks"`
+	TenantModel
 
 	AccountID   int64  `bun:"account_id,notnull" json:"account_id"`
 	Fingerprint string `bun:"fingerprint,notnull" json:"fingerprint"`

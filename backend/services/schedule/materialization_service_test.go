@@ -793,7 +793,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 				StartDate: date.AddDays(-30),
 				EndDate:   date.AddDays(30),
 				IsActive:  true,
-				Model:     modelBase.Model{ID: 401},
+				Model:     schedule.Model{ID: 401},
 			}}},
 			materializationFakeInstanceRepo{inserted: true},
 			materializationFakeStaffRepo{},
@@ -823,7 +823,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 		StartDate: date.AddDays(-30),
 		EndDate:   date.AddDays(30),
 		IsActive:  true,
-		Model:     modelBase.Model{ID: 405},
+		Model:     schedule.Model{ID: 405},
 	}
 	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
@@ -831,7 +831,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 	roomID := int64(407)
 	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: activities.Model{ID: 408}}
 	scheduleRow := &activities.Schedule{Weekday: 1, TimeframeID: &tfID}
-	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: modelBase.Model{ID: tfID}}
+	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: schedule.Model{ID: tfID}}
 
 	makeSvc := func(
 		groupRepo materializationFakeGroupRepo,
@@ -1125,7 +1125,7 @@ func newMaterializationBranchServiceForSchedule(
 			EndDate:         date.AddDays(30),
 			WeekCycleLength: 1,
 			IsActive:        true,
-			Model:           modelBase.Model{ID: 400},
+			Model:           schedule.Model{ID: 400},
 		}}},
 		instanceRepo,
 		materializationFakeStaffRepo{},
@@ -1134,7 +1134,7 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{{
 			StartTime: start,
 			EndTime:   &end,
-			Model:     modelBase.Model{ID: timeframeID},
+			Model:     schedule.Model{ID: timeframeID},
 		}}},
 		materializationAllowCalendarService{},
 		nil,

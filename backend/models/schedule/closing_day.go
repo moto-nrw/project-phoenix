@@ -18,8 +18,8 @@ const ClosingDayReasonMaxLength = 255
 // range; a single closed day has start_date = end_date. On these days the
 // staff Soll is 0, exactly like on public holidays.
 type ClosingDay struct {
-	base.Model `bun:"schema:schedule,table:closing_days"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:closing_days"`
+	TenantModel
 
 	StartDate timezone.Date `bun:"start_date,notnull" json:"start_date"`
 	EndDate   timezone.Date `bun:"end_date,notnull" json:"end_date"`

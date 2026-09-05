@@ -18,7 +18,6 @@ import (
 )
 
 type effectiveTimeEntity interface {
-	modelBase.Entity
 	modelBase.Validator
 	modelBase.TenantScoped
 }

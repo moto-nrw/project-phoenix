@@ -49,8 +49,8 @@ const (
 // decided atomically, and apply merges only the filled aspects onto the live
 // plan. At most one pending request exists per student (partial unique index).
 type CareScheduleChangeRequest struct {
-	base.Model `bun:"schema:schedule,table:care_schedule_change_requests"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:care_schedule_change_requests"`
+	TenantModel
 
 	StudentID      int64          `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy    int64          `bun:"submitted_by,notnull" json:"submitted_by"`

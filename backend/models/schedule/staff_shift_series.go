@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // StaffShiftSeries is one recurring shift rule (#1889): the same wall-clock
@@ -17,8 +16,8 @@ import (
 // segments produced by "Ab jetzt dauerhaft" splits, mirroring the timetable
 // template lineage.
 type StaffShiftSeries struct {
-	base.Model `bun:"schema:schedule,table:staff_shift_series"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:staff_shift_series"`
+	TenantModel
 	StaffID int64 `bun:"staff_id,notnull" json:"staff_id"`
 	// Weekdays are ISO weekdays (1=Monday … 7=Sunday), non-empty.
 	Weekdays []int16 `bun:"weekdays,array,notnull" json:"weekdays"`
@@ -119,8 +118,8 @@ func (s *StaffShiftSeries) ContainsWeekday(weekday int) bool {
 // series: deleting a single materialized series shift removes the concrete
 // row and stores its date here so re-plans and splits never regenerate it.
 type StaffShiftSeriesException struct {
-	base.Model `bun:"schema:schedule,table:staff_shift_series_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:staff_shift_series_exceptions"`
+	TenantModel
 	SeriesID  int64         `bun:"series_id,notnull" json:"series_id"`
 	Date      timezone.Date `bun:"date,notnull,type:date" json:"date"`
 	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`

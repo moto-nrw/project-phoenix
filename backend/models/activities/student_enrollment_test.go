@@ -239,7 +239,7 @@ func TestStudentEnrollment_GetID(t *testing.T) {
 
 	se := &StudentEnrollment{}
 	se.ID = 123
-	assert.Equal(t, int64(123), se.GetID())
+	assert.Equal(t, int64(123), se.ID)
 }
 
 func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
@@ -248,7 +248,7 @@ func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	se := &StudentEnrollment{}
 	se.CreatedAt = now
-	assert.Equal(t, now, se.GetCreatedAt())
+	assert.Equal(t, now, se.CreatedAt)
 }
 
 func TestStudentEnrollment_GetUpdatedAt(t *testing.T) {
@@ -257,5 +257,5 @@ func TestStudentEnrollment_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	se := &StudentEnrollment{}
 	se.UpdatedAt = now
-	assert.Equal(t, now, se.GetUpdatedAt())
+	assert.Equal(t, now, se.UpdatedAt)
 }

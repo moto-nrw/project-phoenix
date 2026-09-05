@@ -163,7 +163,7 @@ func TestCalendarPeriod_GetID(t *testing.T) {
 
 	p := &CalendarPeriod{}
 	p.ID = 42
-	assert.Equal(t, int64(42), p.GetID())
+	assert.Equal(t, int64(42), p.ID)
 }
 
 func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
@@ -172,7 +172,7 @@ func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.CreatedAt = now
-	assert.Equal(t, now, p.GetCreatedAt())
+	assert.Equal(t, now, p.CreatedAt)
 }
 
 func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
@@ -181,5 +181,5 @@ func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.UpdatedAt = now
-	assert.Equal(t, now, p.GetUpdatedAt())
+	assert.Equal(t, now, p.UpdatedAt)
 }

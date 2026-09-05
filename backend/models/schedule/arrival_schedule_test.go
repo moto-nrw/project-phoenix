@@ -208,7 +208,7 @@ func TestStudentArrivalSchedule_GetID(t *testing.T) {
 
 	s := &StudentArrivalSchedule{}
 	s.ID = 42
-	assert.Equal(t, int64(42), s.GetID())
+	assert.Equal(t, int64(42), s.ID)
 }
 
 func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
@@ -217,7 +217,7 @@ func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.CreatedAt = now
-	assert.Equal(t, now, s.GetCreatedAt())
+	assert.Equal(t, now, s.CreatedAt)
 }
 
 func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
@@ -226,7 +226,7 @@ func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.UpdatedAt = now
-	assert.Equal(t, now, s.GetUpdatedAt())
+	assert.Equal(t, now, s.UpdatedAt)
 }
 
 // =============================================================================
@@ -417,7 +417,7 @@ func TestStudentArrivalException_GetID(t *testing.T) {
 
 	exception := &StudentArrivalException{}
 	exception.ID = 42
-	assert.Equal(t, int64(42), exception.GetID())
+	assert.Equal(t, int64(42), exception.ID)
 }
 
 func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
@@ -426,7 +426,7 @@ func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.CreatedAt = now
-	assert.Equal(t, now, exception.GetCreatedAt())
+	assert.Equal(t, now, exception.CreatedAt)
 }
 
 func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
@@ -435,7 +435,7 @@ func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.UpdatedAt = now
-	assert.Equal(t, now, exception.GetUpdatedAt())
+	assert.Equal(t, now, exception.UpdatedAt)
 }
 
 // =============================================================================
@@ -589,7 +589,7 @@ func TestStudentArrivalNote_GetID(t *testing.T) {
 
 	note := &StudentArrivalNote{}
 	note.ID = 42
-	assert.Equal(t, int64(42), note.GetID())
+	assert.Equal(t, int64(42), note.ID)
 }
 
 func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
@@ -598,7 +598,7 @@ func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.CreatedAt = now
-	assert.Equal(t, now, note.GetCreatedAt())
+	assert.Equal(t, now, note.CreatedAt)
 }
 
 func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
@@ -607,7 +607,7 @@ func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.UpdatedAt = now
-	assert.Equal(t, now, note.GetUpdatedAt())
+	assert.Equal(t, now, note.UpdatedAt)
 }
 
 // TestStudentArrivalScheduleInheritsClassTime pins the meaning the #2414 split

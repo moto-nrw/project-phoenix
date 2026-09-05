@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -26,7 +25,7 @@ func classBlockInstance(id, groupID int64, start string, status string) *schedul
 		panic(err)
 	}
 	return &scheduleModel.ActivityInstance{
-		Model:           modelBase.Model{ID: id},
+		Model:           scheduleModel.Model{ID: id},
 		Date:            timezone.NewDate(2026, 9, 7),
 		ActivityGroupID: &groupID,
 		StartTime:       parsed,
@@ -75,7 +74,7 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 
 	// Spontaneous blocks carry no template and therefore no class.
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
-		{Model: modelBase.Model{ID: 20}, Date: date, StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
+		{Model: scheduleModel.Model{ID: 20}, Date: date, StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

@@ -40,8 +40,8 @@ const InstanceStudentNoteMaxLength = 500
 //   - Substatus — optional human/auto-set context (late / excused / ...)
 //   - Note      — optional freetext up to 500 characters
 type InstanceStudent struct {
-	base.Model `bun:"schema:schedule,table:instance_students"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:instance_students"`
+	TenantModel
 
 	InstanceID   int64      `bun:"instance_id,notnull" json:"instance_id"`
 	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`

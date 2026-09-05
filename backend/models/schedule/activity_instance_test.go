@@ -172,7 +172,7 @@ func TestActivityInstance_AccessorContract(t *testing.T) {
 	inst.CreatedAt = now
 	inst.UpdatedAt = now.Add(time.Minute)
 
-	assert.Equal(t, int64(17), inst.GetID())
-	assert.Equal(t, now, inst.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Minute), inst.GetUpdatedAt())
+	assert.Equal(t, int64(17), inst.ID)
+	assert.Equal(t, now, inst.CreatedAt)
+	assert.Equal(t, now.Add(time.Minute), inst.UpdatedAt)
 }

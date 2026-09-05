@@ -103,8 +103,8 @@ func TestCategory_GetID(t *testing.T) {
 		Name:  "Test",
 	}
 
-	if got, ok := cat.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", cat.GetID())
+	if cat.ID != 42 {
+		t.Errorf("ID = %v, want 42", cat.ID)
 	}
 }
 
@@ -117,7 +117,7 @@ func TestCategory_GetCreatedAt(t *testing.T) {
 		Name:  "Test",
 	}
 
-	if got := cat.GetCreatedAt(); !got.Equal(now) {
+	if got := cat.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -131,7 +131,7 @@ func TestCategory_GetUpdatedAt(t *testing.T) {
 		Name:  "Test",
 	}
 
-	if got := cat.GetUpdatedAt(); !got.Equal(now) {
+	if got := cat.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

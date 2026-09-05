@@ -396,7 +396,7 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 	staffPickup := time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)
 	staffReason := "Von der OGS gesetzt"
 	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:   modelBase.TenantModel{TenantID: f.chain.TenantID},
+		TenantModel:   scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 		StudentID:     f.chain.StudentID,
 		ExceptionDate: date,
 		PickupTime:    &staffPickup,
@@ -435,7 +435,7 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 	excusedFrom := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 	excusedReason := "Entschuldigt ab 13 Uhr"
 	require.NoError(t, f.repos.StudentPickupException.Create(ctx, &scheduleModels.StudentPickupException{
-		TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+		TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 		StudentID:         f.chain.StudentID,
 		ExceptionDate:     date,
 		PickupTime:        &excusedFrom,

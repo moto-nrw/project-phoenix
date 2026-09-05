@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestShiftTypeValidate(t *testing.T) {
@@ -89,9 +87,7 @@ func TestShiftType_EntityAccessors(t *testing.T) {
 	st.CreatedAt = now
 	st.UpdatedAt = now.Add(time.Hour)
 
-	assert.Equal(t, int64(42), st.GetID())
-	assert.Equal(t, now, st.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), st.GetUpdatedAt())
-	// Confirms the base accessors surface the same embedded values.
-	var _ base.Entity = st
+	assert.Equal(t, int64(42), st.ID)
+	assert.Equal(t, now, st.CreatedAt)
+	assert.Equal(t, now.Add(time.Hour), st.UpdatedAt)
 }

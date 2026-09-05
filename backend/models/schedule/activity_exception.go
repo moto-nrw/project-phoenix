@@ -27,8 +27,8 @@ const ActivityExceptionReasonMaxLength = 500
 // When "modified", at least one of them should be non-nil (otherwise the
 // exception expresses nothing).
 type ActivityException struct {
-	base.Model `bun:"schema:schedule,table:activity_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:activity_exceptions"`
+	TenantModel
 
 	ActivityGroupID int64         `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	ExceptionDate   timezone.Date `bun:"exception_date,notnull" json:"exception_date"`

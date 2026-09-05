@@ -11,10 +11,6 @@ type Model struct {
 	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 }
 
-func (m *Model) GetID() any              { return m.ID }
-func (m *Model) GetCreatedAt() time.Time { return m.CreatedAt }
-func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
-
 type TenantModel struct {
 	TenantID int64 `bun:"tenant_id,notnull" json:"tenant_id"`
 }

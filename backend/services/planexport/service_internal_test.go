@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -618,7 +617,7 @@ func (s stubClosingDays) ClosingDaysInRange(context.Context, timezone.Date, time
 
 func closingRange(start, end timezone.Date, reason string) *scheduleModel.ClosingDay {
 	return &scheduleModel.ClosingDay{
-		Model:     base.Model{},
+		Model:     scheduleModel.Model{},
 		StartDate: start,
 		EndDate:   end,
 		Reason:    reason,

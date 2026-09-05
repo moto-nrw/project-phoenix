@@ -86,8 +86,8 @@ var WeekdayNames = map[int]string{
 
 // StudentPickupSchedule represents a recurring weekly pickup schedule for a student
 type StudentPickupSchedule struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_schedules"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_schedules"`
+	TenantModel
 
 	StudentID  int64     `bun:"student_id,notnull" json:"student_id"`
 	Weekday    int       `bun:"weekday,notnull" json:"weekday"`
@@ -146,8 +146,8 @@ func (s *StudentPickupSchedule) GetWeekdayName() string {
 
 // StudentPickupException represents a date-specific pickup exception
 type StudentPickupException struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_exceptions"`
+	TenantModel
 
 	StudentID     int64         `bun:"student_id,notnull" json:"student_id"`
 	ExceptionDate timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
@@ -303,8 +303,8 @@ type StudentPickupExceptionRepository interface {
 
 // StudentPickupNote represents a date-specific note for a student's pickup
 type StudentPickupNote struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_notes"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_notes"`
+	TenantModel
 
 	StudentID int64         `bun:"student_id,notnull" json:"student_id"`
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`

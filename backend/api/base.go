@@ -167,6 +167,22 @@ type moduleServices struct {
 	membership *schoolMembershipModule.Module
 }
 
+// NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
+// The serving root uses initializeModuleServices so it can attach metrics.
+func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
+	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	if err != nil {
+		return nil, err
+	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return nil, err
+	}
+	return timetableCompose.New(timetableCompose.Dependencies{
+		DB: db, Students: timetableStudents(students), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db), Observe: func(timetableCompose.Observation) {},
+	})
+}
+
 func initializeModuleServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,

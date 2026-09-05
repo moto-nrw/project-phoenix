@@ -214,8 +214,8 @@ func TestGroup_GetID(t *testing.T) {
 		MaxParticipants: 10,
 	}
 
-	if got, ok := group.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", group.GetID())
+	if group.ID != 42 {
+		t.Errorf("ID = %v, want 42", group.ID)
 	}
 }
 
@@ -230,7 +230,7 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 		MaxParticipants: 10,
 	}
 
-	if got := group.GetCreatedAt(); !got.Equal(now) {
+	if got := group.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -246,7 +246,7 @@ func TestGroup_GetUpdatedAt(t *testing.T) {
 		MaxParticipants: 10,
 	}
 
-	if got := group.GetUpdatedAt(); !got.Equal(now) {
+	if got := group.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

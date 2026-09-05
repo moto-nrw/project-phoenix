@@ -56,8 +56,8 @@ const CalendarPeriodNameMaxLength = 255
 
 // CalendarPeriod represents a time period in the school calendar (e.g. school year, semester, holiday).
 type CalendarPeriod struct {
-	base.Model `bun:"schema:schedule,table:calendar_periods"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:calendar_periods"`
+	TenantModel
 
 	Name            string         `bun:"name,notnull" json:"name"`
 	PeriodType      string         `bun:"period_type,notnull" json:"period_type"`

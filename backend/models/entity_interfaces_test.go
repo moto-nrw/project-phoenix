@@ -11,14 +11,12 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -33,11 +31,6 @@ var (
 	_ base.Entity = (*active.Visit)(nil)
 
 	// activities package
-	_ base.Entity = (*activities.Category)(nil)
-	_ base.Entity = (*activities.Group)(nil)
-	_ base.Entity = (*activities.Schedule)(nil)
-	_ base.Entity = (*activities.StudentEnrollment)(nil)
-	_ base.Entity = (*activities.SupervisorPlanned)(nil)
 
 	// auth package
 	_ base.Entity = (*auth.Account)(nil)
@@ -64,9 +57,6 @@ var (
 	_ base.Entity = (*platform.OperatorRefreshToken)(nil)
 
 	// schedule package
-	_ base.Entity = (*schedule.Dateframe)(nil)
-	_ base.Entity = (*schedule.RecurrenceRule)(nil)
-	_ base.Entity = (*schedule.Timeframe)(nil)
 
 	// users package
 	_ base.Entity = (*users.Guest)(nil)

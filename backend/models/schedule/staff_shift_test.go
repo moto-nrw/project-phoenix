@@ -109,7 +109,7 @@ func TestStaffShiftEntityAccessors(t *testing.T) {
 	shift.CreatedAt = time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
 	shift.UpdatedAt = time.Date(2026, time.July, 2, 10, 0, 0, 0, time.UTC)
 
-	assert.Equal(t, int64(123), shift.GetID())
-	assert.Equal(t, shift.CreatedAt, shift.GetCreatedAt())
-	assert.Equal(t, shift.UpdatedAt, shift.GetUpdatedAt())
+	assert.Equal(t, int64(123), shift.ID)
+	assert.Equal(t, shift.CreatedAt, shift.CreatedAt)
+	assert.Equal(t, shift.UpdatedAt, shift.UpdatedAt)
 }

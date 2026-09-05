@@ -118,8 +118,8 @@ func TestSupervisorPlanned_GetID(t *testing.T) {
 		GroupID: 1,
 	}
 
-	if got, ok := sp.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", sp.GetID())
+	if sp.ID != 42 {
+		t.Errorf("ID = %v, want 42", sp.ID)
 	}
 }
 
@@ -133,7 +133,7 @@ func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
 		GroupID: 1,
 	}
 
-	if got := sp.GetCreatedAt(); !got.Equal(now) {
+	if got := sp.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -148,7 +148,7 @@ func TestSupervisorPlanned_GetUpdatedAt(t *testing.T) {
 		GroupID: 1,
 	}
 
-	if got := sp.GetUpdatedAt(); !got.Equal(now) {
+	if got := sp.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

@@ -148,7 +148,7 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 			return err
 		}
 		exception := &scheduleModels.StudentPickupException{
-			TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+			TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 			StudentID:         f.chain.StudentID,
 			ExceptionDate:     date,
 			PickupTime:        &pickupTime,

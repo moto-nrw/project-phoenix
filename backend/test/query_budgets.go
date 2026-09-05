@@ -80,7 +80,6 @@ var queryBudgets = map[string]queryBudget{
 	"services.users.list_guardians.reads":                  {max: 2},
 	"services.users.student_guardians.reads":               {max: 4},
 	"repositories.active.combined_group_with_groups.reads": {max: 3, exact: true},
-	"repositories.activities.supervisors_by_staff.reads":   {max: 2, exact: true},
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},

@@ -347,14 +347,14 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 
 // deleteGroupRows deletes every row FindByGroupID returns, one delete per
 // row (per-row deletes keep the historical query pattern and repo hooks).
-func deleteGroupRows[E interface{ GetID() any }](ctx context.Context, groupID int64, find func(context.Context, int64) ([]E, error), del func(context.Context, any) error) error {
+func deleteGroupRows[E any](ctx context.Context, groupID int64, find func(context.Context, int64) ([]E, error), id func(E) int64, del func(context.Context, any) error) error {
 	rows, err := find(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
 	for _, row := range rows {
-		if err := del(ctx, row.GetID()); err != nil {
+		if err := del(ctx, id(row)); err != nil {
 			return err
 		}
 	}
@@ -364,17 +364,17 @@ func deleteGroupRows[E interface{ GetID() any }](ctx context.Context, groupID in
 
 // deleteGroupEnrollments deletes all enrollments for a group
 func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, service.enrollmentRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, func(row *activities.StudentEnrollment) int64 { return row.ID }, service.enrollmentRepo.Delete)
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, service.supervisorRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, func(row *activities.SupervisorPlanned) int64 { return row.ID }, service.supervisorRepo.Delete)
 }
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, service.scheduleRepo.Delete)
+	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, func(row *activities.Schedule) int64 { return row.ID }, service.scheduleRepo.Delete)
 }
 
 // ListGroups lists activity groups with optional filters

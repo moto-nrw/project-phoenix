@@ -1381,7 +1381,7 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 		return existing.ID, nil
 	}
 	exception := &scheduleModels.StudentPickupException{
-		TenantModel:   modelBase.TenantModel{TenantID: req.TenantID},
+		TenantModel:   scheduleModels.TenantModel{TenantID: req.TenantID},
 		StudentID:     req.StudentID,
 		ExceptionDate: date,
 		PickupTime:    &pickupTime,
