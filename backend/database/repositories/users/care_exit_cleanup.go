@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // CareExitCleanupRepository owns every deliberately cross-schema operation
@@ -32,10 +31,11 @@ import (
 // writing half (the confirmation) side by side, where a divergence is
 // visible.
 type CareExitCleanupRepository struct {
-	db       *bun.DB
-	periods  CalendarPeriodDirectory
-	carePlan CarePlanDirectory
-	bookings ActivityBookingDirectory
+	db          *bun.DB
+	assignments CareExitAssignments
+	periods     CalendarPeriodDirectory
+	carePlan    CarePlanDirectory
+	bookings    ActivityBookingDirectory
 }
 
 // CareOfferingProjection is the narrow owner data used by care-exit cleanup.
@@ -178,8 +178,11 @@ type CalendarPeriodDirectory interface {
 var errCalendarPeriodDirectoryRequired = errors.New("users repositories: calendar period directory is not bound")
 
 // NewCareExitCleanupRepository builds the repository.
-func NewCareExitCleanupRepository(db *bun.DB) userModels.CareExitCleanupRepository {
-	return &CareExitCleanupRepository{db: db}
+func NewCareExitCleanupRepository(db *bun.DB, assignments CareExitAssignments) userModels.CareExitCleanupRepository {
+	if assignments == nil {
+		panic("care exit cleanup: timetable assignments are required")
+	}
+	return &CareExitCleanupRepository{db: db, assignments: assignments}
 }
 
 // BindCalendarPeriods installs the School Calendar query the booking restore
@@ -273,17 +276,6 @@ func (r *CareExitCleanupRepository) careExitSourceRemovalProjection(ctx context.
 	return string(encoded), nil
 }
 
-const careExitRemovalRecordset = `jsonb_to_recordset(?::jsonb) AS rm(
-	tenant_id bigint, student_id bigint, kind text, instance_id bigint,
-	room_id bigint, status text, substatus text, note text,
-	is_unplanned boolean, not_scheduled boolean, manual_status_at timestamptz,
-	student_status_day_id bigint, pickup_exception_id bigint,
-	enrollment_id bigint, was_deleted boolean, previous_valid_until date,
-	activity_group_id bigint, valid_from date, calendar_period_id bigint,
-	enrollment_request_child_id bigint, selected_weekdays jsonb,
-	attendance_status text, weekday smallint
-)`
-
 const careExitSourceRemovalRecordset = `jsonb_to_recordset(?::jsonb) AS rm(
 	tenant_id bigint, student_id bigint, kind text, source_row_id bigint,
 	was_deleted boolean, snapshot jsonb
@@ -373,17 +365,19 @@ func (r *CareExitCleanupRepository) FindOpenPresence(
 		UNION
 		SELECT student_id FROM active.visits
 		WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL
-		UNION
-		SELECT student_id FROM schedule.instance_students
-		WHERE tenant_id = ? AND student_id IN (?)
-		  AND checked_in_at IS NOT NULL AND checked_out_at IS NULL
 	`, tenant.FromContext(ctx), bun.List(studentIDs),
-		tenant.FromContext(ctx), bun.List(studentIDs),
 		tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		present[row.StudentID] = true
+	}
+	rosterIDs, err := r.assignments.ListOpenStudentAssignments(ctx, studentIDs)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: err}
+	}
+	for _, id := range rosterIDs {
+		present[id] = true
 	}
 	return present, nil
 }
@@ -423,12 +417,14 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 		{"lock people for care exit", `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`},
 		{"lock attendance for care exit", `SELECT id FROM active.attendance WHERE tenant_id = ? AND student_id IN (?) AND check_out_time IS NULL FOR UPDATE`},
 		{"lock visits for care exit", `SELECT id FROM active.visits WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL FOR UPDATE`},
-		{"lock roster presence for care exit", `SELECT id FROM schedule.instance_students WHERE tenant_id = ? AND student_id IN (?) AND checked_in_at IS NOT NULL AND checked_out_at IS NULL FOR UPDATE`},
 	}
 	for _, statement := range statements {
 		if _, err := db.ExecContext(ctx, statement.sql, tenantID, bun.List(studentIDs)); err != nil {
 			return &modelBase.DatabaseError{Op: statement.op, Err: base.TranslateNotFound(err)}
 		}
+	}
+	if err := r.assignments.LockOpenStudentAssignments(ctx, studentIDs); err != nil {
+		return &modelBase.DatabaseError{Op: "lock roster presence for care exit", Err: err}
 	}
 	return nil
 }
@@ -463,12 +459,17 @@ func (r *CareExitCleanupRepository) LatestAttendanceDate(ctx context.Context, st
 // their care ends: the attendance row, the room visit, and the roster
 // check-in. Nothing is deleted — the day that happened stays in the history,
 // it just stops being an unfinished one (#2487).
-func (r *CareExitCleanupRepository) CloseOpenPresence(
-	ctx context.Context, studentIDs []int64, at time.Time,
-) (int, error) {
+func (r *CareExitCleanupRepository) CloseOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+	rows, err := withCareExitTransaction(ctx, func(txCtx context.Context) (int64, error) {
+		return r.closeOpenPresence(txCtx, studentIDs, at)
+	})
+	return int(rows), err
+}
+
+func (r *CareExitCleanupRepository) closeOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int64, error) {
 	tenantID := tenant.FromContext(ctx)
 	total := 0
 	for _, statement := range []string{
@@ -476,8 +477,6 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(
 		 WHERE tenant_id = ? AND student_id IN (?) AND check_out_time IS NULL`,
 		`UPDATE active.visits SET exit_time = ?, updated_at = ?
 		 WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL`,
-		`UPDATE schedule.instance_students SET checked_out_at = ?, updated_at = ?
-		 WHERE tenant_id = ? AND student_id IN (?) AND checked_in_at IS NOT NULL AND checked_out_at IS NULL`,
 	} {
 		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement, at, at, tenantID, bun.List(studentIDs))
 		if err != nil {
@@ -486,7 +485,11 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(
 		affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
 		total += int(affected)
 	}
-	return total, nil
+	rosterRows, err := r.assignments.CloseOpenStudentAssignments(ctx, studentIDs, at)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "close open presence", Err: err}
+	}
+	return int64(total) + rosterRows, nil
 }
 
 // CountPlannedByStudentIDsAfter counts the roster rows the child would lose,
@@ -551,7 +554,7 @@ func (r *CareExitCleanupRepository) deletePlannedByStudentIDsAfter(
 	}
 	removed, err := r.bookings.RemovePlannedRosterForCareExit(ctx, studentIDs, after.String())
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: base.TranslateNotFound(err)}
+		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: err}
 	}
 	if err := r.carePlan.RecordCareExitRemovals(ctx, removed); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "record planned roster rows after care end", Err: err}
@@ -1232,18 +1235,8 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: err}
 	}
-	if _, err := db.ExecContext(ctx, `
-		UPDATE schedule.instance_students AS live
-		SET pickup_exception_id = rm.pickup_exception_id
-		FROM `+careExitRemovalRecordset+`
-		WHERE rm.kind = 'roster'
-		  AND rm.tenant_id = ? AND rm.student_id IN (?)
-		  AND rm.pickup_exception_id = ANY(?::BIGINT[])
-		  AND live.tenant_id = rm.tenant_id
-		  AND live.instance_id = rm.instance_id
-		  AND live.student_id = rm.student_id
-	`, removals, tenantID, bun.List(studentIDs), pgdialect.Array(validPickupExceptionIDs)); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: base.TranslateNotFound(err)}
+	if err := r.assignments.ReconnectCareExitAssignmentPickupExceptions(ctx, studentIDs, validPickupExceptionIDs, ledger); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: err}
 	}
 
 	if err := r.DiscardRemovals(ctx, studentIDs); err != nil {

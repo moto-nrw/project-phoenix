@@ -373,7 +373,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime)
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, f.InstanceStudent.(timetableInstanceStudentRepository).timetable)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -598,7 +598,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db, careExitAssignments{capability: timetableCapability}),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
@@ -683,7 +683,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Attendance:                      attendance,
 		StudentStatusDay:                nil, // bound to Care Plan below
 		Statistics:                      active.NewStatisticsRepository(db),
-		CourseStatistics:                schedule.NewCourseStatisticsRepository(db),
+		CourseStatistics:                timetableCourseStatisticsRepository{timetable: timetableCapability},
 		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
@@ -826,7 +826,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, timetableCapability)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
@@ -855,7 +855,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose school calendar: %v", err))
 	}
-	factory.bindSchoolCalendarAdapters(calendar)
+	factory.bindSchoolCalendarAdapters(calendar, schedule.NewCalendarPeriodUsageRepository(db, timetableCapability.CountPlannedSupervisorsByCalendarPeriod))
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
