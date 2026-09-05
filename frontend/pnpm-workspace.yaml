@@ -24,6 +24,15 @@ onlyBuiltDependencies:
   - sharp
   - unrs-resolver
 
+# Keep these lifecycle scripts disabled: the production build uses the packaged
+# binaries and does not need their download, fallback-build, or setup scripts.
+ignoredBuiltDependencies:
+  - "@parcel/watcher"
+  - "@sentry/cli"
+  - "@swc/core"
+  - core-js
+  - msw
+
 overrides:
   "@radix-ui/react-focus-scope": ^1.1.12
   "picomatch@<2.3.2": 2.3.2
