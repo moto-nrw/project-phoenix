@@ -28,6 +28,30 @@ type AuthTestModule struct {
 	MFA                auth.MFAService
 }
 
+type InvitationTestModule struct {
+	Persistence *repositories.InvitationPersistence
+	Invitation  auth.InvitationService
+}
+
+func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
+	signer, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return InvitationTestModule{}, err
+	}
+	repos, err := repositories.NewInvitationPersistence(db)
+	if err != nil {
+		return InvitationTestModule{}, err
+	}
+	service := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth: signer, InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
+		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role, PermissionRepo: repos.Permission,
+		AccountRoleRepo: repos.AccountRole, PersonRepo: repos.Person, StaffRepo: repos.Staff,
+		TeacherRepo: repos.Teacher, StudentRepo: repos.Student, SchoolRepo: repos.School, DB: db,
+	})
+	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	return InvitationTestModule{Persistence: repos, Invitation: service}, nil
+}
+
 func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
@@ -95,6 +119,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
 	invitation := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth:      authConfig.TokenAuth,
 		InvitationRepo: r.InvitationToken, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
 		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole,
 		PersonRepo: r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, StudentRepo: r.Student, SchoolRepo: r.School,

@@ -130,6 +130,14 @@ func SetupAuthModule(t *testing.T) (*bun.DB, services.AuthTestModule) {
 	return db, module
 }
 
+func SetupInvitationModule(t *testing.T) (*bun.DB, services.InvitationTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewInvitationTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
 func SetupScheduleModule(t *testing.T) (*bun.DB, services.ScheduleTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
