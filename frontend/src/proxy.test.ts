@@ -840,6 +840,20 @@ describe("proxy", () => {
       );
     });
 
+    it("redirects parent portal links rendered before the route rename", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/parents/enroll/status/tok/edit?source=email`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      const location = new URL(res.headers.get("location")!);
+      expect(res.status).toBe(308);
+      expect(location.pathname).toBe("/parents/anmeldung/status/tok/edit");
+      expect(location.search).toBe("?source=email");
+    });
+
     it("redirects tenant-prefixed paths on the bare domain", () => {
       const res = proxy(
         makeRequest(

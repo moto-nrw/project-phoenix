@@ -19,6 +19,8 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => mocks.tenant,
+  useTenantSlugSafe: () => mocks.tenant.tenantSlug,
+  useTenantRoutingModeSafe: () => "path",
 }));
 
 vi.mock("~/lib/enrollment-submission-api", () => ({
@@ -38,9 +40,13 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
 }));
 
 vi.mock("~/components/enrollment/public-enrollment-shell", () => ({
-  PublicEnrollmentBackLink: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
+  PublicEnrollmentBackLink: ({
+    children,
+    href,
+  }: {
+    children: React.ReactNode;
+    href: string;
+  }) => <a href={href}>{children}</a>,
   PublicEnrollmentBrand: () => null,
   PublicEnrollmentLocaleSwitcher: () => null,
   PublicEnrollmentPageShell: ({ children }: { children: React.ReactNode }) => (
@@ -102,6 +108,23 @@ describe("EnrollPhaseFormPage", () => {
     );
     expect(mocks.enrollmentForm).toHaveBeenCalledWith(
       expect.objectContaining({ gradeLevelMax: 12 }),
+    );
+  });
+
+  it("keeps the tenant in the link back to the phase picker in path mode", async () => {
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollPhaseFormPage
+            params={Promise.resolve({ tenant: "demo", phaseId: "5" })}
+          />
+        </Suspense>,
+      );
+    });
+
+    expect(await screen.findByRole("link")).toHaveAttribute(
+      "href",
+      "/demo/anmeldung",
     );
   });
 });

@@ -501,11 +501,10 @@ function withEnrollmentPath(prefix: string, rest: string): string {
 }
 
 /** Maps a legacy `/enroll…` URL onto its German successor, or null when the
- * path is unrelated. Covers all three shapes the enrollment surface is
- * reachable under: the parents host (`/enroll/status/x`), a tenant subdomain
- * (`/enroll/phase-1`) and path mode on the bare domain
- * (`/school-a/enroll/phase-1`). `/parents/enroll…` is an App Router-internal
- * namespace, never a link we handed out, so it is deliberately not mapped. */
+ * path is unrelated. Covers the parents host (`/enroll/status/x`), a tenant
+ * subdomain (`/enroll/phase-1`), path mode on the bare domain
+ * (`/school-a/enroll/phase-1`) and parent-portal links rendered before the
+ * route rename (`/parents/enroll/status/x`). */
 function legacyEnrollmentTarget(pathname: string): string | null {
   if (
     pathname === LEGACY_ENROLLMENT_PATH ||
@@ -514,6 +513,17 @@ function legacyEnrollmentTarget(pathname: string): string | null {
     return withEnrollmentPath(
       "",
       pathname.slice(LEGACY_ENROLLMENT_PATH.length),
+    );
+  }
+
+  const legacyParentsPath = `/parents${LEGACY_ENROLLMENT_PATH}`;
+  if (
+    pathname === legacyParentsPath ||
+    pathname.startsWith(`${legacyParentsPath}/`)
+  ) {
+    return withEnrollmentPath(
+      "/parents",
+      pathname.slice(legacyParentsPath.length),
     );
   }
 
