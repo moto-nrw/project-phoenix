@@ -108,6 +108,25 @@ schedule, online enrollment, and weekly-plan-driven care. The seeder reads
 these settings and the expected children, devices, and planned activities back
 through the API before it writes the state file.
 
+The same command also creates `anmeldung-wochenplan` as the first school of
+`Demo-Träger Süd` / `demo-traeger-sued`. Its isolated school-admin login is
+`anmeldung-wochenplan-admin@example.test` / `Wochenplan1234%` (the shared
+`--staff-password` flag overrides all school-admin passwords). The developer
+admin `demo1@mail.de` can switch between the two organizations using the normal
+tenant switch. The school-admin accounts remain school-local.
+
+This smaller profile has detailed web attendance, no physical terminals or
+NFC attendance, fixed groups, an open-room concept, enrollment and care
+offerings enabled, and `enrollment.bookings_authoritative=false`. Twelve
+children have contacts, parent accounts, and weekly plans for Monday, Tuesday and
+Thursday, 12:00–15:00. Their bookings deliberately cover Monday until 16:00.
+The seed verifies each child's parent-facing care days and times against the
+weekly plan, despite the Monday booking. Sixteen requests cover approval,
+submission through a parent account, waiting list, rejection, and withdrawal.
+The active phase, schema, offerings, request keys, and parent credentials are
+recorded under `profiles["anmeldung-wochenplan"]` in the version 3 state.
+All three profiles are provisioned and checked exclusively through production HTTP
+endpoints as part of the fresh-stack seed smoke test.
 The same organization also contains `Demo-Schule Manuell` / `manuell`. Its
 school-admin login is `manuell-admin@example.test` / `Manuell1234%`. This
 profile uses binary presence, web attendance without NFC terminals, open care,
