@@ -9,7 +9,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 // init seeds JWT viper defaults before any test (and before setupStaffRoute
@@ -26,6 +28,14 @@ type testContext struct {
 	router   chi.Router
 }
 
+func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.WorkforceTestRepositories {
+	t.Helper()
+	repos, err := repositories.NewWorkforceTestRepositories(db, repositories.NewTestAuditStore(db))
+	require.NoError(t, err)
+	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.SettingsRuntime(t, db))
+	return repos
+}
+
 // setupStaffRoute initializes test database, services, and resource. The
 // router serves the resource through the production middleware chain
 // (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
@@ -33,7 +43,7 @@ type testContext struct {
 func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t, clocks...)
+	db, svc := testutil.SetupWorkforceModule(t, clocks...)
 
 	resource := NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 

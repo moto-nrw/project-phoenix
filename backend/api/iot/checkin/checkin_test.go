@@ -113,7 +113,7 @@ func setupCheckinRoute(t *testing.T, loggers ...*slog.Logger) *testContext {
 		logger = loggers[0]
 	}
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActiveModule(t)
 	newCheckinService := func(active activeSvc.Service, users usersSvc.PersonService) *checkinsvc.CheckinService {
 		return checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
 			Active:     active,
@@ -2748,7 +2748,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.resource.UsersService,
 		studentRepo: &failingStudentRepository{
-			StudentRepository: repositories.NewFactory(ctx.db).Student,
+			StudentRepository: repositories.NewStudentLookupTestRepository(ctx.db),
 			err:               errors.New("student lookup exploded"),
 		},
 	})
@@ -2976,10 +2976,12 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
 	// Override person resolution with a failing staff repository
+	membership, err := repositories.NewMembershipTestRepositories(ctx.db)
+	require.NoError(t, err)
 	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.resource.UsersService,
 		staffRepo: &failingStaffRepository{
-			StaffRepository: repositories.NewFactory(ctx.db).Staff,
+			StaffRepository: membership.Staff,
 			err:             errors.New("staff lookup exploded"),
 		},
 	})

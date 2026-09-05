@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,17 +29,18 @@ import (
 )
 
 type shiftTypeTestSetup struct {
-	res    *Resource
-	db     *bun.DB
-	router chi.Router
-	ctx    context.Context
+	res               *Resource
+	db                *bun.DB
+	router            chi.Router
+	ctx               context.Context
+	categoryShiftType func(context.Context, int64) (*int64, error)
+	deleteType        func(context.Context, int64) error
 }
 
 func setupShiftTypeRoute(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
-	db, svcs := testutil.SetupAPITest(t)
-
-	res := NewResource(svcs.ShiftTypes, svcs.Activities, db, slog.Default())
+	db, svc := testutil.SetupShiftTypeModule(t)
+	res := NewResource(svc.ShiftTypes, svc.Activities, db, slog.Default())
 
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -53,7 +53,15 @@ func setupShiftTypeRoute(t *testing.T) *shiftTypeTestSetup {
 	r.Post("/", res.create)
 	r.Put("/{id}", res.update)
 
-	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.Ctx(t)}
+	return &shiftTypeTestSetup{res: res, db: db, router: r, ctx: testpkg.Ctx(t), deleteType: func(ctx context.Context, id int64) error { return svc.Repositories.Types.Delete(ctx, id) },
+		categoryShiftType: func(ctx context.Context, id int64) (*int64, error) {
+			category, err := svc.Repositories.Categories.FindByID(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			return category.ShiftTypeID, nil
+		},
+	}
 }
 
 func (s *shiftTypeTestSetup) do(t *testing.T, method, path string, body any) *httptest.ResponseRecorder {
@@ -69,9 +77,9 @@ func (s *shiftTypeTestSetup) do(t *testing.T, method, path string, body any) *ht
 
 func (s *shiftTypeTestSetup) shiftTypeIDOf(t *testing.T, categoryID int64) *int64 {
 	t.Helper()
-	cat, err := repositories.NewFactory(s.db).ActivityCategory.FindByID(s.ctx, categoryID)
+	id, err := s.categoryShiftType(s.ctx, categoryID)
 	require.NoError(t, err)
-	return cat.ShiftTypeID
+	return id
 }
 
 func decodeShiftTypeID(t *testing.T, w *httptest.ResponseRecorder) int64 {
@@ -98,7 +106,7 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	stID := decodeShiftTypeID(t, w)
-	t.Cleanup(func() { _ = repositories.NewFactory(s.db).ShiftType.Delete(s.ctx, stID) })
+	t.Cleanup(func() { _ = s.deleteType(s.ctx, stID) })
 
 	require.NotNil(t, s.shiftTypeIDOf(t, cat1.ID))
 	assert.Equal(t, stID, *s.shiftTypeIDOf(t, cat1.ID))
@@ -119,7 +127,7 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, cw.Code, "body=%s", cw.Body.String())
 	stID := decodeShiftTypeID(t, cw)
-	t.Cleanup(func() { _ = repositories.NewFactory(s.db).ShiftType.Delete(s.ctx, stID) })
+	t.Cleanup(func() { _ = s.deleteType(s.ctx, stID) })
 
 	// Update narrowing the set to cat1 only -> cat2 is unlinked.
 	active := true
@@ -152,7 +160,7 @@ func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, cw.Code, "body=%s", cw.Body.String())
 	stID := decodeShiftTypeID(t, cw)
-	t.Cleanup(func() { _ = repositories.NewFactory(s.db).ShiftType.Delete(s.ctx, stID) })
+	t.Cleanup(func() { _ = s.deleteType(s.ctx, stID) })
 	require.NotNil(t, s.shiftTypeIDOf(t, cat1.ID))
 
 	// An update carrying an unknown category id must be a 400 and must NOT clear

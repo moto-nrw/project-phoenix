@@ -31,7 +31,7 @@ import (
 // unmounted.
 func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *school.Resource) {
 	t.Helper()
-	db, services := testutil.SetupAPITest(t)
+	db, services := testutil.SetupSchoolModule(t)
 	classDay := classday.NewResource(services.EnrollmentReport, services.UserContext, db, nil,
 		classday.WithArrivalExceptions(services.ClassDayArrivalExceptions))
 	return db, school.NewResource(services.Auth, services.MFA, classDay, nil, nil, nil)

@@ -52,7 +52,7 @@ type operatorSettingsTestContext struct {
 func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupOperatorSettingsModule(t)
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
@@ -256,7 +256,9 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	))
 	student := testpkg.CreateTestStudent(t, ctx.db, "Reset", "Buchungsmodus", "2c")
 	studentID := student.ID
-	repo := repositories.NewFactory(ctx.db).CareWithdrawal
+	careRepos, err := repositories.NewCareLifecycleTestRepositories(ctx.db, repositories.NewTestAuditStore(ctx.db))
+	require.NoError(t, err)
+	repo := careRepos.CareWithdrawal
 	require.NoError(t, repo.UpsertPending(tenantCtx, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
 		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,

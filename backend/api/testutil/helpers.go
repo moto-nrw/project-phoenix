@@ -4,15 +4,15 @@
 //
 // API tests follow the hermetic test pattern established in the codebase:
 // - Real database with test fixtures
-// - Real services via factory
+// - Real services via route/module-sized builders
 // - httptest for HTTP request/response
 // - Context injection for JWT claims and permissions
 //
 // Example:
 //
 //	func setupAuthRoute(t *testing.T) (*bun.DB, *Resource) {
-//	    db, services := testutil.SetupAPITest(t)
-//	    return db, NewResource(services.Auth, services.Invitation)
+//	    db, module := testutil.SetupAuthModule(t)
+//	    return db, NewResource(module.Auth, module.Invitation)
 //	}
 //
 //	func TestHandler(t *testing.T) {
@@ -35,7 +35,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -51,7 +50,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -67,39 +65,301 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-// SetupAPITest constructs the legacy graph inside route- and module-sized
-// test builders. Callers must not expose the returned Factory.
-// The returned pool is shared by every test in the binary and must not be closed.
-func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
+// SetupSettingsModule builds the settings route's real application boundary.
+func SetupSettingsModule(t *testing.T) (*bun.DB, services.SettingsTestModule) {
 	t.Helper()
-	db, serviceFactory, _ := setupAPITest(t, clocks...)
-	return db, serviceFactory
-}
-
-func setupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
-	t.Helper()
-
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, clocks...)
-	settings := feedbackCompose.NewSettings()
-	module, err := feedbackCompose.New(feedbackCompose.Dependencies{
-		DB:       db,
-		Settings: settings,
-		Today:    feedbackModule.Today,
-		Observe:  func(feedbackCompose.Observation) {},
-	})
-	require.NoError(t, err, "Failed to create Feedback module")
-	serviceFactory, err := services.NewFactoryForTestsWithFeedback(repoFactory, db, slog.Default(), module, settings.Bind, clocks...)
-	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
-	return db, serviceFactory, module
+	module, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
 }
 
-// SetupFeedbackAPITest adds the migrated Feedback module to the legacy test
-// graph without putting the module back onto services.Factory.
-func SetupFeedbackAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
+func SetupFileStoreModule(t *testing.T) (*bun.DB, services.FileStoreTestModule) {
 	t.Helper()
-	return setupAPITest(t, clocks...)
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupAbsenceTypeModule(t *testing.T) (*bun.DB, services.AbsenceTypeTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAbsenceTypeTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.BirthdayTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewBirthdayTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupShiftTypeModule(t *testing.T) (*bun.DB, services.ShiftTypeTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewShiftTypeTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupDeviceModule(t *testing.T) (*bun.DB, services.DeviceTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewDeviceTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.TimetableTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupAuthModule(t *testing.T) (*bun.DB, services.AuthTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupScheduleModule(t *testing.T) (*bun.DB, services.ScheduleTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewScheduleTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStatisticsModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.StatisticsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStatisticsTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGradeTransitionModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.GradeTransitionTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGradeTransitionTestModule(db, clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupUserContextModule(t *testing.T) (*bun.DB, services.UserContextTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRoomsModule(t *testing.T) (*bun.DB, services.RoomsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRoomsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupCheckinModule(t *testing.T) (*bun.DB, services.CheckinTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewCheckinTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStaffMessagingModule(t *testing.T) (*bun.DB, services.StaffMessagingTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStaffMessagingTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRFIDModule(t *testing.T) (*bun.DB, services.RFIDTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRFIDTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGroupsModule(t *testing.T) (*bun.DB, services.GroupsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupClassListModule(t *testing.T) (*bun.DB, services.ClassListTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewClassListTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupWorkSessionModule(t *testing.T) (*bun.DB, services.WorkSessionTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupIoTDataModule(t *testing.T) (*bun.DB, services.IoTDataTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewIoTDataTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupActiveModule(t *testing.T) (*bun.DB, services.ActiveTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRemindersModule(t *testing.T) (*bun.DB, services.RemindersTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRemindersTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupOperatorSettingsModule(t *testing.T) (*bun.DB, services.OperatorSettingsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewOperatorSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupSettingsCallbacksModule(t *testing.T, photos services.StudentPhotoBootstrap) (*bun.DB, services.SettingsCallbacksTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewSettingsCallbacksTestModule(db, testpkg.TenantRuntime(t, db), photos.Unlinker)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupClassDayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.ClassDayTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewClassDayTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupSchoolModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.SchoolTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewSchoolTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGuardianModule(t *testing.T) (*bun.DB, services.GuardianTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGuardianTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupWorkforceModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.WorkforceTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewWorkforceTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStaffModule(t *testing.T) (*bun.DB, services.StaffTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStaffTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.StudentTestModule) {
+	t.Helper()
+	db, feedback := SetupFeedbackModule(t)
+	module, err := services.NewStudentTestModule(db, testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupImportModule(t *testing.T) (*bun.DB, services.ImportTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.TimetableScenarioTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewTimetableScenarioTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupCalendarModule(t *testing.T) (*bun.DB, services.CalendarTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewCalendarTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+type FeedbackTestModule struct {
+	services.RFIDTestModule
+	services.SettingsTestModule
+	Feedback *feedbackModule.Module
+}
+
+func SetupFeedbackModule(t *testing.T) (*bun.DB, FeedbackTestModule) {
+	t.Helper()
+	db, settings := SetupSettingsModule(t)
+	identity, err := services.NewRFIDTestModule(db)
+	require.NoError(t, err)
+	resolvers := feedbackCompose.NewSettings()
+	resolvers.Bind(func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, "feedback.enabled")
+	}, func(ctx context.Context) (int, error) {
+		return settings.Settings.ResolveInt(ctx, "feedback.data_retention_days")
+	})
+	feedback, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB: db, Settings: resolvers, Today: feedbackModule.Today, Observe: func(feedbackCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	return db, FeedbackTestModule{RFIDTestModule: identity, SettingsTestModule: settings, Feedback: feedback}
+}
+
+func SetupActivitiesModule(t *testing.T) (*bun.DB, services.ActivitiesTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewActivitiesTestModule(db)
+	require.NoError(t, err)
+	return db, module
 }
 
 // RequestOption configures an HTTP request for testing.
