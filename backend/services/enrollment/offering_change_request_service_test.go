@@ -395,10 +395,10 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	oldRow, ok := byGroup[fx.oldGroupID]
 	require.True(t, ok, "the attended group must survive as history")
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, fx.switchDate, *oldRow.ValidUntil)
+	assert.Equal(t, activitiesModels.Date(fx.switchDate), *oldRow.ValidUntil)
 	newRow, ok := byGroup[fx.newGroupID]
 	require.True(t, ok, "the requested group must be materialized")
-	assert.Equal(t, fx.switchDate, newRow.ValidFrom)
+	assert.Equal(t, activitiesModels.Date(fx.switchDate), newRow.ValidFrom)
 
 	// The queue is empty afterwards.
 	pending, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
@@ -927,10 +927,10 @@ func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.
 	oldRow, ok := byGroup[fx.oldGroupID]
 	require.True(t, ok, "the attended group must survive as history")
 	require.NotNil(t, oldRow.ValidUntil)
-	assert.Equal(t, confirmed, *oldRow.ValidUntil)
+	assert.Equal(t, activitiesModels.Date(confirmed), *oldRow.ValidUntil)
 	newRow, ok := byGroup[fx.newGroupID]
 	require.True(t, ok, "the requested group must be materialized")
-	assert.Equal(t, confirmed, newRow.ValidFrom)
+	assert.Equal(t, activitiesModels.Date(confirmed), newRow.ValidFrom)
 }
 
 // A confirmed date before today would rewrite weeks that already happened.

@@ -195,7 +195,7 @@ func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in s
 			// offering). Planning them for the full phase window would place them
 			// on days they do not hold the offering.
 			validUntil := target.validUntil
-			row.ValidUntil = &validUntil
+			row.ValidUntil = enrollmentActivityDatePtr(&validUntil)
 			if err := row.Validate(); err != nil {
 				return fmt.Errorf("offering roster resync: validate seeded enrollment: %w", err)
 			}
@@ -255,6 +255,22 @@ type SourcedInstanceRosterReconciler interface {
 	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from timezone.Date, priorEnrollments []*activities.StudentEnrollment) (int, int, error)
 }
 
+func enrollmentActivityDatePtr(date *timezone.Date) *activities.Date {
+	if date == nil {
+		return nil
+	}
+	value := activities.Date(*date)
+	return &value
+}
+
+func enrollmentTimezoneDatePtr(date *activities.Date) *timezone.Date {
+	if date == nil {
+		return nil
+	}
+	value := timezone.Date(*date)
+	return &value
+}
+
 // scheduleValidityBounds returns the union recurrence envelope of a template's
 // schedule rows. A side is nil (open) when any row is open on that side;
 // otherwise the widest bound wins. Segment rows share one envelope per the
@@ -270,14 +286,14 @@ func scheduleValidityBounds(schedules []*activities.Schedule) (validFrom, validU
 		case sch.ValidFrom == nil:
 			fromOpen, validFrom = true, nil
 		case !fromOpen && (validFrom == nil || sch.ValidFrom.Before(*validFrom)):
-			cloned := *sch.ValidFrom
+			cloned := timezone.Date(*sch.ValidFrom)
 			validFrom = &cloned
 		}
 		switch {
 		case sch.ValidUntil == nil:
 			untilOpen, validUntil = true, nil
 		case !untilOpen && (validUntil == nil || sch.ValidUntil.After(*validUntil)):
-			cloned := *sch.ValidUntil
+			cloned := timezone.Date(*sch.ValidUntil)
 			validUntil = &cloned
 		}
 	}
@@ -890,8 +906,8 @@ func (s *decisionService) reconcileSourcedRosterRow(
 		if len(wanted[childID]) == 0 {
 			delete(wanted, childID)
 		}
-		if row.ValidUntil == nil || *row.ValidUntil != target.validUntil {
-			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, target.validUntil); err != nil {
+		if row.ValidUntil == nil || timezone.Date(*row.ValidUntil) != target.validUntil {
+			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(target.validUntil)); err != nil {
 				return false, fmt.Errorf("offering roster resync: adjust retained enrollment: %w", err)
 			}
 			return true, nil
@@ -904,7 +920,7 @@ func (s *decisionService) reconcileSourcedRosterRow(
 		}
 		return true, nil
 	}
-	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, effectiveFrom); err != nil {
+	if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(effectiveFrom)); err != nil {
 		return false, fmt.Errorf("offering roster resync: cap enrollment: %w", err)
 	}
 	return true, nil
@@ -924,7 +940,7 @@ func indexOfServableTarget(
 		if !careDraftMatchesEnrollment(target.draft, row) {
 			continue
 		}
-		if row.ValidFrom == target.validFrom {
+		if timezone.Date(row.ValidFrom) == target.validFrom {
 			return i
 		}
 		if row.ValidFrom.Before(effectiveFrom) && target.validFrom == effectiveFrom {
@@ -985,7 +1001,7 @@ func (c *legacyChildCoverage) coversRow(row *activities.StudentEnrollment) bool 
 		weekdays = allISOWeekdays()
 	}
 	for _, weekday := range weekdays {
-		if !c.coversSpan(weekday, row.ValidFrom, row.ValidUntil) {
+		if !c.coversSpan(weekday, timezone.Date(row.ValidFrom), enrollmentTimezoneDatePtr(row.ValidUntil)) {
 			return false
 		}
 	}
@@ -1511,8 +1527,8 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 			}
 			return nil, fmt.Errorf("offering source counts: load calendar period: %w", err)
 		}
-		if period.StartDate.After(countedFrom) {
-			countedFrom = period.StartDate
+		if period.StartDate.After(scheduleModels.Date(countedFrom)) {
+			countedFrom = timezone.Date(period.StartDate)
 		}
 	}
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, countedIDs, countedFrom)
@@ -1578,8 +1594,8 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	// For a running (or past) period today stays the boundary — links that
 	// already ended are no longer plannable either way.
 	countedFrom := s.todayDate()
-	if period != nil && period.StartDate.After(countedFrom) {
-		countedFrom = period.StartDate
+	if period != nil && period.StartDate.After(scheduleModels.Date(countedFrom)) {
+		countedFrom = timezone.Date(period.StartDate)
 	}
 	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
 	if err != nil {

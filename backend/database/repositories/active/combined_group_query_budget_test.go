@@ -15,7 +15,7 @@ import (
 func TestCombinedGroupFindWithGroupsQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	combined := &active.CombinedGroup{StartTime: time.Now()}
 	require.NoError(t, factory.CombinedGroup.Create(ctx, combined))

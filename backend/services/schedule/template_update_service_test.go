@@ -30,19 +30,19 @@ func TestCommonScheduleValidityEnvelope(t *testing.T) {
 		},
 		{
 			name:      "start bounded successor",
-			schedules: []*activitiesModel.Schedule{{ValidFrom: &validFrom}, {ValidFrom: &validFrom}},
+			schedules: []*activitiesModel.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {ValidFrom: activityDatePtr(&validFrom)}},
 			wantFrom:  &validFrom,
 		},
 		{
 			name:      "end bounded predecessor",
-			schedules: []*activitiesModel.Schedule{{ValidUntil: &validUntil}, {ValidUntil: &validUntil}},
+			schedules: []*activitiesModel.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {ValidUntil: activityDatePtr(&validUntil)}},
 			wantUntil: &validUntil,
 		},
 		{
 			name: "fully bounded segment",
 			schedules: []*activitiesModel.Schedule{
-				{ValidFrom: &validFrom, ValidUntil: &validUntil},
-				{ValidFrom: &validFrom, ValidUntil: &validUntil},
+				{ValidFrom: activityDatePtr(&validFrom), ValidUntil: activityDatePtr(&validUntil)},
+				{ValidFrom: activityDatePtr(&validFrom), ValidUntil: activityDatePtr(&validUntil)},
 			},
 			wantFrom:  &validFrom,
 			wantUntil: &validUntil,
@@ -78,11 +78,11 @@ func TestCommonScheduleValidityEnvelopeRejectsInconsistentRows(t *testing.T) {
 	}{
 		{
 			name:      "different start",
-			schedules: []*activitiesModel.Schedule{{ValidFrom: &validFrom}, {}},
+			schedules: []*activitiesModel.Schedule{{ValidFrom: activityDatePtr(&validFrom)}, {}},
 		},
 		{
 			name:      "different end",
-			schedules: []*activitiesModel.Schedule{{ValidUntil: &validUntil}, {}},
+			schedules: []*activitiesModel.Schedule{{ValidUntil: activityDatePtr(&validUntil)}, {}},
 		},
 		{
 			name:      "nil row",
@@ -91,8 +91,8 @@ func TestCommonScheduleValidityEnvelopeRejectsInconsistentRows(t *testing.T) {
 		{
 			name: "inverted envelope",
 			schedules: []*activitiesModel.Schedule{{
-				ValidFrom:  &invertedFrom,
-				ValidUntil: &validUntil,
+				ValidFrom:  activityDatePtr(&invertedFrom),
+				ValidUntil: activityDatePtr(&validUntil),
 			}},
 		},
 	}

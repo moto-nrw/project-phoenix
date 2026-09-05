@@ -14,7 +14,7 @@ import (
 func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	owners, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 

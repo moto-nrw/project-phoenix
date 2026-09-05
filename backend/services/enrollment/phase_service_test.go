@@ -27,7 +27,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo:             repoFactory.Phase,
 		RequestRepo:      repoFactory.Request,
@@ -678,8 +678,8 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "period-" + t.Name(),
 		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       timezone.NewDate(2026, 8, 1),
-		EndDate:         timezone.NewDate(2027, 1, 31),
+		StartDate:       scheduleModels.NewDate(2026, 8, 1),
+		EndDate:         scheduleModels.NewDate(2027, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -719,8 +719,8 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "period-" + t.Name(),
 		PeriodType:      scheduleModels.PeriodTypeSemester,
-		StartDate:       timezone.NewDate(2026, 8, 1),
-		EndDate:         timezone.NewDate(2027, 1, 31),
+		StartDate:       scheduleModels.NewDate(2026, 8, 1),
+		EndDate:         scheduleModels.NewDate(2027, 1, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

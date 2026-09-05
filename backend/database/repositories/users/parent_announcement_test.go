@@ -494,7 +494,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	enr := &activitiesModels.StudentEnrollment{
 		StudentID:       chain.StudentID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       timezone.TodayDate().AddDays(7),
+		ValidFrom:       activitiesModels.Date(timezone.TodayDate().AddDays(7)),
 	}
 	enr.SetTenantID(chain.TenantID)
 	_, err := db.NewInsert().
@@ -553,7 +553,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	enrollment := &activitiesModels.StudentEnrollment{
 		StudentID:       chain.StudentID,
 		ActivityGroupID: group.ID,
-		ValidFrom:       today.AddDays(-1),
+		ValidFrom:       activitiesModels.Date(today.AddDays(-1)),
 		Weekday:         &otherWeekday,
 	}
 	enrollment.SetTenantID(chain.TenantID)

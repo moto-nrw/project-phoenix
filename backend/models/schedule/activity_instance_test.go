@@ -4,14 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func validActivityInstance() *ActivityInstance {
 	return &ActivityInstance{
-		Date:      timezone.NewDate(2026, 9, 15),
+		Date:      NewDate(2026, 9, 15),
 		Title:     "Lernzeit 3a",
 		StartTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -59,7 +58,7 @@ func TestActivityInstance_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing date",
-			mutate:  func(i *ActivityInstance) { i.Date = timezone.Date("") },
+			mutate:  func(i *ActivityInstance) { i.Date = Date("") },
 			wantErr: "date is required",
 		},
 		{
@@ -172,7 +171,7 @@ func TestActivityInstance_AccessorContract(t *testing.T) {
 	inst.CreatedAt = now
 	inst.UpdatedAt = now.Add(time.Minute)
 
-	assert.Equal(t, int64(17), inst.GetID())
-	assert.Equal(t, now, inst.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Minute), inst.GetUpdatedAt())
+	assert.Equal(t, int64(17), inst.ID)
+	assert.Equal(t, now, inst.CreatedAt)
+	assert.Equal(t, now.Add(time.Minute), inst.UpdatedAt)
 }

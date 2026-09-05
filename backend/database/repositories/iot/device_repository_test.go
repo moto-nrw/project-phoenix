@@ -21,7 +21,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates device with valid data", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing device", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds device by device_id string", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.TenantContext(scope.TenantID)
 	deviceID := fmt.Sprintf("transfer-history-%d", time.Now().UnixNano())
 	apiKey := fmt.Sprintf("transfer-key-%d", time.Now().UnixNano())
@@ -133,7 +133,7 @@ func TestDeviceRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates device status", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestDeviceRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing device", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestDeviceRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all devices", func(t *testing.T) {
@@ -194,7 +194,7 @@ func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active devices", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when device is nil", func(t *testing.T) {
@@ -285,7 +285,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds device by API key", func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds devices by type", func(t *testing.T) {
@@ -358,7 +358,7 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds devices by status", func(t *testing.T) {
@@ -391,7 +391,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds devices registered by person", func(t *testing.T) {
@@ -439,7 +439,7 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last_seen timestamp", func(t *testing.T) {
@@ -461,7 +461,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates device status", func(t *testing.T) {
@@ -496,7 +496,7 @@ func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds devices requiring maintenance", func(t *testing.T) {
@@ -528,7 +528,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds devices offline for specified duration", func(t *testing.T) {
@@ -601,7 +601,7 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts devices grouped by type", func(t *testing.T) {
@@ -641,7 +641,7 @@ func TestDeviceRepository_UpdateRoomID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates room_id on existing device", func(t *testing.T) {
@@ -714,7 +714,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Device
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by status", func(t *testing.T) {

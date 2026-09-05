@@ -628,7 +628,7 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 

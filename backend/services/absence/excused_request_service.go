@@ -838,14 +838,14 @@ func (s *excusedAbsenceRequestService) hasManualPartialAbsence(
 		return false, nil
 	}
 	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
-		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+		ctx, req.StudentID, scheduleModels.Date(req.Dates[0]), scheduleModels.Date(req.Dates[len(req.Dates)-1]),
 	)
 	if err != nil {
 		return false, err
 	}
-	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	requested := make(map[scheduleModels.Date]struct{}, len(req.Dates))
 	for _, date := range req.Dates {
-		requested[date] = struct{}{}
+		requested[scheduleModels.Date(date)] = struct{}{}
 	}
 	for _, row := range rows {
 		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
@@ -1184,14 +1184,14 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 		}
 	}
 	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
-		ctx, req.StudentID, sortedDates[0], sortedDates[len(sortedDates)-1],
+		ctx, req.StudentID, scheduleModels.Date(sortedDates[0]), scheduleModels.Date(sortedDates[len(sortedDates)-1]),
 	)
 	if err != nil {
 		return err
 	}
-	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	requested := make(map[scheduleModels.Date]struct{}, len(req.Dates))
 	for _, date := range req.Dates {
-		requested[date] = struct{}{}
+		requested[scheduleModels.Date(date)] = struct{}{}
 	}
 	for _, row := range rows {
 		// Only manual partial absences conflict; auto-derived excusals

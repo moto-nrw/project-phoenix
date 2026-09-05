@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -39,7 +38,7 @@ func newCompanionSyncApplier(
 	bc *testpkg.RecordingBroadcaster,
 ) enrollmentService.ChangeRequestDecisionApplier {
 	t.Helper()
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := testRepositories(t, env.db)
 	svc := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,

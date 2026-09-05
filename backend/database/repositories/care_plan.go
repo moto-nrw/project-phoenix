@@ -49,7 +49,9 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if err != nil {
 		return nil, err
 	}
-	if repository, ok := slots.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := slots.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	return capability, nil
@@ -109,7 +111,7 @@ func CarePlanStatusSlots(repository scheduleModels.InstanceStudentRepository) ca
 }
 
 func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {
-	return d.repository.ApplyStatusDay(ctx, studentID, carePlanLegacy.ScheduleDate(date), statusDayID, substatus)
+	return d.repository.ApplyStatusDay(ctx, studentID, scheduleModels.Date(date), statusDayID, substatus)
 }
 
 func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
@@ -165,7 +167,9 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
 	}
-	if repository, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := f.InstanceStudent.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
@@ -211,7 +215,7 @@ func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx conte
 }
 
 type pickupExceptionDirectory struct {
-	query careplan.Query
+	query carePlanCompose.ExceptionQueries
 }
 
 func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {

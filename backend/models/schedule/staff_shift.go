@@ -3,10 +3,6 @@ package schedule
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 const (
@@ -22,13 +18,13 @@ const (
 // weekday — this table carries the actual planned wall-clock times that the
 // auto-checkout job (#1798) closes forgotten sessions against.
 type StaffShift struct {
-	base.Model `bun:"schema:schedule,table:staff_shifts"`
-	base.TenantModel
-	StaffID int64         `bun:"staff_id,notnull" json:"staff_id"`
-	Date    timezone.Date `bun:"date,notnull,type:date" json:"date"`
+	Model `bun:"schema:schedule,table:staff_shifts"`
+	TenantModel
+	StaffID int64 `bun:"staff_id,notnull" json:"staff_id"`
+	Date    Date  `bun:"date,notnull,type:date" json:"date"`
 	// StartTime/EndTime map TIME WITHOUT TIME ZONE columns; only the
 	// wall-clock portion is meaningful. Repositories normalize scanned
-	// values via timezone.NormalizeWallClock.
+	// values via NormalizeWallClock.
 	StartTime    time.Time `bun:"start_time,notnull" json:"start_time"`
 	EndTime      time.Time `bun:"end_time,notnull" json:"end_time"`
 	BreakMinutes int       `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
@@ -49,7 +45,7 @@ type StaffShift struct {
 	// Rows created as standalone leave it nil. A series hard-delete may leave the
 	// now-standalone row's old value behind, but all consumers ignore it when
 	// SeriesID is nil. This is persistence metadata, not an API field.
-	SeriesOccurrenceDate *timezone.Date `bun:"series_occurrence_date,type:date" json:"-"`
+	SeriesOccurrenceDate *Date `bun:"series_occurrence_date,type:date" json:"-"`
 	// Cancelled marks a shift that does not take place: the staff member is
 	// absent or the position is deliberately left open (#1841). The row is kept
 	// for the plan/history but excluded from planned minutes and auto-checkout.
@@ -68,7 +64,6 @@ type StaffShift struct {
 	CreatedBy     int64  `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy     *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 
-	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 	// ShiftType is the resolved Schichtart (name + color) for ShiftTypeID, when
 	// set. Not loaded by ordinary scans — the service populates it so readers who
 	// cannot call the admin-only /api/shift-types endpoint (a staff member on
@@ -98,8 +93,8 @@ func (s *StaffShift) Validate() error {
 // series: end after start, break within 0..MaxStaffShiftBreakMinutes and not
 // longer than the shift itself.
 func validateShiftWindow(startTime, endTime time.Time, breakMinutes int) error {
-	start := timezone.NormalizeWallClock(startTime)
-	end := timezone.NormalizeWallClock(endTime)
+	start := normalizeWallClock(startTime)
+	end := normalizeWallClock(endTime)
 	if !end.After(start) {
 		return errors.New("end time must be after start time")
 	}
@@ -120,8 +115,8 @@ func validateShiftWindow(startTime, endTime time.Time, breakMinutes int) error {
 // Callers must ensure both shifts belong to the same date; touching
 // boundaries (one ends exactly when the other starts) do not overlap.
 func (s *StaffShift) Overlaps(other *StaffShift) bool {
-	aStart, aEnd := timezone.NormalizeWallClock(s.StartTime), timezone.NormalizeWallClock(s.EndTime)
-	bStart, bEnd := timezone.NormalizeWallClock(other.StartTime), timezone.NormalizeWallClock(other.EndTime)
+	aStart, aEnd := normalizeWallClock(s.StartTime), normalizeWallClock(s.EndTime)
+	bStart, bEnd := normalizeWallClock(other.StartTime), normalizeWallClock(other.EndTime)
 	return aStart.Before(bEnd) && bStart.Before(aEnd)
 }
 
@@ -130,8 +125,8 @@ func (s *StaffShift) Overlaps(other *StaffShift) bool {
 // the same date. Used to keep a replacement inside the gap of the cancelled
 // origin it covers (#1841).
 func (s *StaffShift) Contains(other *StaffShift) bool {
-	sStart, sEnd := timezone.NormalizeWallClock(s.StartTime), timezone.NormalizeWallClock(s.EndTime)
-	oStart, oEnd := timezone.NormalizeWallClock(other.StartTime), timezone.NormalizeWallClock(other.EndTime)
+	sStart, sEnd := normalizeWallClock(s.StartTime), normalizeWallClock(s.EndTime)
+	oStart, oEnd := normalizeWallClock(other.StartTime), normalizeWallClock(other.EndTime)
 	return !oStart.Before(sStart) && !oEnd.After(sEnd)
 }
 
@@ -139,14 +134,14 @@ func (s *StaffShift) Contains(other *StaffShift) bool {
 // Berlin time (Date + wall-clock StartTime). time.Date normalizes values
 // that fall into a DST gap.
 func (s *StaffShift) StartInstant() time.Time {
-	wc := timezone.NormalizeWallClock(s.StartTime)
-	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
+	wc := normalizeWallClock(s.StartTime)
+	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, berlin)
 }
 
 // EndInstant returns the shift's planned end as an absolute instant in
 // Berlin time (Date + wall-clock EndTime). time.Date normalizes values that
 // fall into a DST gap.
 func (s *StaffShift) EndInstant() time.Time {
-	wc := timezone.NormalizeWallClock(s.EndTime)
-	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
+	wc := normalizeWallClock(s.EndTime)
+	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, berlin)
 }

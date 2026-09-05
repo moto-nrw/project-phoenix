@@ -7,9 +7,21 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+func TimetableCareDayLocker(db *bun.DB) timetable.CareDayLocker {
+	return timetable.NewCareDayLocker(
+		func(ctx context.Context, studentID int64, date string) error {
+			return careplanning.LockStudentAndExceptionDay(ctx, db, studentID, date)
+		},
+		func(ctx context.Context, studentID int64, date string) error {
+			return careplanning.LockExceptionDay(ctx, db, studentID, date)
+		},
+	)
+}
 
 // LockCareExceptionDay serializes pickup and arrival exception writes for one
 // child-day. The parent portal treats staff ownership as day-level state, while

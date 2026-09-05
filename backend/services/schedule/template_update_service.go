@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -605,7 +606,7 @@ func (s *TimetableDataService) propagateListKindToInstances(
 		return nil
 	}
 	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
-		ctx, templateID, previousKind, newKind, s.deps.Today(),
+		ctx, templateID, previousKind, newKind, scheduleModel.Date(s.deps.Today()),
 	); err != nil {
 		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}
@@ -629,8 +630,8 @@ func (s *TimetableDataService) replaceTemplateSchedules(
 			ActivityGroupID:  in.TemplateID,
 			WeekPattern:      in.WeekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
-			ValidFrom:        cloneOptionalDate(validFrom),
-			ValidUntil:       cloneOptionalDate(validUntil),
+			ValidFrom:        activityDatePtr(validFrom),
+			ValidUntil:       activityDatePtr(validUntil),
 		}
 		schedule.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, schedule); err != nil {
@@ -773,8 +774,8 @@ func (s *TimetableDataService) replaceTemplateRoster(
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  in.TemplateID,
-			ValidFrom:        rosterValidFrom,
-			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
+			ValidFrom:        activitiesModel.Date(rosterValidFrom),
+			ValidUntil:       activityDatePtr(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
@@ -792,8 +793,8 @@ func (s *TimetableDataService) replaceTemplateRoster(
 			StaffID:          row.PersonID,
 			GroupID:          in.TemplateID,
 			IsPrimary:        row.IsPrimary,
-			ValidFrom:        rosterValidFrom,
-			ValidUntil:       cloneOptionalDate(scheduleValidUntil),
+			ValidFrom:        activitiesModel.Date(rosterValidFrom),
+			ValidUntil:       activityDatePtr(scheduleValidUntil),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
@@ -862,7 +863,7 @@ func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
 	retiredSeen := make(map[int64]bool)
 	for _, row := range rows {
 		if row != nil && enrollmentIsProtected(row) &&
-			validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+			validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 			protected = append(protected, row)
 			continue
 		}
@@ -890,7 +891,7 @@ func (s *TimetableDataService) applyEnrollmentRetirement(
 			return &ScheduleError{Op: "update template: delete future enrollment", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, replacementFrom); err != nil {
+		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(replacementFrom)); err != nil {
 			return &ScheduleError{Op: "update template: close enrollment", Err: err}
 		}
 	}
@@ -943,7 +944,7 @@ func classifyEnrollmentRetirement(
 	replacementUntil *timezone.Date,
 	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
-	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+	if row == nil || !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
 	}
 	// Enrollment-offer rows and weekday-specific legacy rows are managed
@@ -957,8 +958,8 @@ func classifyEnrollmentRetirement(
 		return rosterRetirementSkip
 	}
 	return classifyOwnedRosterRetirement(
-		row.ValidFrom,
-		row.ValidUntil,
+		timezone.Date(row.ValidFrom),
+		timezoneDatePtr(row.ValidUntil),
 		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
@@ -984,7 +985,7 @@ func (s *TimetableDataService) retireTemplateSupervisors(
 				return &ScheduleError{Op: "update template: delete future supervisor", Err: err}
 			}
 		case rosterRetirementClose:
-			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, replacementFrom); err != nil {
+			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(replacementFrom)); err != nil {
 				return &ScheduleError{Op: "update template: close supervisor", Err: err}
 			}
 		}
@@ -999,12 +1000,12 @@ func classifySupervisorRetirement(
 	replacementUntil *timezone.Date,
 	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
-	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+	if row == nil || !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
 	}
 	return classifyOwnedRosterRetirement(
-		row.ValidFrom,
-		row.ValidUntil,
+		timezone.Date(row.ValidFrom),
+		timezoneDatePtr(row.ValidUntil),
 		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
 		replacementUntil,
@@ -1077,8 +1078,8 @@ func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*tim
 	if schedules[0] == nil {
 		return nil, nil, fmt.Errorf("%w: nil schedule row", ErrInconsistentTemplateScheduleValidity)
 	}
-	validFrom := cloneOptionalDate(schedules[0].ValidFrom)
-	validUntil := cloneOptionalDate(schedules[0].ValidUntil)
+	validFrom := cloneOptionalDate(timezoneDatePtr(schedules[0].ValidFrom))
+	validUntil := cloneOptionalDate(timezoneDatePtr(schedules[0].ValidUntil))
 	if validFrom != nil && validUntil != nil && validFrom.After(*validUntil) {
 		return nil, nil, fmt.Errorf(
 			"%w: segment valid_from %s is after valid_until %s",
@@ -1091,7 +1092,7 @@ func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*tim
 		if schedule == nil {
 			return nil, nil, fmt.Errorf("%w: nil schedule row", ErrInconsistentTemplateScheduleValidity)
 		}
-		if !optionalDatesEqual(validFrom, schedule.ValidFrom) || !optionalDatesEqual(validUntil, schedule.ValidUntil) {
+		if !optionalDatesEqual(validFrom, timezoneDatePtr(schedule.ValidFrom)) || !optionalDatesEqual(validUntil, timezoneDatePtr(schedule.ValidUntil)) {
 			return nil, nil, fmt.Errorf(
 				"%w: schedule %d does not match the segment envelope",
 				ErrInconsistentTemplateScheduleValidity,
@@ -1115,4 +1116,20 @@ func cloneOptionalDate(date *timezone.Date) *timezone.Date {
 	}
 	cloned := *date
 	return &cloned
+}
+
+func activityDatePtr(date *timezone.Date) *activitiesModel.Date {
+	if date == nil {
+		return nil
+	}
+	value := activitiesModel.Date(*date)
+	return &value
+}
+
+func timezoneDatePtr(date *activitiesModel.Date) *timezone.Date {
+	if date == nil {
+		return nil
+	}
+	value := timezone.Date(*date)
+	return &value
 }

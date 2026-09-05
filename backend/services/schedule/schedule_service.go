@@ -100,7 +100,7 @@ func (s *service) DeleteDateframe(ctx context.Context, id int64) error {
 
 // ListDateframes retrieves all dateframes matching the provided filters
 func (s *service) ListDateframes(ctx context.Context, options *base.QueryOptions) ([]*schedule.Dateframe, error) {
-	dateframes, err := s.dateframeRepo.List(ctx, options)
+	dateframes, err := legacyList[*schedule.Dateframe](ctx, s.dateframeRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list dateframes", Err: err}
 	}
@@ -216,7 +216,7 @@ func (s *service) validateTimeframeCareOfferingChange(
 
 // ListTimeframes retrieves all timeframes matching the provided filters
 func (s *service) ListTimeframes(ctx context.Context, options *base.QueryOptions) ([]*schedule.Timeframe, error) {
-	timeframes, err := s.timeframeRepo.List(ctx, options)
+	timeframes, err := legacyList[*schedule.Timeframe](ctx, s.timeframeRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list timeframes", Err: err}
 	}
@@ -298,7 +298,7 @@ func (s *service) DeleteRecurrenceRule(ctx context.Context, id int64) error {
 
 // ListRecurrenceRules retrieves all recurrence rules matching the provided filters
 func (s *service) ListRecurrenceRules(ctx context.Context, options *base.QueryOptions) ([]*schedule.RecurrenceRule, error) {
-	rules, err := s.recurrenceRuleRepo.List(ctx, options)
+	rules, err := legacyList[*schedule.RecurrenceRule](ctx, s.recurrenceRuleRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list recurrence rules", Err: err}
 	}

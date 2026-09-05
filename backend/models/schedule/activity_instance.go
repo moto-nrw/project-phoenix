@@ -6,10 +6,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Activity instance status constants. Stored as TEXT with a CHECK constraint
@@ -33,17 +29,17 @@ const (
 // in the "instance layer" between the template layer (activities.*) and the
 // live layer (active.*).
 type ActivityInstance struct {
-	base.Model `bun:"schema:schedule,table:activity_instances"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:activity_instances"`
+	TenantModel
 
-	Date             timezone.Date `bun:"date,notnull" json:"date"`
-	ActivityGroupID  *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	CalendarPeriodID *int64        `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	Title            string        `bun:"title,notnull" json:"title"`
-	Description      *string       `bun:"description" json:"description,omitempty"`
-	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
-	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
-	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
+	Date             Date      `bun:"date,notnull" json:"date"`
+	ActivityGroupID  *int64    `bun:"activity_group_id" json:"activity_group_id,omitempty"`
+	CalendarPeriodID *int64    `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	Title            string    `bun:"title,notnull" json:"title"`
+	Description      *string   `bun:"description" json:"description,omitempty"`
+	StartTime        time.Time `bun:"start_time,notnull" json:"start_time"`
+	EndTime          time.Time `bun:"end_time,notnull" json:"end_time"`
+	RoomID           int64     `bun:"room_id,notnull" json:"room_id"`
 	// RequiredStaff is the per-occurrence Personalbedarf pin (issue #1839).
 	// NULL means "inherit": template-backed instances fall back to the
 	// template's override, then to the Betreuungsschlüssel (issue #1869).
@@ -159,10 +155,19 @@ func (i *ActivityInstance) Validate() error {
 	if i.ListKind != nil && *i.ListKind == "" {
 		i.ListKind = nil
 	}
-	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+	if i.ListKind != nil && !isValidInstanceListKind(*i.ListKind) {
 		return errors.New("invalid list kind")
 	}
 	return nil
+}
+
+func isValidInstanceListKind(kind string) bool {
+	switch kind {
+	case "", "edge_hours", "learning_time", "activity", "mensa":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsValidInstanceStatus returns true if s is one of the four permitted
@@ -188,17 +193,17 @@ func (i *ActivityInstance) IsLive() bool {
 
 // ActivityInstanceRepository defines operations for managing activity instances.
 type ActivityInstanceRepository interface {
-	base.Repository[*ActivityInstance]
+	repository[*ActivityInstance]
 
 	// CreateTemplateBackedIfAbsent inserts a template-backed instance and
 	// returns inserted=false when the unique template slot already exists.
 	CreateTemplateBackedIfAbsent(ctx context.Context, instance *ActivityInstance) (inserted bool, err error)
 
 	// FindByTenantAndDate returns all instances for the current tenant on the given date.
-	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date Date) ([]*ActivityInstance, error)
 
 	// FindByTenantAndDateRange returns all instances within an inclusive date range.
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to Date) ([]*ActivityInstance, error)
 
 	// FindByIDs returns the instances matching the given IDs in one
 	// tenant-scoped IN query, ordered by date then start time. Empty input
@@ -210,11 +215,11 @@ type ActivityInstanceRepository interface {
 	// FindByActivityGroupAndDate returns instances for a specific template on a date.
 	// There can be multiple rows when a template schedule defines several start
 	// times on the same weekday.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*ActivityInstance, error)
+	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date Date) ([]*ActivityInstance, error)
 
 	// FindByActivityGroupAndDateRange returns one template's instances within
 	// an inclusive date range in one tenant-scoped query.
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*ActivityInstance, error)
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to Date) ([]*ActivityInstance, error)
 
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.
@@ -239,7 +244,7 @@ type ActivityInstanceRepository interface {
 	// would leave a same-day apply-then-revert child permanently missing from
 	// today's roster with nothing left to repair it. Today's instances that
 	// already started or finished are excluded by the planned-status filter.
-	FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*ActivityInstance, error)
+	FindPlannedTemplateBackedFrom(ctx context.Context, from Date) ([]*ActivityInstance, error)
 
 	// MaxID returns the highest instance id currently visible to this tenant, or
 	// 0 when it has none. It is an ORDERING MARKER, not a count: a grade
@@ -276,7 +281,7 @@ type ActivityInstanceRepository interface {
 	// split (WP-B3). preserveDeviations keeps Vertretungsplan overrides
 	// (#1840): true for re-plan, false for the destructive template
 	// split/end series operation — see the implementation for why.
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from Date, to *Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
 
 	// PropagateListKindToFutureInstances re-classifies future template-backed
 	// planned instances of one template whose list_kind still equals the
@@ -286,7 +291,7 @@ type ActivityInstanceRepository interface {
 	// reflect it without a manual re-plan, while leaving today/past rows,
 	// non-planned/spontaneous rows, and per-occurrence classification overrides
 	// untouched. `after` is today; only rows dated strictly after it change.
-	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after timezone.Date) (int64, error)
+	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after Date) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary
@@ -296,9 +301,8 @@ type ActivityInstanceRepository interface {
 
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the timetable retention cleanup.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *Date) (*Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff Date) (int64, error)
 }
 
 // InstanceIdempotencyRepository owns the conflict-safe insert used by

@@ -86,7 +86,7 @@ func (f *careFixture) emitter(
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -148,9 +148,9 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 			return err
 		}
 		exception := &scheduleModels.StudentPickupException{
-			TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+			TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 			StudentID:         f.chain.StudentID,
-			ExceptionDate:     date,
+			ExceptionDate:     scheduleModels.Date(date),
 			PickupTime:        &pickupTime,
 			Source:            scheduleModels.ExceptionSourceGuardian,
 			CreatedByGuardian: &f.chain.AccountID,

@@ -113,7 +113,7 @@ func createRouter(resource *Resource) chi.Router {
 func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
 	t.Parallel()
 
-	sourceDate := timezone.NewDate(2026, 7, 6)
+	sourceDate := scheduleModel.NewDate(2026, 7, 6)
 	seriesID := int64(9)
 	shift := &scheduleModel.StaffShift{
 		SeriesID:             &seriesID,

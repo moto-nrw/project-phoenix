@@ -772,7 +772,7 @@ func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *sc
 	if phase == nil || period == nil {
 		return nil
 	}
-	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
+	if phase.ServiceStartDate.Before(timezone.Date(period.StartDate)) || phase.ServiceEndDate.After(timezone.Date(period.EndDate)) {
 		return wrapCareOfferingInvalid(ErrCareOfferingTemplatePeriodMismatch, "linked timetable template period does not contain the enrollment phase")
 	}
 	return nil

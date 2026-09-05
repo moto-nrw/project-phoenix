@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DefaultCategoryColor is the fallback display color used when a category has
@@ -21,8 +19,8 @@ var ErrUnknownCategoryIDs = errors.New("one or more category IDs do not exist in
 
 // Category represents a category for activities
 type Category struct {
-	base.Model `bun:"schema:activities,table:categories"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:categories"`
+	TenantModel
 	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`

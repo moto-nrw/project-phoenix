@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -28,11 +27,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
-	categories, err := timetableCompose.New(timetableCompose.Dependencies{DB: db, Observe: func(timetableCompose.Observation) {}})
-	if err != nil {
-		return ActivitiesTestModule{}, err
-	}
-	activityService, err := activities.NewService(categories, r.ActivityGroup, r.ActivitySchedule,
+	activityService, err := activities.NewService(r.Timetable, r.ActivityGroup, r.ActivitySchedule,
 		r.ActivitySupervisor, r.StudentEnrollment, r.ActiveGroup, r.Staff, r.Student)
 	if err != nil {
 		return ActivitiesTestModule{}, err

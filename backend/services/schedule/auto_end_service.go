@@ -54,7 +54,7 @@ func (s *autoEndService) RunForTenant(ctx context.Context, now time.Time, grace 
 
 	options := modelBase.NewQueryOptions()
 	options.Filter.Equal("status", scheduleModel.InstanceStatusActive)
-	instances, err := s.instances.List(ctx, options)
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instances, options)
 	if err != nil {
 		return result, fmt.Errorf("load active activity instances: %w", err)
 	}

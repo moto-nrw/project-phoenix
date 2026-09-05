@@ -27,7 +27,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]

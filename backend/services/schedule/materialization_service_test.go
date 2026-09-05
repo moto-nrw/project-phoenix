@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,8 +107,8 @@ func TestResolveWindow(t *testing.T) {
 func TestIsEnrollmentValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) timezone.Date {
-		return timezone.NewDate(y, m, day)
+	d := func(y int, m time.Month, day int) activities.Date {
+		return activities.Date(timezone.NewDate(y, m, day))
 	}
 	p100 := int64(100)
 	p200 := int64(200)
@@ -249,14 +248,13 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	periodID := int64(400)
 	otherPeriodID := int64(401)
 	endedBefore := date.AddDays(-1)
-	alumnus := &users.Student{Status: users.StudentStatusAlumnus}
 	enrollments := []*activities.StudentEnrollment{
-		{StudentID: 501, ValidFrom: date.AddDays(-1), CalendarPeriodID: &periodID},
-		{StudentID: 502, ValidFrom: date.AddDays(1)},
-		{StudentID: 503, ValidFrom: date.AddDays(-1), CalendarPeriodID: &otherPeriodID},
-		{StudentID: 504, ValidFrom: date.AddDays(-1), SelectedWeekdays: []int{2}},
-		{StudentID: 505, ValidFrom: date.AddDays(-1), Student: alumnus},
-		{StudentID: 506, ValidFrom: date.AddDays(-1)},
+		{StudentID: 501, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &periodID},
+		{StudentID: 502, ValidFrom: activities.Date(date.AddDays(1))},
+		{StudentID: 503, ValidFrom: activities.Date(date.AddDays(-1)), CalendarPeriodID: &otherPeriodID},
+		{StudentID: 504, ValidFrom: activities.Date(date.AddDays(-1)), SelectedWeekdays: []int{2}},
+		{StudentID: 505, ValidFrom: activities.Date(date.AddDays(-1)), StudentAlumnus: true},
+		{StudentID: 506, ValidFrom: activities.Date(date.AddDays(-1))},
 	}
 	targetStudentIDs := []int64{501, 507, 508, 507}
 	careBounds := map[int64]timezone.Date{506: endedBefore, 507: date, 508: endedBefore}
@@ -274,8 +272,8 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 func TestIsSupervisorValidOn(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) timezone.Date {
-		return timezone.NewDate(y, m, day)
+	d := func(y int, m time.Month, day int) activities.Date {
+		return activities.Date(timezone.NewDate(y, m, day))
 	}
 	target := d(2026, time.April, 20)
 	targetDay := timezone.NewDate(2026, 4, 20)
@@ -300,9 +298,9 @@ func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 	mondayWeekday := activities.WeekdayMonday
 
 	supervisors := []*activities.SupervisorPlanned{
-		{Model: modelBase.Model{ID: 1}, StaffID: 10, IsPrimary: true},
+		{Model: activities.Model{ID: 1}, StaffID: 10, IsPrimary: true},
 		{
-			Model:            modelBase.Model{ID: 2},
+			Model:            activities.Model{ID: 2},
 			StaffID:          20,
 			IsPrimary:        true,
 			CalendarPeriodID: &periodID,
@@ -417,7 +415,7 @@ func TestPeriodSelection(t *testing.T) {
 	}
 
 	mkPeriod := func(id int64, start, end timezone.Date) *schedule.CalendarPeriod {
-		p := &schedule.CalendarPeriod{StartDate: start, EndDate: end, IsActive: true}
+		p := &schedule.CalendarPeriod{StartDate: schedule.Date(start), EndDate: schedule.Date(end), IsActive: true}
 		p.ID = id
 		return p
 	}
@@ -590,7 +588,7 @@ type materializationFakeInstanceRepo struct {
 	findErr  error
 }
 
-func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*schedule.ActivityInstance, error) {
+func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityInstance, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
@@ -622,7 +620,7 @@ type materializationFakeExceptionRepo struct {
 	err error
 }
 
-func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, timezone.Date, timezone.Date) ([]*schedule.ActivityException, error) {
+func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, schedule.Date, schedule.Date) ([]*schedule.ActivityException, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -636,6 +634,13 @@ type materializationFakeTimeframeRepo struct {
 }
 
 func (r materializationFakeTimeframeRepo) List(context.Context, *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.timeframes, nil
+}
+
+func (r materializationFakeTimeframeRepo) ListAll(context.Context) ([]*schedule.Timeframe, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -792,10 +797,10 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeEnrollmentRepo{},
 			materializationFakeSupervisorRepo{},
 			materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
-				StartDate: date.AddDays(-30),
-				EndDate:   date.AddDays(30),
+				StartDate: schedule.Date(date.AddDays(-30)),
+				EndDate:   schedule.Date(date.AddDays(30)),
 				IsActive:  true,
-				Model:     modelBase.Model{ID: 401},
+				Model:     schedule.Model{ID: 401},
 			}}},
 			materializationFakeInstanceRepo{inserted: true},
 			materializationFakeStaffRepo{},
@@ -822,18 +827,18 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 
 	date := timezone.NewDate(2026, 4, 20)
 	period := &schedule.CalendarPeriod{
-		StartDate: date.AddDays(-30),
-		EndDate:   date.AddDays(30),
+		StartDate: schedule.Date(date.AddDays(-30)),
+		EndDate:   schedule.Date(date.AddDays(30)),
 		IsActive:  true,
-		Model:     modelBase.Model{ID: 405},
+		Model:     schedule.Model{ID: 405},
 	}
 	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
 	tfID := int64(406)
 	roomID := int64(407)
-	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: modelBase.Model{ID: 408}}
+	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: activities.Model{ID: 408}}
 	scheduleRow := &activities.Schedule{Weekday: 1, TimeframeID: &tfID}
-	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: modelBase.Model{ID: tfID}}
+	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: schedule.Model{ID: tfID}}
 
 	makeSvc := func(
 		groupRepo materializationFakeGroupRepo,
@@ -977,7 +982,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 4, 20)
-	validFrom := date
+	validFrom := activities.Date(date)
 	periodID := int64(400)
 
 	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
@@ -1067,11 +1072,11 @@ func (r *materializationCountingStudentRepo) Create(_ context.Context, row *sche
 	return nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, schedule.Date) (int, error) {
 	return 0, nil
 }
 
-func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, schedule.Date) (int, error) {
 	return 0, nil
 }
 
@@ -1110,10 +1115,10 @@ func newMaterializationBranchServiceForSchedule(
 			Name:          "Lernzeit",
 			PlannedRoomID: &roomID,
 			IsTemplate:    true,
-			Model:         modelBase.Model{ID: templateID},
+			Model:         activities.Model{ID: templateID},
 		}}},
 		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
-			Model:           modelBase.Model{ID: 800},
+			Model:           activities.Model{ID: 800},
 			ActivityGroupID: templateID,
 			Weekday:         weekday,
 			TimeframeID:     &timeframeID,
@@ -1123,11 +1128,11 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
 			Name:            "Schuljahr",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       date.AddDays(-30),
-			EndDate:         date.AddDays(30),
+			StartDate:       schedule.Date(date.AddDays(-30)),
+			EndDate:         schedule.Date(date.AddDays(30)),
 			WeekCycleLength: 1,
 			IsActive:        true,
-			Model:           modelBase.Model{ID: 400},
+			Model:           schedule.Model{ID: 400},
 		}}},
 		instanceRepo,
 		materializationFakeStaffRepo{},
@@ -1136,7 +1141,7 @@ func newMaterializationBranchServiceForSchedule(
 		materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{{
 			StartTime: start,
 			EndTime:   &end,
-			Model:     modelBase.Model{ID: timeframeID},
+			Model:     schedule.Model{ID: timeframeID},
 		}}},
 		materializationAllowCalendarService{},
 		nil,
@@ -1156,7 +1161,7 @@ func TestScheduleEndedOn(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, time.June, 15)
-	until := timezone.NewDate(2026, time.June, 15)
+	until := activities.Date(timezone.NewDate(2026, time.June, 15))
 
 	assert.False(t, scheduleEndedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleEndedOn(&activities.Schedule{}, date), "nil valid_until = open-ended")
@@ -1177,7 +1182,7 @@ func TestScheduleNotStartedOn(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, time.August, 13)
-	from := timezone.NewDate(2026, time.August, 13)
+	from := activities.Date(timezone.NewDate(2026, time.August, 13))
 
 	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")

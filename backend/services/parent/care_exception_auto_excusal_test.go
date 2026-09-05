@@ -28,7 +28,7 @@ import (
 func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -98,8 +98,8 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *row.Substatus)
 	require.NotNil(t, row.PickupExceptionID)
 
-	exception, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, date)
+	exception, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -141,8 +141,8 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	assert.Nil(t, row.PickupExceptionID)
 	assert.Nil(t, row.Substatus)
 
-	exception, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, date)
+	exception, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")
 }

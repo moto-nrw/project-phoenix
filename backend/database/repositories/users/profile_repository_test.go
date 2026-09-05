@@ -23,7 +23,7 @@ func TestProfileRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates profile with valid data", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestProfileRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing profile", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds profile by account ID", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestProfileRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates profile", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestProfileRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing profile", func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates avatar", func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestProfileRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Profile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Profile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all profiles", func(t *testing.T) {
