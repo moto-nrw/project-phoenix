@@ -136,14 +136,36 @@ Existing unclassified packages and modified packages do not qualify. A legacy
 composition guard may be removed only after the guarded package declaration is
 deleted.
 
-One additive ownership case is allowed because otherwise the ratchet would
-freeze the database schema: a candidate may add a `data_objects` entry when a
-new Go file under `database/migrations/` in the same candidate creates that
-exact schema-qualified table through a literal `NewRaw(... CREATE TABLE ...)`
-statement. The table must not be mentioned by any migration at the base SHA,
-the write owner must already exist, and changing or newly assigning ownership
-for an existing table remains a policy loosening. Modified historical
-migrations never qualify for this exception.
+PR mode requires every new runtime data object created in candidate
+migrations to have exactly one valid `data_objects` write owner in the same
+candidate. This is a hard policy check, not baseline debt. A candidate may add
+the ownership entry when a new non-test Go file under `database/migrations/`
+creates that exact schema-qualified object through static SQL passed to
+`NewRaw`, `Exec`, `Query`, `QueryRow`, or their context variants. Detection
+includes ordinary, unlogged, and foreign tables, views, materialized views,
+explicit sequences, and `SELECT INTO`, including `CREATE OR REPLACE VIEW`
+and quoted identifiers. Implicit serial/identity sequences follow their table.
+Views are conservatively treated as writable because PostgreSQL can expose
+writes through them. SQL comments and string literals, test-only files,
+temporary tables, and non-data DDL such as schemas, indexes, and types do not
+require runtime write ownership.
+
+SQL discovery resolves string constants, concatenation, and singly assigned
+local query variables, and inspects executable `DO` and function bodies.
+It preserves quoted-name case: identifiers that the policy cannot represent
+fail rather than silently matching a different object. Unresolved queries,
+schema builders, dynamic procedural SQL, and encoded executable bodies fail
+closed with a request to use static SQL or dollar quoting. Adjacent continued
+SQL string literals are joined before body analysis. The lexer follows
+[PostgreSQL's lexical rules](https://www.postgresql.org/docs/current/sql-syntax-lexical.html)
+for identifier quoting, comments, and literal continuation; it does not
+execute migrations or attempt to interpret arbitrary Go or procedural code.
+
+The object must not be mentioned by any migration at the base SHA, the write
+owner must already exist, and changing or newly assigning ownership for an
+existing object remains a policy loosening. Modified historical migrations
+never qualify for this exception, and historical unowned objects do not need
+rebaselining. The check uses the immutable local Git base, not GitHub.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; callers must provide `--api-url`,
