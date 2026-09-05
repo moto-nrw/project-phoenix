@@ -10167,6 +10167,16 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/session_validation_test.go",
+      "declaration": "TestValidateSessionTokens",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/auth/token_revocation_audit_test.go",
       "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",

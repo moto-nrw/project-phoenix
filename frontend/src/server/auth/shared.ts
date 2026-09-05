@@ -6,6 +6,7 @@
  * callbacks, and NextAuth module augmentation.
  */
 
+import { validateSessionToken } from "./token-validation";
 import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
@@ -741,17 +742,28 @@ function isPreviewActive(token: Record<string, unknown>): boolean {
 }
 
 /** Swap the session onto the preview token, parking the admin's own state. */
-function applyPreviewStart(
+async function applyPreviewStart(
   token: Record<string, unknown>,
   update: PreviewStartUpdate,
-): void {
-  const payload = parseJwtPayload(update.accessToken);
+): Promise<void> {
+  const payload = await validateSessionToken(update.accessToken, "tenant");
+  const admin =
+    typeof token.token === "string"
+      ? await validateSessionToken(token.token, "tenant")
+      : null;
   // Only genuine read-only preview tokens may be injected here — anything
   // else would smuggle a full session under the preview flag. The session
   // stays as it is, so the session object returned to the client carries no
   // preview; performStartStaffPreview reads that, closes the just-recorded
   // preview in the audit trail, and reports the failure instead of reloading.
-  if (!payload?.read_only) {
+  if (
+    !payload?.read_only ||
+    !admin ||
+    admin.read_only ||
+    String(payload.acting_admin_id) !== String(admin.id) ||
+    payload.tenant_id !== admin.tenant_id ||
+    String(payload.id) !== update.targetAccountId
+  ) {
     logger.warn("staff_preview_start_rejected", {
       reason: "token is not a read-only preview token",
     });
@@ -764,7 +776,7 @@ function applyPreviewStart(
   token.previewTargetAccountId = update.targetAccountId;
   token.previewTargetName = update.targetName;
   token.token = update.accessToken;
-  token.tokenExpiry = Date.now() + update.expiresIn * 1000;
+  token.tokenExpiry = payload.exp! * 1000;
   token.id = String(payload.id);
   if (payload.sub) token.email = payload.sub;
   syncTokenFromPayload(token, payload);
@@ -1182,7 +1194,11 @@ export const sharedJwtCallback: NonNullable<
     token.tenantId = user.tenantId;
     token.orgId = user.orgId;
     token.scope = user.scope;
-    token.tokenExpiry = Date.now() + accessTokenExpiry;
+    const accessClaims = user.token ? parseJwtPayload(user.token) : null;
+    token.tokenExpiry =
+      typeof accessClaims?.exp === "number"
+        ? accessClaims.exp * 1000
+        : Date.now() + accessTokenExpiry;
     token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
     token.refreshRecoveryProof = createRefreshRecoveryProof();
     token.error = undefined;
@@ -1230,7 +1246,7 @@ export const sharedJwtCallback: NonNullable<
       !isPreviewActive(token) &&
       isPreviewStartUpdate(update.previewStart)
     ) {
-      applyPreviewStart(token, update.previewStart);
+      await applyPreviewStart(token, update.previewStart);
     }
     if (update.previewEnd === true && isPreviewActive(token)) {
       restoreAdminFromPreview(token);
