@@ -3,9 +3,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -21,7 +21,6 @@ import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 
@@ -43,7 +42,6 @@ function PermissionsPageContent() {
   // pre-fills a permission mutation.
   const selectedId = searchParams.get("permission");
   const [searchTerm, setSearchTerm] = useState("");
-  const isMobile = useIsMobile();
 
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +95,20 @@ function PermissionsPageContent() {
         : [],
     [searchTerm],
   );
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Berechtigungsliste.
+  const statusLine = useMemo(() => {
+    const resources = new Set(permissions.map((p) => p.resource)).size;
+    const parts = [
+      `${formatCount(permissions.length)} ${permissions.length === 1 ? "Berechtigung" : "Berechtigungen"}`,
+    ];
+    if (resources > 0) {
+      parts.push(
+        `${formatCount(resources)} ${resources === 1 ? "Bereich" : "Bereiche"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [permissions]);
 
   const filteredPermissions = useMemo(() => {
     let arr = [...permissions];
@@ -154,11 +166,35 @@ function PermissionsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredPermissions.length === 0 && selectedPermission === null
+          ? {
+              title: searchTerm
+                ? "Keine Berechtigungen gefunden"
+                : "Keine Berechtigungen vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Berechtigungen legt das System an. Bitte wenden Sie sich an moto.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.permissions.icon}
+                  tone={MOTO_CONCEPTS.permissions.tone}
+                  size={48}
+                />
+              ),
+            }
+          : null
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Berechtigungen",
+        description: loading ? <Skeleton className="h-4 w-56" /> : statusLine,
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Berechtigungen" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -172,7 +208,7 @@ function PermissionsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Berechtigungen suchen...",
+            placeholder: "Berechtigungen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -180,22 +216,8 @@ function PermissionsPageContent() {
             setSearchTerm("");
           }}
         />
-      </div>
-
-      <div className="mb-4">
-        <Alert
-          type="info"
-          message="Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern."
-          announce="off"
-        />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <PermissionsMasterDetail
@@ -205,27 +227,6 @@ function PermissionsPageContent() {
             onSelect={handleSelectPermission}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.permissions.icon}
-              tone={MOTO_CONCEPTS.permissions.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm
-              ? "Keine Berechtigungen gefunden"
-              : "Keine Berechtigungen vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie einen anderen Suchbegriff."
-              : "Es wurden noch keine Berechtigungen erstellt."
-          }
-        />
       ) : null}
     </DatabasePageLayout>
   );

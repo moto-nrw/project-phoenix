@@ -1,3 +1,10 @@
+---
+paths:
+  - "frontend/src/**"
+  - "backend/templates/email/**"
+  - "backend/email/**"
+---
+
 # Verständlichkeit — Build for the Worst Plausible Reading
 
 **RULE: Every user-visible change must pass the checklist below before it is called done.** What can be misunderstood will be misunderstood. A screen is finished when the least favourable plausible reading still leads the person to the right action.

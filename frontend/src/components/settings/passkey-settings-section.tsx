@@ -5,6 +5,7 @@ import { Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
@@ -156,9 +157,12 @@ export function PasskeySettingsSection({
       />
 
       {!supported && (
-        <p className="text-sm text-gray-600">
-          Passkeys werden von diesem Browser nicht unterstützt.
-        </p>
+        <div className="mb-3">
+          <Alert
+            type="info"
+            message="Passkeys werden von diesem Browser nicht unterstützt."
+          />
+        </div>
       )}
 
       {error && (
@@ -273,7 +277,15 @@ export function PasskeySettingsSection({
       {loading ? (
         <p className="text-sm text-gray-500">Laden...</p>
       ) : credentials.length === 0 ? (
-        <p className="text-sm text-gray-600">Keine Passkeys hinterlegt.</p>
+        <EmptyState
+          variant="compact"
+          title="Keine Passkeys hinterlegt."
+          description={
+            supported
+              ? "Legen Sie über „Hinzufügen“ einen Passkey an, um sich ohne Passwort anzumelden."
+              : undefined
+          }
+        />
       ) : (
         <div className="space-y-2">
           {credentials.map((credential) => (

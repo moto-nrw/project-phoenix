@@ -392,7 +392,11 @@
   inset: 3.5rem 0 0;
 }
 
-.moto-dotted-background--parent {
+/* Vollhöhe für Portale ohne mobile Kopfzeile (Eltern-App und seit dem
+   Kopfzeilen-Aus auch das Personal-Portal): ohne die Überschreibung stünde
+   über dem Muster ein 56-px-weißer-Balken, wo früher die Kopfzeile saß. */
+.moto-dotted-background--parent,
+.moto-dotted-background--full {
   inset: 0;
 }
 
@@ -509,6 +513,98 @@
 .moto-content-surface:has([aria-expanded="true"]) {
   position: relative;
   z-index: 60;
+}
+
+/* Rumpf einer Tenant-Seite (`TenantPage`): der Inhalt füllt die Höhe des
+   Bildschirms. Die letzte Fläche aus dem Kit wächst bis zur Unterkante --
+   direkt im Rumpf (Leerzustand, eine `SectionCard`) oder eine Ebene tiefer,
+   wenn die Seite ihre Blöcke in eine Hülle packt (`space-y-*` um Kennzahlen
+   und Tabelle, die `DataTable` um ihre Fläche). Die Hüllen wachsen dann mit;
+   damit die Fläche IN ihnen wächst, muss jede Hülle selbst eine Flex-Spalte
+   sein. Ausgeblendete Hüllen bleiben dabei aus dem Selektor: Das
+   `display: flex` darf ein `hidden lg:block` (nur am Computer) nicht auf dem
+   Telefon sichtbar machen. Drei Hüllen tief reicht die Kette
+   (Seitenhülle „nur am Computer" > Editor-Wurzel > DataTable > Fläche);
+   wer tiefer verpackt, packt aus.
+   Gitter (`grid`, Kacheln) und Anklickbares (`a`, `button`, also
+   `TileCard`) wachsen nie: eine gestreckte Kachel wäre ein riesiger Knopf,
+   ein gestrecktes Gitter zöge jede Zeile in die Länge. */
+.moto-tenant-body {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+
+/* Jede sichtbare Hülle auf dem Weg zur letzten Kartenfläche wird selbst zur
+   Flex-Spalte. `flex: 1` allein wirkt nur auf Flex-Elemente und ließ bei
+   verschachtelten Seitenhüllen ansonsten den Punkthintergrund unter der
+   letzten Karte frei. */
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface, .hidden):has(
+    .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface, .hidden)
+  :not(.grid, .moto-content-surface, .hidden):has(
+    .moto-content-surface:last-child:is(section, div)
+  ) {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Lesehilfe: F = die Fläche `.moto-content-surface:last-child:is(section,
+   div)`, H = eine Hülle `:last-child:not(.grid, .moto-content-surface)`.
+   Es wächst F und jede H auf dem Weg dorthin, bis drei H tief. */
+/* F */
+.moto-tenant-body > .moto-content-surface:last-child:is(section, div),
+/* H > F */
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > .moto-content-surface:last-child:is(section, div),
+/* H > H > F */
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > :last-child:not(.grid, .moto-content-surface)
+      > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface)
+  > .moto-content-surface:last-child:is(section, div),
+/* H > H > H > F */
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > :last-child:not(.grid, .moto-content-surface)
+      > :last-child:not(.grid, .moto-content-surface)
+      > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > :last-child:not(.grid, .moto-content-surface)
+      > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface):has(
+    > .moto-content-surface:last-child:is(section, div)
+  ),
+.moto-tenant-body
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface)
+  > :last-child:not(.grid, .moto-content-surface)
+  > .moto-content-surface:last-child:is(section, div) {
+  flex: 1 0 auto;
 }
 
 /* Floating menus, dropdown lists and anchored popovers: the same white

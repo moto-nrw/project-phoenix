@@ -1,9 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
-import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -41,29 +39,39 @@ export default function MobileRolloverPage({ params }: PageProps) {
 
   if (!isReady || (phase === null && error === null)) {
     return (
-      <SkeletonRegion label="Anschlussphase wird geladen">
-        <DetailSkeleton sections={2} fieldsPerSection={3} />
-      </SkeletonRegion>
+      <TenantPage
+        title="Anschlussphase erstellen"
+        back
+        backHref="/enrollment-phases"
+        backLabel="Zurück zu den Anmeldephasen"
+        statsLoading
+        loading
+      />
+    );
+  }
+
+  // Titel, Statuszeile und Zurück-Knopf trägt das Formular selbst.
+  if (!phase) {
+    return (
+      <TenantPage
+        title="Anschlussphase erstellen"
+        back
+        backHref="/enrollment-phases"
+        backLabel="Zurück zu den Anmeldephasen"
+        error={error}
+      />
     );
   }
 
   return (
-    <div className="w-full space-y-4">
-      <MobileBackButton
-        href={tenantPath("/dashboard")}
-        ariaLabel="Zurück zur Übersicht"
-      />
-      {error ? <Alert type="error" message={error} /> : null}
-      {phase ? (
-        <RolloverForm
-          source={phase}
-          onCancel={() => (globalThis.location.href = tenantPath("/dashboard"))}
-          onSuccess={() => {
-            void tenantMutate("enrollment-phase-expiry-warnings");
-            globalThis.location.href = tenantPath("/dashboard");
-          }}
-        />
-      ) : null}
-    </div>
+    <RolloverForm
+      variant="page"
+      source={phase}
+      onCancel={() => (globalThis.location.href = tenantPath("/dashboard"))}
+      onSuccess={() => {
+        void tenantMutate("enrollment-phase-expiry-warnings");
+        globalThis.location.href = tenantPath("/dashboard");
+      }}
+    />
   );
 }

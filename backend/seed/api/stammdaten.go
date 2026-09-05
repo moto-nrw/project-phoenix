@@ -11,11 +11,12 @@ import (
 
 // StaffCredentials stores login credentials for a staff member
 type StaffCredentials struct {
-	Email    string
-	Password string
-	PIN      string
-	Name     string
-	Position string
+	AccountID int64
+	Email     string
+	Password  string
+	PIN       string
+	Name      string
+	Position  string
 }
 
 // FixedSeeder seeds fixed demo data via API calls
@@ -36,6 +37,7 @@ type FixedSeeder struct {
 	categoryIDs      map[string]int64   // category name -> id
 	deviceKeys       map[string]string  // device ID -> API key
 	roleIDs          map[string]int64   // role name -> id
+	accountIDs       map[string]int64   // "firstName lastName" -> account id
 	guardianIDs      map[string]int64   // guardian "firstName lastName" -> id
 	staffCredentials []StaffCredentials // created staff credentials for summary
 }
@@ -83,6 +85,7 @@ func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSe
 		categoryIDs:      make(map[string]int64),
 		deviceKeys:       make(map[string]string),
 		roleIDs:          make(map[string]int64),
+		accountIDs:       make(map[string]int64),
 		guardianIDs:      make(map[string]int64),
 		staffCredentials: make([]StaffCredentials, 0),
 	}
@@ -665,7 +668,7 @@ func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) e
 	for i, student := range DemoStudents {
 		studentID, ok := s.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for sickness demo index %d", i)
 		}
 
 		isCheckedIn := checkedInIDs[studentID]
@@ -781,10 +784,7 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 		// 2. Link guardian to student
 		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
 		if !ok {
-			if s.verbose {
-				fmt.Printf("    Warning: student index %d not found for guardian %s\n", guardian.StudentIndex, guardianKey)
-			}
-			continue
+			return fmt.Errorf("student index %d not found for guardian %s", guardian.StudentIndex, guardianKey)
 		}
 
 		linkPath := fmt.Sprintf("/api/guardians/students/%d/guardians", studentID)
@@ -812,10 +812,7 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 		_, err = s.client.Post(linkPath, linkBody)
 		if err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to link guardian %s to student: %v\n", guardianKey, err)
-			}
-			continue
+			return fmt.Errorf("link guardian %s to student %d: %w", guardianKey, studentID, err)
 		}
 
 		result.GuardianCount++
@@ -866,11 +863,11 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
 		guardianID, ok := s.guardianIDs[guardianKey]
 		if !ok {
-			continue
+			return fmt.Errorf("guardian ID not found for payer %s", guardianKey)
 		}
 		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for payer index %d", guardian.StudentIndex)
 		}
 
 		ibanIndex++
@@ -884,10 +881,7 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		if _, err := s.client.Put(payerPath, map[string]any{
 			"guardian_id": fmt.Sprintf("%d", guardianID),
 		}); err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to mark payer for student %d: %v\n", studentID, err)
-			}
-			continue
+			return fmt.Errorf("mark payer for student %d: %w", studentID, err)
 		}
 		result.PayerCount++
 
@@ -904,10 +898,7 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		}
 		paymentPath := fmt.Sprintf("/api/guardians/%d/payment", guardianID)
 		if _, err := s.client.Put(paymentPath, body); err != nil {
-			if s.verbose {
-				fmt.Printf("    Warning: failed to store bank details for guardian %s: %v\n", guardianKey, err)
-			}
-			continue
+			return fmt.Errorf("store bank details for guardian %s: %w", guardianKey, err)
 		}
 		result.GuardianIBANCount++
 	}
@@ -979,7 +970,7 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 
 		studentID, ok := s.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not found for pickup schedule index %d", i)
 		}
 
 		pattern := schedulePatterns[i%len(schedulePatterns)]
@@ -1004,12 +995,7 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 
 		_, err := s.client.Put(path, body)
 		if err != nil {
-			// Log warning but continue — pickup schedules are non-critical demo data
-			if s.verbose {
-				fmt.Printf("    Warning: failed to seed pickup schedule for student %s %s: %v\n",
-					student.FirstName, student.LastName, err)
-			}
-			continue
+			return fmt.Errorf("seed pickup schedule for student %s %s: %w", student.FirstName, student.LastName, err)
 		}
 
 		result.PickupScheduleCount++
@@ -1167,20 +1153,13 @@ func (s *FixedSeeder) enrollStudents(_ context.Context) error {
 			studentKey := fmt.Sprintf("%s %s", student.FirstName, student.LastName)
 			studentID, ok := s.studentIDs[studentKey]
 			if !ok {
-				if s.verbose {
-					fmt.Printf("    Warning: student ID not found for %s\n", studentKey)
-				}
-				continue
+				return fmt.Errorf("student ID not found for %s", studentKey)
 			}
 
 			path := fmt.Sprintf("/api/activities/%d/students/%d", activityID, studentID)
 			_, err := s.client.Post(path, nil)
 			if err != nil {
-				// Log but continue on enrollment errors
-				if s.verbose {
-					fmt.Printf("    Warning: failed to enroll student in %s: %v\n", activityName, err)
-				}
-				continue
+				return fmt.Errorf("enroll student %d in %s: %w", studentID, activityName, err)
 			}
 
 			enrolled++
@@ -1359,12 +1338,14 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 
 		// Store credentials for summary
 		s.staffCredentials = append(s.staffCredentials, StaffCredentials{
-			Email:    email,
-			Password: password,
-			PIN:      pin,
-			Name:     personKey,
-			Position: staff.Position,
+			AccountID: account.Data.ID,
+			Email:     email,
+			Password:  password,
+			PIN:       pin,
+			Name:      personKey,
+			Position:  staff.Position,
 		})
+		s.accountIDs[personKey] = account.Data.ID
 
 		result.AccountCount++
 	}

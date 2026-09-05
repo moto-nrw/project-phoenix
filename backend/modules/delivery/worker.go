@@ -53,9 +53,8 @@ type WorkerStats struct {
 }
 
 type workerEngine interface {
-	RunOnce(context.Context, int) (WorkerStats, error)
+	RunOnce(context.Context, int, int) (WorkerStats, error)
 	Backlog(context.Context) (int, error)
-	SetMaxAttempts(int)
 }
 
 type Worker struct{ engine workerEngine }
@@ -67,14 +66,15 @@ func NewWorker(engine workerEngine) *Worker {
 	return &Worker{engine: engine}
 }
 
-func (w *Worker) RunOnce(ctx context.Context, batchSize int) (int, error) {
+func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error) {
 	if batchSize <= 0 {
 		return 0, errors.New("delivery worker: batch size must be positive")
 	}
-	stats, err := w.engine.RunOnce(ctx, batchSize)
+	if maxAttempts <= 0 {
+		return 0, errors.New("delivery worker: max attempts must be positive")
+	}
+	stats, err := w.engine.RunOnce(ctx, batchSize, maxAttempts)
 	return stats.Claimed, err
 }
 
 func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.engine.Backlog(ctx) }
-
-func (w *Worker) SetMaxAttempts(attempts int) { w.engine.SetMaxAttempts(attempts) }

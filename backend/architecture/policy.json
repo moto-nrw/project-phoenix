@@ -47,6 +47,14 @@
       "kind": "projection"
     },
     {
+      "id": "timetable-enrollment-provenance",
+      "kind": "projection"
+    },
+    {
+      "id": "timetable-legacy-view",
+      "kind": "projection"
+    },
+    {
       "id": "data-import",
       "kind": "workflow"
     },
@@ -862,13 +870,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/activities",
-      "owner": "timetable-activities",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/audit",
       "owner": "audit-platform",
       "role": "postgres",
@@ -995,6 +996,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "database/repositories/activities",
+      "owner": "timetable-activities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "database/repositories/schedule",
       "owner": "timetable-activities",
       "role": "postgres",
@@ -1012,6 +1020,13 @@
       "path": "database/repositories/workforce",
       "owner": "workforce",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "demoprofile",
+      "owner": "dev-tools",
+      "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1817,6 +1832,76 @@
       "path": "modules/facilities/internal/adapters/postgres",
       "owner": "facilities",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable",
+      "owner": "timetable-activities",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/compose",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableprojection",
+      "owner": "timetable-legacy-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableprojection/integration",
+      "owner": "timetable-legacy-view",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/timetableenrollmentprovenance",
+      "owner": "timetable-enrollment-provenance",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/adapters/postgres",
+      "owner": "timetable-activities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/application",
+      "owner": "timetable-activities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/timetabletest",
+      "owner": "test-support",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3063,6 +3148,29 @@
         "platform.schools"
       ],
       "tenant_safe": true
+    },
+    {
+      "id": "timetable-enrollment-provenance",
+      "package": "modules/timetableenrollmentprovenance",
+      "data_objects": [
+        "activities.student_enrollments",
+        "enrollment.phases",
+        "enrollment.request_children",
+        "enrollment.requests"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "timetable-legacy-view",
+      "package": "modules/timetableprojection",
+      "data_objects": [
+        "activities.groups",
+        "activities.student_enrollments",
+        "enrollment.request_children",
+        "schedule.activity_instances",
+        "schedule.instance_students"
+      ],
+      "tenant_safe": true
     }
   ],
   "legacy_composition": [
@@ -4041,6 +4149,29 @@
       "source_role": "workflow-integration-test",
       "target_owner_kind": "workflow",
       "target_role": "public"
+    },
+    {
+      "id": "dev-tools.adapter-test.demo-profile-contract",
+      "description": "Demo seed and simulation adapter tests may use the demo profile contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "adapter-test",
+      "target_owner": "dev-tools",
+      "target_role": "contract"
+    },
+    {
+      "id": "dev-tools.cli.demo-profile-contract",
+      "description": "Demo seed and simulation CLIs may use the demo profile contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "cli",
+      "target_owner": "dev-tools",
+      "target_role": "contract"
     },
     {
       "id": "external.cli-config.cli",
@@ -5750,6 +5881,24 @@
       "target_role": "compose"
     },
     {
+      "id": "test-support.to.timetable-public",
+      "description": "Timetable test support returns the real public capability.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.timetable-compose",
+      "description": "Timetable test support constructs the real owner module.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
       "id": "root-composition.to.feedback-compose",
       "description": "The production root constructs the Feedback module once.",
       "scopes": [
@@ -6326,6 +6475,389 @@
       "source_role": "compose",
       "target_owner": "school-structure",
       "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.port-domain",
+      "description": "Timetable & Activities ports express persistence operations using owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "timetable-activities.compose.application",
+      "description": "Timetable & Activities composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "timetable-activities.compose.domain",
+      "description": "Timetable & Activities composition maps owner domain values.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.compose.orm-sql",
+      "description": "Timetable & Activities composition supplies the Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.compose.port",
+      "description": "Timetable & Activities composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
+    },
+    {
+      "id": "timetable-activities.compose.postgres",
+      "description": "Timetable & Activities composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-activities.compose.public",
+      "description": "Timetable & Activities composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.tenant-runtime",
+      "description": "Timetable & Activities composition resolves ambient tenant transactions through the shared runtime.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compatibility-application.public",
+      "description": "Legacy Timetable & Activities workflows delegate category ownership to the public facade during cutover.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.http-router",
+      "description": "Timetable compatibility composition binds the established HTTP transport.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "timetable-activities.compose.inbound-common",
+      "description": "Timetable compatibility composition uses shared tenant HTTP rendering.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "timetable-activities.compose.security-contract",
+      "description": "Timetable HTTP composition binds established activity permissions.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "timetable-activities.compose.security-application",
+      "description": "Timetable HTTP composition checks established activity authorization.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "timetable-activities.compose.identity-adapter",
+      "description": "Timetable HTTP composition reads authenticated claims.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.compose.identity-application",
+      "description": "Timetable compatibility composition resolves the current staff member.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "timetable-activities.compose.people-application",
+      "description": "Timetable HTTP composition resolves established people views.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "timetable-activities.compose.people-domain",
+      "description": "Timetable compatibility composition maps retained people rows.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.compose.presence-domain",
+      "description": "Timetable compatibility composition maps active group occupancy.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.compose.transaction-domain",
+      "description": "Timetable compatibility composition retains transaction error contracts.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.compose.legacy-shared-domain",
+      "description": "Timetable compatibility composition uses established calendar and system constants.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.compatibility-application.compose",
+      "description": "The retained activities service name delegates to owner composition.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "timetable-activities.internal-test.orm-sql",
+      "description": "Timetable & Activities composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.internal-test.tenant-runtime",
+      "description": "Timetable & Activities composition tests verify rollback and tenant isolation through the shared runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.integration-test.public",
+      "description": "Timetable & Activities integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.integration-test.support",
+      "description": "Timetable & Activities integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "timetable-activities.integration-test.domain",
+      "description": "Timetable integration tests create retained owner rows.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.integration-test.transaction-domain",
+      "description": "Timetable integration tests assert database error contracts.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.integration-test.people-domain",
+      "description": "Timetable integration tests create retained people rows.",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.behavior-test.compose",
+      "description": "Timetable behavior tests exercise composition adapters.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.timetable-activities-compose",
+      "description": "The production root constructs the Timetable & Activities module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.timetable-activities-public",
+      "description": "The production root records stable Timetable & Activities outcomes and shares the facade.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.timetable-activities-compose",
+      "description": "Legacy composition constructs the required Timetable & Activities capability for test graphs.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.timetable-activities-public",
+      "description": "Legacy composition supplies the Timetable & Activities facade to workflows still being retired.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.postgres.enrollment-provenance",
+      "description": "Timetable persistence validates legacy enrollment provenance through the named projection.",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "postgres",
+      "target_owner": "timetable-enrollment-provenance",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-presence.postgres.timetable-legacy-view",
+      "description": "Presence repositories consume the tenant-safe timetable display projection.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "postgres",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "enrollment.postgres.timetable-legacy-view",
+      "description": "Enrollment impact previews consume the tenant-safe timetable projection.",
+      "scopes": ["production"],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "people-directory.postgres.timetable-legacy-view",
+      "description": "Student lifecycle previews consume the tenant-safe timetable projection.",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.subject",
+      "description": "Projection regression tests call the exported SQL projection boundary.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "timetable-legacy-view.test.shared-date",
+      "description": "Projection regression tests supply fixed calendar dates to the existing read contracts.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-legacy-view.test.orm-sql",
+      "description": "Projection regression tests verify isolation in real elevated transactions and preserve SQL errors.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-legacy-view.shared-date",
+      "description": "The legacy projection preserves calendar-date contracts at its callers.",
+      "scopes": ["production"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-legacy-view.timetable-domain",
+      "description": "The migration projection preserves existing timetable model contracts.",
+      "scopes": ["production"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-legacy-view.enrollment-domain",
+      "description": "The planning-impact projection returns the enrollment workflow's read model.",
+      "scopes": ["production"],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "domain"
     },
     {
       "id": "facilities.port-domain",
@@ -9441,78 +9973,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.to.care-plan-adapter",
-      "description": "Legacy composition installs the Care Plan compatibility adapters.",
-      "scopes": ["production"],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
-    },
-    {
-      "id": "root-composition.to.care-plan-adapter",
-      "description": "The production root supplies ambient database resolution to Care Plan.",
-      "scopes": ["production"],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
-    },
-    {
-      "id": "care-plan.adapter.public",
-      "description": "The compatibility adapter delegates to the Care Plan facade.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.adapter.people-public",
-      "description": "The offering-change compatibility adapter resolves person search through People Directory.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.adapter.people-postgres",
-      "description": "The compatibility adapter preserves legacy repository errors.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.enrollment-domain",
-      "description": "The compatibility adapter preserves legacy enrollment contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "enrollment",
-      "target_role": "domain"
-    },
-    {
-      "id": "care-plan.adapter.transaction-domain",
-      "description": "The compatibility adapter preserves legacy database error and queue filter contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "care-plan.adapter.legacy-date",
-      "description": "The compatibility adapter maps legacy calendar-date values at its boundary.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
       "id": "care-plan.postgres.public",
       "description": "Care Plan Postgres adapters use the owner facade vocabulary.",
       "scopes": ["production"],
@@ -9540,41 +10000,6 @@
       "target_role": "public"
     },
     {
-      "id": "care-plan.adapter.transaction-postgres",
-      "description": "The compatibility adapter joins the ambient database transaction.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "transaction-runtime",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.parent-postgres",
-      "description": "The compatibility adapter supplies runtime composition to legacy Care Plan repositories.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "postgres"
-    },
-    {
-      "id": "care-plan.adapter.orm-sql",
-      "description": "The compatibility adapter accepts the concrete Bun database from composition.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "care-plan.adapter.compose",
-      "description": "The compatibility adapter supplies ambient database resolution to Care Plan composition.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "care-plan.testsupport.public",
       "description": "Care Plan test support exposes the owner facade.",
       "scopes": ["production"],
@@ -9591,15 +10016,6 @@
       "source_role": "test-support",
       "target_owner": "care-plan",
       "target_role": "compose"
-    },
-    {
-      "id": "care-plan.testsupport.adapter",
-      "description": "Care Plan test support exposes compatibility contracts.",
-      "scopes": ["production"],
-      "source_owner": "care-plan",
-      "source_role": "test-support",
-      "target_owner": "care-plan",
-      "target_role": "adapter"
     },
     {
       "id": "care-plan.testsupport.enrollment-domain",

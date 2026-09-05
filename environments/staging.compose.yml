@@ -11,8 +11,9 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - staging-postgres:/var/lib/postgresql/data
-    env_file:
-      - .env
+    environment:
+      TZ: ${TZ:?TZ is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     command:
       [
         "postgres",
@@ -44,8 +45,62 @@ services:
       - "127.0.0.1:8081:8080"
     volumes:
       - staging-avatar-uploads:/app/public/uploads
-    env_file:
-      - .env
+    environment:
+      # Endpoint only. The application password is added by GetServeDSN.
+      # Never interpolate the privileged maintenance DB_DSN here.
+      DB_DSN: postgres://phoenix_auth@postgres:5432/postgres?sslmode=disable
+      TZ: ${TZ:?TZ is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      LOG_LEVEL: ${LOG_LEVEL:?LOG_LEVEL is required}
+      LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:?LOG_TEXTLOGGING is required}
+      PORT: ${PORT:?PORT is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:?AUTH_JWT_EXPIRY is required}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:?AUTH_JWT_REFRESH_EXPIRY is required}
+      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD:?PHOENIX_AUTH_PASSWORD is required}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS is required}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:?EMAIL_FROM_NAME is required}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:?EMAIL_SMTP_HOST is required}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:?EMAIL_SMTP_PORT is required}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER?EMAIL_SMTP_USER is required}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD?EMAIL_SMTP_PASSWORD is required}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY?VAPID_PUBLIC_KEY is required}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY?VAPID_PRIVATE_KEY is required}
+      VAPID_SUBSCRIBER: ${VAPID_SUBSCRIBER?VAPID_SUBSCRIBER is required}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
+      PARENTS_URL: ${PARENTS_URL:?PARENTS_URL is required}
+      SCHOOL_URL: ${SCHOOL_URL:?SCHOOL_URL is required}
+      TENANT_DOMAIN: ${TENANT_DOMAIN:?TENANT_DOMAIN is required}
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME:?NEXT_PUBLIC_OPERATOR_HOSTNAME is required}
+      INVITATION_TOKEN_EXPIRY_HOURS: ${INVITATION_TOKEN_EXPIRY_HOURS:?INVITATION_TOKEN_EXPIRY_HOURS is required}
+      PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRY_MINUTES:?PASSWORD_RESET_TOKEN_EXPIRY_MINUTES is required}
+      ENABLE_CORS: ${ENABLE_CORS:?ENABLE_CORS is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:?RATE_LIMIT_ENABLED is required}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:?RATE_LIMIT_REQUESTS_PER_MINUTE is required}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:?RATE_LIMIT_BURST is required}
+      RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:?RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE is required}
+      SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED:?SECURITY_LOGGING_ENABLED is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      SENTRY_DSN: ${SENTRY_DSN?SENTRY_DSN is required}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT?SENTRY_ENVIRONMENT is required}
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY?POSTHOG_API_KEY is required}
+      POSTHOG_HOST: ${POSTHOG_HOST?POSTHOG_HOST is required}
+      CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
+      CLEANUP_SCHEDULER_TIME: ${CLEANUP_SCHEDULER_TIME:?CLEANUP_SCHEDULER_TIME is required}
+      CLEANUP_SCHEDULER_TIMEOUT_MINUTES: ${CLEANUP_SCHEDULER_TIMEOUT_MINUTES:?CLEANUP_SCHEDULER_TIMEOUT_MINUTES is required}
+      SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:?SESSION_END_SCHEDULER_ENABLED is required}
+      SESSION_END_TIME: ${SESSION_END_TIME:?SESSION_END_TIME is required}
+      SESSION_END_TIMEOUT_MINUTES: ${SESSION_END_TIMEOUT_MINUTES:?SESSION_END_TIMEOUT_MINUTES is required}
+      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:?STUDENT_DAILY_CHECKOUT_TIME is required}
+      SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:?SESSION_CLEANUP_ENABLED is required}
+      SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:?SESSION_CLEANUP_INTERVAL_MINUTES is required}
+      SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:?SESSION_ABANDONED_THRESHOLD_MINUTES is required}
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
     logging:
       driver: journald
       options:
@@ -66,12 +121,29 @@ services:
       - server
     ports:
       - "127.0.0.1:3001:3000"
-    env_file:
-      - .env
     environment:
+      # Allowlist: browser build values and frontend-owned runtime secrets only.
+      TZ: ${TZ:?TZ is required}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:?AUTH_JWT_EXPIRY is required}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:?AUTH_JWT_REFRESH_EXPIRY is required}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:?AUTH_TRUST_HOST is required}
+      TENANT_DOMAIN: ${TENANT_DOMAIN:?TENANT_DOMAIN is required}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+      NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:?NEXT_PUBLIC_LOG_LEVEL is required}
+      NEXT_PUBLIC_TENANT_DOMAIN: ${NEXT_PUBLIC_TENANT_DOMAIN:?NEXT_PUBLIC_TENANT_DOMAIN is required}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY?NEXT_PUBLIC_POSTHOG_KEY is required}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST?NEXT_PUBLIC_POSTHOG_HOST is required}
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: ${NEXT_PUBLIC_OPERATOR_HOSTNAME:?NEXT_PUBLIC_OPERATOR_HOSTNAME is required}
+      NEXT_PUBLIC_PARENTS_HOSTNAME: ${NEXT_PUBLIC_PARENTS_HOSTNAME:?NEXT_PUBLIC_PARENTS_HOSTNAME is required}
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: ${NEXT_PUBLIC_SCHOOL_HOSTNAME:?NEXT_PUBLIC_SCHOOL_HOSTNAME is required}
+      NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN?NEXT_PUBLIC_SENTRY_DSN is required}
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT?NEXT_PUBLIC_SENTRY_ENVIRONMENT is required}
       # Frontend-specific: internal API URL (not exposed via .env)
       API_URL: http://server:8080
-      # Override PORT from shared .env (8080 is for the backend; Next.js must listen on 3000)
+      # Next.js and the backend listen on different ports.
       PORT: 3000
       # Bind Next.js standalone to IPv4 so Docker healthchecks can reach it inside Alpine.
       HOSTNAME: 0.0.0.0
@@ -85,6 +157,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - staging
+
+  # Explicit one-shot job, excluded from normal service startup.
+  migrate:
+    image: ghcr.io/moto-nrw/phoenix-server:staging
+    profiles: ["maintenance"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./main", "migrate"]
+    environment:
+      TZ: ${TZ:?TZ is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      DB_DSN: ${DB_DSN:?DB_DSN is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      PHOENIX_AUTH_PASSWORD: ${PHOENIX_AUTH_PASSWORD:?PHOENIX_AUTH_PASSWORD is required}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:?OPERATOR_DISPLAY_NAME is required}
     networks:
       - staging
 

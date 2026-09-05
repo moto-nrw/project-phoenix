@@ -24,7 +24,9 @@ import { useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
@@ -54,66 +56,15 @@ const deltaExplanations: Record<DashboardPeriod, string> = {
     "Nicht Ist minus Soll: Krankheits-, Urlaubs- und Fortbildungstage werden mit dem Tagessoll gutgeschrieben. Die Zahl ist die Summe der Monatssalden aller Mitarbeitenden.",
 };
 
-type StatTone = "green" | "amber" | "gray" | "red";
-
-const valueTone: Record<StatTone, string> = {
-  green: "text-moto-green-strong",
-  amber: "text-moto-amber-strong",
-  gray: "text-gray-900",
-  red: "text-moto-red",
-};
-
-const barTone: Record<StatTone, string> = {
-  green: "bg-moto-green",
-  amber: "bg-moto-amber",
-  gray: "bg-gray-300",
-  red: "bg-moto-red",
-};
-
-function StatTile({
-  label,
-  value,
-  hint,
-  progressPct,
-  tone = "gray",
-  title,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly hint?: string;
-  readonly progressPct?: number;
-  readonly tone?: StatTone;
-  readonly title?: string;
-}) {
-  return (
-    <div className="flex flex-col bg-white p-4" title={title}>
-      {/* Feste Label-Höhe: bei sechs Kacheln nebeneinander bricht "Aktive
-          Mitarbeitende" auf zwei Zeilen um, alle anderen nicht. Ohne die
-          Mindesthöhe stehen die Werte dann auf verschiedenen Grundlinien. */}
-      <p className="min-h-8 text-[11px] leading-4 font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-xl leading-tight font-bold tabular-nums ${valueTone[tone]}`}
-      >
-        {value}
-      </p>
-      {progressPct !== undefined && (
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full ${barTone[tone]} transition-all`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
-        </div>
-      )}
-      {/* mt-auto: die Hinweiszeile sitzt auf gleicher Höhe, egal ob die Kachel
-          einen Balken hat oder der Hinweis zweizeilig umbricht. */}
-      <p className="mt-auto pt-2 text-xs leading-4 text-gray-500">
-        {hint ?? "\u00a0"}
-      </p>
-    </div>
-  );
-}
+/**
+ * Die Kennzahl-Kachel kommt aus dem Kit. Diese Datei hatte vorher ihre eigene
+ * („StatTile"): eigene Versalien, eigene Tonwert-Tabelle, eigener Balken —
+ * dieselbe Aussage in einer zweiten Bauart, direkt neben der Startseite, die
+ * schon StatCard benutzt. Das Kit sagt ausdrücklich: es gibt im Tenant-Portal
+ * keine zweite Kennzahl-Kachel.
+ */
+const toneForStatCard = (tone: "green" | "amber" | "gray" | "red") =>
+  tone === "amber" ? ("orange" as const) : tone;
 
 export function SchoolOverviewSection() {
   const [period, setPeriod] = useState<DashboardPeriod>("month");
@@ -147,25 +98,25 @@ export function SchoolOverviewSection() {
       : undefined;
 
   return (
-    <section className="mb-6" aria-labelledby="einrichtungs-uebersicht-heading">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2
-          id="einrichtungs-uebersicht-heading"
-          className="text-base font-bold text-gray-800"
-        >
-          Einrichtungs-Übersicht
-        </h2>
-        <Tabs
+    // Überschrift und Zeitraum stehen IN der Karte, wie in jedem anderen
+    // Abschnitt; vorher schwebten sie über der Fläche.
+    // Nicht `bare`: sonst stehen Überschrift, Zeitraumwahl und der
+    // Stundenkonto-Streifen direkt auf dem gemusterten Grund. Es gibt zwei
+    // Ebenen — Grund und Fläche — und Text gehört auf eine Fläche.
+    <SectionCard
+      title="Einrichtungs-Übersicht"
+      actions={
+        <SegmentedControl
+          ariaLabel="Zeitraum"
           value={period}
-          onValueChange={(value) => setPeriod(value as DashboardPeriod)}
-        >
-          <TabsList>
-            <TabsTrigger value="week">Woche</TabsTrigger>
-            <TabsTrigger value="month">Monat</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
+          onChange={(next) => setPeriod(next as DashboardPeriod)}
+          items={[
+            { value: "week", label: "Woche" },
+            { value: "month", label: "Monat" },
+          ]}
+        />
+      }
+    >
       {error && (
         <div className="mb-3 space-y-2">
           <Alert
@@ -192,16 +143,15 @@ export function SchoolOverviewSection() {
       {!summary && error ? null : isLoading && !summary ? (
         <Skeleton className="h-44 rounded-2xl sm:h-36" />
       ) : (
-        <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
-          {/* gap-px auf grauem Grund: Haarlinien zwischen den Kacheln, die
-              auch nach einem Umbruch sauber durchlaufen. */}
-          <div className="grid grid-cols-2 gap-px bg-gray-200 sm:grid-cols-3 xl:grid-cols-6">
-            <StatTile
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+            <StatCard
               label="Aktive Mitarbeitende"
               value={summary ? String(summary.activeStaffCount) : dash}
               hint="im laufenden Betrieb"
+              compactValue
             />
-            <StatTile
+            <StatCard
               label="Eingestempelt"
               value={
                 summary
@@ -210,25 +160,28 @@ export function SchoolOverviewSection() {
               }
               hint="von jetzt erwarteten"
               progressPct={clockedInPct}
+              compactValue
               tone={
                 summary &&
                 summary.currentlyClockedIn >= summary.expectedClockedIn
                   ? "green"
-                  : "amber"
+                  : "orange"
               }
             />
-            <StatTile
+            <StatCard
               label="Krank heute"
               value={summary ? String(summary.sickToday) : dash}
               hint="gemeldet"
-              tone={summary && summary.sickToday > 0 ? "amber" : "gray"}
+              compactValue
+              tone={summary && summary.sickToday > 0 ? "orange" : "gray"}
             />
-            <StatTile
+            <StatCard
               label="Urlaub heute"
               value={summary ? String(summary.vacationToday) : dash}
               hint="genehmigt"
+              compactValue
             />
-            <StatTile
+            <StatCard
               label={periodLabels[period]}
               value={summary ? formatDuration(summary.istMinutes) : dash}
               hint={
@@ -237,25 +190,31 @@ export function SchoolOverviewSection() {
                   : undefined
               }
               progressPct={istPct}
+              compactValue
             />
-            <StatTile
+            <StatCard
               label="Saldo-Veränderung"
               value={
                 summary ? formatSignedDuration(summary.deltaMinutes) : dash
               }
               hint="inkl. Gutschrift Krank/Urlaub"
-              tone={summary ? getDeltaStatus(summary.deltaMinutes) : "gray"}
+              compactValue
+              tone={
+                summary
+                  ? toneForStatCard(getDeltaStatus(summary.deltaMinutes))
+                  : "gray"
+              }
               title={deltaExplanations[period]}
             />
           </div>
 
           {summary && (
             // Kontostand, kein Zeitraumwert: für Woche und Monat identisch und
-            // deshalb aus der Zeitraum-Reihe herausgenommen — aber in derselben
-            // Fläche, nicht als zweiter schwebender Kasten darunter.
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-gray-200 bg-gray-50/70 px-4 py-3">
+            // deshalb aus der Zeitraum-Reihe herausgenommen. Als ruhiger
+            // Streifen unter den Kacheln, nicht als siebte Kachel.
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-xl bg-gray-50 px-4 py-3">
               <div>
-                <p className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                <p className="text-sm font-semibold text-gray-900">
                   Stundenkonto der Einrichtung
                 </p>
                 <p className="text-xs text-gray-500">
@@ -276,6 +235,6 @@ export function SchoolOverviewSection() {
           )}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

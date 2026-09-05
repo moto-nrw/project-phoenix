@@ -25,30 +25,49 @@ vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
 }));
 
 // Mock FormModal
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    onClose,
-    title,
-    footer,
+// Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
+// steht hier dieselbe Struktur ohne Animationsschicht; die Testkennungen
+// bleiben unveraendert.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    footer: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
   }) =>
-    isOpen ? (
+    open ? (
       <div data-testid="form-modal">
-        <h1>{title}</h1>
-        <button type="button" onClick={onClose} data-testid="close-modal">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          data-testid="close-modal"
+        >
           Close
         </button>
         {children}
-        <div data-testid="modal-footer">{footer}</div>
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-footer">{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h1>{children}</h1>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
 }));
 
 // Mock ToastContext
@@ -368,7 +387,7 @@ describe("PersonalInfoFormModal", () => {
       const saveButton = screen.getByText("Speichern");
       fireEvent.click(saveButton);
 
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
 
       await waitFor(() => {
         expect(mockOnClose).toHaveBeenCalled();

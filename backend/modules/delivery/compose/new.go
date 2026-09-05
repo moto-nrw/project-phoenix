@@ -208,8 +208,8 @@ func toDomainRelated(value delivery.RelatedEntity) domain.RelatedEntity {
 
 type workerEngine struct{ worker *application.Worker }
 
-func (e workerEngine) RunOnce(ctx context.Context, batchSize int) (delivery.WorkerStats, error) {
-	stats, err := e.worker.RunOnce(ctx, batchSize)
+func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
+	stats, err := e.worker.RunOnce(ctx, batchSize, maxAttempts)
 	return delivery.WorkerStats{
 		Claimed: stats.Claimed, Sent: stats.Sent, Cancelled: stats.Cancelled, Retried: stats.Retried,
 		DeadLettered: stats.DeadLettered, LeaseLost: stats.LeaseLost,
@@ -217,7 +217,6 @@ func (e workerEngine) RunOnce(ctx context.Context, batchSize int) (delivery.Work
 }
 
 func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.worker.Backlog(ctx) }
-func (e workerEngine) SetMaxAttempts(attempts int)              { e.worker.SetMaxAttempts(attempts) }
 
 type providerAdapter struct{ provider Provider }
 

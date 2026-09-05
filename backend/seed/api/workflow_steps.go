@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 )
 
 type healthCheckStep struct{}
@@ -119,17 +121,20 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
+	if virtual, ok := rt.Values["profile.virtual_device"].(SeedDevice); ok {
+		state.Devices[virtual.DeviceID] = virtual
+	}
 	state.Credentials.Operator = &SeedOperatorCredentials{
 		Email:    rt.OperatorEmail,
 		Password: rt.OperatorPassword,
 	}
 	state.Topology.Organizations = 1
-	state.Topology.Schools = 1
+	state.Topology.Schools = 1 + len(rt.AdditionalProfiles)
 	if rt.CareWithdrawals != nil {
 		state.Topology.Schools++
 		state.CareWithdrawals = rt.CareWithdrawals
 	}
-	state.Topology.Mode = "full-demo"
+	state.Topology.Mode = "profiles"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
 	state.Parents = append([]ParentCredentials(nil), rt.Parents...)
@@ -137,6 +142,7 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Entities.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Normalize()
+	mergeAdditionalProfiles(state, rt.AdditionalProfiles)
 
 	rt.State = state
 	if err := WriteSeedState(state, s.seeder.statePath); err != nil {
@@ -144,6 +150,23 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("Seed state written to %s\n", s.seeder.statePath)
 	return nil
+}
+
+func mergeAdditionalProfiles(state *SeedState, profiles map[string]*SeedProfile) {
+	for key, profile := range profiles {
+		if profile == nil {
+			continue
+		}
+		state.Profiles[key] = profile
+		organization := state.Organizations[profile.Organization.Slug]
+		organization.ID = profile.Organization.ID
+		organization.Name = profile.Organization.Name
+		organization.Slug = profile.Organization.Slug
+		organization.Profiles = append(organization.Profiles, key)
+		sort.Strings(organization.Profiles)
+		organization.Profiles = slices.Compact(organization.Profiles)
+		state.Organizations[organization.Slug] = organization
+	}
 }
 
 type printSummaryStep struct {
@@ -170,6 +193,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			healthCheckStep{},
 			operatorLoginStep{},
 			bootstrapTenantStep{seeder: seeder},
+			configureProfileStep{definition: seeder.definition},
 			seedMasterDataStep{seeder: seeder},
 			seedPlanningDemoStep{},
 			seedStudentStatusVariantsStep{},
@@ -200,6 +224,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedParentLetterStep{},
 			seedCareWithdrawalsStep{seeder: seeder},
 			seedInactiveAccountStep{},
+			verifyProfileStep{definition: seeder.definition},
+			manualProfileStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},

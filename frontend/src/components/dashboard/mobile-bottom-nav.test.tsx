@@ -73,6 +73,15 @@ vi.mock("~/components/ui/drawer", () => ({
   ),
 }));
 
+vi.mock("./header/refresh-button", () => ({
+  RefreshButton: () => <button type="button">Aktualisieren</button>,
+}));
+
+vi.mock("~/components/staff-preview/staff-preview-modal", () => ({
+  StaffPreviewModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div>Vorschau-Dialog</div> : null,
+}));
+
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: vi.fn(() => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
@@ -109,6 +118,8 @@ import {
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
+  useAttendanceLogEnabled,
+  useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -128,6 +139,8 @@ const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
+const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
+const mockUseDisplayEnabled = vi.mocked(useDisplayEnabled);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
@@ -189,6 +202,7 @@ describe("MobileBottomNav", () => {
       homeUrl: "/dashboard",
 
       profileUrl: "/profile",
+      canStartStaffPreview: false,
     });
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
@@ -262,9 +276,16 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/students/search");
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+      expect(
+        screen.getByRole("link", { name: "Meine Gruppen" }),
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
+      expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
         "href",
-        "/ogs-groups",
+        "/test-tenant/database",
+      );
+      expect(screen.getByText("Anmeldungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/admin/enrollments",
       );
     });
 
@@ -273,9 +294,9 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
     });
 
     it("shows groups to effective admins", () => {
@@ -285,10 +306,9 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
-        "href",
-        "/ogs-groups",
-      );
+      expect(
+        screen.getByRole("link", { name: "Meine Gruppen" }),
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
     });
 
     it("renders with custom className", () => {
@@ -305,6 +325,40 @@ describe("MobileBottomNav", () => {
 
       const spacer = container.querySelector(".h-16");
       expect(spacer).toBeInTheDocument();
+    });
+
+    it("keeps header actions available in the overflow menu", () => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Test User", email: "test@example.com", roles: [] },
+        profile: { firstName: "Test", lastName: "User" },
+        status: "authenticated",
+        isSessionExpired: true,
+        logout: vi.fn(),
+        mode: "teacher",
+        homeUrl: "/dashboard",
+        profileUrl: "/profile",
+        canStartStaffPreview: true,
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(
+        screen.getByText(
+          "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Aktualisieren")).not.toHaveLength(0);
+      expect(screen.getByText("Erinnerungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/reminders",
+      );
+      expect(screen.getByText("Profil").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/profile",
+      );
+      fireEvent.click(screen.getByText("Ansicht eines Mitarbeitenden"));
+      expect(screen.getByText("Vorschau-Dialog")).toBeInTheDocument();
     });
 
     it("prefixes the Anfragen overflow link in path-routing mode", () => {
@@ -464,8 +518,11 @@ describe("MobileBottomNav", () => {
       // Admin-only items should be visible in the drawer
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
+      // Die Gruppen der Seitenleiste stehen im Menü als Überschrift, nicht
+      // als Link (#2826).
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(screen.getByText("Planung").closest("a")).toBeNull();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
@@ -478,11 +535,10 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
-      // bleibt bar.
+      // Alle tenant-gebundenen Drawer-Links tragen im Pfadmodus das Präfix.
       expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
         "href",
-        "/calendar",
+        "/test-tenant/calendar",
       );
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
@@ -533,9 +589,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/dienstplan",
       );
-      expect(
-        screen.getByText("Terminvertretungen").closest("a"),
-      ).toHaveAttribute("href", "/test-tenant/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/vertretung",
+      );
     });
 
     it("keeps planning links bare in subdomain mode", () => {
@@ -552,9 +609,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/dienstplan",
       );
-      expect(
-        screen.getByText("Terminvertretungen").closest("a"),
-      ).toHaveAttribute("href", "/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/vertretung",
+      );
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -588,8 +646,8 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights Kalenderzeiträume as its own overflow entry", () => {
-      // Kalenderzeiträume und Tageslisten waren mobil ausgeblendet und liehen
+    it("highlights Schuljahr und Ferien as its own overflow entry", () => {
+      // Schuljahr und Ferien und Tageslisten waren mobil ausgeblendet und liehen
       // sich die Hervorhebung vom Betreuungsplan. Erreichbar waren sie dadurch
       // nicht: es gibt keinen Verweis vom Betreuungsplan dorthin. Beide sind
       // jetzt eigene Einträge und markieren sich selbst.
@@ -604,7 +662,7 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      expect(screen.getByText("Kalenderzeiträume").closest("a")).toHaveClass(
+      expect(screen.getByText("Schuljahr und Ferien").closest("a")).toHaveClass(
         "bg-gray-100",
       );
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
@@ -810,7 +868,10 @@ describe("MobileBottomNav", () => {
       fireEvent.click(staffLink);
 
       // The link should exist and be clickable
-      expect(staffLink.closest("a")).toHaveAttribute("href", "/staff");
+      expect(staffLink.closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/staff",
+      );
     });
 
     it("displays additional nav items in drawer", () => {
@@ -850,9 +911,31 @@ describe("MobileBottomNav", () => {
 
       const link = screen.getByText("Statistik").closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/statistics");
+      expect(link).toHaveAttribute("href", "/test-tenant/statistics");
       expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
       expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
+    });
+
+    it("prefixes tenant-scoped Verwaltungsseiten in the path-routing drawer", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseAttendanceLogEnabled.mockReturnValue(true);
+      mockUseDisplayEnabled.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      fireEvent.click(getMoreButton());
+
+      for (const { label, href } of [
+        { label: "Tagesauswertung", href: "/test-tenant/day-log" },
+        { label: "Statistik", href: "/test-tenant/statistics" },
+        { label: "Dateien", href: "/test-tenant/dateien" },
+        { label: "Info-Displays", href: "/test-tenant/info-displays" },
+      ] as const) {
+        expect(screen.getByText(label).closest("a")).toHaveAttribute(
+          "href",
+          href,
+        );
+      }
     });
 
     it("shows Statistik to non-admin staff with both required permissions", () => {
@@ -868,7 +951,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(getMoreButton());
       expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
         "href",
-        "/statistics",
+        "/test-tenant/statistics",
       );
     });
 
@@ -883,7 +966,7 @@ describe("MobileBottomNav", () => {
       const zeiterfassungElement = screen.getByText("Zeiterfassung");
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/time-tracking");
+      expect(link).toHaveAttribute("href", "/test-tenant/time-tracking");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {
@@ -1188,7 +1271,21 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/operator/accounts");
       expect(hrefs).toContain("/operator/devices");
       expect(hrefs).toContain("/operator/persons");
-      expect(hrefs).not.toContain("/operator/settings");
+      expect(hrefs).toContain("/operator/settings");
+    });
+
+    it("keeps the refresh action available in the operator overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((button) => !button.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      expect(
+        screen.getByRole("button", { name: "Aktualisieren" }),
+      ).toBeInTheDocument();
     });
 
     it("shows active label for current operator route", () => {
@@ -1314,8 +1411,8 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
-      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });

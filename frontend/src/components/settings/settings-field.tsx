@@ -1237,7 +1237,7 @@ function renderEnrollmentLegalTextEditor(
         className={`rounded-xl border p-3 text-sm leading-6 ${
           hasContent
             ? "border-gray-100 bg-gray-50 text-gray-700"
-            : "border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong"
+            : "border-moto-amber/30 bg-moto-amber-soft text-moto-amber-strong"
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

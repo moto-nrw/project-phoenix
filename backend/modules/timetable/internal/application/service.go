@@ -1,0 +1,239 @@
+package application
+
+import (
+	"context"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+)
+
+type Service struct {
+	store   ports.Store
+	tx      ports.Transaction
+	observe ports.Observer
+}
+
+func New(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {
+	if store == nil || tx == nil || observe == nil {
+		panic("timetable application: all dependencies are required")
+	}
+	return &Service{store: store, tx: tx, observe: observe}
+}
+
+func (s *Service) FindCategory(ctx context.Context, id int64) (result domain.Category, err error) {
+	err = s.run("find_category", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrCategoryNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) FindCategoryForAssignment(ctx context.Context, id int64) (result domain.Category, err error) {
+	err = s.run("find_category_for_assignment", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "SHARE")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrCategoryNotFound
+		}
+		if value.IsArchived() {
+			return domain.ErrCategoryArchived
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) FindCategoryByName(ctx context.Context, name string) (result domain.Category, err error) {
+	err = s.run("find_category_by_name", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindCategoryByName(ctx, name, false, "")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrCategoryNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) ListCategories(ctx context.Context) (result []domain.Category, err error) {
+	err = s.run("list_categories", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListCategories(ctx)
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) CountCategoryUsage(ctx context.Context) (result map[int64]int, err error) {
+	err = s.run("count_category_usage", func(stats *domain.OperationStats) error {
+		counts, queryStats, countErr := s.store.CountCategoryUsage(ctx)
+		stats.Add(queryStats)
+		result = counts
+		return countErr
+	})
+	return result, err
+}
+
+func (s *Service) CreateCategory(ctx context.Context, fields domain.CategoryFields) (result domain.Category, err error) {
+	err = s.runWrite(ctx, "create_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		value, queryStats, createErr := s.store.CreateCategory(txCtx, fields)
+		stats.Add(queryStats)
+		result = value
+		return createErr
+	})
+	return result, err
+}
+
+func (s *Service) UpdateCategory(ctx context.Context, id int64, fields domain.CategoryFields) (result domain.Category, err error) {
+	err = s.runWrite(ctx, "update_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		existing, err := s.editableCategory(txCtx, id, stats)
+		if err != nil {
+			return err
+		}
+		if existing.IsArchived() {
+			return domain.ErrCategoryArchived
+		}
+		value, updated, queryStats, updateErr := s.store.UpdateCategoryIfActive(txCtx, id, fields)
+		stats.Add(queryStats)
+		if updateErr != nil {
+			return updateErr
+		}
+		if !updated {
+			return domain.ErrCategoryArchived
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) ArchiveCategory(ctx context.Context, id int64) (result domain.Category, err error) {
+	err = s.runWrite(ctx, "archive_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		existing, editErr := s.editableCategory(txCtx, id, stats)
+		if editErr != nil {
+			return editErr
+		}
+		if existing.IsArchived() {
+			result = existing
+			return nil
+		}
+		now := time.Now()
+		return s.setArchivedAt(txCtx, id, &now, stats, &result)
+	})
+	return result, err
+}
+
+func (s *Service) RestoreCategory(ctx context.Context, id int64) (result domain.Category, err error) {
+	err = s.runWrite(ctx, "restore_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		existing, editErr := s.editableCategory(txCtx, id, stats)
+		if editErr != nil {
+			return editErr
+		}
+		if !existing.IsArchived() {
+			result = existing
+			return nil
+		}
+		return s.setArchivedAt(txCtx, id, nil, stats, &result)
+	})
+	return result, err
+}
+
+func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
+	return s.runWrite(ctx, "set_category_shift_type_links", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.SetCategoryShiftTypeLinks(txCtx, shiftTypeID, categoryIDs)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+func (s *Service) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) error {
+	return s.run("lock_student_enrollments_for_care_exit", func(stats *domain.OperationStats) error {
+		queryStats, err := s.store.LockStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+func (s *Service) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (result domain.CareExitEnrollmentChanges, err error) {
+	err = s.runWrite(ctx, "end_student_enrollments_for_care_exit", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		changes, queryStats, endErr := s.store.EndStudentEnrollmentsForCareExit(txCtx, studentIDs, validUntil)
+		stats.Add(queryStats)
+		result = changes
+		return endErr
+	})
+	return result, err
+}
+
+func (s *Service) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (result int, err error) {
+	err = s.runWrite(ctx, "restore_student_enrollments_for_care_exit", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, restoreErr := s.store.RestoreStudentEnrollmentsForCareExit(txCtx, studentIDs, periodIDs, removals)
+		stats.Add(queryStats)
+		result = int(rows)
+		return restoreErr
+	})
+	return result, err
+}
+
+func (s *Service) editableCategory(ctx context.Context, id int64, stats *domain.OperationStats) (domain.Category, error) {
+	category, found, queryStats, err := s.store.FindCategory(ctx, id, "UPDATE")
+	stats.Add(queryStats)
+	if err != nil {
+		return domain.Category{}, err
+	}
+	if !found {
+		return domain.Category{}, domain.ErrCategoryNotFound
+	}
+	if category.IsSystem {
+		return domain.Category{}, domain.ErrSystemCategoryProtected
+	}
+	return category, nil
+}
+
+func (s *Service) setArchivedAt(ctx context.Context, id int64, value *time.Time, stats *domain.OperationStats, result *domain.Category) error {
+	category, updated, queryStats, err := s.store.SetCategoryArchivedAt(ctx, id, value)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		return domain.ErrCategoryNotFound
+	}
+	*result = category
+	return nil
+}
+
+func (s *Service) run(operation string, callback func(*domain.OperationStats) error) (err error) {
+	started := time.Now()
+	stats := domain.OperationStats{}
+	err = callback(&stats)
+	s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	return err
+}
+
+func (s *Service) runWrite(ctx context.Context, operation string, retry bool, callback func(context.Context, *domain.OperationStats) error) (err error) {
+	started := time.Now()
+	stats := domain.OperationStats{}
+	err = s.tx.RunWrite(ctx, retry, func(txCtx context.Context) error {
+		return callback(txCtx, &stats)
+	})
+	s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	return err
+}

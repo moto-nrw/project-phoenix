@@ -40,6 +40,7 @@ func TestSimulateFullDayCmd_Flags(t *testing.T) {
 	t.Parallel()
 	f := simulateFullDayCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
+	assert.NotNil(t, f.Lookup("profile"))
 	assert.NotNil(t, f.Lookup("close"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
@@ -51,6 +52,9 @@ func TestSimulateFullDayCmd_FlagDefaults(t *testing.T) {
 	stateFlag := f.Lookup("state")
 	require.NotNil(t, stateFlag)
 	assert.Equal(t, ".seed-state.json", stateFlag.DefValue)
+	profileFlag := f.Lookup("profile")
+	require.NotNil(t, profileFlag)
+	assert.Equal(t, "vollbetrieb", profileFlag.DefValue)
 
 	closeFlag := f.Lookup("close")
 	require.NotNil(t, closeFlag)
@@ -76,6 +80,7 @@ func TestSimulateStatusCmd_Flags(t *testing.T) {
 	t.Parallel()
 	f := simulateStatusCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
+	assert.NotNil(t, f.Lookup("profile"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
@@ -86,6 +91,9 @@ func TestSimulateStatusCmd_FlagDefaults(t *testing.T) {
 	stateFlag := f.Lookup("state")
 	require.NotNil(t, stateFlag)
 	assert.Equal(t, ".seed-state.json", stateFlag.DefValue)
+	profileFlag := f.Lookup("profile")
+	require.NotNil(t, profileFlag)
+	assert.Equal(t, "vollbetrieb", profileFlag.DefValue)
 }
 
 // =============================================================================
@@ -140,6 +148,7 @@ func TestSimulateLiveCmd_Flags(t *testing.T) {
 	t.Parallel()
 	f := simulateLiveCmd.Flags()
 	assert.NotNil(t, f.Lookup("state"))
+	assert.NotNil(t, f.Lookup("profile"))
 	assert.NotNil(t, f.Lookup("interval"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
@@ -151,6 +160,9 @@ func TestSimulateLiveCmd_FlagDefaults(t *testing.T) {
 	stateFlag := f.Lookup("state")
 	require.NotNil(t, stateFlag)
 	assert.Equal(t, ".seed-state.json", stateFlag.DefValue)
+	profileFlag := f.Lookup("profile")
+	require.NotNil(t, profileFlag)
+	assert.Equal(t, "vollbetrieb", profileFlag.DefValue)
 
 	intervalFlag := f.Lookup("interval")
 	require.NotNil(t, intervalFlag)

@@ -3,6 +3,8 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   StudentCard,
   StudentInfoRow,
@@ -50,30 +52,29 @@ export function SupervisionStudentGrid({
   now,
   onOpenStudent,
 }: SupervisionStudentGridProps) {
+  // Leer- und Filterzustand sitzen auf derselben Fläche wie die Karten, die
+  // sie ersetzen: freier Text auf dem gemusterten Grund liest sich als Lücke,
+  // nicht als Zustand.
   if (students.length === 0) {
     return (
-      <div className="py-8 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <MotoConceptIcon concept="children" size={40} />
-          <div>
-            <h3 className="text-sm font-medium text-gray-600">
-              Keine Kinder in diesem Raum
-            </h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Es wurden noch keine Kinder eingecheckt
-            </p>
-          </div>
-        </div>
-      </div>
+      <SectionCard>
+        <EmptyState
+          icon={<MotoConceptIcon concept="children" size={40} />}
+          title="Keine Kinder in diesem Raum"
+          description="Es wurden noch keine Kinder eingecheckt."
+        />
+      </SectionCard>
     );
   }
 
   if (filteredStudents.length === 0) {
     return (
-      <EmptyStudentResults
-        totalCount={students.length}
-        filteredCount={filteredStudents.length}
-      />
+      <SectionCard>
+        <EmptyStudentResults
+          totalCount={students.length}
+          filteredCount={filteredStudents.length}
+        />
+      </SectionCard>
     );
   }
 

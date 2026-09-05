@@ -11,6 +11,7 @@ import (
 // LiveOptions configures the continuous live simulation.
 type LiveOptions struct {
 	StatePath string
+	Profile   string
 	Interval  time.Duration
 	Verbose   bool
 	Client    ClientFactory
@@ -68,7 +69,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	if opts.Client == nil {
 		return fmt.Errorf("simulation client factory is required")
 	}
-	state, err := LoadSeedState(opts.StatePath)
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
@@ -83,7 +84,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := state.Accounts.Admin[0]
-	if err := client.Login(admin.Email, admin.Password); err != nil {
+	if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 
@@ -157,7 +158,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 			printLiveSummary(counts)
 			return nil
 		case <-reloginTicker.C:
-			if err := client.Login(admin.Email, admin.Password); err != nil {
+			if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
 				fmt.Printf("[%s] WARNING: JWT refresh login failed: %v\n", time.Now().Format("15:04:05"), err)
 			}
 		case <-ticker.C:

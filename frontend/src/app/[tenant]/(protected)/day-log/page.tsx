@@ -1,7 +1,7 @@
 "use client";
 
 // Tagesauswertung (#1456): per group and calendar day, every child with one
-// day verdict — Anwesend / Krank / Klassenfahrt / Entschuldigt / Nicht
+// day verdict: Anwesend / Krank / Klassenfahrt / Entschuldigt / Nicht
 // eingeplant / Abwesend. Read-only evaluation of what NFC/web check-in and
 // sick notes already record; gated by gdpr.attendance_log_enabled.
 //
@@ -16,10 +16,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
-import { EmptyState } from "~/components/ui/empty-state";
-import { Modal } from "~/components/ui/modal";
-import { Skeleton } from "~/components/ui/skeleton";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   DAY_LOG_STATUS_COLORS,
   DAY_LOG_STATUS_ORDER,
@@ -36,6 +45,7 @@ import {
 import {
   berlinTodayISO,
   formatDate,
+  formatStatusDate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
@@ -47,7 +57,7 @@ const logger = createLogger({ component: "DayLogPage" });
 
 const ERROR_MESSAGES: Record<DayLogErrorCode, string> = {
   feature_disabled:
-    "Das Anwesenheitsprotokoll ist für diese Schule nicht aktiviert. Eine Administration kann es unter Einstellungen → Datenschutz einschalten.",
+    "Das Anwesenheitsprotokoll ist für Ihre Schule nicht eingeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
   not_group_supervisor:
     "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
   no_permitted_groups:
@@ -76,6 +86,13 @@ const MODAL_SECTION_TITLES: Record<DayLogStatus, string> = {
 };
 
 type ExportFormat = "pdf" | "xlsx";
+
+// Ladefehler gehören in den Fehlerzustand des Gerüsts. Ausgeschaltete Funktion
+// und fehlender Personaleintrag sind Zustände und werden als Leerzustand mit
+// dem nächsten Schritt gezeigt.
+function isLoadError(code: DayLogErrorCode): boolean {
+  return code === "unknown" || code === "invalid_request";
+}
 
 function counterFor(
   counters: DayLogGroup["counters"],
@@ -160,7 +177,7 @@ function GroupCard({
 }) {
   const c = group.counters;
   return (
-    <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <SectionCard>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-gray-900">
@@ -170,14 +187,16 @@ function GroupCard({
             {c.present} von {c.total} Kindern anwesend
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onOpen}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="shrink-0 gap-2 bg-white"
         >
           Details
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {DAY_LOG_STATUS_ORDER.map((status) => (
@@ -189,7 +208,7 @@ function GroupCard({
           />
         ))}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -352,7 +371,7 @@ export default function DayLogPage() {
   // shows it instead of forcing the attachment download) and print from there.
   const printPdf = useCallback(
     async (groupId?: string) => {
-      // The tab must open synchronously inside the click gesture — popup
+      // The tab must open synchronously inside the click gesture; popup
       // blockers discard windows opened after an await. Navigate it to the
       // blob URL once the PDF arrives; close it again if the export fails.
       // (window.open with the "noopener" feature returns null, so the opener
@@ -375,7 +394,7 @@ export default function DayLogPage() {
         if (tab) {
           tab.location.href = url;
         } else {
-          // Popup blocked even in the gesture — last resort, may be blocked
+          // Popup blocked even in the gesture; last resort, may be blocked
           // too, but the blob URL stays valid for a manual retry.
           window.open(url, "_blank");
         }
@@ -394,8 +413,28 @@ export default function DayLogPage() {
     [dateISO],
   );
 
-  // Action trio in the Anmeldungen button idiom: Drucken as the dark primary,
-  // the downloads as quiet white bordered actions. All sit on white surfaces.
+  // Eine sichtbare Aktion neben dem Titel, alles Weitere im Menü: Drucken ist
+  // der tägliche Griff, PDF und Excel sind der seltene. Vorher standen alle
+  // drei nebeneinander und füllten die halbe Kopfzeile -- dieselbe Reihe, die
+  // die Statistik hatte.
+  const exportMenuItems = (groupId?: string): OverflowMenuEntry[] => [
+    { kind: "header", label: "Herunterladen" },
+    {
+      label:
+        exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF",
+      icon: <Download className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport("pdf", groupId),
+      disabled: !data || exporting !== null,
+    },
+    {
+      label:
+        exporting === `xlsx-${groupId ?? "all"}` ? "Wird exportiert…" : "Excel",
+      icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport("xlsx", groupId),
+      disabled: !data || exporting !== null,
+    },
+  ];
+
   const exportButtons = (groupId?: string) => (
     <>
       <Button
@@ -411,100 +450,133 @@ export default function DayLogPage() {
           ? "Wird geöffnet…"
           : "Drucken"}
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("pdf", groupId)}
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("xlsx", groupId)}
-      >
-        <FileSpreadsheet className="h-4 w-4" aria-hidden />
-        {exporting === `xlsx-${groupId ?? "all"}`
-          ? "Wird exportiert…"
-          : "Excel"}
-      </Button>
+      <OverflowMenu
+        items={exportMenuItems(groupId)}
+        ariaLabel="Weitere Aktionen"
+      />
     </>
   );
 
   const selectedDate = parseISODate(dateISO);
 
-  return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Tagesauswertung
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anwesenheit pro Gruppe
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Wer war anwesend, krank, entschuldigt oder fehlt ohne Meldung –
-              für heute.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
-                w-44 trigger, field-aligned popover panel. Once the sweep
-                lands, switch to ISODatePicker + controlSize="md". */}
-            <DatePicker
-              value={selectedDate}
-              onChange={(date) => {
-                if (date) setDateISO(toISODate(date));
-              }}
-              minDate={minDate}
-              maxDate={maxDate}
-              calendarLayout="popover"
-              hideClearButton
-              className="w-full sm:w-44"
-            />
-            <div className="flex flex-wrap gap-2">{exportButtons()}</div>
-          </div>
-        </div>
+  // Statuszeile unter dem Titel: gewählter Tag und die Zahl der Kinder aus dem
+  // geladenen Protokoll.
+  const statusLine = data
+    ? `${formatStatusDate(dateISO)} · ${data.counters.total} Kinder`
+    : formatStatusDate(dateISO);
 
+  return (
+    <TenantPage
+      title="Tagesauswertung"
+      stats={statusLine}
+      statsLoading={loading}
+      loading={loading}
+      // Ein Ladefehler ist `error`. Eine ausgeschaltete Funktion oder ein
+      // fehlender Personaleintrag ist dagegen ein Zustand, kein Fehler: er
+      // steht als Leerzustand mit dem nächsten Schritt.
+      error={
+        errorCode !== null && isLoadError(errorCode)
+          ? ERROR_MESSAGES[errorCode]
+          : null
+      }
+      empty={
+        errorCode !== null && !isLoadError(errorCode)
+          ? {
+              title:
+                errorCode === "feature_disabled"
+                  ? "Anwesenheitsprotokoll ist ausgeschaltet"
+                  : "Noch keine Gruppen für Ihr Konto",
+              description: ERROR_MESSAGES[errorCode],
+            }
+          : errorCode === null && data !== null && data.groups.length === 0
+            ? {
+                title: "Keine Gruppe für diesen Tag",
+                description:
+                  "Für den gewählten Tag ist keine Gruppe sichtbar. Legen Sie eine Gruppe an oder lassen Sie sich einer Gruppe zuordnen.",
+              }
+            : null
+      }
+      actions={
+        // Kein eigener Umbruch-Wrapper: wie die Aktionen auf dem Telefon
+        // stehen, entscheidet die Kopfkarte für alle Seiten gleich.
+        <>
+          {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
+              w-44 trigger, field-aligned popover panel. Once the sweep
+              lands, switch to ISODatePicker + controlSize="md". */}
+          <DatePicker
+            value={selectedDate}
+            onChange={(date) => {
+              if (date) setDateISO(toISODate(date));
+            }}
+            minDate={minDate}
+            maxDate={maxDate}
+            calendarLayout="popover"
+            hideClearButton
+            className="w-44"
+          />
+          {exportButtons()}
+        </>
+      }
+      overlays={
+        <>
+          {/* Die Gruppe steht im Panel neben der Tagesliste: die Zahlen der
+              anderen Gruppen bleiben dabei sichtbar. */}
+          <SlideOver
+            open={openGroup !== null}
+            onOpenChange={(open) => {
+              if (!open) setOpenGroupId(null);
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader className="flex-row items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SlideOverTitle>
+                    {openGroup
+                      ? `${openGroup.name} · ${formatDate(dateISO)}`
+                      : ""}
+                  </SlideOverTitle>
+                </div>
+                <SlideOverCloseButton />
+              </SlideOverHeader>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {openGroup && (
+                  <>
+                    <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {DAY_LOG_STATUS_ORDER.map((status) => (
+                        <Stat
+                          key={status}
+                          label={STATUS_LABELS[status]}
+                          value={counterFor(openGroup.counters, status)}
+                          highlight={status === "absent"}
+                        />
+                      ))}
+                    </div>
+                    <GroupDetail group={openGroup} />
+                  </>
+                )}
+              </div>
+              {openGroup ? (
+                <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
+                  {exportButtons(openGroup.group_id)}
+                </SlideOverFooter>
+              ) : null}
+            </SlideOverContent>
+          </SlideOver>
+        </>
+      }
+    >
+      {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
+          Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
+      <SectionCard>
         {exportError && (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert type="error" message={exportError} />
           </div>
         )}
 
-        {loading && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-
-        {!loading && errorCode !== null && (
-          <EmptyState
-            className="mt-4"
-            title={
-              errorCode === "feature_disabled"
-                ? "Anwesenheitsprotokoll deaktiviert"
-                : "Tagesauswertung nicht verfügbar"
-            }
-            description={ERROR_MESSAGES[errorCode]}
-          />
-        )}
-
-        {!loading && errorCode === null && data && (
+        {data && (
           <>
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-7">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
               <Stat label="Kinder gesamt" value={data.counters.total} />
               {DAY_LOG_STATUS_ORDER.map((status) => (
                 <Stat
@@ -516,56 +588,18 @@ export default function DayLogPage() {
               ))}
             </div>
 
-            {data.groups.length === 0 ? (
-              <EmptyState
-                className="mt-4"
-                title="Keine Gruppen"
-                description="Für diesen Tag sind keine Gruppen sichtbar."
-              />
-            ) : (
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {data.groups.map((group) => (
-                  <GroupCard
-                    key={group.group_id}
-                    group={group}
-                    onOpen={() => setOpenGroupId(group.group_id)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      <Modal
-        isOpen={openGroup !== null}
-        onClose={() => setOpenGroupId(null)}
-        title={openGroup ? `${openGroup.name} · ${formatDate(dateISO)}` : ""}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-        footer={
-          openGroup ? (
-            <div className="flex flex-wrap justify-end gap-2">
-              {exportButtons(openGroup.group_id)}
-            </div>
-          ) : undefined
-        }
-      >
-        {openGroup && (
-          <>
-            <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {DAY_LOG_STATUS_ORDER.map((status) => (
-                <Stat
-                  key={status}
-                  label={STATUS_LABELS[status]}
-                  value={counterFor(openGroup.counters, status)}
-                  highlight={status === "absent"}
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {data.groups.map((group) => (
+                <GroupCard
+                  key={group.group_id}
+                  group={group}
+                  onOpen={() => setOpenGroupId(group.group_id)}
                 />
               ))}
             </div>
-            <GroupDetail group={openGroup} />
           </>
         )}
-      </Modal>
-    </div>
+      </SectionCard>
+    </TenantPage>
   );
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -433,6 +434,7 @@ func NewFactoryWithModules(
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
+	timetableCapability timetable.Capability,
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
@@ -445,12 +447,12 @@ func NewFactoryWithModules(
 	observeDurableDelivery DurableDeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -464,6 +466,7 @@ func newFactory(
 	rooms facilitiesModule.Capability,
 	membership schoolmembership.Capability,
 	calendar schoolcalendar.Capability,
+	timetableCapability timetable.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	mealPlan parent.MealPlan,
@@ -485,6 +488,7 @@ func newFactory(
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
+	repos.BindTimetable(timetableCapability)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -1131,7 +1135,7 @@ func newFactory(
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
-		repos.ActivityCategory,
+		timetableCapability,
 		repos.ActivityGroup,
 		repos.ActivitySchedule,
 		repos.ActivitySupervisor,
@@ -1606,6 +1610,7 @@ func newFactory(
 	}
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth:         authConfig.TokenAuth,
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,
@@ -1657,7 +1662,6 @@ func newFactory(
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxWorker.SetMaxAttempts(6)
 	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{

@@ -5,6 +5,10 @@
 pre-commit:
   parallel: true
   commands:
+    agent-context:
+      glob: "{AGENTS.md,CLAUDE.md,backend/AGENTS.md,backend/CLAUDE.md,frontend/AGENTS.md,frontend/CLAUDE.md,.agents/**,.claude/**,.codex/**,backend/.claude/**,frontend/.agents/**,frontend/.claude/**,docs/agents/**,scripts/check-agent-context*.mjs,lefthook.yml}"
+      run: node scripts/check-agent-context.mjs && node --test scripts/check-agent-context.test.mjs
+
     # Git secrets check (if installed)
     git-secrets:
       run: git secrets --pre_commit_hook 2>/dev/null || true
@@ -71,9 +75,9 @@ pre-push:
       glob: "backend/**/*.go"
       run: cd backend && ../scripts/run-go-toolchain.sh golangci-lint run --timeout 5m
 
-    go-toolchain-pins:
-      glob: "{backend/go.mod,backend/tools/go.mod,backend/Dockerfile,backend/Dockerfile.dev,devbox.json,devbox.lock,lefthook.yml,scripts/backend-architecture/go.mod,scripts/run-go-toolchain.sh,.github/workflows/*.yml}"
-      run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestGoToolchainPinsRatchet$' -count=1
+    toolchain-pins:
+      glob: "{backend/go.mod,backend/tools/go.mod,backend/Dockerfile,backend/Dockerfile.dev,devbox.json,devbox.lock,package.json,frontend/package.json,lefthook.yml,scripts/backend-architecture/go.mod,scripts/run-go-toolchain.sh,.github/workflows/*.yml}"
+      run: cd backend && ../scripts/run-go-toolchain.sh go test ./test -run '^TestToolchainPinsRatchet$' -count=1
 
     backend-architecture:
       glob: "{backend/**/*.go,backend/architecture/**,backend/internal/architecture/**,scripts/backend-architecture.sh}"

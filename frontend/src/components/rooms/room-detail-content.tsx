@@ -1,13 +1,12 @@
 // components/rooms/room-detail-content.tsx
 //
-// Body of the room detail view , used by both the full subpage
-// (/rooms/[id]/page.tsx, kept for deep links) and the responsive modal
-// rendered from /rooms (#1374).
+// Body of the room detail view, gerendert vom Panel auf /rooms
+// (`room-detail-panel.tsx`, #1374). Der alte Unterpfad /rooms/[id] leitet
+// nur noch dorthin weiter.
 //
 // Fetching is exposed via the `useRoomDetail` hook so wrappers can react
-// to loading/error states with their own layout (e.g. the page swaps in
-// a Zurück button on error, the modal does nothing). The content
-// component itself is purely presentational.
+// to loading/error states with their own layout. The content component
+// itself is purely presentational.
 
 "use client";
 
@@ -15,6 +14,12 @@ import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { SectionCard } from "~/components/ui/section-card";
+import {
+  DataField,
+  DataFieldSkeleton,
+  DataGrid,
+} from "~/components/ui/detail-modal-components";
 import { RoomStatusBadge } from "./room-status-badge";
 import { useSWRAuth } from "~/lib/swr";
 import {
@@ -34,8 +39,6 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
-const DETAIL_CARD_CLASS =
-  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 
 interface Room {
   id: string;
@@ -286,40 +289,6 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
   };
 }
 
-// Icon-row layout for the room-detail card (#1323 review).
-// Each row: a muted icon on the left, then a stacked
-// label (small, muted) + value (regular, bold), same shape as the
-// reference screenshot's DETAILS section. Keeps every field the old
-// InfoItem layout had, just denser and with a clearer visual anchor
-// per row so staff can scan vertically by icon.
-function IconDetailRow({
-  icon,
-  label,
-  value,
-}: Readonly<{
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-}>) {
-  return (
-    // items-center vertically centers the icon box against the
-    // label+value text block. Earlier `items-start` + mt-0.5 nudge
-    // tried to align the icon with the small label, which left it
-    // visually too high relative to the bold value below.
-    <div className="flex items-center gap-3 py-1">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-500">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs leading-tight text-gray-500">{label}</p>
-        <p className="truncate text-sm leading-tight font-medium text-gray-900">
-          {value}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 interface RoomDetailContentProps {
   readonly room: Room;
   readonly history: readonly RoomHistoryEntry[];
@@ -396,125 +365,72 @@ export function RoomDetailContent({
           headerAction ? "px-5 pt-5 sm:px-6" : ""
         }`}
       >
-        {/* Compact icon-row block , every field that used to live in the
-            old "Rauminformationen" InfoItem stack is here, but each row
-            is anchored by a brand-tinted icon so the eye can scan
-            vertically without re-reading labels. Review feedback
-            (#1323): the previous label-on-top / value-below layout
-            wasted vertical space in the narrow slide-over. */}
-        {/* Quiet section header (option A from #1323 review): small
-            uppercase label instead of the bold h2 + tinted icon box.
-            Inverts the previous size hierarchy where the heading
-            outweighed the data underneath , now the heading is a quiet
-            anchor and the IconDetailRow values carry the visual weight.
-            Card outline / padding stay so the section is still
-            visually grouped. */}
-        <div className={DETAIL_CARD_CLASS}>
-          <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Rauminformationen
-          </h2>
-          <div className="space-y-1">
-            {/* Raumname intentionally omitted , already in the h1
-                header above; review feedback (#1323): redundant. */}
+        {/* Feldgruppen aus dem Kit (`DataField`/`DataGrid` in einer
+            `SectionCard`), statt einer eigenen Icon-Zeile: eine Objektansicht
+            zeigt ihre Felder portalweit in derselben Form. */}
+        <SectionCard title="Rauminformationen">
+          <DataGrid>
+            {/* Raumname bewusst ausgelassen: steht schon in der Überschrift. */}
             {room.building && (
-              <IconDetailRow
+              <DataField
+                label="Gebäude"
                 icon={
                   <MotoDuotoneIcon
                     icon={BuildingsIcon}
                     tone="neutral"
-                    size={16}
+                    size={14}
                   />
                 }
-                label="Gebäude"
-                value={room.building}
-              />
+              >
+                {room.building}
+              </DataField>
             )}
             {room.floor !== undefined && (
-              <IconDetailRow
+              <DataField
+                label="Etage"
                 icon={
                   <MotoDuotoneIcon
                     icon={StackSimpleIcon}
                     tone="neutral"
-                    size={16}
+                    size={14}
                   />
                 }
-                label="Etage"
-                value={formatFloor(room.floor)}
-              />
+              >
+                {formatFloor(room.floor)}
+              </DataField>
             )}
             {room.category && (
-              <IconDetailRow
-                icon={
-                  <MotoDuotoneIcon icon={TagIcon} tone="neutral" size={16} />
-                }
+              <DataField
                 label="Kategorie"
-                value={room.category}
-              />
-            )}
-            <IconDetailRow
-              icon={
-                room.isOccupied ? (
-                  <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.rooms.icon}
-                    tone={MOTO_CONCEPTS.rooms.tone}
-                    size={16}
-                  />
-                ) : (
-                  <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.freeRooms.icon}
-                    tone={MOTO_CONCEPTS.freeRooms.tone}
-                    size={16}
-                  />
-                )
-              }
-              label="Status"
-              value={room.isOccupied ? "Belegt" : "Frei"}
-            />
-            {room.isOccupied && room.groupName && (
-              <IconDetailRow
                 icon={
-                  <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.activities.icon}
-                    tone={MOTO_CONCEPTS.activities.tone}
-                    size={18}
-                  />
+                  <MotoDuotoneIcon icon={TagIcon} tone="neutral" size={14} />
                 }
-                label="Aktuelle Aktivität"
-                value={room.groupName}
-              />
+              >
+                {room.category}
+              </DataField>
+            )}
+            <DataField label="Status">
+              {room.isOccupied ? "Belegt" : "Frei"}
+            </DataField>
+            {room.isOccupied && room.groupName && (
+              <DataField label="Aktuelle Aktivität">{room.groupName}</DataField>
             )}
             {room.isOccupied &&
               room.studentCount !== undefined &&
               room.studentCount > 0 && (
-                <IconDetailRow
-                  icon={
-                    <MotoDuotoneIcon
-                      icon={MOTO_CONCEPTS.children.icon}
-                      tone={MOTO_CONCEPTS.children.tone}
-                      size={18}
-                    />
-                  }
-                  label="Aktuell anwesend"
-                  value={`${room.studentCount} ${
+                <DataField label="Aktuell anwesend">
+                  {`${room.studentCount} ${
                     room.studentCount === 1 ? "Kind" : "Kinder"
                   }`}
-                />
+                </DataField>
               )}
             {room.isOccupied && room.supervisorName && (
-              <IconDetailRow
-                icon={
-                  <MotoDuotoneIcon
-                    icon={MOTO_CONCEPTS.supervision.icon}
-                    tone={MOTO_CONCEPTS.supervision.tone}
-                    size={18}
-                  />
-                }
-                label="Aktuelle Aufsicht"
-                value={room.supervisorName}
-              />
+              <DataField label="Aktuelle Aufsicht">
+                {room.supervisorName}
+              </DataField>
             )}
-          </div>
-        </div>
+          </DataGrid>
+        </SectionCard>
 
         <StudentsInRoomSection
           roomId={room.id}
@@ -523,10 +439,7 @@ export function RoomDetailContent({
         />
 
         {hasHistory ? (
-          <div className={DETAIL_CARD_CLASS}>
-            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Belegungshistorie
-            </h2>
+          <SectionCard title="Belegungshistorie">
             <div className="space-y-6">
               {groupedSessions.map((dateGroup) => (
                 <div key={dateGroup.date}>
@@ -592,7 +505,7 @@ export function RoomDetailContent({
                 </div>
               ))}
             </div>
-          </div>
+          </SectionCard>
         ) : null}
       </div>
     </div>
@@ -614,27 +527,7 @@ function SkeletonCardShell({
   heading,
   children,
 }: Readonly<{ heading: string; children: React.ReactNode }>) {
-  return (
-    <div className={DETAIL_CARD_CLASS}>
-      <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {heading}
-      </h2>
-      {children}
-    </div>
-  );
-}
-
-function SkeletonIconRow() {
-  // Mirrors IconDetailRow: 28×28 icon box, label line, value line.
-  return (
-    <div className="flex items-center gap-3 py-1">
-      <div className="h-7 w-7 flex-shrink-0 animate-pulse rounded-md bg-gray-200" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <SkeletonLine className="h-2.5 w-16" />
-        <SkeletonLine className="h-3 w-32" />
-      </div>
-    </div>
-  );
+  return <SectionCard title={heading}>{children}</SectionCard>;
 }
 
 function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
@@ -700,12 +593,12 @@ function RoomDetailSkeleton({
         }`}
       >
         <SkeletonCardShell heading="Rauminformationen">
-          <div className="space-y-1">
-            <SkeletonIconRow />
-            <SkeletonIconRow />
-            <SkeletonIconRow />
-            <SkeletonIconRow />
-          </div>
+          <DataGrid>
+            <DataFieldSkeleton />
+            <DataFieldSkeleton />
+            <DataFieldSkeleton />
+            <DataFieldSkeleton />
+          </DataGrid>
         </SkeletonCardShell>
 
         <SkeletonCardShell heading="Kinder im Raum">

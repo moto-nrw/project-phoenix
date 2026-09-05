@@ -115,7 +115,7 @@ func TestWorkerFinalizesWithClaimLeaseToken(t *testing.T) {
 	provider := &workerProvider{}
 	worker := NewWorker(store, provider, func(domain.Observation) {})
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.Claimed)
@@ -131,7 +131,7 @@ func TestWorkerCountsStaleFinalizeAsLeaseLoss(t *testing.T) {
 	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, finalizeSent: false}
 	worker := NewWorker(store, &workerProvider{}, func(domain.Observation) {})
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.LeaseLost)
@@ -144,7 +144,7 @@ func TestWorkerSkipsIntentWhenLeaseRenewalIsStale(t *testing.T) {
 	provider := &workerProvider{}
 	worker := NewWorker(store, provider, func(domain.Observation) {})
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.LeaseLost)
@@ -160,7 +160,7 @@ func TestWorkerRetriesProviderTimeout(t *testing.T) {
 	}
 	worker := NewWorker(store, &workerProvider{err: context.DeadlineExceeded}, func(domain.Observation) {})
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.Retried)
@@ -173,7 +173,7 @@ func TestWorkerCancelsNonRetryableProviderDecision(t *testing.T) {
 	store := &workerStore{claimed: []domain.Intent{claimedEmail(0)}, renewed: true, finalizeCancelled: true}
 	worker := NewWorker(store, &workerProvider{err: fmt.Errorf("guardian access revoked: %w", domain.ErrCancelled)}, func(domain.Observation) {})
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 6)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.Cancelled)
@@ -189,9 +189,8 @@ func TestWorkerDeadLettersAtAttemptLimit(t *testing.T) {
 		failureResult: domain.FinalizeResult{Finalized: true, State: string(domain.StateDeadLetter)},
 	}
 	worker := NewWorker(store, &workerProvider{err: errors.New("provider rejected")}, func(domain.Observation) {})
-	worker.SetMaxAttempts(2)
 
-	stats, err := worker.RunOnce(context.Background(), 1)
+	stats, err := worker.RunOnce(context.Background(), 1, 2)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.DeadLettered)
@@ -213,12 +212,98 @@ func TestWorkerRetriesAfterSendSucceededButFinalizeFailed(t *testing.T) {
 	provider := &workerProvider{}
 	worker := NewWorker(store, provider, func(domain.Observation) {})
 
-	first, err := worker.RunOnce(context.Background(), 1)
+	first, err := worker.RunOnce(context.Background(), 1, 6)
 	require.NoError(t, err)
 	assert.Zero(t, first.Sent)
 	store.finalizeSentErr = nil
-	second, err := worker.RunOnce(context.Background(), 1)
+	second, err := worker.RunOnce(context.Background(), 1, 6)
 	require.NoError(t, err)
 	assert.Equal(t, 1, second.Sent)
 	assert.Equal(t, 2, provider.calls)
+}
+
+func TestWorkerRejectsInvalidRetryLimitBeforeClaim(t *testing.T) {
+	t.Parallel()
+	for _, limit := range []int{0, -1} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			worker := NewWorker(&workerStore{}, &workerProvider{}, func(domain.Observation) { t.Error("invalid policy must not start work") })
+			stats, err := worker.RunOnce(context.Background(), 1, limit)
+			require.EqualError(t, err, "delivery worker: max attempts must be positive")
+			assert.Equal(t, domain.WorkerStats{}, stats)
+		})
+	}
+}
+
+type concurrentRetryStore struct{ workerStore }
+
+func (*concurrentRetryStore) Claim(_ context.Context, transport domain.Transport, _ int, _ time.Time, _ time.Time) ([]domain.Intent, error) {
+	intent := claimedEmail(1)
+	intent.Transport = transport
+	token := "concurrent-lease"
+	intent.LeaseToken = &token
+	return []domain.Intent{intent}, nil
+}
+
+func (*concurrentRetryStore) RenewLease(context.Context, domain.Transport, int64, string, time.Time) (bool, error) {
+	return true, nil
+}
+
+func (*concurrentRetryStore) FinalizeFailure(_ context.Context, _ domain.Transport, _ int64, _ string, attempts int, _ string, _ time.Time, maxAttempts int) (domain.FinalizeResult, error) {
+	state := domain.StatePending
+	if attempts >= maxAttempts {
+		state = domain.StateDeadLetter
+	}
+	return domain.FinalizeResult{Finalized: true, State: string(state)}, nil
+}
+
+type blockedRetryProvider struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (p blockedRetryProvider) Send(ctx context.Context, intent domain.Intent) (domain.ProviderResult, error) {
+	if intent.Transport == domain.TransportEmail {
+		p.started <- struct{}{}
+		select {
+		case <-p.release:
+		case <-ctx.Done():
+			return domain.ProviderResult{}, ctx.Err()
+		}
+	}
+	return domain.ProviderResult{}, errors.New("provider rejected")
+}
+
+func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	provider := blockedRetryProvider{started: make(chan struct{}, 2), release: make(chan struct{})}
+	worker := NewWorker(&concurrentRetryStore{}, provider, func(domain.Observation) {})
+	type result struct {
+		stats domain.WorkerStats
+		err   error
+	}
+	low, high := make(chan result, 1), make(chan result, 1)
+	run := func(limit int, results chan<- result) {
+		stats, err := worker.RunOnce(ctx, 2, limit)
+		results <- result{stats, err}
+	}
+	go run(2, low)
+	select {
+	case <-provider.started:
+	case <-ctx.Done():
+		t.Fatal("first run did not reach provider")
+	}
+	go run(6, high)
+	select {
+	case <-provider.started:
+	case <-ctx.Done():
+		t.Fatal("second run did not overlap first run")
+	}
+	close(provider.release)
+	first, second := <-low, <-high
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	assert.Equal(t, domain.WorkerStats{Claimed: 2, DeadLettered: 2}, first.stats)
+	assert.Equal(t, domain.WorkerStats{Claimed: 2, Retried: 2}, second.stats)
 }

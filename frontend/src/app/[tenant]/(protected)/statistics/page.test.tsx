@@ -113,9 +113,9 @@ function futureISODate(): string {
 async function openCourses() {
   render(<StatisticsPage />);
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Kurse" })).toBeInTheDocument(),
+    expect(screen.getByRole("tab", { name: "Kurse" })).toBeInTheDocument(),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Kurse" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Kurse" }));
 }
 
 describe("Statistik — Bereich Kurse (#2891)", () => {

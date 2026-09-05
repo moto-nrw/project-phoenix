@@ -2,10 +2,11 @@ package activities
 
 import (
 	"context"
-	"time"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // Operation names for the category Stammdaten flows (#2131).
@@ -30,7 +31,10 @@ type CategoryInput struct {
 // deleted, only archived. Kept separate from listing because the aggregate is
 // an extra tenant-wide scan that only that one screen needs (#2131).
 func (s *Service) CategoryUsageCounts(ctx context.Context) (map[int64]int, error) {
-	counts, err := s.groupRepo.CountByCategory(ctx)
+	if s.categories == nil {
+		return nil, &ActivityError{Op: "category usage counts", Err: errors.New("category capability is required")}
+	}
+	counts, err := s.categories.CountCategoryUsage(ctx)
 	if err != nil {
 		return nil, &ActivityError{Op: "category usage counts", Err: err}
 	}
@@ -41,37 +45,13 @@ func (s *Service) CategoryUsageCounts(ctx context.Context) (map[int64]int, error
 // System categories (Schulhof, WC) are auto-provisioned infrastructure and
 // stay untouchable; archived ones must be restored before they can be edited.
 func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryInput) (*activities.Category, error) {
-	category, err := s.loadEditableCategory(ctx, id, opUpdateCategory)
+	updated, err := s.categories.UpdateCategory(ctx, timetable.UpdateCategory{
+		ID: id, Name: input.Name, Description: input.Description, Color: input.Color,
+	})
 	if err != nil {
-		return nil, err
+		return nil, categoryActivityError(opUpdateCategory, err)
 	}
-	if category.IsArchived() {
-		return nil, &ActivityError{Op: opUpdateCategory, Err: ErrCategoryArchived}
-	}
-
-	category.Name = input.Name
-	category.Description = input.Description
-	category.Color = input.Color
-
-	if err := category.Validate(); err != nil {
-		return nil, &ActivityError{Op: opUpdateCategory, Err: err}
-	}
-	if isReservedSystemCategoryName(category.Name) {
-		return nil, &ActivityError{Op: opUpdateCategory, Err: ErrSystemCategoryNameReserved}
-	}
-
-	updated, err := s.categoryRepo.UpdateIfActive(ctx, category)
-	if err != nil {
-		if base.IsUniqueViolation(err) {
-			return nil, &ActivityError{Op: opUpdateCategory, Err: ErrCategoryNameExists}
-		}
-		return nil, &ActivityError{Op: opUpdateCategory, Err: err}
-	}
-	if !updated {
-		return nil, &ActivityError{Op: opUpdateCategory, Err: ErrCategoryArchived}
-	}
-
-	return category, nil
+	return categoryFromOwner(updated), nil
 }
 
 // ArchiveCategory retires a category. Nothing is deleted: existing Termine and
@@ -79,24 +59,11 @@ func (s *Service) UpdateCategory(ctx context.Context, id int64, input CategoryIn
 // being offered for new assignments. Archiving an already-archived category is
 // a no-op so a double click cannot fail.
 func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Category, error) {
-	category, err := s.loadEditableCategory(ctx, id, opArchiveCategory)
+	category, err := s.categories.ArchiveCategory(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, categoryActivityError(opArchiveCategory, err)
 	}
-	if category.IsArchived() {
-		return category, nil
-	}
-
-	now := time.Now()
-	category.ArchivedAt = &now
-	if err := s.setCategoryArchivedAt(ctx, category, opArchiveCategory); err != nil {
-		category.ArchivedAt = nil
-		return nil, err
-	}
-
-	// The database trigger advances updated_at; reload so the response carries
-	// the persisted timestamp rather than the value read before the update.
-	return s.loadEditableCategory(ctx, id, opArchiveCategory)
+	return categoryFromOwner(category), nil
 }
 
 // RestoreCategory brings an archived category back into the pickers. It fails
@@ -104,57 +71,36 @@ func (s *Service) ArchiveCategory(ctx context.Context, id int64) (*activities.Ca
 // the partial unique index on (tenant_id, LOWER(name)) WHERE archived_at IS
 // NULL detects that, so the check cannot race a concurrent create.
 func (s *Service) RestoreCategory(ctx context.Context, id int64) (*activities.Category, error) {
-	category, err := s.loadEditableCategory(ctx, id, opRestoreCategory)
+	category, err := s.categories.RestoreCategory(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, categoryActivityError(opRestoreCategory, err)
 	}
-	if !category.IsArchived() {
-		return category, nil
-	}
-
-	archivedAt := category.ArchivedAt
-	category.ArchivedAt = nil
-	if err := s.setCategoryArchivedAt(ctx, category, opRestoreCategory); err != nil {
-		category.ArchivedAt = archivedAt
-		return nil, err
-	}
-
-	// The database trigger advances updated_at; reload so the response carries
-	// the persisted timestamp rather than the value read before the update.
-	return s.loadEditableCategory(ctx, id, opRestoreCategory)
+	return categoryFromOwner(category), nil
 }
 
-// setCategoryArchivedAt persists just the archived_at column of category.
-// Deliberately a partial write rather than a full entity Update: an
-// archive/restore must not clobber a concurrent rename, and a restore has to
-// surface the case-insensitive partial unique-index violation as a name
-// conflict rather than a generic failure.
-func (s *Service) setCategoryArchivedAt(ctx context.Context, category *activities.Category, op string) error {
-	updated, err := s.categoryRepo.UpdateColumns(ctx, category, "archived_at")
-	if err != nil {
-		if base.IsUniqueViolation(err) {
-			return &ActivityError{Op: op, Err: ErrCategoryNameExists}
-		}
-		return &ActivityError{Op: op, Err: err}
+func categoryFromOwner(category timetable.Category) *activities.Category {
+	return &activities.Category{
+		Model:       base.Model{ID: category.ID, CreatedAt: category.CreatedAt, UpdatedAt: category.UpdatedAt},
+		TenantModel: base.TenantModel{TenantID: category.TenantID},
+		Name:        category.Name, Description: category.Description, Color: category.Color, IsSystem: category.IsSystem,
+		ShiftTypeID: category.ShiftTypeID, ArchivedAt: category.ArchivedAt,
 	}
-	if updated == 0 {
-		return &ActivityError{Op: op, Err: ErrCategoryNotFound}
-	}
-	return nil
 }
 
-// loadEditableCategory fetches a tenant-scoped category and rejects the
-// auto-provisioned system ones, which every write path must refuse.
-func (s *Service) loadEditableCategory(ctx context.Context, id int64, op string) (*activities.Category, error) {
-	category, err := s.categoryRepo.FindByID(ctx, id)
-	if err != nil {
-		if base.IsNoRows(err) {
-			return nil, &ActivityError{Op: op, Err: ErrCategoryNotFound}
-		}
-		return nil, &ActivityError{Op: op, Err: err}
+func categoryActivityError(operation string, err error) *ActivityError {
+	switch {
+	case errors.Is(err, timetable.ErrCategoryNotFound):
+		err = ErrCategoryNotFound
+	case errors.Is(err, timetable.ErrSystemCategoryProtected):
+		err = ErrSystemCategoryProtected
+	case errors.Is(err, timetable.ErrSystemCategoryName):
+		err = ErrSystemCategoryNameReserved
+	case errors.Is(err, timetable.ErrCategoryNameExists):
+		err = ErrCategoryNameExists
+	case errors.Is(err, timetable.ErrCategoryArchived):
+		err = ErrCategoryArchived
+	case errors.Is(err, timetable.ErrUnknownCategoryIDs):
+		err = activities.ErrUnknownCategoryIDs
 	}
-	if category.IsSystem {
-		return nil, &ActivityError{Op: op, Err: ErrSystemCategoryProtected}
-	}
-	return category, nil
+	return &ActivityError{Op: operation, Err: err}
 }

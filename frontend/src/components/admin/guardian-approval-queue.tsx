@@ -127,7 +127,7 @@ function InviteModeDependentEmptyState({
     return (
       <Alert
         type="error"
-        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Konto-Anfragen kann deshalb derzeit nicht zuverlässig eingeordnet werden."
+        message="Die Einladungs-Einstellung konnte nicht geladen werden. Der leere Zustand der Elternzugänge kann deshalb derzeit nicht zuverlässig eingeordnet werden."
         action={
           <Button
             type="button"
@@ -149,8 +149,11 @@ function InviteModeDependentEmptyState({
 
 export default function GuardianApprovalQueue({
   inviteModeState,
+  onCountChange,
 }: {
   readonly inviteModeState: GuardianInviteModeState;
+  /** Meldet die Zahl offener Anfragen an den Seitenkopf; `null` = am Laden. */
+  readonly onCountChange?: (count: number | null) => void;
 }) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -179,6 +182,11 @@ export default function GuardianApprovalQueue({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const reportedCount = isLoading ? null : requests.length;
+  useEffect(() => {
+    onCountChange?.(reportedCount);
+  }, [onCountChange, reportedCount]);
 
   const handleApprove = async (req: PendingApproval) => {
     setActingId(req.id);
@@ -219,29 +227,30 @@ export default function GuardianApprovalQueue({
 
   if (isLoading) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12 shadow-sm">
-        <div className="flex items-center gap-3 text-sm text-gray-600">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
-          Wird geladen…
-        </div>
-      </div>
+      <SkeletonRegion label="Konto-Anfragen werden geladen">
+        <CardSkeleton rows={3} />
+      </SkeletonRegion>
     );
   }
 
   return (
     <div className="space-y-3">
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border p-3 text-sm">
-          {error}
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/20 ml-2 rounded-lg px-2 py-1 text-xs font-medium"
-          >
-            Erneut versuchen
-          </button>
-        </div>
-      )}
+      {error ? (
+        <Alert
+          type="error"
+          message={error}
+          action={
+            <Button
+              type="button"
+              variant="outline_danger"
+              size="md"
+              onClick={() => void load()}
+            >
+              Erneut versuchen
+            </Button>
+          }
+        />
+      ) : null}
 
       {requests.length === 0 && !error ? (
         <InviteModeDependentEmptyState state={inviteModeState} />
@@ -249,7 +258,7 @@ export default function GuardianApprovalQueue({
         requests.map((req) => (
           <div
             key={req.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -286,7 +295,7 @@ export default function GuardianApprovalQueue({
                 <Button
                   type="button"
                   variant="success"
-                  size="sm"
+                  size="md"
                   isLoading={actingId === req.id}
                   onClick={() => void handleApprove(req)}
                 >
@@ -296,7 +305,7 @@ export default function GuardianApprovalQueue({
                 <Button
                   type="button"
                   variant="outline_danger"
-                  size="sm"
+                  size="md"
                   disabled={actingId === req.id}
                   onClick={() => setRejectTarget(req)}
                 >
@@ -319,7 +328,7 @@ export default function GuardianApprovalQueue({
         confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">
-          Möchtest du die Anfrage für{" "}
+          Möchten Sie die Anfrage für{" "}
           <span className="font-medium text-gray-900">
             {rejectTarget?.guardianName ||
               rejectTarget?.guardianEmail ||

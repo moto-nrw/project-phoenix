@@ -109,7 +109,7 @@ describe("DatabasePage", () => {
 
     // Page renders without layout wrapper (now in app layout)
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
     });
   });
 
@@ -125,14 +125,14 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     expect(screen.getByTestId("database-index-skeleton")).toBeVisible();
-    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
   });
 
   it("displays data sections with counts after loading", async () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
@@ -158,6 +158,17 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("shows no more than three counts in the page header", async () => {
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("100 Kinder · 25 Personen · 15 Räume"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("10 Gruppen")).not.toBeInTheDocument();
+    });
+  });
+
   it("displays singular 'Eintrag' for count of 1", async () => {
     mockCounts({
       ...mockCountsResponse.data,
@@ -177,8 +188,9 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Datenverwaltung" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -201,7 +213,7 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.queryByText("Personal")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
     });
@@ -214,7 +226,7 @@ describe("DatabasePage", () => {
 
     // Should not crash and not show any sections
     await waitFor(() => {
-      expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
   });
 
@@ -225,7 +237,7 @@ describe("DatabasePage", () => {
 
     // Should not crash and not show any sections
     await waitFor(() => {
-      expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
   });
 
@@ -263,7 +275,7 @@ describe("DatabasePage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Kinderdaten verwalten und bearbeiten"),
+        screen.getByText("Kinder anlegen, importieren und ihre Daten pflegen"),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Personaldaten und Zuordnungen verwalten"),
@@ -282,7 +294,7 @@ describe("DatabasePage", () => {
       // ambiguous now that the Exporte card mentions "Kinder-" and
       // "Raumlisten" in its own description.
       const studentsLink = screen.getByRole("link", {
-        name: /Kinderdaten verwalten/,
+        name: /Kinder anlegen/,
       });
       expect(studentsLink).toHaveAttribute(
         "href",
@@ -322,7 +334,7 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
     });
 
     expect(
@@ -353,7 +365,7 @@ describe("baseDataSections configuration", () => {
     const sections = [
       {
         id: "students",
-        title: "Kinder",
+        title: "Kinderdaten",
         href: "/database/students",
       },
       {

@@ -30,6 +30,47 @@ func (r failingStaffRepo) Create(context.Context, *userModels.Staff) error {
 	return r.err
 }
 
+func TestExistingInvitationOwnerMembershipRollsBack(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
+	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("rollback-owner-%d@example.com", testpkg.Tenant(t)), testStrongCredential)
+	schoolA := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, schoolA)
+	role := testpkg.CreateTestRoleForTenant(t, db, "rollback-staff", schoolA)
+	provisioningErr := errors.New("staff insert failed")
+	service := newTestInvitationService(t, InvitationServiceConfig{
+		InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
+		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role,
+		AccountRoleRepo: repos.AccountRole, PersonRepo: repos.Person,
+		StaffRepo:   failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr},
+		TeacherRepo: repos.Teacher, SchoolRepo: repos.School, DB: db,
+	})
+	invitation := &authModel.InvitationToken{
+		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("rollback-owner-%d", schoolA),
+		FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"), ExpiresAt: time.Now().Add(time.Hour),
+	}
+	invitation.SetTenantID(schoolA)
+	ctx := testpkg.TenantContext(schoolA)
+	require.NoError(t, repos.InvitationToken.Create(ctx, invitation))
+	_, err := service.AcceptInvitation(context.Background(), invitation.Token, UserRegistrationData{
+		OwnerAccessToken: invitationTestOwnerToken(t, service, owner.ID, testpkg.Tenant(t)),
+	})
+	require.ErrorIs(t, err, provisioningErr)
+	stored, err := repos.Account.FindByID(context.Background(), owner.ID)
+	require.NoError(t, err)
+	require.Equal(t, owner.PasswordHash, stored.PasswordHash)
+	require.True(t, stored.Active)
+	joined, err := repos.AccountTenant.ExistsByAccountAndTenant(context.Background(), owner.ID, schoolA)
+	require.NoError(t, err)
+	require.False(t, joined)
+	require.Zero(t, countRows(t, db, `SELECT COUNT(*) FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?`, owner.ID, schoolA))
+	require.Zero(t, countRows(t, db, `SELECT COUNT(*) FROM users.persons WHERE account_id = ? AND tenant_id = ?`, owner.ID, schoolA))
+	_, err = service.ValidateInvitation(context.Background(), invitation.Token)
+	require.NoError(t, err)
+}
+
 // A failure while provisioning the school identity must take the whole
 // acceptance with it. The account, the school mapping and the role assignment
 // are written first, so anything left behind is precisely the state issue #2222
@@ -47,7 +88,8 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	repos := repositories.NewFactory(db)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
 	role := testpkg.CreateTestRoleForTenant(t, db, "rollback-kraft", tenantID)
 
 	provisioningErr := errors.New("staff insert failed")

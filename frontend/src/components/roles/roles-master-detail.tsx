@@ -1,6 +1,8 @@
 "use client";
 
 import { Pencil } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
@@ -15,6 +17,8 @@ import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
+import { rolesConfig } from "~/components/database/configs/roles.config";
+import { DatabaseForm } from "~/components/ui/database/database-form";
 import {
   DataField,
   DataGrid,
@@ -35,7 +39,8 @@ interface RolesMasterDetailProps {
   selectedRole: Role | null;
   detailLoading: boolean;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
+  /** Speichert die im Detailbereich bearbeiteten Stammdaten. */
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
   onManagePermissions: () => void;
 }
@@ -55,7 +60,7 @@ export function RolesMasterDetail({
   selectedRole,
   detailLoading,
   onSelect,
-  onEditClick,
+  onSaveRole,
   onDeleteClick,
   onManagePermissions,
 }: RolesMasterDetailProps) {
@@ -85,9 +90,10 @@ export function RolesMasterDetail({
 
   const detailNode = selectedRole ? (
     <RoleDetailContent
+      key={selectedRole.id}
       role={selectedRole}
       loading={detailLoading}
-      onEditClick={onEditClick}
+      onSaveRole={onSaveRole}
       onDeleteClick={onDeleteClick}
       onManagePermissions={onManagePermissions}
     />
@@ -115,7 +121,7 @@ export function RolesMasterDetail({
 interface RoleDetailContentProps {
   role: Role;
   loading: boolean;
-  onEditClick: () => void;
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
   onManagePermissions: () => void;
 }
@@ -123,39 +129,58 @@ interface RoleDetailContentProps {
 function RoleDetailContent({
   role,
   loading,
-  onEditClick,
+  onSaveRole,
   onDeleteClick,
   onManagePermissions,
 }: RoleDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
+  // Bearbeitet wird am Objekt, nicht in einem Modal daneben
+  // (BAUARTEN-SPEC Bauart 2 Regel 3).
+  const [editing, setEditing] = useState(false);
 
-  const headerActions = role.isSystem ? null : (
-    <>
-      <button
-        type="button"
-        onClick={onManagePermissions}
-        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/20 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-      >
-        <MotoConceptIcon concept="permissions" size={16} />
-        Berechtigungen
-      </button>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <DetailDeleteButton onClick={onDeleteClick} />
-    </>
-  );
+  const handleSaveRole = async (data: Partial<Role>) => {
+    await onSaveRole(data);
+    setEditing(false);
+  };
+
+  const headerActions =
+    role.isSystem || editing ? null : (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={onManagePermissions}
+        >
+          <MotoConceptIcon concept="permissions" size={16} />
+          Berechtigungen
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={() => setEditing(true)}
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+          Bearbeiten
+        </Button>
+        <DetailDeleteButton onClick={onDeleteClick} />
+      </>
+    );
 
   const tabs: DetailTab[] = [
     {
       id: "master-data",
       label: "Stammdaten",
-      content: <RoleStammdatenTab role={role} loading={loading} />,
+      content: (
+        <RoleStammdatenTab
+          role={role}
+          loading={loading}
+          editing={editing}
+          onSaveRole={handleSaveRole}
+          onCancelEdit={() => setEditing(false)}
+        />
+      ),
     },
   ];
 
@@ -185,15 +210,34 @@ function RoleDetailContent({
 function RoleStammdatenTab({
   role,
   loading,
+  editing,
+  onSaveRole,
+  onCancelEdit,
 }: {
   role: Role;
   loading: boolean;
+  editing: boolean;
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
+  onCancelEdit: () => void;
 }) {
   if (loading) {
     return <DetailLoadingSpinner label="Rollendaten werden geladen..." />;
   }
 
   const description = getRoleDisplayDescription(role.name, role.description);
+
+  if (editing) {
+    return (
+      <DatabaseForm<Partial<Role>>
+        sections={rolesConfig.form.sections}
+        initialData={role}
+        onSubmit={onSaveRole}
+        onCancel={onCancelEdit}
+        submitLabel="Speichern"
+        stickyActions
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -243,9 +287,10 @@ function RoleStammdatenTab({
       </InfoSection>
 
       {role.isSystem ? (
-        <p className="text-center text-xs text-gray-500">
-          System-Rollen können nicht bearbeitet oder gelöscht werden.
-        </p>
+        <Alert
+          type="info"
+          message="System-Rollen können nicht bearbeitet oder gelöscht werden."
+        />
       ) : null}
     </div>
   );

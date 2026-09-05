@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -833,9 +834,9 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 
 // visitGroupNames captures the activity + room names for a student visit (DB scan target).
 type visitGroupNames struct {
-	StudentID         int64  `bun:"student_id"`
-	ActivityGroupName string `bun:"activity_group_name"`
-	RoomID            *int64 `bun:"room_id"`
+	StudentID       int64  `bun:"student_id"`
+	ActivityGroupID *int64 `bun:"activity_group_id"`
+	RoomID          *int64 `bun:"room_id"`
 }
 
 // GetTodayVisitNamesForStudents returns activity group + room names for all of
@@ -863,10 +864,9 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 	query := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
 		ColumnExpr(`"visit".student_id`).
-		ColumnExpr(`COALESCE("activity"."name", '') AS activity_group_name`).
+		ColumnExpr(`"group".group_id AS activity_group_id`).
 		ColumnExpr(`"group".room_id AS room_id`).
 		Join(`LEFT JOIN active.groups AS "group" ON "group".id = "visit".active_group_id`).
-		Join(`LEFT JOIN activities.groups AS "activity" ON "activity".id = "group".group_id`).
 		Where(`"visit".student_id IN (?)`, bun.List(uniqueIDs)).
 		Where(`"visit".entry_time >= ?`, today)
 
@@ -891,17 +891,33 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "get today visit names for students", Err: err}
 	}
+	activityGroupIDs := make([]int64, 0, len(results))
+	for _, row := range results {
+		if row.ActivityGroupID != nil {
+			activityGroupIDs = append(activityGroupIDs, *row.ActivityGroupID)
+		}
+	}
+	activityNames, err := timetableprojection.GroupNames(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), activityGroupIDs,
+	)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get today visit names for students", Err: err}
+	}
 
 	// Convert to model type.
 	out := make([]active.VisitGroupNames, len(results))
 	for i, row := range results {
 		name := ""
+		activityName := ""
 		if row.RoomID != nil {
 			name = rooms[*row.RoomID].Name
 		}
+		if row.ActivityGroupID != nil {
+			activityName = activityNames[*row.ActivityGroupID]
+		}
 		out[i] = active.VisitGroupNames{
 			StudentID:         row.StudentID,
-			ActivityGroupName: row.ActivityGroupName,
+			ActivityGroupName: activityName,
 			RoomName:          name,
 		}
 	}

@@ -104,6 +104,8 @@ var (
 	ErrPreviewTokenInvalid = errors.New("not a preview token of this session")
 
 	// Invitation errors
+	ErrInvitationOwnerRequired       = errors.New("sign in to the invited account before accepting")
+	ErrInvitationOwnerMismatch       = errors.New("the signed-in account does not own this invitation")
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")
 	ErrInvitationUsed                = errors.New("invitation has already been used")

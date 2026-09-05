@@ -19,8 +19,6 @@ import {
   FileSpreadsheet,
   FileText,
   Inbox,
-  Search,
-  type LucideIcon,
   X,
 } from "lucide-react";
 import {
@@ -49,14 +47,20 @@ import {
 import {
   DataTable,
   type DataTableColumn,
-  DataTableSkeleton,
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
-import { SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   useCareOfferingsEnabled,
@@ -66,6 +70,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 import { studentService } from "~/lib/api";
@@ -131,6 +136,7 @@ const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
@@ -333,16 +339,13 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [classRosterSchoolClass, phaseId, toast],
   );
 
-  const overviewHref = tenantSlug
-    ? `/${tenantSlug}/admin/enrollments`
-    : "/admin/enrollments";
+  const overviewPath = "/admin/enrollments";
+  const overviewHref = tenantPath(overviewPath);
 
   const requestHref = useCallback(
     (requestId: string) =>
-      tenantSlug
-        ? `/${tenantSlug}/admin/enrollments/${requestId}`
-        : `/admin/enrollments/${requestId}`,
-    [tenantSlug],
+      tenantPath(`/admin/enrollments/${encodeURIComponent(requestId)}`),
+    [tenantPath],
   );
 
   const loadData = useCallback(
@@ -470,7 +473,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       {
         key: "submitted",
         header: "Eingegangen",
-        render: (row) => formatDateTime(row.submitted_at),
+        render: (row) => formatChatDateTime(row.submitted_at),
         sortValue: (row) => new Date(row.submitted_at).getTime(),
       },
       {
@@ -529,270 +532,309 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [busyChildId, requestHref, requestQuickDecision],
   );
 
+  // Such- und Filterzeile der Kopfkarte. Die Auswertung filtert nach Status,
+  // Angebot, Betreuungstagen, Zielklasse, Wochentag und Gehzeit; der
+  // Auswertungsexport übernimmt genau diese Auswahl.
+  const filterConfigs = useMemo<FilterConfig[]>(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        type: "dropdown",
+        value: statusFilter,
+        onChange: (value) => setStatusFilter(value as EnrollmentReportStatus),
+        options: [
+          { value: ALL_STATUS_FILTER, label: "Alle Status" },
+          ...Object.entries(CHILD_STATUS_LABELS).map(([value, label]) => ({
+            value,
+            label,
+          })),
+        ],
+      },
+      {
+        // Mehrfachauswahl mit Zusatzhinweis je Angebot: bleibt das bestehende
+        // Bauteil, gemeldet wird der aktive Zustand über `activeFilters`.
+        id: "offerings",
+        label: "Berücksichtigte Angebote",
+        type: "custom",
+        value: "",
+        onChange: () => undefined,
+        options: [],
+        render: (
+          <MultiCheckboxSelect
+            id="enrollment-offering-filter"
+            ariaLabel="Berücksichtigte Angebote"
+            value={displayedOfferingIds}
+            onChange={handleReportOfferingsChange}
+            options={(report?.filter_options.offerings ?? []).map(
+              (offering) => ({
+                value: offering.id,
+                label: offering.name,
+                badge:
+                  offering.counts_as_care === false
+                    ? "Zählt nicht als Betreuungstag"
+                    : undefined,
+              }),
+            )}
+            emptyLabel="Keine Angebote"
+            unavailableLabel="Keine Angebote verfügbar"
+            multipleLabel={(count) => `${count} Angebote`}
+          />
+        ),
+      },
+      {
+        id: "day-count",
+        label: "Anzahl Betreuungstage",
+        type: "dropdown",
+        value: dayCount,
+        onChange: (value) => setDayCount(value as string),
+        options: [
+          { value: ALL_VALUE, label: "Alle Betreuungstage" },
+          ...DAY_COUNT_OPTIONS.map((count) => ({
+            value: String(count),
+            label: formatDayCountLabel(count),
+          })),
+        ],
+      },
+      {
+        id: "grade-level",
+        label: "Zielklasse",
+        type: "dropdown",
+        value: gradeLevel,
+        onChange: (value) => setGradeLevel(value as string),
+        options: [
+          { value: ALL_VALUE, label: "Alle Klassen" },
+          ...(report?.filter_options.grade_levels ?? []).map((grade) => ({
+            value: String(grade),
+            label: `${grade}. Klasse`,
+          })),
+        ],
+      },
+      {
+        id: "weekday",
+        label: "Wochentag",
+        type: "dropdown",
+        value: weekday,
+        onChange: (value) => setWeekday(value as string),
+        options: [
+          { value: ALL_VALUE, label: "Alle Tage" },
+          ...CARE_USAGE_WEEKDAYS.map((day) => ({
+            value: day,
+            label: DAY_LABELS[day] ?? day,
+          })),
+        ],
+      },
+      {
+        id: "pickup-time",
+        label: "Gehzeit",
+        type: "dropdown",
+        value: pickupTime,
+        onChange: (value) => setPickupTime(value as string),
+        options: [
+          { value: ALL_VALUE, label: "Alle Gehzeiten" },
+          ...(report?.filter_options.pickup_times ?? []).map((time) => ({
+            value: time,
+            label: `${time} Uhr`,
+          })),
+          ...(pickupTime !== ALL_VALUE &&
+          !(report?.filter_options.pickup_times ?? []).includes(pickupTime)
+            ? [{ value: pickupTime, label: `${pickupTime} Uhr` }]
+            : []),
+        ],
+      },
+    ],
+    [
+      dayCount,
+      displayedOfferingIds,
+      gradeLevel,
+      handleReportOfferingsChange,
+      pickupTime,
+      report,
+      statusFilter,
+      weekday,
+    ],
+  );
+
+  const activeFilters = useMemo<ActiveFilter[]>(() => {
+    const entries: ActiveFilter[] = [];
+    if (statusFilter !== ALL_STATUS_FILTER) {
+      entries.push({
+        id: "status",
+        label: `Status: ${CHILD_STATUS_LABELS[statusFilter as ChildStatus] ?? statusFilter}`,
+        onRemove: () => setStatusFilter(ALL_STATUS_FILTER),
+      });
+    }
+    if (explicitOfferingIds !== null) {
+      entries.push({
+        id: "offerings",
+        label: `Angebote: ${explicitOfferingIds.length} gewählt`,
+        onRemove: () => setExplicitOfferingIds(null),
+      });
+    }
+    if (dayCount !== ALL_VALUE) {
+      entries.push({
+        id: "day-count",
+        label: formatDayCountLabel(Number(dayCount)),
+        onRemove: () => setDayCount(ALL_VALUE),
+      });
+    }
+    if (gradeLevel !== ALL_VALUE) {
+      entries.push({
+        id: "grade-level",
+        label: `${gradeLevel}. Klasse`,
+        onRemove: () => setGradeLevel(ALL_VALUE),
+      });
+    }
+    if (weekday !== ALL_VALUE) {
+      entries.push({
+        id: "weekday",
+        label: `Wochentag: ${DAY_LABELS[weekday] ?? weekday}`,
+        onRemove: () => setWeekday(ALL_VALUE),
+      });
+    }
+    if (pickupTime !== ALL_VALUE) {
+      entries.push({
+        id: "pickup-time",
+        label: `Gehzeit: ${pickupTime} Uhr`,
+        onRemove: () => setPickupTime(ALL_VALUE),
+      });
+    }
+    return entries;
+  }, [
+    dayCount,
+    explicitOfferingIds,
+    gradeLevel,
+    pickupTime,
+    statusFilter,
+    weekday,
+  ]);
+
+  const clearAllFilters = useCallback(() => {
+    setStatusFilter(ALL_STATUS_FILTER);
+    setExplicitOfferingIds(null);
+    setDayCount(ALL_VALUE);
+    setGradeLevel(ALL_VALUE);
+    setWeekday(ALL_VALUE);
+    setPickupTime(ALL_VALUE);
+  }, []);
+
   if (loading) {
     return (
-      <SkeletonRegion label="Anmeldungen werden geladen">
-        <div className="space-y-4">
-          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md sm:p-6">
-            <Skeleton className="h-3 w-28 rounded" />
-            <Skeleton className="mt-2 h-6 w-64 rounded" />
-            <Skeleton className="mt-2 h-4 w-48 rounded" />
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} className="h-16 rounded-2xl" />
-              ))}
-            </div>
-          </div>
-          <DataTableSkeleton rows={8} columns={8} />
-        </div>
-      </SkeletonRegion>
+      <TenantPage
+        title="Anmeldephase"
+        back
+        backHref={overviewPath}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        statsLoading
+        loading
+      />
     );
   }
 
   if (error) {
     return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error}
-      </div>
+      <TenantPage
+        title="Anmeldephase"
+        back
+        backHref={overviewPath}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        error={error}
+      />
     );
   }
 
   if (!phase) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-6 shadow-sm backdrop-blur-md">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Anmeldephase
-        </p>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">
-          Anmeldephase nicht gefunden
-        </h1>
-        <Link
-          href={overviewHref}
-          className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Zurück zum Überblick
-        </Link>
-      </section>
+      <TenantPage
+        title="Anmeldephase"
+        back
+        backHref={overviewPath}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        empty={{
+          title: "Anmeldephase nicht gefunden",
+          description:
+            "Die Phase wurde gelöscht oder gehört zu einer anderen Schule.",
+          action: (
+            <ButtonLink
+              href={overviewHref}
+              variant="outline"
+              size="md"
+              className="inline-flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Zurück zum Überblick
+            </ButtonLink>
+          ),
+        }}
+      />
     );
   }
 
   return (
-    <div className="space-y-4">
-      <section className="moto-content-surface rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Link
-            href={overviewHref}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    <TenantPage
+      title={phase.name}
+      back
+      backHref={overviewPath}
+      backLabel="Zurück zur Anmeldungs-Übersicht"
+      stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
+      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <DataTableStatusBadge active={phase.is_active} />
+          <ExportMenuButton
+            label="Anmeldungen exportieren"
+            menuAriaLabel="Exportformat auswählen"
+            formats={["pdf", "docx", "xlsx"]}
+            exportingFormat={exportingFormat}
+            onExport={(format) => void handleExport(format)}
+          />
+          <ButtonLink
+            href={tenantPath(`/enroll/${encodeURIComponent(phase.id)}`)}
+            target="_blank"
+            rel="noreferrer"
+            variant="primary"
+            size="md"
+            className="inline-flex items-center justify-center gap-2"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zum Überblick
-          </Link>
-        </div>
-        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Anmeldephase
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold text-gray-900">
-                {phase.name}
-              </h1>
-              <DataTableStatusBadge active={phase.is_active} />
-            </div>
-            <p className="mt-2 text-sm text-gray-600">
-              {formatPhaseDate(phase.service_start_date)} bis{" "}
-              {formatPhaseDate(phase.service_end_date)}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <ExportMenuButton
-              label="Anmeldungen exportieren"
-              menuAriaLabel="Exportformat auswählen"
-              formats={["pdf", "docx", "xlsx"]}
-              exportingFormat={exportingFormat}
-              onExport={(format) => void handleExport(format)}
+            Elternansicht öffnen
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </ButtonLink>
+          {phaseUrl ? (
+            <PublicLinkCopyButton
+              url={phaseUrl}
+              componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
             />
-            <a
-              href={`/enroll/${encodeURIComponent(phase.id)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              Elternansicht öffnen
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </a>
-            {phaseUrl ? (
-              <PublicLinkCopyButton
-                url={phaseUrl}
-                componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
-              />
-            ) : null}
-            <Link
-              href="/enrollment-phases"
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              Phase bearbeiten
-            </Link>
-          </div>
-        </div>
-
-        <div className="grid gap-3 px-5 pb-5 sm:px-6 sm:pb-6 md:grid-cols-4">
-          <StatCard icon={Inbox} label="Eingänge" value={stats.total} />
-          <StatCard icon={Clock} label="Offen" value={stats.open} />
-          <StatCard icon={Check} label="Bestätigt" value={stats.approved} />
-          <StatCard icon={X} label="Abgelehnt" value={stats.rejected} />
-        </div>
-      </section>
-
-      <section className="moto-content-surface relative z-20 overflow-visible rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Eingänge
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anmeldungen prüfen und auswerten
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Filtere Kinder nach Status, Angebot, Zielklasse oder Anzahl der
-              Betreuungstage. Der Auswertungsexport übernimmt die aktuellen
-              Filter.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(9rem,1fr))]">
-            <SelectField label="Status" id="enrollment-status-filter">
-              <CustomSelect
-                id="enrollment-status-filter"
-                ariaLabel="Status"
-                value={statusFilter}
-                onChange={(value) =>
-                  setStatusFilter(value as EnrollmentReportStatus)
-                }
-                options={[
-                  { value: ALL_STATUS_FILTER, label: "Alle" },
-                  ...Object.entries(CHILD_STATUS_LABELS).map(
-                    ([value, label]) => ({
-                      value,
-                      label,
-                    }),
-                  ),
-                ]}
-              />
-            </SelectField>
-            <SelectField
-              label="Berücksichtigte Angebote"
-              id="enrollment-offering-filter"
-            >
-              <MultiCheckboxSelect
-                id="enrollment-offering-filter"
-                ariaLabel="Berücksichtigte Angebote"
-                value={displayedOfferingIds}
-                onChange={handleReportOfferingsChange}
-                options={(report?.filter_options.offerings ?? []).map(
-                  (offering) => ({
-                    value: offering.id,
-                    label: offering.name,
-                    badge:
-                      offering.counts_as_care === false
-                        ? "Zählt nicht als Betreuungstag"
-                        : undefined,
-                  }),
-                )}
-                emptyLabel="Keine Angebote"
-                unavailableLabel="Keine Angebote verfügbar"
-                multipleLabel={(count) => `${count} Angebote`}
-              />
-            </SelectField>
-            <SelectField
-              label="Anzahl Betreuungstage"
-              id="enrollment-day-count-filter"
-            >
-              <CustomSelect
-                id="enrollment-day-count-filter"
-                ariaLabel="Anzahl Betreuungstage"
-                value={dayCount}
-                onChange={setDayCount}
-                options={[
-                  { value: ALL_VALUE, label: "Alle" },
-                  ...DAY_COUNT_OPTIONS.map((count) => ({
-                    value: String(count),
-                    label: formatDayCountLabel(count),
-                  })),
-                ]}
-              />
-            </SelectField>
-            <SelectField label="Zielklasse" id="enrollment-grade-filter">
-              <CustomSelect
-                id="enrollment-grade-filter"
-                ariaLabel="Zielklasse"
-                value={gradeLevel}
-                onChange={setGradeLevel}
-                options={[
-                  { value: ALL_VALUE, label: "Alle Klassen" },
-                  ...(report?.filter_options.grade_levels ?? []).map(
-                    (grade) => ({
-                      value: String(grade),
-                      label: `${grade}. Klasse`,
-                    }),
-                  ),
-                ]}
-              />
-            </SelectField>
-            <SelectField label="Wochentag" id="enrollment-weekday-filter">
-              <CustomSelect
-                id="enrollment-weekday-filter"
-                ariaLabel="Wochentag"
-                value={weekday}
-                onChange={setWeekday}
-                options={[
-                  { value: ALL_VALUE, label: "Alle Tage" },
-                  ...CARE_USAGE_WEEKDAYS.map((day) => ({
-                    value: day,
-                    label: DAY_LABELS[day] ?? day,
-                  })),
-                ]}
-              />
-            </SelectField>
-            <SelectField label="Gehzeit" id="enrollment-pickup-time-filter">
-              <CustomSelect
-                id="enrollment-pickup-time-filter"
-                ariaLabel="Gehzeit"
-                value={pickupTime}
-                onChange={setPickupTime}
-                options={[
-                  { value: ALL_VALUE, label: "Alle Gehzeiten" },
-                  ...(report?.filter_options.pickup_times ?? []).map(
-                    (time) => ({
-                      value: time,
-                      label: `${time} Uhr`,
-                    }),
-                  ),
-                  ...(pickupTime !== ALL_VALUE &&
-                  !(report?.filter_options.pickup_times ?? []).includes(
-                    pickupTime,
-                  )
-                    ? [{ value: pickupTime, label: `${pickupTime} Uhr` }]
-                    : []),
-                ]}
-              />
-            </SelectField>
-          </div>
-          <label
-            htmlFor="enrollment-search-filter"
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 shadow-sm focus-within:ring-2 focus-within:ring-gray-400"
+          ) : null}
+          <ButtonLink
+            href={tenantPath("/enrollment-phases")}
+            variant="outline"
+            size="md"
+            className="inline-flex items-center justify-center"
           >
-            <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
-            <input
-              id="enrollment-search-filter"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Nach Kind oder Elternkontakt suchen"
-              className="h-10 min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
-            />
-          </label>
+            Phase bearbeiten
+          </ButtonLink>
         </div>
-      </section>
+      }
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Nach Kind oder Elternkontakt suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={clearAllFilters}
+    >
+      <div className="grid gap-3 md:grid-cols-4">
+        <EnrollmentStatTile icon={Inbox} label="Eingänge" value={stats.total} />
+        <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
+        <EnrollmentStatTile
+          icon={Check}
+          label="Bestätigt"
+          value={stats.approved}
+        />
+        <EnrollmentStatTile icon={X} label="Abgelehnt" value={stats.rejected} />
+      </div>
 
       <ClassRosterExportPanel
         schoolClassOptions={schoolClassOptions}
@@ -802,11 +844,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         onExport={(format) => void handleClassRosterExport(format)}
       />
 
-      {reportError ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {reportError}
-        </div>
-      ) : null}
+      {reportError ? <Alert type="error" message={reportError} /> : null}
 
       <ReportStats
         report={report}
@@ -853,7 +891,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
         />
       </ConfirmationModal>
-    </div>
+    </TenantPage>
   );
 }
 
@@ -951,16 +989,16 @@ function ReportStats({
   return (
     <section className="relative z-10 space-y-2">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-        <ReportStatCard
+        <EnrollmentStatTile
           label="Kinder"
-          value={loading ? "..." : String(totals?.children ?? 0)}
+          value={loading ? "…" : String(totals?.children ?? 0)}
         />
         {DAY_COUNT_OPTIONS.map((count) => (
-          <ReportStatCard
+          <EnrollmentStatTile
             key={count}
             label={formatDayCountLabel(count)}
             value={
-              loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
+              loading ? "…" : String(totals?.by_day_count[String(count)] ?? 0)
             }
           />
         ))}
@@ -987,11 +1025,11 @@ function DeploymentPlanningStats({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <h3 className="text-base font-semibold text-gray-900">
           Einsatzplanung
-        </p>
+        </h3>
         <p className="text-sm font-medium text-gray-900">
-          {loading ? "..." : `${report?.totals.children ?? 0} Kinder`}
+          {loading ? "…" : `${report?.totals.children ?? 0} Kinder`}
         </p>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-5">
@@ -1005,7 +1043,7 @@ function DeploymentPlanningStats({
             </p>
             <div className="mt-2 flex flex-col gap-1">
               {loading ? (
-                <p className="text-sm font-semibold text-gray-900">...</p>
+                <p className="text-sm font-semibold text-gray-900">…</p>
               ) : (
                 pickupTimes.map((time) => (
                   <div
@@ -1024,23 +1062,6 @@ function DeploymentPlanningStats({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ReportStatCard({
-  label,
-  value,
-}: Readonly<{
-  label: string;
-  value: string;
-}>) {
-  return (
-    <div className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
-      <p className="truncate text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </p>
     </div>
   );
 }
@@ -1104,7 +1125,7 @@ function ReportExportCard({
         <span className="truncate">
           {exportingFormat === null
             ? "Auswertung exportieren"
-            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
@@ -1255,23 +1276,25 @@ function ExportMenuButton({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={() => setOpen((value) => !value)}
         disabled={disabled || exportingFormat !== null}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center justify-center gap-2"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
         {exportingFormat === null
           ? label
-          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
         <ChevronDown
           className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
-      </button>
+      </Button>
 
       {open ? (
         <div
@@ -1339,24 +1362,6 @@ function calculateRequestStats(
   return { total, open, approved, rejected };
 }
 
-function formatPhaseDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function PhaseChildActions({
   row,
   href,
@@ -1373,30 +1378,34 @@ function PhaseChildActions({
     <div className="flex flex-wrap justify-end gap-2">
       {!terminal ? (
         <>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             disabled={busy}
             onClick={(event) => {
               event.stopPropagation();
               onDecide("approved");
             }}
-            className="hover:border-moto-green/50 hover:bg-moto-green/10 hover:text-moto-green-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5"
           >
             <Check className="text-moto-green h-3.5 w-3.5" aria-hidden="true" />
-            {busy ? "Speichert..." : "Bestätigen"}
-          </button>
-          <button
+            {busy ? "Speichert…" : "Bestätigen"}
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             disabled={busy}
             onClick={(event) => {
               event.stopPropagation();
               onDecide("rejected");
             }}
-            className="hover:border-moto-red/40 hover:bg-moto-red/10 hover:text-moto-red-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5"
           >
             <X className="text-moto-red h-3.5 w-3.5" aria-hidden="true" />
             Ablehnen
-          </button>
+          </Button>
         </>
       ) : null}
       <Link
@@ -1409,34 +1418,6 @@ function PhaseChildActions({
         Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </Link>
-    </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  value: number;
-}>) {
-  return (
-    <div className="moto-content-surface rounded-2xl border px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-50 text-gray-500 shadow-sm">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <span>
-          <span className="block text-lg font-semibold text-gray-900">
-            {value}
-          </span>
-          <span className="block text-xs font-medium text-gray-500">
-            {label}
-          </span>
-        </span>
-      </div>
     </div>
   );
 }

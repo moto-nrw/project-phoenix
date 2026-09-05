@@ -22,6 +22,7 @@ import (
 const (
 	ErrMsgPersonNotStudent = "person is not a student"
 	ErrMsgRFIDTagNotFound  = "RFID tag not found"
+	ErrCodeRFIDTagNotFound = "rfid_tag_not_found"
 )
 
 // ErrorRenderer renders an error to an HTTP response based on the IoT

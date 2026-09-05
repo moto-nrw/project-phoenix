@@ -26,7 +26,7 @@ const logger = createLogger({ component: "MasterDataReviewItem" });
 // (shell namespaces only — see shell-intl-provider.tsx), so this page hardcodes its
 // German strings like the rest of the staff/admin surface instead of using
 // useTranslations, which would resolve to raw keys here.
-const EMPTY_VALUE = "—";
+const EMPTY_VALUE = "–";
 
 const FIELD_LABELS: Record<string, string> = {
   first_name: "Vorname",

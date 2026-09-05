@@ -322,6 +322,21 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, supervisions)
 	})
+
+	t.Run("excludes supervisions that start in the future", func(t *testing.T) {
+		data := createSupervisorTestData(t, db)
+		futureSupervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: timezone.TodayDate().AddDays(1),
+			Role:      "supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, futureSupervisor))
+
+		supervisions, err := repo.FindActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Empty(t, supervisions)
+	})
 }
 
 func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {

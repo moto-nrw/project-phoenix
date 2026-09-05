@@ -89,6 +89,39 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+// Mock OverflowMenu — das Kebab-Menü sitzt seit der Kopfkarte in PageIntro
+// statt in PageHeaderWithSearch. Der echte OverflowMenu gibt seine Einträge
+// erst nach einem Klick frei; hier werden sie flach gerendert, damit die
+// bestehenden "Gruppe übergeben"-Assertions weiter greifen.
+vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
+  OverflowMenu: ({
+    items,
+  }: {
+    items: Array<{
+      label?: string;
+      onClick?: () => void;
+      badge?: string | number;
+    }>;
+  }) => (
+    <div data-testid="overflow-menu">
+      {items
+        .filter((item) => item.label)
+        .map((item) => (
+          <button
+            type="button"
+            key={item.label}
+            aria-label={item.label}
+            data-testid={`overflow-${item.label}`}
+            onClick={item.onClick}
+          >
+            {item.label}
+            {item.badge != null ? <span>{` (${item.badge})`}</span> : null}
+          </button>
+        ))}
+    </div>
+  ),
+}));
+
 // Mock PageHeaderWithSearch — renders filters, activeFilters, and the
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
@@ -398,6 +431,13 @@ vi.mock("lucide-react", () => ({
   UserX: ({ className }: { className?: string }) => (
     <span data-testid="lucide-user-x" className={className}>
       user-x
+    </span>
+  ),
+  // Seit die Kopfkarte das Kebab-Menü selbst rendert, kommt OverflowMenu in
+  // dieser Seite an und braucht sein Icon aus dem Mock.
+  MoreVertical: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-more-vertical" className={className}>
+      more
     </span>
   ),
 }));

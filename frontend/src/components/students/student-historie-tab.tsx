@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionCard } from "~/components/ui/section-card";
 import { getCachedSession } from "~/lib/session-cache";
 import {
   formatAttendanceSlotStatus,
@@ -75,7 +77,7 @@ function formatDateLabel(isoDate: string): string {
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "–";
   return date.toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
     hour: "2-digit",
@@ -84,7 +86,7 @@ function formatTime(isoString: string): string {
 }
 
 function formatDuration(minutes: number | null | undefined): string {
-  if (typeof minutes !== "number" || minutes <= 0) return "—";
+  if (typeof minutes !== "number" || minutes <= 0) return "–";
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   if (hours === 0) return `${remaining} min`;
@@ -195,23 +197,18 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   );
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700">
-            Anwesenheits-Historie
-          </h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Letzte {data.caps.attendance_days} Tage. Raum-Details für{" "}
-            {data.caps.room_detail_days} Tage sichtbar.
-          </p>
-        </div>
-      </div>
-
+    <SectionCard
+      title="Anwesenheits-Historie"
+      titleClassName="text-sm"
+      headingLevel={3}
+      description={`Letzte ${data.caps.attendance_days} Tage. Raum-Details für ${data.caps.room_detail_days} Tage sichtbar.`}
+      bodyClassName="mt-4"
+    >
       {daysWithData.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
-          Keine Einträge im sichtbaren Zeitraum.
-        </div>
+        <EmptyState
+          variant="compact"
+          title="Keine Einträge im sichtbaren Zeitraum"
+        />
       ) : (
         <ul className="space-y-2" role="list">
           {daysWithData.map((day) => (
@@ -226,7 +223,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                 <div className="text-xs text-gray-500">
                   {day.attendance?.check_in_time
                     ? formatTime(day.attendance.check_in_time)
-                    : "—"}{" "}
+                    : "–"}{" "}
                   –{" "}
                   {day.attendance?.check_out_time
                     ? formatTime(day.attendance.check_out_time)
@@ -280,6 +277,6 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
           ))}
         </ul>
       )}
-    </div>
+    </SectionCard>
   );
 }

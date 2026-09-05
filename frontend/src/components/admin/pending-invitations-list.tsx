@@ -276,7 +276,7 @@ export function PendingInvitationsList({
         confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">
-          Möchtest du die Einladung für{" "}
+          Möchten Sie die Einladung für{" "}
           <span className="font-medium text-gray-900">
             {revokeTarget?.email}
           </span>{" "}

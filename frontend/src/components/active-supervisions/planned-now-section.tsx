@@ -5,7 +5,7 @@ import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
@@ -88,12 +88,12 @@ export function PlannedNowSection({
       <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+            <h2 className="text-base font-semibold text-gray-900">
               Als Nächstes
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Keine geplante Betreuung in Sicht
             </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Keine geplante Betreuung in Sicht
+            </p>
           </div>
           <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
             <MotoConceptIcon concept="carePlan" size={18} />
@@ -150,10 +150,10 @@ export function PlannedNowSection({
             <MotoConceptIcon concept="carePlan" size={20} />
           </span>
           <span className="min-w-0">
-            <span className="text-moto-blue block text-xs font-semibold tracking-wide uppercase">
+            <span className="block text-base font-semibold text-gray-900">
               Als Nächstes
             </span>
-            <span className="block truncate text-base font-semibold text-gray-900">
+            <span className="mt-0.5 block truncate text-sm text-gray-600">
               {sortedPlanned[0]?.title}
             </span>
           </span>
@@ -544,11 +544,12 @@ function RosterPreviewRow({
 }
 
 /**
- * Tailwind gray-300. The "Erwartet" dot is the one roster state with no
- * standing in the location palette — it says "nothing has happened yet", so it
- * stays a light neutral rather than borrowing a status hue.
+ * The "Erwartet" dot is the one roster state with no standing in the location
+ * palette — it says "nothing has happened yet", so it takes the light neutral
+ * from the shared palette rather than borrowing a status hue. Never a raw hex:
+ * status and planning colours come from the tokens only.
  */
-const EXPECTED_DOT_COLOR = "#D1D5DB";
+const EXPECTED_DOT_COLOR = MOTO_COLOR_PALETTE.neutral.light;
 
 function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {

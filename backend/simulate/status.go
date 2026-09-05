@@ -9,6 +9,7 @@ import (
 // StatusOptions configures the status query.
 type StatusOptions struct {
 	StatePath string
+	Profile   string
 	Verbose   bool
 	Client    ClientFactory
 }
@@ -18,7 +19,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	if opts.Client == nil {
 		return fmt.Errorf("simulation client factory is required")
 	}
-	state, err := LoadSeedState(opts.StatePath)
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
@@ -36,11 +37,12 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := state.Accounts.Admin[0]
-	if err := client.Login(admin.Email, admin.Password); err != nil {
+	if err := client.Login(admin.Email, admin.Password, state.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 
 	fmt.Printf("Server: %s\n", state.BaseURL)
+	fmt.Printf("Profile: %s\n", state.ProfileKey)
 	fmt.Printf("Seed state: %s (created %s)\n\n", opts.StatePath, state.CreatedAt.Format("2006-01-02 15:04"))
 
 	// Query active groups/sessions

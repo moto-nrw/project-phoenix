@@ -637,7 +637,7 @@ describe("MeinRaumPage additional scenarios", () => {
     });
   });
 
-  it("shows page header with student count badge", async () => {
+  it("shows the supervision and its child count in the status line", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -684,9 +684,10 @@ describe("MeinRaumPage additional scenarios", () => {
 
     render(<MeinRaumPage />);
 
+    // Die Zahl stand früher als Zähler im Kopf; sie steht jetzt in der
+    // Statuszeile der Kopfkarte.
     await waitFor(() => {
-      const header = screen.getByTestId("page-header");
-      expect(header).toHaveAttribute("data-count", "2");
+      expect(screen.getByText("Raum 101 · 2 Kinder")).toBeInTheDocument();
     });
   });
 });
@@ -1559,7 +1560,7 @@ describe("Schulhof permanent tab functionality", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Übernimm die Aufsicht, um Kinder zu sehen."),
+        screen.getByText("Übernehmen Sie die Aufsicht, um Kinder zu sehen."),
       ).toBeInTheDocument();
     });
   });
@@ -3380,7 +3381,7 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     cleanup();
   });
 
-  it("renders ReleaseSupervisionButton and MobileReleaseSupervisionButton when supervising Schulhof", async () => {
+  it("renders the release action when supervising Schulhof", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -3426,14 +3427,13 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
 
     render(<MeinRaumPage />);
 
+    // Die Aktion steht seit der Kopfkarten-Umstellung einmal im Kopf, statt
+    // je einmal für Desktop und Mobil.
     await waitFor(() => {
-      // Both desktop and mobile release buttons should render with aria-label
-      const releaseButtons = screen.getAllByLabelText("Aufsicht abgeben");
-      expect(releaseButtons.length).toBeGreaterThanOrEqual(2);
+      expect(
+        screen.getByRole("button", { name: "Aufsicht abgeben" }),
+      ).toBeInTheDocument();
     });
-
-    // Verify the desktop button text
-    expect(screen.getByText("Aufsicht abgeben")).toBeInTheDocument();
   });
 
   it("shows 'Beaufsichtigen' button when Schulhof tab selected but not supervising", async () => {

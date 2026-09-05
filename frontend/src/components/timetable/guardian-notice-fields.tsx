@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -162,10 +163,10 @@ export function GuardianNoticeFields({
   if (past) return null;
   if (failed) {
     return (
-      <p className="text-xs text-gray-500">
-        Ob die Eltern informiert werden können, ließ sich gerade nicht laden.
-        Die Absage selbst ist davon nicht betroffen.
-      </p>
+      <Alert
+        type="warning"
+        message="Ob die Eltern informiert werden können, ließ sich gerade nicht laden. Die Absage selbst ist davon nicht betroffen."
+      />
     );
   }
   if (!reach?.enabled || !draft) return null;

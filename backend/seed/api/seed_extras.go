@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -44,8 +45,7 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 	for _, a := range announcements {
 		raw, err := rt.Client.Post("/operator/announcements", a)
 		if err != nil {
-			fmt.Printf("  WARNING: failed to create announcement %q: %v\n", a["title"], err)
-			continue
+			return fmt.Errorf("create announcement %q: %w", a["title"], err)
 		}
 		if firstAnnouncementID == 0 {
 			firstAnnouncementID, err = parseEnvelopeStringID(raw)
@@ -166,7 +166,7 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 	for i, student := range DemoStudents {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not available for privacy consent index %d", i)
 		}
 		_ = student // used only for index
 
@@ -181,10 +181,7 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 			},
 		})
 		if err != nil {
-			if rt.Verbose {
-				fmt.Printf("  WARNING: failed to create consent for student %d: %v\n", studentID, err)
-			}
-			continue
+			return fmt.Errorf("create privacy consent for student %d: %w", studentID, err)
 		}
 		count++
 	}
@@ -199,7 +196,7 @@ type seedStatisticsDemoStep struct{}
 
 func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
 
-func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
+func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
 	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
 		return fmt.Errorf("fixed seeder data not available")
 	}
@@ -221,11 +218,22 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	}, deviceKey, rt.StaffPIN); err != nil {
 		return fmt.Errorf("start statistics demo session: %w", err)
 	}
+	defer func() {
+		cleanupErr := cleanUpStatisticsDemoSession(rt, deviceKey)
+		if cleanupErr == nil {
+			return
+		}
+		if err == nil {
+			err = cleanupErr
+			return
+		}
+		err = errors.Join(err, cleanupErr)
+	}()
 	seeded := 0
 	for i := 0; i < 3 && i < len(DemoStudents); i++ {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not available for statistics demo index %d", i)
 		}
 		// Der Tag muss hexadezimal sein (models/auth.RFIDCard.Validate).
 		rfid := fmt.Sprintf("57A7%08X", studentID)
@@ -240,14 +248,19 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		}
 		seeded++
 	}
-	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
-		return fmt.Errorf("end statistics demo session: %w", err)
-	}
-	if err := checkOutStatisticsSupervisor(rt); err != nil {
-		return err
-	}
 	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
 	return nil
+}
+
+func cleanUpStatisticsDemoSession(rt *Runtime, deviceKey string) error {
+	var errs []error
+	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
+		errs = append(errs, fmt.Errorf("end statistics demo session: %w", err))
+	}
+	if err := checkOutStatisticsSupervisor(rt); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // checkOutStatisticsSupervisor bucht die Aufsicht wieder aus. Der
@@ -329,7 +342,7 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 	for _, plan := range plans {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[plan.StudentIndex]
 		if !ok {
-			continue
+			return fmt.Errorf("student ID not available for care-exit index %d", plan.StudentIndex)
 		}
 		body := map[string]any{
 			"student_ids":   []string{strconv.FormatInt(studentID, 10)},
@@ -342,10 +355,7 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 		// token the preview handed out.
 		raw, err := rt.Client.Post("/api/students/care-end/preview", body)
 		if err != nil {
-			if rt.Verbose {
-				fmt.Printf("  WARNING: care-exit preview failed for student %d: %v\n", studentID, err)
-			}
-			continue
+			return fmt.Errorf("preview care exit for student %d: %w", studentID, err)
 		}
 		var preview struct {
 			Data struct {
@@ -353,19 +363,19 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 				Blocked bool   `json:"blocked"`
 			} `json:"data"`
 		}
-		if err := json.Unmarshal(raw, &preview); err != nil || preview.Data.Blocked || preview.Data.Token == "" {
-			if rt.Verbose {
-				fmt.Printf("  WARNING: care-exit preview unusable for student %d\n", studentID)
-			}
-			continue
+		if err := json.Unmarshal(raw, &preview); err != nil {
+			return fmt.Errorf("decode POST /api/students/care-end/preview response for student %d: %w", studentID, err)
+		}
+		if preview.Data.Blocked {
+			return fmt.Errorf("care-exit preview blocked for student %d", studentID)
+		}
+		if preview.Data.Token == "" {
+			return fmt.Errorf("care-exit preview returned no token for student %d", studentID)
 		}
 
 		body["token"] = preview.Data.Token
 		if _, err := rt.Client.Post("/api/students/care-end", body); err != nil {
-			if rt.Verbose {
-				fmt.Printf("  WARNING: care-exit failed for student %d: %v\n", studentID, err)
-			}
-			continue
+			return fmt.Errorf("create care exit for student %d: %w", studentID, err)
 		}
 		created++
 	}
@@ -417,7 +427,7 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 		}
 		roomID := rt.FixedSeeder.activityRoomIDs[rt.FixedSeeder.activityIDs[activity.Name]]
 		if roomID == 0 {
-			continue
+			return fmt.Errorf("room not available for course %s", activity.Name)
 		}
 		activityID, err := createCourseTemplate(rt, activity.Name, roomID, dates)
 		if err != nil {
@@ -430,7 +440,7 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 			}
 		}
 		if len(studentIDs) == 0 {
-			continue
+			return fmt.Errorf("no students available for course %s", activity.Name)
 		}
 
 		for dateIndex, date := range dates {
