@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";

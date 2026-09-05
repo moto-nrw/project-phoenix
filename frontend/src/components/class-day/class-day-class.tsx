@@ -8,7 +8,7 @@
 // jedes Kind kommt genau einmal vor.
 
 import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";

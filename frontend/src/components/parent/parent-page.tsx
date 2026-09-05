@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 

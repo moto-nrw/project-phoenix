@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { CornerDownLeft, FileText } from "lucide-react";
 import Fuse from "fuse.js";
 import { SearchBar } from "~/components/ui/page-header/SearchBar";

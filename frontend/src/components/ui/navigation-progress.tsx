@@ -15,7 +15,6 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { wasNavigationProgressCancelled } from "~/lib/navigation-progress-events";
 
 /**
  * Fortschrittsanzeige für Seitenwechsel (#2828).
@@ -26,19 +25,19 @@ import { wasNavigationProgressCancelled } from "~/lib/navigation-progress-events
  * Lücke — er ersetzt keine Seite, er liegt als 3 Pixel hohe Linie über dem
  * Kopfbereich.
  *
- * Woher der Zustand kommt: Ein Capture-Listener der Hülle sieht jeden
- * unveränderten Klick auf einen gleichoriginigen Link, bevor Next den
- * Seitenwechsel anstößt. Der Anbieter fängt außerdem `push` und `replace` des
- * App-Routers ab, weil einige Seiten per Schaltfläche wechseln. Für
- * vorgeladene Ziele (NavLink lädt bei Hover, Fokus oder Touch-Beginn vor) ist
- * der Wechsel oft sofort fertig und der Balken bleibt unsichtbar.
+ * Woher der Zustand kommt: `NavigationLink` meldet jeden tatsächlich
+ * gestarteten clientseitigen Link-Wechsel vor dem Router-Dispatch. Der
+ * Anbieter fängt außerdem `push` und `replace` des App-Routers ab, weil einige
+ * Seiten per Schaltfläche wechseln. Für vorgeladene Ziele (NavLink lädt bei
+ * Hover, Fokus oder Touch-Beginn vor) ist der Wechsel oft sofort fertig und
+ * der Balken bleibt unsichtbar.
  *
  * Warum ein eigener Store statt `useState`: der Anbieter umschließt die
  * gesamte Hülle. Ein State-Wechsel dort würde Kopfzeile, Seitenleiste und
  * Inhalt bei jedem Klick neu rendern. So rendert nur der Balken selbst neu.
  */
 
-interface NavigationProgressStore {
+export interface NavigationProgressStore {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly isPending: () => boolean;
   readonly startNavigation: (target: string) => number;
@@ -180,9 +179,8 @@ function createStore(): NavigationProgressStore {
   };
 }
 
-const NavigationProgressContext = createContext<NavigationProgressStore | null>(
-  null,
-);
+export const NavigationProgressContext =
+  createContext<NavigationProgressStore | null>(null);
 const NOT_PENDING = () => false;
 const NO_SUBSCRIPTION = () => () => undefined;
 
@@ -196,9 +194,9 @@ export function useNavigationProgressPending() {
 }
 
 /**
- * Umschließt die Hülle eines Portals. Außerhalb davon melden weder interne
- * Links noch programmgesteuerte Wechsel etwas und der Balken erscheint nie —
- * Tests und Stories brauchen den Anbieter deshalb nicht.
+ * Umschließt die Hülle eines Portals. Außerhalb davon melden weder
+ * `NavigationLink`s noch programmgesteuerte Wechsel etwas und der Balken
+ * erscheint nie — Tests und Stories brauchen den Anbieter deshalb nicht.
  */
 export function NavigationProgressProvider({
   children,
@@ -240,27 +238,6 @@ function NavigationProgressRouter({
       },
     } satisfies AppRouterInstance;
   }, [router, store]);
-
-  useEffect(() => {
-    const handleLinkClick = (event: MouseEvent) => {
-      const target = linkNavigationTarget(event);
-      if (target === null || target === currentUrl()) return;
-
-      // Der Capture-Listener läuft vor dem Link-Handler von Next. Damit ist
-      // der Status schon gesetzt, wenn die Ladegrenze gerendert wird.
-      const id = store.startNavigation(target);
-      queueMicrotask(() => {
-        // `next/link` ruft selbst preventDefault auf. Nur ein Guard kann den
-        // Wechsel deshalb ausdrücklich als abgebrochen kennzeichnen.
-        if (wasNavigationProgressCancelled(event)) {
-          store.cancelNavigation(id);
-        }
-      });
-    };
-
-    document.addEventListener("click", handleLinkClick, true);
-    return () => document.removeEventListener("click", handleLinkClick, true);
-  }, [store]);
 
   const content = (
     <>
@@ -308,31 +285,6 @@ function navigationTarget(href: string): string | null {
   } catch {
     return null;
   }
-}
-
-function linkNavigationTarget(event: MouseEvent): string | null {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey ||
-    !(event.target instanceof Element)
-  ) {
-    return null;
-  }
-
-  const link = event.target.closest<HTMLAnchorElement>("a[href]");
-  if (
-    !link ||
-    (link.target !== "" && link.target !== "_self") ||
-    link.hasAttribute("download")
-  ) {
-    return null;
-  }
-
-  return navigationTarget(link.href);
 }
 
 function currentUrl() {

@@ -3,7 +3,7 @@
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {

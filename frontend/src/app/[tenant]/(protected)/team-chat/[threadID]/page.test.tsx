@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { describe, expect, it } from "vitest";
 import { renderThreadFrame } from "./page";
 

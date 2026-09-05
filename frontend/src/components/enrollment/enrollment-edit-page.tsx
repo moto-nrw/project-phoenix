@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";

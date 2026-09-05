@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { ArrowLeft, Check, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";

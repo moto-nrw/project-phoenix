@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";

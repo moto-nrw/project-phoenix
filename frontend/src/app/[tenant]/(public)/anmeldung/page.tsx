@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";

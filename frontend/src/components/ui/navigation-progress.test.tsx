@@ -3,7 +3,7 @@ import {
   AppRouterContext,
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import Link from "next/link";
+import Link from "./navigation-link";
 import { useContext, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,18 +29,22 @@ vi.mock("next/link", () => ({
     children,
     href,
     onClick,
+    onNavigate,
     ...rest
   }: {
     children?: React.ReactNode;
     href: string;
     onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+    onNavigate?: (event: { preventDefault: () => void }) => void;
   }) => (
     <a
       href={href}
       {...rest}
       onClick={(event) => {
         onClick?.(event);
+        if (event.defaultPrevented) return;
         event.preventDefault();
+        onNavigate?.({ preventDefault: () => undefined });
       }}
     >
       {children}
@@ -58,7 +62,6 @@ import {
   NavigationProgressProvider,
 } from "./navigation-progress";
 import ProtectedLoading from "~/app/[tenant]/(protected)/loading";
-import { cancelNavigationProgressFor } from "~/lib/navigation-progress-events";
 
 const appRouter = router as unknown as AppRouterInstance;
 
@@ -135,26 +138,40 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
-  it("cancels progress when a navigation guard blocks a Link", async () => {
-    const cancel = (event: MouseEvent) => {
-      event.preventDefault();
-      cancelNavigationProgressFor(event);
-    };
-    document.addEventListener("click", cancel, true);
+  it("does not start progress when a Link click is cancelled", () => {
+    renderShell(
+      <Link
+        href="/calendar-periods"
+        onClick={(event) => event.preventDefault()}
+      >
+        Planungszeiträume
+      </Link>,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
-    try {
-      renderShell(<Link href="/calendar-periods">Planungszeiträume</Link>);
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole("link", { name: "Planungszeiträume" }),
-        );
-        await Promise.resolve();
-      });
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
 
-      expect(screen.queryByTestId("navigation-progress")).toBeNull();
-    } finally {
-      document.removeEventListener("click", cancel, true);
-    }
+  it("completes a redirected Link without a second pending entry", () => {
+    navigateTo("/rooms");
+    const rendered = renderShell(
+      <Link href="/staff/dienstplan">Zum Dienstplan</Link>,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Zum Dienstplan" }));
+
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/dienstplan");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <Link href="/staff/dienstplan">Zum Dienstplan</Link>
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
   it.each(["push", "replace"] as const)(

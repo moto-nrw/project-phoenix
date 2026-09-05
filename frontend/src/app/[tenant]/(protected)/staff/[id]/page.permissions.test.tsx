@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { staffService } from "~/lib/staff-api";

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { getTranslations } from "next-intl/server";
 import { AuthShell } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
