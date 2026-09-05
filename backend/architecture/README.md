@@ -136,14 +136,23 @@ Existing unclassified packages and modified packages do not qualify. A legacy
 composition guard may be removed only after the guarded package declaration is
 deleted.
 
-One additive ownership case is allowed because otherwise the ratchet would
-freeze the database schema: a candidate may add a `data_objects` entry when a
-new Go file under `database/migrations/` in the same candidate creates that
-exact schema-qualified table through a literal `NewRaw(... CREATE TABLE ...)`
-statement. The table must not be mentioned by any migration at the base SHA,
-the write owner must already exist, and changing or newly assigning ownership
-for an existing table remains a policy loosening. Modified historical
-migrations never qualify for this exception.
+PR mode requires every new runtime table or view detected in candidate
+migrations to have exactly one valid `data_objects` write owner in the same
+candidate. This is a hard policy check, not baseline debt. A candidate may add
+the ownership entry when a new non-test Go file under `database/migrations/`
+creates that exact schema-qualified object through literal SQL passed to
+`NewRaw` or `ExecContext`. Detection includes ordinary, unlogged, and foreign
+tables and views, including `CREATE OR REPLACE VIEW` and quoted identifiers.
+Views are conservatively treated as writable because PostgreSQL can expose
+writes through them. SQL comments and string literals, test-only files,
+temporary tables, and non-data DDL such as schemas, indexes, and types do not
+require runtime write ownership.
+
+The object must not be mentioned by any migration at the base SHA, the write
+owner must already exist, and changing or newly assigning ownership for an
+existing object remains a policy loosening. Modified historical migrations
+never qualify for this exception, and historical unowned objects do not need
+rebaselining. The check uses the immutable local Git base, not GitHub.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; callers must provide `--api-url`,

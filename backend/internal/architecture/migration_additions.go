@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-var createDataObjectPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z][a-z0-9_]*)"?\s*\.\s*"?([a-z][a-z0-9_]*)"?`)
+var createDataObjectPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:(?:UNLOGGED\s+|FOREIGN\s+)?TABLE|(?:OR\s+REPLACE\s+)?VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z][a-z0-9_]*)"?\s*\.\s*"?([a-z][a-z0-9_]*)"?`)
 
 // candidateMigrationDataObjects returns schema-qualified tables and views created by Go
 // migration files that are new relative to the immutable PR base. Modified
@@ -53,7 +53,7 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 		return nil, fmt.Errorf("list untracked candidate migrations: %w", err)
 	}
 	for _, relativeFile := range strings.Split(changed+untracked, "\x00") {
-		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" {
+		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" || strings.HasSuffix(relativeFile, "_test.go") {
 			continue
 		}
 		contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
@@ -112,7 +112,7 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 		if unquoteErr != nil {
 			return true
 		}
-		for _, match := range createDataObjectPattern.FindAllStringSubmatch(sql, -1) {
+		for _, match := range createDataObjectPattern.FindAllStringSubmatch(stripSQLLiteralsAndComments(sql), -1) {
 			result[strings.ToLower(match[1]+"."+match[2])] = struct{}{}
 		}
 		return true

@@ -427,6 +427,88 @@ func TestCheckRejectsNewDataObjectOwnership(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsUnownedCandidateTable(t *testing.T) {
+	t.Parallel()
+	repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) NewRaw(string) {}
+`)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), `package migrations
+func create(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+`)
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "new writable data object ghost.records has no write owner") {
+		t.Fatalf("unowned candidate table was accepted: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRequiresCandidateMigrationOwnership(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, sql, want string
+		owners          []string
+	}{
+		{name: "quoted table", sql: `CREATE TABLE "ghost" . "records" (id bigint)`, want: "new writable data object ghost.records has no write owner"},
+		{name: "quoted table owned", sql: `CREATE TABLE "ghost" . "records" (id bigint)`, owners: []string{"module"}},
+		{name: "multiple objects", sql: `CREATE TABLE ghost.records (id bigint); CREATE TABLE ghost.other (id bigint);`, owners: []string{"module"}, want: "new writable data object ghost.other has no write owner"},
+		{name: "duplicate owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"module", "module"}, want: "is declared more than once"},
+		{name: "conflicting owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"module", "migrations"}, want: "conflicting write owners"},
+		{name: "unknown owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"unknown"}, want: "unknown write owner"},
+		{name: "projection owner", sql: `CREATE TABLE ghost.records (id bigint)`, owners: []string{"projection"}, want: "non-owning kind"},
+		{name: "view", sql: `CREATE VIEW ghost.records AS SELECT id FROM other.records`, want: "new writable data object ghost.records has no write owner"},
+		{name: "unlogged table", sql: `CREATE UNLOGGED TABLE ghost.records (id bigint)`, want: "new writable data object ghost.records has no write owner"},
+		{name: "foreign table", sql: `CREATE FOREIGN TABLE ghost.records (id bigint) SERVER remote`, want: "new writable data object ghost.records has no write owner"},
+		{name: "temporary table", sql: `CREATE TEMP TABLE scratch (id bigint); CREATE TEMPORARY TABLE scratch2 (id bigint);`},
+		{name: "non-writable DDL", sql: `CREATE SCHEMA ghost; CREATE INDEX records_idx ON other.records(id); CREATE TYPE ghost.state AS ENUM ('new');`},
+		{name: "SQL comments and literals", sql: "-- CREATE TABLE ghost.comment (id bigint)\nSELECT 'CREATE TABLE ghost.literal (id bigint)'; /* CREATE VIEW ghost.fake AS SELECT 1 */"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ `)
+			for _, owner := range tt.owners {
+				policy = policyWithDataObject(t, policy, "ghost.records", owner)
+			}
+			if tt.name == "projection owner" {
+				policy = mutatePolicy(t, policy, func(document map[string]any) {
+					document["owners"] = append(document["owners"].([]any), map[string]any{"id": "projection", "kind": "projection"})
+				})
+			}
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_new.go"), fmt.Sprintf("package migrations\nfunc create(db rawDB) { db.NewRaw(%q) }\n", tt.sql))
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("valid migration rejected: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, tt.want) {
+				t.Fatalf("want %q, got %v\n%s", tt.want, err, output)
+			}
+		})
+	}
+}
+
+func TestCheckPreservesHistoricalMigrationOwnershipBaseline(t *testing.T) {
+	t.Parallel()
+	repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ func historical(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+ `)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_existing.go"), `package migrations
+ func existing(db rawDB) { db.NewRaw("CREATE TABLE IF NOT EXISTS ghost.records (id bigint)") }
+ `)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_fixture_test.go"), `package migrations
+ func fixture(db rawDB) { db.NewRaw("CREATE TABLE ghost.test_fixture (id bigint)") }
+ `)
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil {
+		t.Fatalf("historical or test-only object required ownership: %v\n%s", err, output)
+	}
+}
+
 func TestCheckAllowsOwnershipForTableCreatedByNewCandidateMigration(t *testing.T) {
 	t.Parallel()
 
