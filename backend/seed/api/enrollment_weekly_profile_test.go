@@ -21,21 +21,40 @@ func TestWeeklyProfileRejectsBookingDrivenCareDays(t *testing.T) {
 	})
 	defer srv.Close()
 	err := verifyWeeklyProfileCare(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{Token: "parent"}, 17, 42)
-	require.ErrorContains(t, err, "weekly plan priority failed on weekday 2")
+	require.ErrorContains(t, err, "care-day priority failed on weekday 2")
+}
+
+func TestBookingProfileRejectsLegacyWeeklyCareDays(t *testing.T) {
+	t.Parallel()
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/care-offerings") {
+			_, _ = fmt.Fprint(w, `{"data":{"offerings":[{"id":"42","weekdays":[1]}]}}`)
+			return
+		}
+		_, _ = fmt.Fprint(w, `{"data":{"weekdays":[{"weekday":1,"status":"scheduled","arrival":"12:00","pickup":"15:00"},{"weekday":2,"status":"scheduled","arrival":"12:00","pickup":"15:00"},{"weekday":3,"status":"not_scheduled"},{"weekday":4,"status":"scheduled","arrival":"12:00","pickup":"15:00"},{"weekday":5,"status":"not_scheduled"}]}}`)
+	})
+	defer srv.Close()
+	err := verifyEnrollmentProfileCare(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{Token: "parent"}, 17, 42, true)
+	require.ErrorContains(t, err, "care-day priority failed on weekday 2")
 }
 
 // weeklyProfileAPIMock extends the full workflow's HTTP fixture with a second
 // tenant. Writes determine subsequent reads, including decisions and schedules.
 type weeklyProfileAPIMock struct {
-	organizations int
-	active        bool
-	nextID        int64
-	requests      map[string]map[string]any
-	guardians     map[string]map[string]any
-	schedules     map[string][]map[string]any
-	settings      map[string]any
-	offeringID    int64
-	phase         map[string]any
+	terminalScans        int
+	withdrawalStudentIDs []string
+	traces               []*fullSeedAPITrace
+	bookings             bool
+	organizations        int
+	active               bool
+	nextID               int64
+	requests             map[string]map[string]any
+	guardians            map[string]map[string]any
+	schedules            map[string][]map[string]any
+	settings             map[string]any
+	offeringID           int64
+	phase                map[string]any
 }
 
 func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest) bool {
@@ -67,7 +86,18 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case path == "/operator/organizations":
 		data = map[string]any{"id": 2}
 	case path == "/operator/schools":
-		data = map[string]any{"id": 3, "subdomain": enrollmentWeeklyProfileKey}
+		if body["slug"] == enrollmentBookingsProfileKey {
+			m.bookings = true
+			m.requests = make(map[string]map[string]any)
+			m.guardians = make(map[string]map[string]any)
+			m.schedules = make(map[string][]map[string]any)
+			m.settings = make(map[string]any)
+		}
+		schoolID := 3
+		if m.bookings {
+			schoolID = 4
+		}
+		data = map[string]any{"id": schoolID, "subdomain": body["slug"]}
 	case strings.HasSuffix(path, "/invite-admin"):
 		data = map[string]any{"token": "weekly-admin"}
 	case path == "/auth/login":
@@ -85,8 +115,63 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 			items = append(items, map[string]any{"key": key, "value": value})
 		}
 		data = map[string]any{"tabs": []map[string]any{{"categories": []map[string]any{{"items": items}}}}}
+	case path == "/api/iot/checkin":
+		m.terminalScans++
+		action := "checked_in"
+		if m.terminalScans%2 == 0 {
+			action = "checked_out"
+		}
+		data = map[string]any{"action": action}
+	case path == "/api/students/arrival-settings":
+		data = map[string]any{"care_days_source": "bookings"}
+	case path == "/api/iot/config":
+		data = map[string]any{"presence_mode": m.settings[profileSettingPresenceMode]}
+	case strings.HasSuffix(path, "/school-checkin"):
+		status := "checked_in"
+		if body["action"] == "out" {
+			status = "checked_out"
+		}
+		data = map[string]any{"status": status, "changed": true}
+	case path == "/api/active/visits" || strings.HasSuffix(path, "/visit-history"):
+		data = []any{}
+	case strings.Contains(path, "/care-withdrawals/") && strings.HasSuffix(path, "/preview"):
+		for _, trace := range m.traces {
+			trace.withdrawalPreviews++
+		}
+		data = map[string]any{"token": "preview"}
+	case strings.Contains(path, "/care-withdrawals/") && strings.HasSuffix(path, "/care-end"):
+		for _, trace := range m.traces {
+			trace.withdrawalEnds++
+		}
+	case path == "/api/students/care-withdrawals":
+		item := map[string]any{"id": "42"}
+		if r.URL.Query().Get("state") != "" {
+			studentID := r.URL.Query().Get("student_id")
+			item["student_id"], item["state"], item["urgency"] = studentID, r.URL.Query().Get("state"), "planned"
+			if item["state"] == "resolved" {
+				item["outcome"] = "care_ended"
+			}
+			for _, trace := range m.traces {
+				if len(trace.withdrawalRemovals) == 3 && studentID == m.withdrawalStudentIDs[1] {
+					item["urgency"] = "overdue"
+				}
+			}
+		}
+		data = map[string]any{"items": []map[string]any{item}}
+	case strings.HasSuffix(path, "/offerings") && r.Method == "PUT":
+		m.withdrawalStudentIDs = append(m.withdrawalStudentIDs, parts[6])
+		for _, trace := range m.traces {
+			trace.withdrawalRemovals = append(trace.withdrawalRemovals, body)
+			trace.withdrawalToday = todaySeedDate()
+		}
+		data = map[string]any{"created_student_id": parts[6]}
+	case path == "/api/iot/" && r.Method == "POST":
+		data = map[string]any{"id": m.nextID, "api_key": "synthetic-device-key"}
 	case path == "/api/iot/":
 		data = []map[string]any{}
+		if m.bookings && r.URL.Query().Get("device_type") == "terminal" {
+			data = []map[string]any{{"id": 42, "device_id": "BUCHUNGEN-NFC-001", "device_type": "terminal"}}
+		}
 		if r.URL.Query().Get("device_type") == "virtual" {
 			data = []map[string]any{{"device_id": webManualDeviceID, "device_type": "virtual"}}
 		}
@@ -102,7 +187,7 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case strings.HasPrefix(path, "/api/enrollment/phases/"):
 		data = m.phase
 	case strings.HasSuffix(path, "/submit"):
-		require.Equal(t, enrollmentWeeklyProfileKey, parts[len(parts)-2])
+		require.Contains(t, []string{enrollmentWeeklyProfileKey, enrollmentBookingsProfileKey}, parts[len(parts)-2])
 		id := fmt.Sprint(m.nextID)
 		childID := fmt.Sprint(m.nextID + 1000)
 		m.requests[id] = map[string]any{"status_token": id, "children": []map[string]any{{"id": childID, "status": "submitted"}}}
@@ -150,6 +235,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 					row["pickup"] = pickup["pickup_time"]
 				}
 			}
+			if m.settings[profileSettingBookingsAuthoritative] == true {
+				row = map[string]any{"weekday": day, "status": "not_scheduled"}
+				if day == 1 {
+					row["status"], row["arrival"], row["pickup"] = "scheduled", "12:00", "15:00"
+				}
+			}
 			rows = append(rows, row)
 		}
 		data = map[string]any{"weekdays": rows}
@@ -158,7 +249,11 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case path == "/auth/link-to-tenant":
 		data = map[string]any{"school_identity": map[string]any{"staff_id": "9001"}}
 	case path == "/auth/account/tenants":
-		data = []map[string]any{{"tenant_id": 3}}
+		schoolID := 3
+		if m.bookings {
+			schoolID = 4
+		}
+		data = []map[string]any{{"tenant_id": schoolID}}
 	case path == "/auth/switch-tenant":
 		if body["tenant_slug"] == "vollbetrieb" {
 			w.WriteHeader(401)

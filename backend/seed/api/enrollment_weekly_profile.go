@@ -179,7 +179,7 @@ func weeklyProfileNames() []string {
 
 func submitWeeklyProfileRequest(rt *Runtime, step parentEnrollmentSeedStep, enrollment SeedEnrollmentState, index int, status string, parentAuth AuthRef, parents []ParentCredentials) (SeedEnrollmentRequest, error) {
 	key := fmt.Sprintf("kind-%02d-%s", index+1, status)
-	email := fmt.Sprintf("wochenplan-eltern-%02d@example.test", index+1)
+	email := enrollmentProfileParentEmail(rt, index)
 	if index == 12 {
 		email = parents[0].Email
 	}
@@ -253,7 +253,7 @@ func writeWeeklyProfileSchedule(rt *Runtime, studentID int64) error {
 }
 
 func inviteWeeklyProfileParent(ctx context.Context, rt *Runtime, step parentEnrollmentSeedStep, studentID int64, index int) (ParentCredentials, AuthRef, error) {
-	email := fmt.Sprintf("wochenplan-eltern-%02d@example.test", index+1)
+	email := enrollmentProfileParentEmail(rt, index)
 	raw, err := rt.Client.Get(fmt.Sprintf("/api/guardians/students/%d/guardians", studentID))
 	if err != nil {
 		return ParentCredentials{}, AuthRef{}, err
@@ -319,6 +319,10 @@ func verifyWeeklyProfilePhase(rt *Runtime, phaseID, schemaID int64) error {
 }
 
 func verifyWeeklyProfileCare(rt *Runtime, auth AuthRef, studentID, offeringID int64) error {
+	return verifyEnrollmentProfileCare(rt, auth, studentID, offeringID, false)
+}
+
+func verifyEnrollmentProfileCare(rt *Runtime, auth AuthRef, studentID, offeringID int64, authoritative bool) error {
 	path := fmt.Sprintf("/parent/me/children/%d/", studentID)
 	raw, err := rt.Client.GetWithAuth(auth, path+"care-offerings")
 	if err != nil {
@@ -367,14 +371,14 @@ func verifyWeeklyProfileCare(rt *Runtime, auth AuthRef, studentID, offeringID in
 	seen := make(map[int]bool)
 	for _, day := range plan.Data.Weekdays {
 		expected := "not_scheduled"
-		if day.Weekday == 1 || day.Weekday == 2 || day.Weekday == 4 {
+		if day.Weekday == 1 || (!authoritative && (day.Weekday == 2 || day.Weekday == 4)) {
 			expected = "scheduled"
 		}
 		if day.Weekday < 1 || day.Weekday > 5 || seen[day.Weekday] || day.Status != expected {
-			return fmt.Errorf("child %d: weekly plan priority failed on weekday %d: %s", studentID, day.Weekday, day.Status)
+			return fmt.Errorf("child %d: care-day priority failed on weekday %d: %s", studentID, day.Weekday, day.Status)
 		}
 		if expected == "scheduled" && (day.Arrival != "12:00" || day.Pickup != "15:00") {
-			return fmt.Errorf("child %d: weekly plan times differ", studentID)
+			return fmt.Errorf("child %d: care schedule times differ", studentID)
 		}
 		seen[day.Weekday] = true
 	}
@@ -433,7 +437,7 @@ func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *Se
 	switched := AuthRef{Kind: AuthBearer, Token: tokens.AccessToken, Label: admin.Email}
 	verification := *target
 	verification.TenantAuth = switched
-	if err := verifyProfileSettings(&verification, enrollmentWeeklyProfileDefinition()); err != nil {
+	if err := verifyProfileSettings(&verification, demoProfileDefinition{Settings: state.Settings}); err != nil {
 		return fmt.Errorf("switched tenant settings: %w", err)
 	}
 	if _, err := target.Client.GetWithAuth(switched, "/api/students?page=1&page_size=1"); err != nil {
@@ -460,4 +464,12 @@ func linkDeveloperAdmin(ctx context.Context, primary, target *Runtime, state *Se
 		return fmt.Errorf("isolated school admin switch must be denied, got %v", err)
 	}
 	return nil
+}
+
+func enrollmentProfileParentEmail(rt *Runtime, index int) string {
+	prefix := "wochenplan"
+	if rt.Bootstrap.SchoolSlug == enrollmentBookingsProfileKey {
+		prefix = "buchungen"
+	}
+	return fmt.Sprintf("%s-eltern-%02d@example.test", prefix, index+1)
 }
