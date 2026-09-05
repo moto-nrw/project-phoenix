@@ -19,15 +19,15 @@ import (
 )
 
 func newPickupScheduleRepository(db *bun.DB) pickupScheduleQueryRepository {
-	return repositories.NewFactory(db).StudentPickupSchedule.(pickupScheduleQueryRepository)
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.(pickupScheduleQueryRepository)
 }
 
 func newPickupExceptionRepository(db *bun.DB) pickupExceptionQueryRepository {
-	return repositories.NewFactory(db).StudentPickupException.(pickupExceptionQueryRepository)
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.(pickupExceptionQueryRepository)
 }
 
 func newPickupNoteRepository(db *bun.DB) pickupNoteQueryRepository {
-	return repositories.NewFactory(db).StudentPickupNote.(pickupNoteQueryRepository)
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupNote.(pickupNoteQueryRepository)
 }
 
 // =============================================================================

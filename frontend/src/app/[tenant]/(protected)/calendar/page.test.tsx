@@ -169,6 +169,39 @@ describe("StaffCalendarPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the calendar subscription available when the calendar fails", () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("calendar-recipient-options")) {
+        return { data: recipientOptions, isLoading: false };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: undefined,
+          error: new Error("calendar failed"),
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("calendar failed")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Keine Einträge in dieser Woche."),
+    ).not.toBeInTheDocument();
+  });
+
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
     // A recurring appointment opened from its THIRD weekly occurrence
     // (2026-01-19); the persisted series anchor is 2026-01-05.
@@ -428,8 +461,9 @@ describe("StaffCalendarPage", () => {
 
     const { rerender } = render(<StaffCalendarPage />);
 
-    // Kit-Regel: Radix-Tabs aktivieren auf mousedown, nicht auf click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Betreuungsplan" }));
+    // Die Seitenreiter des Tenant-Gerüsts sind einfache Buttons (click),
+    // keine Radix-Tabs mehr (mousedown).
+    fireEvent.click(screen.getByRole("tab", { name: "Betreuungsplan" }));
     rerender(<StaffCalendarPage />);
 
     await waitFor(() =>

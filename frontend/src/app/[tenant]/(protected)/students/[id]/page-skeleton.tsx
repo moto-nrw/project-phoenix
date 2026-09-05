@@ -1,62 +1,69 @@
 "use client";
 
-import { BackButton } from "~/components/ui/back-button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 
-// Mirrors StudentDetailHeader (avatar + name + meta rows + location badge),
-// the checkout/checkin action-card row, the tab bar, and a Stammdaten-shaped
-// field section, so the loaded page swaps in without layout shift.
-//
-// `referrer` is real chrome, not data-bound (it comes straight off the
-// `?from=` query param) — when the caller already knows it, render the real
-// BackButton instead of a placeholder so it's clickable immediately. The
-// route-level loading.tsx renders this with no `referrer` (it has no access
-// to the page's search params), so that placeholder path stays.
-export function StudentDetailSkeleton({
+const LOADING_TABS = [
+  "Stammdaten",
+  "Nachrichten",
+  "Erziehungsberechtigte",
+  "Betreuungsplan",
+  "Betreuungszeiten",
+  "Anmeldungen",
+  "Dokumente",
+  "Änderungsprotokoll",
+  "Historie",
+];
+
+/**
+ * Das geladene Seitengerüst der Kindakte. Titel und verfügbare Reiter hängen
+ * von den noch nicht geladenen Kind- und Berechtigungsdaten ab; die
+ * Platzhalter-Reiter zeigen deshalb die vollständige Struktur deaktiviert.
+ */
+export function StudentDetailLoadingPage({
   referrer,
 }: Readonly<{ referrer?: string }>) {
   return (
-    <div
+    <TenantPage
+      title="Kindakte"
+      back
+      backHref={referrer}
+      backLabel="Zurück zur Kinderübersicht"
+      leading={<Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
+      statsLoading
+      tabs={{
+        value: "stammdaten",
+        onChange: () => {},
+        items: LOADING_TABS.map((label, index) => ({
+          value: index === 0 ? "stammdaten" : `loading-${index}`,
+          label,
+          disabled: true,
+        })),
+      }}
+    >
+      <StudentDetailSkeleton />
+    </TenantPage>
+  );
+}
+
+// Mirrors the checkout/checkin action-card row and a Stammdaten-shaped field
+// section. The header and tabs deliberately belong to StudentDetailLoadingPage
+// so loading and loaded states share TenantPage as their page root.
+function StudentDetailSkeleton() {
+  return (
+    <output
       role="status"
       aria-busy="true"
       aria-label="Kind wird geladen"
       data-testid="student-detail-skeleton"
-      className="mx-auto max-w-7xl"
+      className="w-full"
     >
-      {referrer ? (
-        <BackButton referrer={referrer} />
-      ) : (
-        <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
-      )}
-
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
-          <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-7 w-48 rounded" />
-            <Skeleton className="h-4 w-32 rounded" />
-            <Skeleton className="h-4 w-56 rounded" />
-          </div>
-        </div>
-        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
-          <Skeleton className="h-8 w-28 rounded-full" />
-        </div>
-      </div>
-
-      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
+      <div className="flex gap-3 sm:gap-4">
         <Skeleton className="h-20 w-full rounded-2xl" />
         <Skeleton className="h-20 w-full rounded-2xl" />
       </div>
 
-      <div className="overflow-x-auto border-b border-gray-200">
-        <div className="flex w-max gap-6 pb-px">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-24 rounded" />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
+      <div className="mt-6 space-y-6 max-sm:mt-3 max-sm:space-y-3">
         <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
           <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
@@ -69,6 +76,6 @@ export function StudentDetailSkeleton({
           </dl>
         </div>
       </div>
-    </div>
+    </output>
   );
 }

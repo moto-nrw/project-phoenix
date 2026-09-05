@@ -19,7 +19,7 @@ import (
 
 func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.InstanceStaff.(instanceStaffQueryRepository)
 }

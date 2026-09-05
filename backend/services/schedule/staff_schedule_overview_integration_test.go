@@ -45,7 +45,7 @@ func createOverviewTenantFixture(
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Overview", fmt.Sprintf("Tenant-%d", tenantID))
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Overview-%d", tenantID))
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -87,11 +87,11 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Overview", "Second-Assignment")
 	secondLocalAssignment := &scheduleModel.InstanceStaff{InstanceID: local.instanceID, StaffID: secondLocalStaff.ID}
 	secondLocalAssignment.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).InstanceStaff.Create(testpkg.Ctx(t), secondLocalAssignment))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InstanceStaff.Create(testpkg.Ctx(t), secondLocalAssignment))
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
-	repos := repositories.NewFactory(countedDB)
+	repos := repositories.NewFactory(countedDB, repositories.NewUnobservedTimetableDependencies(countedDB))
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 		Rooms: repos.Room, Staff: repos.Staff,
@@ -152,7 +152,7 @@ func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date
 		BreakMinutes: breakMinutes, CreatedBy: staffID,
 	}
 	shift.SetTenantID(tenantID)
-	require.NoError(t, repositories.NewFactory(db).StaffShift.Create(testpkg.TenantContext(tenantID), shift))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift.Create(testpkg.TenantContext(tenantID), shift))
 	return shift.ID
 }
 
@@ -179,7 +179,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	modelRepos := repositories.NewFactory(db)
+	modelRepos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	modelRepos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 	modelRepo := modelRepos.WorkTimeModel
 	workModel := &configModel.WorkTimeModel{
@@ -209,7 +209,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
-	repos := repositories.NewFactory(countedDB)
+	repos := repositories.NewFactory(countedDB, repositories.NewUnobservedTimetableDependencies(countedDB))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
@@ -293,7 +293,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	weekdayShiftID := createOverviewShift(t, db, tenantID, staff.ID, friday, "08:00", "10:00", 0)
 	weekendShiftID := createOverviewShift(t, db, tenantID, staff.ID, saturday, "09:00", "12:00", 0)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 		Rooms: repos.Room, Staff: repos.Staff,
@@ -344,7 +344,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Coverage", "Foreign")
 	localRoom := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	localCtx := testpkg.Ctx(t)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
@@ -435,7 +435,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	assert.Empty(t, foreignSchedules, "foreign recurrence bounds must not cross the tenant boundary")
 
 	queryCounter := testpkg.NewQueryCounter()
-	countedRepos := repositories.NewFactory(db.WithQueryHook(queryCounter))
+	countedRepos := repositories.NewFactory(db.WithQueryHook(queryCounter), repositories.NewUnobservedTimetableDependencies(db.WithQueryHook(queryCounter)))
 	countedRepos.BindTimetable(timetabletest.New(t, db.WithQueryHook(queryCounter)))
 	countedInstances, ok := countedRepos.ActivityInstance.(scheduleSvc.ActivityGroupInstanceRangeReader)
 	require.True(t, ok)

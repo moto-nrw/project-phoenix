@@ -31,7 +31,7 @@ type idempotentCreateSetup struct {
 
 func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	t.Helper()
-	db, serviceFactory := apiTest.SetupAPITest(t)
+	db, serviceFactory := apiTest.SetupTimetableModule(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Idempotent-Room-%d", suffix))

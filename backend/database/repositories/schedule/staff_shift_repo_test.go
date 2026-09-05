@@ -32,7 +32,7 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Owner")
@@ -60,7 +60,7 @@ func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "WriteAlias")
@@ -90,7 +90,7 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staffA := testpkg.CreateTestStaff(t, db, "ShiftA", "Batch")
@@ -122,7 +122,7 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 	staffA := testpkg.CreateTestStaff(t, db, "CoverageA", "Batch")
 	staffB := testpkg.CreateTestStaff(t, db, "CoverageB", "Batch")
@@ -164,7 +164,7 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
@@ -203,7 +203,7 @@ func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Dup")
@@ -222,7 +222,7 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Isolated")
@@ -250,7 +250,7 @@ func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "CrossTenant")

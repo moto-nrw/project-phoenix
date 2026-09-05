@@ -34,7 +34,7 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 		observe = observers[0]
 	}
 	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), Observe: observe})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, Observe: observe})
 	require.NoError(t, err)
 	return module
 }
@@ -492,7 +492,7 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
 	})
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), Observe: func(Observation) {}})
+	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: unusedCarePlanDirectory{}, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	class := "2b"
 	insertGroupTarget(t, db, testpkg.Tenant(t), group.ID, timetable.TargetGroupTypeSchoolClass, &class)

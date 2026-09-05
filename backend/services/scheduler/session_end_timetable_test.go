@@ -49,7 +49,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 	require.NoError(t, err)
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	instanceStudentRepo := factory.InstanceStudent
 	s := unitScheduler(&Scheduler{

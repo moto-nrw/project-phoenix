@@ -35,7 +35,7 @@ func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSupervisor
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSupervisor
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "RoomScope", "Supervisor")

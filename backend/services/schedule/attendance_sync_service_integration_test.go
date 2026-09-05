@@ -82,7 +82,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	instance.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	instanceStudentRepo := repoFactory.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
@@ -240,7 +240,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			}))
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db), s.db, slog.Default())
+			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

@@ -55,7 +55,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = start
 	phase.ServiceEndDate = end
-	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.Ctx(t), phase))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Phase.Update(testpkg.Ctx(t), phase))
 }
 
 func createCareMaterializationException(
@@ -65,7 +65,7 @@ func createCareMaterializationException(
 ) {
 	t.Helper()
 	exception.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.Ctx(t), exception))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityException.Create(testpkg.Ctx(t), exception))
 }
 
 func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *testing.T) {
@@ -109,7 +109,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 			timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "missing-room")
 		group.PlannedRoomID = nil
-		require.NoError(t, repositories.NewFactory(db).ActivityGroup.Update(testpkg.Ctx(t), group))
+		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityGroup.Update(testpkg.Ctx(t), group))
 		end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 
@@ -429,7 +429,7 @@ func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T
 		StartTime:       &invalidStart,
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).ActivityException.Create(testpkg.Ctx(t), exception))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityException.Create(testpkg.Ctx(t), exception))
 
 	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)

@@ -22,7 +22,7 @@ import (
 func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repoFactory.BindTimetable(timetabletest.New(t, db))
 
 	return scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
@@ -529,7 +529,7 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	start := time.Now().Add(time.Hour)

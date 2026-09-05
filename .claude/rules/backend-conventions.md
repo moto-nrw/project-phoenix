@@ -1,6 +1,15 @@
+---
+paths:
+  - "backend/**"
+---
+
 # Backend Architectural Conventions
 
-**RULE: Every new backend change must respect the conventions below.** They exist to block the per-entity copy-paste patterns that bloated the codebase. If a rule below conflicts with a reviewer's preference, the rule wins — the whole point is to remove the per-PR judgment call.
+**Scope: legacy layer safety.** Read `backend/CLAUDE.md` Active Architecture
+Migration (#2580) first. The capability-first policy in
+`backend/architecture/policy.json` takes precedence when choosing boundaries;
+the conventions below constrain unmigrated code. Existing factories and broad
+test composition are shrink-only, not templates for new code.
 
 > **Verification status (2026-06-12):** all structural claims re-verified against the codebase. Two rules are now CI-enforced by ratchet tests (see Rules 1 and 11); the boilerplate counts in Rules 3, 5, and 7 are point-in-time measurements — re-run the detection commands at the bottom before relying on a specific number.
 

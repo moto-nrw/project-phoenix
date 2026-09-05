@@ -1,3 +1,5 @@
+import { validateSessionToken } from "./token-validation";
+vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { tenantAuthConfig as authConfig } from "./tenant-config";
 import { _resetRefreshState, _testHelpers } from "./shared";
@@ -112,6 +114,18 @@ function callSessionCallback(args: { session: unknown; token: unknown }) {
 describe("authConfig", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(validateSessionToken).mockImplementation(async (token) => {
+      try {
+        return {
+          exp: Math.floor(Date.now() / 1000) + 900,
+          ...JSON.parse(
+            Buffer.from(token.split(".")[1]!, "base64url").toString(),
+          ),
+        };
+      } catch {
+        return null;
+      }
+    });
     vi.stubGlobal("fetch", mockFetch);
     mockRequestHeaders.mockResolvedValue(new Headers());
     _resetRefreshState();

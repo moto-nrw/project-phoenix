@@ -50,7 +50,7 @@ func createSourceCareOffering(
 		IsActive:                  true,
 	}
 	phase.SetTenantID(s.tenantID)
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.Phase.Create(s.ctx, phase))
 
 	offering := &enrollmentModels.CareOffering{
@@ -96,7 +96,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := repositories.NewFactory(s.db).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group
@@ -127,7 +127,7 @@ func linkApprovedChildToOffering(
 		CareOfferingID: offering.ID,
 	}
 	link.SetTenantID(s.tenantID)
-	require.NoError(t, repositories.NewFactory(s.db).RequestChildOffering.Create(s.ctx, link))
+	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).RequestChildOffering.Create(s.ctx, link))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 }
@@ -320,7 +320,7 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 
 	// The reverse lookup is what the editor's overlap hint and the decision
 	// fan-out both read: one offering, every live template sourcing it.
-	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
 	require.NoError(t, err)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)
@@ -390,7 +390,7 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 	assert.Empty(t, cleared.SourceCareOfferingIDs)
 	assert.Empty(t, cleared.SourceGradeLevels)
 
-	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
 	require.NoError(t, err)
 	assert.Empty(t, sourced, "a cleared source must drop out of the offering's template list")
 }
@@ -797,7 +797,7 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
 
 	// Nothing may survive the rejected create — the whole save is one tx.
-	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, overhanging.ID)
+	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, overhanging.ID)
 	require.NoError(t, err)
 	assert.Empty(t, sourced)
 
@@ -864,7 +864,7 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 	})
 	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
 
-	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
 	require.NoError(t, err)
 	assert.Empty(t, sourced, "nothing may survive the rejected create")
 }
@@ -913,7 +913,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 		IsActive:        true,
 	}
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
@@ -934,7 +934,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	require.ErrorIs(t, err, scheduleSvc.ErrOfferingSourceInvalid)
 
 	// The rejected split must leave no successor behind.
-	sourced, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
+	sourced, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplatesBySourceOffering(s.ctx, offering.ID)
 	require.NoError(t, err)
 	require.Len(t, sourced, 1)
 	assert.Equal(t, result.TemplateID, sourced[0].ID)

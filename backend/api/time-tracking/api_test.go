@@ -1683,7 +1683,7 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 
-	profileRepo := repositories.NewFactory(db).GuardianProfile
+	profileRepo := repositories.NewGuardianProfileTestRepository(db)
 	tests := []struct {
 		name   string
 		method string

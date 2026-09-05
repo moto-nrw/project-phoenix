@@ -32,10 +32,10 @@ type staffCompositionContext struct {
 
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupStaffModule(t)
 	membership, err := repositories.NewSchoolMembership(db)
 	require.NoError(t, err)
-	resource, _ := newStaffComposition(membership, svc, db, slog.Default())
+	resource := newStaffTestResource(membership, svc, db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

@@ -16,13 +16,14 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { Skeleton } from "~/components/ui/skeleton";
 import { formatDate } from "~/lib/date-helpers";
 import { hasPermission } from "~/lib/auth-utils";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
@@ -42,6 +43,14 @@ import { cn } from "~/lib/utils";
 import { FolderModal } from "./folder-modal";
 
 const logger = createLogger({ component: "FilesPage" });
+
+/** Statuszeile unter dem Titel: gezählte Dateien und Ordner der Ablage. */
+function filesStatusLine(folders: readonly FileFolder[]): string {
+  const fileCount = folders.reduce((sum, folder) => sum + folder.fileCount, 0);
+  return `${fileCount} ${fileCount === 1 ? "Datei" : "Dateien"} · ${
+    folders.length
+  } ${folders.length === 1 ? "Ordner" : "Ordner"}`;
+}
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -112,15 +121,6 @@ export function FilesPage() {
     }
   };
 
-  if (error) {
-    return (
-      <Alert
-        type="error"
-        message="Die Dateiablage konnte nicht geladen werden."
-      />
-    );
-  }
-
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
   const canChangeUploadPermission =
@@ -178,24 +178,37 @@ export function FilesPage() {
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p
-            className="text-xs font-semibold tracking-wide uppercase"
-            style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-          >
-            Dateiablage
-          </p>
-          <h1 className="text-base font-semibold text-gray-900">Dateien</h1>
-          <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            Hier liegen gemeinsame Dateien der OGS, zum Beispiel Formulare und
-            Notfallpläne. Die Leitung entscheidet für jeden Ordner, wer ihn
-            sehen darf. Unterlagen zu Kindern und Mitarbeitenden bleiben bei der
-            jeweiligen Person.
-          </p>
-        </div>
-        {canManage && (
+    <TenantPage
+      title="Dateien"
+      stats={filesStatusLine(folders)}
+      statsLoading={isLoading}
+      loading={isLoading}
+      error={error ? "Die Dateiablage konnte nicht geladen werden." : null}
+      empty={
+        !isLoading && !error && folders.length === 0
+          ? {
+              icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
+              title: "Noch keine Ordner",
+              description: canManage
+                ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
+                : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
+              // Der Leerzustand ist der naechste Schritt, nicht nur eine
+              // Feststellung: die Aktion, die ihn beendet, steht darin.
+              action: canManage ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => setFolderModal({ open: true, folder: null })}
+                >
+                  Neuer Ordner
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+      actions={
+        canManage ? (
           <Button
             type="button"
             variant="primary"
@@ -204,30 +217,40 @@ export function FilesPage() {
           >
             Neuer Ordner
           </Button>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="moto-content-surface flex-1 rounded-2xl border p-5 shadow-sm">
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-2/3" />
-          </div>
-        </div>
-      ) : folders.length === 0 ? (
-        <div className="moto-content-surface flex flex-1 items-center justify-center rounded-2xl border p-5 shadow-sm">
-          <EmptyState
-            icon={<FolderOpen className="h-12 w-12" aria-hidden="true" />}
-            title="Noch keine Ordner"
-            description={
-              canManage
-                ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
-                : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier."
-            }
+        ) : undefined
+      }
+      overlays={
+        <>
+          <FolderModal
+            isOpen={folderModal.open}
+            initial={folderModal.folder}
+            onClose={() => setFolderModal({ open: false, folder: null })}
+            onSaved={() => void mutateFolders()}
           />
-        </div>
-      ) : (
+
+          <ConfirmDeleteModal
+            isOpen={deleteFolderTarget !== null}
+            title="Ordner löschen"
+            description={
+              <>
+                Der Ordner{" "}
+                <span className="font-medium">{deleteFolderTarget?.name}</span>{" "}
+                und alle {deleteFolderTarget?.fileCount ?? 0} Dateien darin
+                werden endgültig gelöscht.
+              </>
+            }
+            gate={{ mode: "twoStep" }}
+            onConfirm={handleDeleteFolder}
+            onClose={() => {
+              if (!deletingFolder) setDeleteFolderTarget(null);
+            }}
+            loading={deletingFolder}
+            error={deleteFolderError}
+          />
+        </>
+      }
+    >
+      <div className="flex min-h-[28rem] flex-col gap-4">
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           {/* Folder list: a panel on desktop, a select on small screens */}
           <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
@@ -287,7 +310,7 @@ export function FilesPage() {
           </aside>
 
           {selected && (
-            <section className="moto-content-surface flex min-h-0 flex-col rounded-2xl border p-5 shadow-sm">
+            <SectionCard className="flex min-h-0 flex-col">
               <FolderFilesPanel
                 key={selected.id}
                 folder={selected}
@@ -300,38 +323,11 @@ export function FilesPage() {
                 }}
                 onFilesChanged={() => void mutateFolders()}
               />
-            </section>
+            </SectionCard>
           )}
         </div>
-      )}
-
-      <FolderModal
-        isOpen={folderModal.open}
-        initial={folderModal.folder}
-        onClose={() => setFolderModal({ open: false, folder: null })}
-        onSaved={() => void mutateFolders()}
-      />
-
-      <ConfirmDeleteModal
-        isOpen={deleteFolderTarget !== null}
-        title="Ordner löschen"
-        description={
-          <>
-            Der Ordner{" "}
-            <span className="font-medium">{deleteFolderTarget?.name}</span> und
-            alle {deleteFolderTarget?.fileCount ?? 0} Dateien darin werden
-            endgültig gelöscht.
-          </>
-        }
-        gate={{ mode: "twoStep" }}
-        onConfirm={handleDeleteFolder}
-        onClose={() => {
-          if (!deletingFolder) setDeleteFolderTarget(null);
-        }}
-        loading={deletingFolder}
-        error={deleteFolderError}
-      />
-    </div>
+      </div>
+    </TenantPage>
   );
 }
 
@@ -601,9 +597,10 @@ function FolderFilesPanel({
           />
         </div>
       ) : (
-        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
-          Nur zum Ansehen und Herunterladen. Dateien lädt die Leitung hoch.
-        </p>
+        <Alert
+          type="info"
+          message="Nur zum Ansehen und Herunterladen. Dateien lädt die Leitung hoch."
+        />
       )}
 
       <DataTable

@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -11,36 +10,24 @@ import (
 )
 
 type Service struct {
-	store      ports.Store
-	tx         ports.Transaction
-	students   ports.StudentDirectory
-	rooms      ports.RoomDirectory
-	locks      ports.CareDayLocker
-	today      func() string
-	observe    ports.Observer
-	carePlanMu sync.RWMutex
-	carePlan   ports.CarePlanDirectory
+	store    ports.Store
+	tx       ports.Transaction
+	students ports.StudentDirectory
+	rooms    ports.RoomDirectory
+	locks    ports.CareDayLocker
+	today    func() string
+	observe  ports.Observer
+	carePlan ports.CarePlanDirectory
 }
 
-func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, locks ports.CareDayLocker, today func() string, observe ports.Observer) *Service {
-	if store == nil || tx == nil || students == nil || rooms == nil || locks == nil || today == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, locks ports.CareDayLocker, carePlan ports.CarePlanDirectory, today func() string, observe ports.Observer) *Service {
+	if store == nil || tx == nil || students == nil || rooms == nil || locks == nil || carePlan == nil || today == nil || observe == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, students: students, rooms: rooms, locks: locks, today: today, observe: observe}
-}
-
-func (s *Service) BindCarePlan(directory ports.CarePlanDirectory) {
-	if directory == nil {
-		panic("timetable application: care plan directory is required")
-	}
-	s.carePlanMu.Lock()
-	defer s.carePlanMu.Unlock()
-	s.carePlan = directory
+	return &Service{store: store, tx: tx, students: students, rooms: rooms, locks: locks, carePlan: carePlan, today: today, observe: observe}
 }
 
 func (s *Service) carePlanDirectory() (ports.CarePlanDirectory, error) {
-	s.carePlanMu.RLock()
-	defer s.carePlanMu.RUnlock()
 	if s.carePlan == nil {
 		return nil, errors.New("timetable application: care plan directory is not bound")
 	}

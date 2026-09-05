@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -78,8 +77,7 @@ type timeframeQueryRepository interface {
 
 func ownedTimeframeRepository(tb timetabletest.TB, db *bun.DB) timeframeQueryRepository {
 	tb.Helper()
-	factory := repositories.NewFactory(db)
-	factory.BindTimetable(timetabletest.New(tb, db))
+	factory := mustTimetableTestRepositories(db)
 	return factory.Timeframe.(timeframeQueryRepository)
 }
 
@@ -137,7 +135,7 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 
 func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t, clocks...)
+	db, serviceFactory := testutil.SetupTimetableModule(t, clocks...)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -147,8 +145,7 @@ func buildTemplateModule(t *testing.T, mat scheduleSvc.MaterializationService, c
 	staffB := testpkg.CreateTestStaff(t, db, "Tpl", fmt.Sprintf("StaffB-%d", suffix))
 	studentA := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentA-%d", suffix), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
-	repoFactory := repositories.NewFactory(db)
-	repoFactory.BindTimetable(timetabletest.New(t, db))
+	repoFactory := mustTimetableTestRepositories(db)
 
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db, clocks...),
@@ -1411,7 +1408,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		class := " 3A "
-		targetRepo, ok := repositories.NewFactory(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
+		targetRepo, ok := mustTimetableTestRepositories(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
 		require.True(t, ok)
 		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, templateID, []*activitiesModel.GroupTarget{
 			{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &class},
@@ -1968,8 +1965,8 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
-	stRepo := repositories.NewFactory(s.db).ShiftType
-	catRepo := repositories.NewFactory(s.db).ActivityCategory
+	stRepo := mustTimetableTestRepositories(s.db).ShiftType
+	catRepo := mustTimetableTestRepositories(s.db).ActivityCategory
 	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
 	require.NoError(t, stRepo.Create(s.ctx, st))
 	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })

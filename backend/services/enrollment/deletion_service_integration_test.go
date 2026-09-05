@@ -33,7 +33,7 @@ type deletionTestFixture struct {
 
 func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTestFixture {
 	t.Helper()
-	f := &deletionTestFixture{t: t, db: db, repos: repositories.NewFactory(db), scope: testpkg.NewTenantScope(t, db)}
+	f := &deletionTestFixture{t: t, db: db, repos: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), scope: testpkg.NewTenantScope(t, db)}
 	account := testpkg.CreateTestAccount(t, db, "enrollment-deletion-"+label)
 	f.actor = account.ID
 	phase := &enrollmentModels.Phase{

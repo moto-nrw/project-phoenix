@@ -64,7 +64,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	// Register DB close FIRST so it runs LAST (LIFO) — after every other
 	// t.Cleanup has released its row references.
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -2039,7 +2039,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	updated, err := repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2170,7 +2170,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	_, err = repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2195,7 +2195,7 @@ func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	warnings := scheduleSvc.DetectStartConflicts(s.ctx, scheduleSvc.ConflictDependencies{
 		GroupRepo:         repoFactory.ActiveGroup,
 		SupervisorRepo:    repoFactory.GroupSupervisor,

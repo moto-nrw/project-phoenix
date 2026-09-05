@@ -59,7 +59,7 @@ const unclassifiedRole: Role = {
 
 describe("RolesMasterDetail", () => {
   const onSelect = vi.fn();
-  const onEditClick = vi.fn();
+  const onSaveRole = vi.fn(async () => undefined);
   const onDeleteClick = vi.fn();
   const onManagePermissions = vi.fn();
 
@@ -75,7 +75,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={null}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
@@ -93,7 +93,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={customRole}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
@@ -105,7 +105,7 @@ describe("RolesMasterDetail", () => {
     expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
   });
 
-  it("triggers edit, delete, and manage-permissions callbacks for non-system roles", () => {
+  it("opens the inline edit form and triggers delete and manage-permissions for non-system roles", () => {
     render(
       <RolesMasterDetail
         roles={[customRole]}
@@ -113,20 +113,27 @@ describe("RolesMasterDetail", () => {
         selectedRole={customRole}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
     );
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
-    expect(onEditClick).toHaveBeenCalled();
-
     fireEvent.click(screen.getByText("Löschen"));
     expect(onDeleteClick).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Berechtigungen/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Berechtigungen$/ }));
     expect(onManagePermissions).toHaveBeenCalled();
+
+    // Bearbeitet wird im Detailbereich, nicht in einem Modal daneben: der
+    // Knopf schaltet das Formular ein, mit Speichern und Abbrechen unten.
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abbrechen" }),
+    ).toBeInTheDocument();
   });
 
   it("hides edit, delete, and permission actions for system roles", () => {
@@ -137,7 +144,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={systemRole}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
@@ -163,7 +170,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={unclassifiedRole}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
@@ -180,7 +187,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={customRole}
         detailLoading={false}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,
@@ -198,7 +205,7 @@ describe("RolesMasterDetail", () => {
         selectedRole={customRole}
         detailLoading={true}
         onSelect={onSelect}
-        onEditClick={onEditClick}
+        onSaveRole={onSaveRole}
         onDeleteClick={onDeleteClick}
         onManagePermissions={onManagePermissions}
       />,

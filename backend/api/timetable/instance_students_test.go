@@ -27,9 +27,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -228,9 +226,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
-	factory := repositories.NewFactory(db)
-	factory.BindTimetable(timetabletest.New(t, db))
-	isRepo := factory.InstanceStudent
+	isRepo := mustTimetableTestRepositories(db).InstanceStudent
 	row := &schedule.InstanceStudent{
 		InstanceID: inst.ID,
 		StudentID:  student.ID,

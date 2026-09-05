@@ -124,6 +124,7 @@ func newModule(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, ro
 	}
 	capability, err := timetableCompose.New(timetableCompose.Dependencies{
 		DB:       db,
+		CarePlan: unusedCarePlanQueries{},
 		Students: students,
 		Rooms:    roomDirectory,
 		CareDays: timetable.NewCareDayLocker(

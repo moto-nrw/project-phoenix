@@ -25,11 +25,12 @@ type Dependencies struct {
 	Students StudentDirectory
 	Rooms    timetable.RoomDirectory
 	CareDays timetable.CareDayLocker
+	CarePlan timetable.CarePlanDirectory
 	Observe  func(Observation)
 }
 
 func New(dependencies Dependencies) (*timetable.Module, error) {
-	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.CareDays == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.CareDays == nil || dependencies.CarePlan == nil || dependencies.Observe == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -37,7 +38,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.CareDays,
+	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.CareDays, carePlanDirectory{query: dependencies.CarePlan},
 		func() string { return timezone.TodayDate().String() }, observe)
 	return timetable.NewModule(engine{service: service, observe: observe}), nil
 }
@@ -54,10 +55,6 @@ func (d roomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]domain
 }
 
 type carePlanDirectory struct{ query timetable.CarePlanDirectory }
-
-func (e engine) BindCarePlan(directory timetable.CarePlanDirectory) {
-	e.service.BindCarePlan(carePlanDirectory{query: directory})
-}
 
 func (d carePlanDirectory) FindPickupException(ctx context.Context, id int64) (*domain.PickupException, error) {
 	value, err := d.query.FindPickupException(ctx, id)

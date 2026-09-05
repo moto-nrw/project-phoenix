@@ -8,6 +8,7 @@ import {
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { InvitationAcceptForm } from "~/components/auth/invitation-accept-form";
+import { InvitationOwnerAcceptForm } from "~/components/auth/invitation-owner-accept-form";
 import { validateInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
@@ -127,8 +128,16 @@ export function InvitationPageContent({
     <AuthShell
       eyebrow="Einladung"
       eyebrowClassName="text-moto-green"
-      title="Konto einrichten"
-      subtitle="Bestätige deine Einladung und lege dein persönliches Passwort fest."
+      title={
+        invitation?.requiresAccountLogin
+          ? "Schule hinzufügen"
+          : "Konto einrichten"
+      }
+      subtitle={
+        invitation?.requiresAccountLogin
+          ? "Nutzen Sie Ihr bestehendes Konto. Ihr Passwort bleibt unverändert."
+          : "Nehmen Sie die Einladung an und wählen Sie Ihr Passwort."
+      }
       variant="tenant"
       brand={brand}
       formMaxWidth="max-w-[34rem]"
@@ -161,13 +170,22 @@ export function InvitationPageContent({
         </div>
       )}
 
-      {!error && invitation && token && (
-        <InvitationAcceptForm
-          token={token}
-          invitation={invitation}
-          redirectToPath={redirectToPath}
-        />
-      )}
+      {!error &&
+        invitation &&
+        token &&
+        (invitation.requiresAccountLogin ? (
+          <InvitationOwnerAcceptForm
+            token={token}
+            invitation={invitation}
+            redirectToPath={redirectToPath}
+          />
+        ) : (
+          <InvitationAcceptForm
+            token={token}
+            invitation={invitation}
+            redirectToPath={redirectToPath}
+          />
+        ))}
     </AuthShell>
   );
 }

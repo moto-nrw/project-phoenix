@@ -45,7 +45,7 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 	entryA := CreateTestClassListEntryForTenant(t, db, tenantA, "Ida", "IsolationA", "iso1a")
 	entryB := CreateTestClassListEntryForTenant(t, db, tenantB, "Ben", "IsolationB", "iso1a")
 
-	repo := repositories.NewFactory(db).ClassListEntry
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ClassListEntry
 
 	assertSeesOnly := func(t *testing.T, ownTenant int64, own, foreign *userModels.ClassListEntry) {
 		t.Helper()
@@ -121,7 +121,7 @@ func TestClassListEntryRepositoryCannotSmuggleAForeignTenant(t *testing.T) {
 	EnsureTestTenant(t, db, tenantA)
 	EnsureTestTenant(t, db, tenantB)
 
-	repo := repositories.NewFactory(db).ClassListEntry
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ClassListEntry
 	smuggled := &userModels.ClassListEntry{
 		FirstName:   "Frida",
 		LastName:    "Fremdschule",

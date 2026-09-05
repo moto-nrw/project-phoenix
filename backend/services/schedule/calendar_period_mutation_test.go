@@ -36,7 +36,7 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	})
 	ctx := testpkg.TenantContext(tenantID)
 
-	repo := repositories.NewFactory(db).CalendarPeriod
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("Care-link-preflight-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeSchoolYear,

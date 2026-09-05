@@ -2,7 +2,7 @@
 
 // Sammelimport für Klassenlisteneinträge (#2382): CSV/Excel mit genau drei
 // Spalten (Vorname, Nachname, Klasse). Bereits vorhandene Einträge und
-// bereits regulär angelegte Kinder werden übersprungen — sie stehen schon
+// bereits regulär angelegte Kinder werden übersprungen, sie stehen schon
 // auf der Klassenliste.
 
 import { useState, useCallback } from "react";
@@ -13,8 +13,8 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -111,7 +111,7 @@ export default function ClassListImportPage() {
       redirect("/");
     },
   });
-  // Der Import legt Einträge an — dieselbe Hürde wie das Backend
+  // Der Import legt Einträge an, dieselbe Hürde wie das Backend
   // (/api/import/class-list-entries verlangt users:create). Wer sie nicht
   // nimmt, wird zum Dashboard umgeleitet statt in einen 403 zu laufen.
   const { isReady } = useRequirePermission("users:create");
@@ -350,24 +350,33 @@ export default function ClassListImportPage() {
     errors: (importResult?.ErrorCount ?? 0) - existingCount,
   };
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Noch keine Datei gewählt";
+
   if (status === "loading" || !isReady) {
     return (
-      <SkeletonRegion label="Klassenlisten-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <TenantPage title="Klassenliste importieren" stats={statusLine} back>
+        <SkeletonRegion label="Klassenlisten-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </TenantPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/database/students/class-list" />
-
+    <TenantPage title="Klassenliste importieren" stats={statusLine} back>
       {/* Info Section */}
-      <SectionCard
-        kicker="Klassenliste"
-        title="Sammelimport für Klassenlisteneinträge"
-        icon={Info}
-      >
+      <SectionCard title="Sammelimport für Klassenlisteneinträge" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
           <li>Laden Sie die Vorlage herunter (siehe unten)</li>
           <li>
@@ -375,7 +384,7 @@ export default function ClassListImportPage() {
             Mehr braucht ein Klassenlisteneintrag nicht
           </li>
           <li>
-            Kinder, die bereits in moto angelegt sind, werden übersprungen — sie
+            Kinder, die bereits in moto angelegt sind, werden übersprungen, sie
             stehen schon auf der Klassenliste
           </li>
           <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
@@ -401,11 +410,7 @@ export default function ClassListImportPage() {
       )}
 
       {/* Download Template */}
-      <SectionCard
-        kicker="Schritt 1"
-        title="Vorlage herunterladen"
-        icon={Download}
-      >
+      <SectionCard title="Vorlage herunterladen" icon={Download}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -476,11 +481,7 @@ export default function ClassListImportPage() {
             errors={stats.errors}
           />
 
-          <SectionCard
-            kicker="Schritt 3"
-            title="Datenvorschau"
-            icon={ListChecks}
-          >
+          <SectionCard title="Datenvorschau" icon={ListChecks}>
             <div className="space-y-2">
               {previewData.map((entry, idx) => (
                 <StudentRowCard
@@ -503,7 +504,7 @@ export default function ClassListImportPage() {
           <div className="h-20" />
 
           {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
             <Button
               type="button"
               variant="outline"
@@ -522,12 +523,12 @@ export default function ClassListImportPage() {
               disabled={stats.new === 0 || isImporting}
             >
               {isImporting
-                ? "Importiere..."
+                ? "Wird importiert…"
                 : `${stats.new} Einträge importieren`}
             </Button>
           </div>
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }

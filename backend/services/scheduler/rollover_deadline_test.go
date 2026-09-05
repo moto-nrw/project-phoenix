@@ -47,7 +47,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	probe := &failingRolloverDeadlineProbe{
 		repo:        repos.Timeframe,

@@ -229,7 +229,6 @@ type Capability interface {
 
 type engine interface {
 	Capability
-	BindCarePlan(CarePlanDirectory)
 	ObserveRejection(string, time.Duration, error)
 }
 
@@ -240,13 +239,6 @@ func NewModule(engine engine) *Module {
 		panic("timetable: engine is required")
 	}
 	return &Module{engine: engine}
-}
-
-func (m *Module) BindCarePlan(directory CarePlanDirectory) {
-	if directory == nil {
-		panic("timetable: care plan directory is required")
-	}
-	m.engine.BindCarePlan(directory)
 }
 
 func (m *Module) FindCategory(ctx context.Context, id int64) (Category, error) {

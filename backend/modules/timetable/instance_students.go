@@ -133,10 +133,6 @@ type CarePlanDirectory interface {
 	ListStudentStatusDays(context.Context, StudentStatusDayFilter) ([]StudentStatusDay, error)
 }
 
-type CarePlanBinder interface {
-	BindCarePlan(CarePlanDirectory)
-}
-
 type RoomRef struct {
 	ID       int64
 	TenantID int64

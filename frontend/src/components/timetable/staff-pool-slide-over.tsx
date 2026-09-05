@@ -19,6 +19,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { TriangleAlert, UserPlus } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -41,7 +42,6 @@ import type {
   StaffPoolEntry,
   StaffPoolResponse,
 } from "~/lib/timetable-types";
-import { timetableMutedSurface } from "./timetable-style";
 
 const logger = createLogger({ component: "StaffPoolSlideOver" });
 
@@ -156,12 +156,10 @@ export function StaffPoolSlideOver({
               </div>
             )}
             {pool && !canManage && (
-              <p
-                className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-              >
-                Sie haben nur Leserechte für den Betreuungsplan. Personal kann
-                nur mit Verwaltungsrechten verschoben oder zugewiesen werden.
-              </p>
+              <Alert
+                type="info"
+                message="Sie haben nur Leserechte für den Betreuungsplan. Personal kann nur mit Verwaltungsrechten verschoben oder zugewiesen werden."
+              />
             )}
             {pool && (
               // Der Key remountet die Sektionen pro Block: der Auf-/Zuklapp-

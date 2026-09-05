@@ -44,7 +44,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
@@ -270,7 +270,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 
 // TestOffboardStaff_ReinviteSameEmailSameSchool covers bug 2 of issue #695:
 // the same email must be re-invitable at the same school after offboarding,
-// and acceptance must restore a fully working Betreuer on the same account.
+// but a token alone must not reactivate the globally disabled account.
 func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	t.Parallel()
 
@@ -337,12 +337,12 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Password:        newCredential,
 		ConfirmPassword: newCredential,
 	})
-	require.NoError(t, err, "accepting the re-invitation must succeed")
-	assert.Equal(t, account.ID, reactivated.ID, "the existing account must be re-attached, not duplicated")
+	require.ErrorIs(t, err, authSvcPkg.ErrInvitationOwnerRequired)
+	require.Nil(t, reactivated)
 
 	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
-	assert.True(t, exists, "the tenant mapping must be reactivated")
+	assert.False(t, exists, "token-only acceptance must not reactivate the tenant mapping")
 
 	var staffCount int
 	err = sc.db.NewSelect().
@@ -352,10 +352,14 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		Where(`"person".account_id = ? AND "staff".deleted_at IS NULL AND "person".deleted_at IS NULL`, account.ID).
 		Scan(context.Background(), &staffCount)
 	require.NoError(t, err)
-	assert.Equal(t, 1, staffCount, "acceptance must recreate a live staff record")
+	assert.Zero(t, staffCount, "rejected acceptance must not recreate a live staff record")
+	stored, err := sc.repos.Account.FindByID(context.Background(), account.ID)
+	require.NoError(t, err)
+	assert.False(t, stored.Active)
+	assert.Equal(t, account.PasswordHash, stored.PasswordHash)
 
 	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, newCredential)
-	require.NoError(t, err, "login with the new password must work after re-invitation")
+	require.Error(t, err, "the proposed invitation password must grant no access")
 }
 
 // TestOffboardStaff_ActiveSupervisionBlocks: an active room supervision still

@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +37,7 @@ func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
 	room := testpkg.CreateTestRoom(t, db, "VisitRoom")
 
 	// Create an active group for visits
-	groupRepo := repositories.NewFactory(db).ActiveGroup
+	groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	now := time.Now()
 	activeGroup := &active.Group{
 		StartTime:      now,
@@ -69,7 +68,7 @@ func TestVisitRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates visit with valid data", func(t *testing.T) {
@@ -117,7 +116,7 @@ func TestVisitRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing visit", func(t *testing.T) {
@@ -148,7 +147,7 @@ func TestVisitRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates visit exit time", func(t *testing.T) {
@@ -178,7 +177,7 @@ func TestVisitRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing visit", func(t *testing.T) {
@@ -209,7 +208,7 @@ func TestVisitRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all visits", func(t *testing.T) {
@@ -234,7 +233,7 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds only active visits (no exit_time)", func(t *testing.T) {
@@ -273,7 +272,7 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active visits for student", func(t *testing.T) {
@@ -312,7 +311,7 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds visits for active group", func(t *testing.T) {
@@ -347,7 +346,7 @@ func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("empty input hits no DB and returns nothing", func(t *testing.T) {
@@ -392,7 +391,7 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds visits in time range", func(t *testing.T) {
@@ -433,7 +432,7 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets current active visit for student", func(t *testing.T) {
@@ -465,7 +464,7 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets current visits for multiple students", func(t *testing.T) {
@@ -506,7 +505,7 @@ func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("empty input short-circuits", func(t *testing.T) {
@@ -540,7 +539,7 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("empty input returns empty map", func(t *testing.T) {
@@ -594,7 +593,7 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 // resolved the way the production graph resolves them.
 func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
@@ -660,7 +659,7 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ends active visit", func(t *testing.T) {
@@ -692,7 +691,7 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired visits for student", func(t *testing.T) {
@@ -751,8 +750,8 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
-	groupRepo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("transfers visits from recently ended session", func(t *testing.T) {
@@ -858,8 +857,8 @@ func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
-	groupRepo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 
@@ -919,7 +918,7 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets retention stats for students with expired visits", func(t *testing.T) {
@@ -969,7 +968,7 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts all expired visits", func(t *testing.T) {
@@ -1018,7 +1017,7 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit with active group and room", func(t *testing.T) {
@@ -1108,7 +1107,7 @@ func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts active visits in room", func(t *testing.T) {
@@ -1178,7 +1177,7 @@ func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts active visits in group", func(t *testing.T) {
@@ -1240,8 +1239,8 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
-	groupRepo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ends all active visits for group IDs", func(t *testing.T) {
@@ -1340,7 +1339,7 @@ func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deduplicates student IDs in input", func(t *testing.T) {
@@ -1371,7 +1370,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns IDs of currently checked-in students", func(t *testing.T) {
@@ -1424,7 +1423,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 		// New room + a closed active group on it. A visit with exit_time IS NULL
 		// should still be hidden because the session itself is over.
 		room := testpkg.CreateTestRoom(t, db, "EndedSessionRoom")
-		groupRepo := repositories.NewFactory(db).ActiveGroup
+		groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 		now := time.Now()
 		endTime := now.Add(-1 * time.Minute)
 		closedGroup := &active.Group{
@@ -1480,7 +1479,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 		data := createVisitTestData(t, db)
 		// Same room can host more than one concurrent active group. The repo
 		// must union students across all of them.
-		groupRepo := repositories.NewFactory(db).ActiveGroup
+		groupRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 		now := time.Now()
 		secondGroup := &active.Group{
 			StartTime:      now,
@@ -1536,7 +1535,7 @@ func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -1578,7 +1577,7 @@ func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)

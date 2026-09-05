@@ -22,7 +22,9 @@ import (
 
 // newClassListEntriesResource binds the adapter to the shared renderer, the
 // JWT identity and the legacy-service composition.
-func newClassListEntriesResource(module schoolMembershipModule.Query, svc *services.Factory, db *bun.DB, logger *slog.Logger) *classListHTTP.Resource {
+func newClassListEntriesResource(module schoolMembershipModule.Query, svc interface {
+	NewClassListEntryRuntime() services.ClassListEntryRuntime
+}, db *bun.DB, logger *slog.Logger) *classListHTTP.Resource {
 	runtime := svc.NewClassListEntryRuntime()
 	return classListHTTP.NewResource(module, classListHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, classListHTTP.Middleware)) {

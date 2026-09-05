@@ -215,7 +215,7 @@ func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx conte
 }
 
 type pickupExceptionDirectory struct {
-	query careplan.Query
+	query carePlanCompose.ExceptionQueries
 }
 
 func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {

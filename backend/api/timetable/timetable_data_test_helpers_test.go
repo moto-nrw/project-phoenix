@@ -15,7 +15,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
@@ -41,34 +40,7 @@ func testTimetableDataWithOfferingCallbacks(
 	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
-	// Template rows resolve their education group name through the School
-	// Structure owner, so the activity group repository must come from the
-	// bound factory, exactly as in production composition.
-	groups, err := repositories.NewSchoolStructure(db)
-	if err != nil {
-		panic(err)
-	}
-	boundRepos := repositories.NewFactory(db)
-	boundRepos.BindSchoolStructure(groups)
-	students, err := repositories.NewPeopleDirectory(db)
-	if err != nil {
-		panic(err)
-	}
-	boundRepos.BindTimetable(timetabletest.NewWithStudentDirectory(panicTestTB{}, db,
-		func(ctx context.Context) ([]timetabletest.TargetStudent, error) {
-			values, err := students.ListEnrolledStudents(ctx)
-			if err != nil {
-				return nil, err
-			}
-			result := make([]timetabletest.TargetStudent, 0, len(values))
-			for _, value := range values {
-				result = append(result, timetabletest.TargetStudent{
-					ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
-					EnrolledUntil: value.EnrolledUntil,
-				})
-			}
-			return result, nil
-		}))
+	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
 	var today func() timezone.Date
@@ -109,7 +81,7 @@ func testTimetableDataWithOfferingCallbacks(
 		PickupExceptionRepo:        boundRepos.StudentPickupException,
 		VisitRepo:                  activeRepo.NewVisitRepository(db),
 		RoomRepo:                   boundRepos.Room,
-		ActivityCategoryRepo:       repositories.NewFactory(db).ActivityCategory,
+		ActivityCategoryRepo:       boundRepos.ActivityCategory,
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
 		StudentEnrollmentRepo:      boundRepos.StudentEnrollment,
@@ -131,3 +103,11 @@ type panicTestTB struct{}
 
 func (panicTestTB) Helper()                           {}
 func (panicTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
+
+func mustTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) repositories.TimetableTestRepositories {
+	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	if err != nil {
+		panic(err)
+	}
+	return repos
+}

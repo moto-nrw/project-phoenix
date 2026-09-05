@@ -11,24 +11,34 @@
 
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import {
   buildDefaultPresets,
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { MultiSelect } from "~/components/ui/multi-select";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { Skeleton } from "~/components/ui/skeleton";
-import { StatCard } from "~/components/ui/stat-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import {
   berlinTodayISO,
   formatDate,
+  formatStatusDate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
@@ -89,7 +99,6 @@ function addDays(d: Date, days: number): Date {
 
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
-  const isMobile = useIsMobile();
   const todayISO = berlinTodayISO();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [range, setRange] = useState<DateRange | undefined>(() => ({
@@ -196,6 +205,42 @@ export default function StatisticsPage() {
     [today],
   );
 
+  // Zeitnavigation der Bedienleiste: die Pfeile verschieben das gewählte
+  // Fenster um seine eigene Länge, "Letzte 30 Tage" stellt den Startzustand
+  // der Seite wieder her. Beides ändert nur den Zeitraum, sonst nichts.
+  const windowDays =
+    range?.from && range?.to
+      ? Math.round(
+          (range.to.getTime() - range.from.getTime()) / (24 * 60 * 60 * 1000),
+        ) + 1
+      : null;
+
+  const shiftWindow =
+    range?.from && range?.to && windowDays
+      ? (direction: number) => {
+          const from = range.from;
+          const to = range.to;
+          if (!from || !to) return;
+          let nextTo = addDays(to, direction * windowDays);
+          // Der Bericht endet nie in der Zukunft: beim Vorwärtsschieben rückt
+          // das Fenster höchstens bis heute, statt einen ungültigen Zeitraum
+          // anzufragen.
+          if (nextTo > today) nextTo = today;
+          const shift = Math.round(
+            (nextTo.getTime() - to.getTime()) / (24 * 60 * 60 * 1000),
+          );
+          if (shift === 0) return;
+          setRange({ from: addDays(from, shift), to: nextTo });
+        }
+      : null;
+
+  const canShiftForward = toISO !== null && toISO < todayISO;
+
+  const defaultFromISO = toISODate(addDays(today, -29));
+  const isOnDefaultWindow = fromISO === defaultFromISO && toISO === todayISO;
+
+  const resetWindow = () => setRange({ from: addDays(today, -29), to: today });
+
   const groupColumns: DataTableColumn<StatisticsGroupRow>[] = [
     {
       key: "name",
@@ -241,7 +286,10 @@ export default function StatisticsPage() {
       render: (row) => (
         <span
           className={
-            row.unexplained_days > 0 ? "text-moto-red-strong" : undefined
+            // Offene Fälle brauchen Aufmerksamkeit, sie sind aber kein
+            // Fehler: Orange ist dafür die Farbe, Rot gehört Krank und
+            // echten Fehlern (siehe Farbtabelle im UI-Kit).
+            row.unexplained_days > 0 ? "text-moto-orange-strong" : undefined
           }
         >
           {row.unexplained_days}
@@ -316,7 +364,10 @@ export default function StatisticsPage() {
       render: (row) => (
         <span
           className={
-            row.unexplained_days > 0 ? "text-moto-red-strong" : undefined
+            // Offene Fälle brauchen Aufmerksamkeit, sie sind aber kein
+            // Fehler: Orange ist dafür die Farbe, Rot gehört Krank und
+            // echten Fehlern (siehe Farbtabelle im UI-Kit).
+            row.unexplained_days > 0 ? "text-moto-orange-strong" : undefined
           }
         >
           {row.unexplained_days}
@@ -538,34 +589,32 @@ export default function StatisticsPage() {
     },
   ];
 
-  // Export trio in the Anmeldungen button idiom: quiet white bordered
-  // actions. The child table and the room table are separate documents
-  // (different columns), so each section carries its own trio.
-  const exportButtons = (section: StatisticsExportSection) => {
-    const formats: {
-      format: StatisticsExportFormat;
-      label: string;
-      Icon: typeof Download;
-    }[] = [
-      { format: "pdf", label: "PDF", Icon: Download },
-      { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
-      { format: "docx", label: "Word", Icon: FileText },
-    ];
-    return formats.map(({ format, label, Icon }) => (
-      <Button
-        key={format}
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport(format, section)}
-      >
-        <Icon className="h-4 w-4" aria-hidden />
-        {exporting === `${section}-${format}` ? "Wird exportiert…" : label}
-      </Button>
-    ));
-  };
+  // Export liegt auf jeder anderen Seite im Kebab-Menü und nicht als
+  // Knopfreihe in der Titelzeile. Drei Formate ergaben dort drei Knöpfe, die
+  // allein die halbe Kopfzeile füllten. Kind- und Raumtabelle sind
+  // verschiedene Dokumente, deshalb bekommt jeder Bereich seinen eigenen
+  // Menüeintrag.
+  const exportMenuItems = (
+    section: StatisticsExportSection,
+  ): OverflowMenuEntry[] => [
+    { kind: "header", label: "Exportieren" },
+    ...(
+      [
+        { format: "pdf", label: "PDF", Icon: Download },
+        { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
+        { format: "docx", label: "Word", Icon: FileText },
+      ] as {
+        format: StatisticsExportFormat;
+        label: string;
+        Icon: typeof Download;
+      }[]
+    ).map(({ format, label, Icon }) => ({
+      label: exporting === `${section}-${format}` ? "Wird exportiert…" : label,
+      icon: <Icon className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport(format, section),
+      disabled: !data || exporting !== null,
+    })),
+  ];
 
   const courseDataStartsInsideWindow =
     data !== null && fromISO !== null && data.course_data_from > fromISO;
@@ -604,24 +653,144 @@ export default function StatisticsPage() {
     },
   }[view];
 
+  // Statuszeile unter dem Titel: echter Zeitraum, gezählte Betreuungstage und
+  // Kinder aus dem geladenen Bericht.
+  // Kein Zeitraum in der Statuszeile: den trägt die Zeitraumwahl direkt
+  // darunter. Zweimal dieselben Daten in der Kopfkarte kosteten auf dem
+  // Telefon eine Zeile, die nichts sagte.
+  // Im Kursbereich zählen Kurse und Kinder mit Kursteilnahme; Betreuungstage
+  // wären hier die falsche Zahl zur falschen Tabelle.
+  let statusLine: string;
+  if (!data) {
+    statusLine = formatStatusDate(todayISO);
+  } else if (view === "courses") {
+    statusLine = `${data.courses.length} Kurse · ${data.course_totals.student_count} Kinder`;
+  } else {
+    statusLine = `${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`;
+  }
+
+  // Kennzahlen unter der Kopfkarte: eine große Quote, drei Nebenwerte. Der
+  // Kursbereich hat seine eigene Quote (Teilnahmetage geteilt durch
+  // entschiedene Termine); ohne entschiedenen Termin gibt es keine, und ein
+  // Strich sagt das besser als ein leeres Feld.
+  const headline: Readonly<{
+    rate: string;
+    values: readonly (readonly [string, number, boolean])[];
+    footnote: ReactNode;
+  }> | null = data
+    ? view === "courses"
+      ? {
+          rate: formatRate(data.course_totals.participation_rate) || "–",
+          values: [
+            ["Termine", data.course_totals.held_instances, false],
+            ["Abgesagt", data.course_totals.cancelled_instances, false],
+            // Hervorgehoben, sobald Termine offen sind: die Zahl ist die
+            // einzige auf dem Schirm, der jemand nachgehen muss.
+            [
+              "Offen",
+              data.course_totals.open_days,
+              data.course_totals.open_days > 0,
+            ],
+          ],
+          footnote: (
+            <>
+              {formatDate(data.from)} bis {formatDate(data.to)} · gezählt werden
+              nur Termine, die stattgefunden haben
+            </>
+          ),
+        }
+      : {
+          rate: formatRate(data.totals.attendance_rate),
+          values: [
+            ["Krank", data.totals.sick_days, false],
+            ["Entschuldigt", data.totals.excused_days, false],
+            // Hervorgehoben, sobald es offene Fälle gibt: die Zahl ist die
+            // einzige auf dem Schirm, der jemand nachgehen muss.
+            [
+              "Ohne Meldung",
+              data.totals.unexplained_days,
+              data.totals.unexplained_days > 0,
+            ],
+          ],
+          footnote: (
+            <>
+              {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+              {data.excluded_days.public_holidays} Feiertage,{" "}
+              {data.excluded_days.closing_days} Schließtage,{" "}
+              {data.excluded_days.holiday_periods} Ferientage
+            </>
+          ),
+        }
+    : null;
+
+  // Aktionen der Tabellenkarte: Räume und Kurse haben eigene Exporte, der
+  // Kursbereich zusätzlich den Wechsel zwischen Kurs- und Kind-Sicht. Das ist
+  // eine Wertauswahl, kein Reiter, deshalb SegmentedControl.
+  let sectionActions: ReactNode;
+  if (view === "rooms" && !roomDataAllBeforeWindow) {
+    sectionActions = (
+      <OverflowMenu
+        items={exportMenuItems("rooms")}
+        ariaLabel="Raumtabelle exportieren"
+      />
+    );
+  } else if (view === "courses" && !courseDataAllBeforeWindow) {
+    sectionActions = (
+      <div className="flex items-center gap-2">
+        <SegmentedControl
+          items={COURSE_VIEW_ITEMS}
+          value={courseView}
+          onChange={setCourseView}
+          variant="pills"
+          ariaLabel="Kurs-Sicht wählen"
+        />
+        <OverflowMenu
+          items={exportMenuItems(
+            courseView === "by-course" ? "courses" : "course-students",
+          )}
+          ariaLabel="Kurstabelle exportieren"
+        />
+      </div>
+    );
+  }
+
+  // Fehlendes Recht ist ein Zustand, kein Fehler: eigener ruhiger Leerzustand
+  // statt einer roten Fehlermeldung (Querregel "Zustände").
+  if (errorCode === "forbidden") {
+    return (
+      <ForbiddenPage title="Statistik" message={ERROR_MESSAGES.forbidden} />
+    );
+  }
+
   return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Statistik
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anwesenheit, Räume und Kurse im Zeitraum
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              {view === "courses"
-                ? "Quote = Teilnahmetage geteilt durch die Termine, für die eine Teilnahme entschieden wurde. Abgesagte Termine zählen nicht mit."
-                : "Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
+    <TenantPage
+      title="Statistik"
+      stats={statusLine}
+      statsLoading={loading}
+      loading={loading}
+      error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}
+      tabs={{
+        value: view,
+        onChange: (next) => setView(next as StatisticsView),
+        items: VIEW_ITEMS,
+        label: "Bereich wählen",
+      }}
+      actions={
+        <OverflowMenu
+          items={exportMenuItems("attendance")}
+          ariaLabel="Weitere Aktionen"
+        />
+      }
+      // Bauart 3, Regel 1: die Zeitnavigation sitzt im Bedienband der
+      // Kopfkarte, nicht als Bedienelement neben dem Titel. Der Zeitraum ist
+      // hier frei wählbar, deshalb steht der Bereichswähler an der Stelle des
+      // Wochenetiketts; die Pfeile schieben das gewählte Fenster um seine
+      // eigene Länge weiter.
+      searchSlot={
+        <PlanningContextBar
+          withoutContextRow
+          navigationInGroup
+          navigationSlot={
             <DateRangePicker
               value={range}
               onChange={(next) => {
@@ -629,310 +798,213 @@ export default function StatisticsPage() {
               }}
               presets={presets}
               toMax={today}
-              className="w-full sm:w-auto"
-              triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
+              className="min-w-0"
+              // Zwischen den Pfeilen: Rahmen und Rundung kommen von der
+              // Gruppe, der Chip bringt nur Inhalt und Höhe mit.
+              triggerClassName="h-9 w-full justify-center rounded-none border-0 px-3"
             />
+          }
+          onPrevious={shiftWindow ? () => shiftWindow(-1) : undefined}
+          onNext={
+            canShiftForward && shiftWindow ? () => shiftWindow(1) : undefined
+          }
+          previousLabel="Vorheriger Zeitraum"
+          nextLabel="Nächster Zeitraum"
+          onToday={isOnDefaultWindow ? undefined : resetWindow}
+          todayLabel="Letzte 30 Tage"
+          actions={
             <MultiSelect
+              ariaLabel="Gruppen"
               value={groupIds}
               options={groupOptions}
               onChange={setGroupIds}
-              ariaLabel="Gruppen filtern"
               placeholder="Alle Gruppen"
-              summaryLabel={(n) => `${n} Gruppen`}
-              className="w-full sm:w-44"
+              summaryLabel={(count) => `${count} Gruppen`}
+              className="w-full md:w-56"
+              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
             />
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              {exportButtons("attendance")}
+          }
+        >
+          {/* Kontextzeile: nur was NICHT schon in der Statuszeile steht.
+              Ohne Gruppenfilter bleibt sie still. */}
+          {groupIds.length > 0 && (
+            <span>
+              Gefiltert auf {groupIds.length} von {groupOptions.length} Gruppen
+            </span>
+          )}
+        </PlanningContextBar>
+      }
+    >
+      {exportError && <Alert type="error" message={exportError} />}
+
+      {data && headline && (
+        <>
+          {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter
+              ist ihre eigene. Karten stapeln sich nicht ineinander. */}
+          {/* EINE große Aussage statt sieben gleichförmiger Mini-Kacheln
+              (Eltern-Portal-Muster: erst die eine Antwort, dann das Detail).
+              Betreuungstage und Kinderzahl stehen schon in der Statuszeile
+              der Kopfkarte, die abgezogenen Tage im Satz darunter — die
+              frühere Kachelreihe hat drei ihrer sieben Werte dupliziert. */}
+          <SectionCard>
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    Quote gesamt
+                  </p>
+                  <p className="mt-1 text-2xl leading-tight font-semibold text-gray-900 tabular-nums">
+                    {headline.rate}
+                  </p>
+                </div>
+                <dl className="flex flex-wrap items-start gap-x-10 gap-y-4">
+                  {headline.values.map(([label, value, highlight]) => (
+                    <div key={label}>
+                      <dt className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                        {label}
+                      </dt>
+                      <dd
+                        className="mt-1 text-lg leading-tight font-semibold tabular-nums"
+                        style={{
+                          color: highlight
+                            ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                            : undefined,
+                        }}
+                      >
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <p className="text-sm leading-6 text-gray-600">
+                {headline.footnote}
+              </p>
             </div>
-          </div>
-        </div>
+          </SectionCard>
 
-        {exportError && (
-          <div className="mt-4">
-            <Alert type="error" message={exportError} />
-          </div>
-        )}
-
-        {loading && (
-          <div className="mt-4 space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-
-        {!loading && errorCode !== null && (
-          <EmptyState
-            className="mt-4"
-            title="Statistik nicht verfügbar"
-            description={ERROR_MESSAGES[errorCode]}
-          />
-        )}
-
-        {!loading && errorCode === null && data && (
-          <>
-            {/* Die Kennzahlen wechseln mit dem Bereich: eine Quote über
-                Betreuungstagen neben einer Kurstabelle wäre die falsche Zahl
-                zur falschen Tabelle. */}
-            {view === "courses" ? (
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                <StatCard
-                  variant="tile"
-                  label="Kurse"
-                  value={data.courses.length}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Termine"
-                  value={data.course_totals.held_instances}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Abgesagt"
-                  value={data.course_totals.cancelled_instances}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Kinder"
-                  value={data.course_totals.student_count}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Quote gesamt"
-                  // Ohne entschiedenen Termin gibt es keine Quote. Ein
-                  // Gedankenstrich sagt das; ein leeres Feld sieht kaputt aus.
-                  value={
-                    formatRate(data.course_totals.participation_rate) || "–"
-                  }
-                />
-                <StatCard
-                  variant="tile"
-                  label="Offen"
-                  value={data.course_totals.open_days}
-                />
-              </div>
-            ) : (
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-                <StatCard
-                  variant="tile"
-                  label="Betreuungstage"
-                  value={data.care_days}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Tage abgezogen"
-                  value={data.excluded_days.total}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Kinder"
-                  value={data.totals.student_count}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Quote gesamt"
-                  value={formatRate(data.totals.attendance_rate)}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Krank"
-                  value={data.totals.sick_days}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Entschuldigt"
-                  value={data.totals.excused_days}
-                />
-                {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
-                  auf dem Schirm, der jemand nachgehen muss. */}
-                <StatCard
-                  variant="tile"
-                  label="Ohne Meldung"
-                  value={data.totals.unexplained_days}
-                  tone={data.totals.unexplained_days > 0 ? "red" : undefined}
-                />
-              </div>
+          {/* Der sichtbare Unterabschnitt mit seiner Tabelle. */}
+          <SectionCard
+            title={sectionHeading.title}
+            description={sectionHeading.hint}
+            actions={sectionActions}
+          >
+            {view === "groups" && (
+              <DataTable
+                columns={groupColumns}
+                rows={data.groups}
+                getRowKey={(row) => row.group_id}
+                defaultSortKey="name"
+                emptyState={
+                  <EmptyState
+                    title="Keine Kinder im Zeitraum"
+                    description="Für die gewählten Gruppen gibt es keine Kinder."
+                  />
+                }
+              />
             )}
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              {view === "courses" ? (
-                <>
-                  {formatDate(data.from)} bis {formatDate(data.to)} · gezählt
-                  werden nur Termine, die stattgefunden haben
-                </>
+
+            {view === "students" && (
+              <DataTable
+                columns={studentColumns}
+                rows={data.students}
+                getRowKey={(row) => row.student_id}
+                defaultSortKey="name"
+                pageSize={25}
+                paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                emptyState={
+                  <EmptyState
+                    title="Keine Kinder im Zeitraum"
+                    description="Für die gewählten Gruppen gibt es keine Kinder."
+                  />
+                }
+              />
+            )}
+
+            {view === "courses" &&
+              (courseDataAllBeforeWindow ? (
+                <EmptyState
+                  title="Keine Kurstermine für diesen Zeitraum"
+                  description={`Termine werden ${data.course_data_days} Tage aufbewahrt. Wählen Sie einen Zeitraum ab ${formatDate(data.course_data_from)}.`}
+                />
               ) : (
                 <>
-                  {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-                  {data.excluded_days.public_holidays} Feiertage,{" "}
-                  {data.excluded_days.closing_days} Schließtage,{" "}
-                  {data.excluded_days.holiday_periods} Ferientage
-                </>
-              )}
-            </p>
-
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              {/* Mobile fills the line, desktop keeps the compact joined chip. */}
-              <SegmentedControl
-                items={VIEW_ITEMS}
-                value={view}
-                onChange={setView}
-                variant="joined"
-                fullWidth={isMobile}
-                ariaLabel="Bereich wählen"
-              />
-              {view === "rooms" && !roomDataAllBeforeWindow && (
-                <div className="flex flex-wrap gap-2">
-                  {exportButtons("rooms")}
-                </div>
-              )}
-              {view === "courses" && !courseDataAllBeforeWindow && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <SegmentedControl
-                    items={COURSE_VIEW_ITEMS}
-                    value={courseView}
-                    onChange={setCourseView}
-                    variant="pills"
-                    ariaLabel="Kurs-Sicht wählen"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {exportButtons(
-                      courseView === "by-course"
-                        ? "courses"
-                        : "course-students",
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3">
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  {sectionHeading.title}
-                </h3>
-                <p className="text-xs leading-5 text-gray-500">
-                  {sectionHeading.hint}
-                </p>
-              </div>
-
-              {view === "groups" && (
-                <DataTable
-                  columns={groupColumns}
-                  rows={data.groups}
-                  getRowKey={(row) => row.group_id}
-                  defaultSortKey="name"
-                  emptyState={
-                    <EmptyState
-                      title="Keine Kinder im Zeitraum"
-                      description="Für die gewählten Gruppen gibt es keine Kinder."
-                    />
-                  }
-                />
-              )}
-
-              {view === "students" && (
-                <DataTable
-                  columns={studentColumns}
-                  rows={data.students}
-                  getRowKey={(row) => row.student_id}
-                  defaultSortKey="name"
-                  pageSize={25}
-                  paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                  emptyState={
-                    <EmptyState
-                      title="Keine Kinder im Zeitraum"
-                      description="Für die gewählten Gruppen gibt es keine Kinder."
-                    />
-                  }
-                />
-              )}
-
-              {view === "courses" &&
-                (courseDataAllBeforeWindow ? (
-                  <EmptyState
-                    title="Keine Kurstermine für diesen Zeitraum"
-                    description={`Termine werden ${data.course_data_days} Tage aufbewahrt. Wählen Sie einen Zeitraum ab ${formatDate(data.course_data_from)}.`}
-                  />
-                ) : (
-                  <>
-                    {courseDataStartsInsideWindow && (
-                      <div className="mb-3">
-                        <Alert
-                          type="info"
-                          message={`Kurstermine werden ${data.course_data_days} Tage aufbewahrt. Ältere Termine als ${formatDate(data.course_data_from)} sind nicht mehr gespeichert.`}
-                        />
-                      </div>
-                    )}
-                    {courseView === "by-course" ? (
-                      <DataTable
-                        columns={courseColumns}
-                        rows={data.courses}
-                        getRowKey={(row) => row.course_id}
-                        defaultSortKey="name"
-                        pageSize={25}
-                        paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                        emptyState={
-                          <EmptyState
-                            title="Keine Kurse im Zeitraum"
-                            description="Im gewählten Zeitraum gab es keine Kurstermine. Termine entstehen aus dem Betreuungsplan."
-                          />
-                        }
+                  {courseDataStartsInsideWindow && (
+                    <div className="mb-3">
+                      <Alert
+                        type="info"
+                        message={`Kurstermine werden ${data.course_data_days} Tage aufbewahrt. Ältere Termine als ${formatDate(data.course_data_from)} sind nicht mehr gespeichert.`}
                       />
-                    ) : (
-                      <DataTable
-                        columns={courseStudentColumns}
-                        rows={data.course_students}
-                        getRowKey={(row) =>
-                          `${row.student_id}-${row.course_id}`
-                        }
-                        defaultSortKey="name"
-                        pageSize={25}
-                        paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                        emptyState={
-                          <EmptyState
-                            title="Keine Teilnahme im Zeitraum"
-                            description="Für die gewählten Gruppen gibt es keine Kursteilnahme."
-                          />
-                        }
-                      />
-                    )}
-                  </>
-                ))}
-
-              {view === "rooms" &&
-                (roomDataAllBeforeWindow ? (
-                  <EmptyState
-                    title="Keine Raumdaten für diesen Zeitraum"
-                    description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
-                  />
-                ) : (
-                  <>
-                    {roomDataStartsInsideWindow && (
-                      <div className="mb-3">
-                        <Alert
-                          type="info"
-                          message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
-                        />
-                      </div>
-                    )}
+                    </div>
+                  )}
+                  {courseView === "by-course" ? (
                     <DataTable
-                      columns={roomColumns}
-                      rows={data.rooms}
-                      getRowKey={(row) => row.room_id}
-                      defaultSortKey="days"
-                      defaultSortDirection="desc"
+                      columns={courseColumns}
+                      rows={data.courses}
+                      getRowKey={(row) => row.course_id}
+                      defaultSortKey="name"
+                      pageSize={25}
+                      paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
                       emptyState={
                         <EmptyState
-                          title="Keine Räume"
-                          description="Es sind keine Räume angelegt."
+                          title="Keine Kurse im Zeitraum"
+                          description="Im gewählten Zeitraum gab es keine Kurstermine. Termine entstehen aus dem Betreuungsplan."
                         />
                       }
                     />
-                  </>
-                ))}
-            </div>
-          </>
-        )}
-      </section>
-    </div>
+                  ) : (
+                    <DataTable
+                      columns={courseStudentColumns}
+                      rows={data.course_students}
+                      getRowKey={(row) => `${row.student_id}-${row.course_id}`}
+                      defaultSortKey="name"
+                      pageSize={25}
+                      paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                      emptyState={
+                        <EmptyState
+                          title="Keine Teilnahme im Zeitraum"
+                          description="Für die gewählten Gruppen gibt es keine Kursteilnahme."
+                        />
+                      }
+                    />
+                  )}
+                </>
+              ))}
+
+            {view === "rooms" &&
+              (roomDataAllBeforeWindow ? (
+                <EmptyState
+                  title="Keine Raumdaten für diesen Zeitraum"
+                  description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
+                />
+              ) : (
+                <>
+                  {roomDataStartsInsideWindow && (
+                    <div className="mb-3">
+                      <Alert
+                        type="info"
+                        message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
+                      />
+                    </div>
+                  )}
+                  <DataTable
+                    columns={roomColumns}
+                    rows={data.rooms}
+                    getRowKey={(row) => row.room_id}
+                    defaultSortKey="days"
+                    defaultSortDirection="desc"
+                    emptyState={
+                      <EmptyState
+                        title="Keine Räume"
+                        description="Es sind keine Räume angelegt."
+                      />
+                    }
+                  />
+                </>
+              ))}
+          </SectionCard>
+        </>
+      )}
+    </TenantPage>
   );
 }

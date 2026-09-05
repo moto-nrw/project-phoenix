@@ -3,6 +3,7 @@
 import { Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
@@ -28,33 +29,30 @@ export function TemplateList({
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
-      <div
-        className={`${timetableSurface} flex flex-col items-center justify-center gap-3 border-dashed px-6 py-16 text-center`}
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-          <MotoConceptIcon concept="carePlan" size={28} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <h3 className="text-base font-semibold text-gray-900">
-            Keine Regeltermine in diesem Zeitraum
-          </h3>
-          <p className="max-w-sm text-sm text-gray-500">
-            Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden
-            Montag oder Lernzeit alle zwei Wochen.
-          </p>
-        </div>
-        {canManage && (
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={onCreate}
-            className="mt-2 gap-2"
-          >
-            <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
-            Regeltermin anlegen
-          </Button>
-        )}
+      <div className={`${timetableSurface} border-dashed px-6`}>
+        <EmptyState
+          icon={
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <MotoConceptIcon concept="carePlan" size={28} />
+            </span>
+          }
+          title="Keine Regeltermine in diesem Zeitraum"
+          description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."
+          action={
+            canManage ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={onCreate}
+                className="gap-2"
+              >
+                <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
+                Regeltermin anlegen
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
     );
   }

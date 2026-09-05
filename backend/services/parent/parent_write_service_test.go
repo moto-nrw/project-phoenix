@@ -86,7 +86,7 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -116,7 +116,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
@@ -359,7 +359,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	t.Parallel()
 
 	svc, _, db := buildWriteService(t, true, true)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
 
@@ -397,7 +397,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	parentLocked := make(chan struct{})
@@ -565,7 +565,7 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
 	date := timezone.NewDate(2026, 8, 24).AddDays(7)
 	require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -708,7 +708,7 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
 	base := timezone.NewDate(2026, 8, 24).AddDays(7)
@@ -837,7 +837,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
 	staffExcusedDay := timezone.NewDate(2026, 8, 24).AddDays(2)

@@ -4,8 +4,9 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -19,9 +20,8 @@ import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -45,7 +45,6 @@ function GroupsPageContent() {
   const selectedId = searchParams.get("group");
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
-  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -80,6 +79,12 @@ function GroupsPageContent() {
   const error = groupsError
     ? "Fehler beim Laden der Gruppen. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Gruppenliste.
+  const statusLine = useMemo(() => {
+    const groups = groupsData ?? [];
+    return `${formatCount(groups.length)} ${groups.length === 1 ? "Gruppe" : "Gruppen"}`;
+  }, [groupsData]);
 
   const uniqueRooms = useMemo(() => {
     const groups = groupsData ?? [];
@@ -252,11 +257,83 @@ function GroupsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredGroups.length === 0 && selectedGroup === null
+          ? {
+              title:
+                searchTerm || roomFilter !== "all"
+                  ? "Keine Gruppen gefunden"
+                  : "Keine Gruppen vorhanden",
+              description:
+                searchTerm || roomFilter !== "all"
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie die erste Gruppe an, um Kinder zuzuordnen.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.groups.icon}
+                  tone={MOTO_CONCEPTS.groups.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm || roomFilter !== "all" ? undefined : (
+                  <DatabaseCreateAction
+                    label="Gruppe"
+                    ariaLabel="Gruppe erstellen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Group>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={groupsConfig}
+            onSubmit={handleCreateGroup}
+          />
+
+          {selectedGroup && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteGroup())}
+              title="Gruppe löschen?"
+              description={
+                <>
+                  Möchten Sie die Gruppe{" "}
+                  <span className="font-medium">{selectedGroup.name}</span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={false}
+              error=""
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Gruppen",
+        description: loading ? <Skeleton className="h-4 w-40" /> : statusLine,
+        actions: (
+          <DatabaseCreateAction
+            label="Gruppe"
+            ariaLabel="Gruppe erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Gruppen" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -271,7 +348,7 @@ function GroupsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Gruppen suchen...",
+            placeholder: "Gruppen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -279,22 +356,9 @@ function GroupsPageContent() {
             setSearchTerm("");
             setRoomFilter("all");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Gruppe"
-              ariaLabel="Gruppe erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <GroupsMasterDetail
@@ -306,54 +370,7 @@ function GroupsPageContent() {
             onDeleteClick={handleDeleteClick}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.groups.icon}
-              tone={MOTO_CONCEPTS.groups.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm || roomFilter !== "all"
-              ? "Keine Gruppen gefunden"
-              : "Keine Gruppen vorhanden"
-          }
-          description={
-            searchTerm || roomFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Gruppen erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Group>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={groupsConfig}
-        onSubmit={handleCreateGroup}
-      />
-
-      {selectedGroup && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteGroup())}
-          title="Gruppe löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmVariant="danger"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie die Gruppe{" "}
-            <span className="font-medium">{selectedGroup.name}</span> wirklich
-            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
     </DatabasePageLayout>
   );
 }

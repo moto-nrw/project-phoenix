@@ -28,11 +28,15 @@ import {
   PersonIcon,
   ChevronDownIcon,
   WarningIcon,
-  StudentDetailHeader,
+  StudentHeaderAvatar,
+  StudentHeaderLocation,
+  StudentHeaderStats,
+  studentHeaderTitle,
   SupervisorsCard,
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "./student-detail-components";
+import { SectionCard } from "~/components/ui/section-card";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -118,7 +122,67 @@ describe("WarningIcon", () => {
 // StudentDetailHeader Tests
 // =============================================================================
 
-describe("StudentDetailHeader", () => {
+/**
+ * Der Kopf der Kindakte, so zusammengesetzt wie auf der Seite selbst: die
+ * Kopfkarte liefert `TenantPage`, die drei Bausteine kommen von hier. Die
+ * Attrappe ersetzt die frühere Wrapper-Komponente, die nur noch für Tests
+ * existierte.
+ */
+function StudentDetailHeader(
+  props: Readonly<{
+    student: ExtendedStudent;
+    myGroups: never[];
+    myGroupRooms: never[];
+    mySupervisedRooms: never[];
+    todayPickupPlannedTime?: string;
+    todayPickupActualTime?: string;
+    todayPickupNote?: string;
+    isPickupException?: boolean;
+    todayArrivalPlannedTime?: string;
+    todayArrivalActualTime?: string;
+    isArrivalException?: boolean;
+    isArrivalAbsent?: boolean;
+    todayArrivalNote?: string;
+    sickReason?: string;
+  }>,
+) {
+  return (
+    <SectionCard
+      headingLevel={1}
+      leading={<StudentHeaderAvatar student={props.student} />}
+      title={studentHeaderTitle(props.student)}
+      description={
+        <StudentHeaderStats
+          student={props.student}
+          todayPickupPlannedTime={props.todayPickupPlannedTime}
+          todayPickupActualTime={props.todayPickupActualTime}
+          todayPickupNote={props.todayPickupNote}
+          isPickupException={props.isPickupException}
+          todayArrivalPlannedTime={props.todayArrivalPlannedTime}
+          todayArrivalActualTime={props.todayArrivalActualTime}
+          isArrivalException={props.isArrivalException}
+          isArrivalAbsent={props.isArrivalAbsent}
+          todayArrivalNote={props.todayArrivalNote}
+          sickReason={props.sickReason}
+        />
+      }
+      actions={
+        <StudentHeaderLocation
+          student={props.student}
+          myGroups={props.myGroups}
+          myGroupRooms={props.myGroupRooms}
+          mySupervisedRooms={props.mySupervisedRooms}
+          todayArrivalPlannedTime={props.todayArrivalPlannedTime}
+          isArrivalException={props.isArrivalException}
+          isArrivalAbsent={props.isArrivalAbsent}
+          todayArrivalNote={props.todayArrivalNote}
+        />
+      }
+    />
+  );
+}
+
+describe("Kopf der Kindakte", () => {
   const mockStudent: ExtendedStudent = {
     id: "1",
     first_name: "Max",
@@ -177,7 +241,7 @@ describe("StudentDetailHeader", () => {
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
   });
 
-  it("does not reserve desktop header margins on narrow screens", () => {
+  it("rendert den Entitätskopf ohne seitlichen Einzug", () => {
     const { container } = render(
       <StudentDetailHeader
         student={mockStudent}
@@ -187,13 +251,18 @@ describe("StudentDetailHeader", () => {
       />,
     );
 
-    const identitySlot = container.querySelector(".flex.flex-1.items-center");
-    expect(identitySlot).toHaveClass("ml-0", "sm:ml-6");
-    expect(identitySlot).not.toHaveClass("ml-6");
+    // Der Kopf steht bündig wie auf der Mitarbeiter-Detailseite: kein
+    // Einzug, auf keiner Breite. Seit der Kopfkarte (PageIntro) trägt die
+    // SectionCard die Identitätszeile und den Aktionsbereich.
+    const identitySlot = container.querySelector(".flex.min-w-0.gap-3");
+    expect(identitySlot).not.toBeNull();
+    expect(identitySlot?.className).not.toMatch(/\bml-/);
 
-    const badgeSlot = container.querySelector(".flex-shrink-0.pb-3");
-    expect(badgeSlot).toHaveClass("mr-0", "sm:mr-4");
-    expect(badgeSlot).not.toHaveClass("mr-4");
+    // Seit dem Mobil-Fix der SectionCard (Einklapp-Pfeil bleibt in der
+    // Titelzeile) trägt der Aktionsbereich sm:shrink-0 statt shrink-0.
+    const badgeSlot = container.querySelector(".sm\\:shrink-0.flex-wrap");
+    expect(badgeSlot).not.toBeNull();
+    expect(badgeSlot?.className).not.toMatch(/\bmr-/);
   });
 
   // ---------------------------------------------------------------------------
@@ -307,8 +376,8 @@ describe("StudentDetailHeader", () => {
       // system rendered nothing on purpose or hit an error.
       renderHeaderWithTimes({});
 
-      expect(rowFor("arrival").getByText("—")).toBeInTheDocument();
-      expect(rowFor("pickup").getByText("—")).toBeInTheDocument();
+      expect(rowFor("arrival").getByText("–")).toBeInTheDocument();
+      expect(rowFor("pickup").getByText("–")).toBeInTheDocument();
     });
 
     it("shows the planned pickup time as the primary value when nothing is resolved yet", () => {
@@ -826,7 +895,9 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={onEditClick}
       />,
     );
-    expect(screen.getByTitle("Bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("calls onEditClick when edit button is clicked", () => {
@@ -838,7 +909,7 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={onEditClick}
       />,
     );
-    fireEvent.click(screen.getByTitle("Bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 
@@ -909,7 +980,9 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(screen.getByTitle("Bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("calls onEditClick when edit button is clicked", () => {
@@ -921,7 +994,7 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
         onEditClick={onEditClick}
       />,
     );
-    fireEvent.click(screen.getByTitle("Bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 

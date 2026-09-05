@@ -139,18 +139,10 @@ export const permissionsConfig = defineEntityConfig<Permission>({
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
         size: "lg",
       },
-      badges: [
-        {
-          label: (p: Permission) => p.name || "Systemberechtigung",
-          color: "bg-moto-indigo-light/80",
-          showWhen: () => true,
-        },
-      ],
     },
     sections: [
       {
         title: "Technische Daten",
-        titleColor: "text-moto-indigo-strong",
         items: [
           {
             label: "Ressource",
@@ -197,7 +189,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
   list: {
     title: "Berechtigungen verwalten",
     description: "Systemweite Berechtigungen definieren und prüfen",
-    searchPlaceholder: "Berechtigungen durchsuchen...",
+    searchPlaceholder: "Berechtigungen durchsuchen…",
 
     searchStrategy: "frontend",
     searchableFields: ["name", "description", "resource", "action"],
@@ -211,7 +203,6 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       avatar: {
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
       },
-      badges: [],
     },
   },
 

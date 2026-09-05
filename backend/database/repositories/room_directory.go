@@ -104,7 +104,6 @@ func (f *Factory) BindFacilities(capability facilitiesModule.Capability) {
 }
 
 func (f *Factory) bindRoomDirectories(rooms facilitiesModule.Query) {
-	f.rooms = rooms
 	for _, bind := range f.roomBinders {
 		bind(rooms)
 	}

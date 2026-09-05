@@ -81,7 +81,7 @@ func buildAbsenceService(t *testing.T, today ...func() timezone.Date) (absenceSv
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := &countingBroadcaster{}
 	emitter := parentmessaging.NewEmitter(
 		db,
@@ -270,7 +270,7 @@ func TestListForStudent_FiltersOutcomes(t *testing.T) {
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: rejected.ID, Approve: false, Reason: "telefonisch klaeren"}); e != nil {
 			return e
 		}
-		return repositories.NewFactory(db).ExcusedAbsenceRequest.Decide(
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ExcusedAbsenceRequest.Decide(
 			txCtx, withdrawn.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false,
 		)
 	})
@@ -594,7 +594,7 @@ func TestExcusedAbsenceRequestModel(t *testing.T) {
 // relative to a request's created_at.
 func insertStatusDay(t *testing.T, db *bun.DB, chain testpkg.ParentChain, date timezone.Date, status string, reportedAt time.Time) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return repos.StudentStatusDay.UpsertReported(txCtx, &activeModels.StudentStatusDay{
 			StudentID:  chain.StudentID,
@@ -705,7 +705,7 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 
 	today := timezone.NewDate(2026, 8, 24)
 	svc, _, db := buildAbsenceService(t, func() timezone.Date { return today })
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
 
@@ -753,7 +753,7 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 	t.Parallel()
 
 	svc, _, db := buildAbsenceService(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
 

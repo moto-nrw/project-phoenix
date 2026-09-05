@@ -52,6 +52,12 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 
 func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
 	var problems []string
+	candidateObjects := dataObjectsByName(candidate)
+	for name := range createdDataObjects {
+		if _, exists := candidateObjects[name]; !exists {
+			problems = append(problems, fmt.Sprintf("new writable data object %s has no write owner", name))
+		}
+	}
 	baseOwners := ownersByID(base)
 	candidateOwners := ownersByID(candidate)
 	for id, owner := range candidateOwners {
@@ -67,7 +73,7 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 		}
 	}
 	baseObjects := dataObjectsByName(base)
-	for name, current := range dataObjectsByName(candidate) {
+	for name, current := range candidateObjects {
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
 		if !exists {

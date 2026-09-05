@@ -9,11 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -195,7 +193,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 
 	// Materializer marker: seed must carry the template period so resync and
 	// FindPlannedTemplateBackedFrom treat it as a series occurrence.
-	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, seed.CalendarPeriodID)
 	assert.Equal(t, period.ID, *seed.CalendarPeriodID)
@@ -230,8 +228,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 		IsSpontaneous: true,
 	})
 
-	repoFactory := repositories.NewFactory(s.db)
-	repoFactory.BindTimetable(timetabletest.New(t, s.db))
+	repoFactory := mustTimetableTestRepositories(s.db)
 	timetableData := testTimetableDataWithOfferingCallbacks(
 		s.db,
 		nil,
@@ -307,7 +304,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	})
 
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := mustTimetableTestRepositories(s.db)
 	s.res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
 		scheduleSvc.InstanceSeriesConversionDependencies{
 			DB:              s.db,
@@ -373,7 +370,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 			"TenantTxMiddleware must roll back the new series on a 4xx link failure")
 	}
 
-	seed, err := repositories.NewFactory(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)

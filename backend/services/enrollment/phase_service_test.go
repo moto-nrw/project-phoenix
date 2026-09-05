@@ -27,7 +27,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo:             repoFactory.Phase,
 		RequestRepo:      repoFactory.Request,

@@ -62,10 +62,8 @@ type Factory struct {
 	peopleDirectoryBound     bool
 	carePlanBound            bool
 	schoolStructureBound     bool
-	schoolStructure          schoolstructure.Query
 	schoolMembershipBound    bool
 	facilitiesBound          bool
-	rooms                    facilitiesModule.Query
 	appointmentsBound        bool
 	// roomBinders hand a room owner to the raw repositories that used to
 	// join facilities.rooms; kept so BindFacilities reaches them after the
@@ -469,7 +467,6 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 		return
 	}
 	f.schoolStructureBound = true
-	f.schoolStructure = groups
 	if f.Student != nil {
 		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
 	}
@@ -527,7 +524,11 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 }
 
 // NewFactory creates a new repository factory with all repositories
-func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
+func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
+	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil {
+		panic("repository factory: timetable and projection dependencies are required")
+	}
+	timetableCapability := timetableDependencies.Capability
 	var now func() time.Time
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
@@ -663,7 +664,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActivityInstance:          activityInstance,
 		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
-		InstanceStudent:           newTimetableInstanceStudentProxy(),
+		InstanceStudent:           timetableInstanceStudentRepository{timetable: timetableCapability},
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
@@ -866,14 +867,13 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	})
-	rooms, err := NewFacilities(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose timetable rooms: %v", err))
-	}
-	timetableCapability, err := NewTimetable(db, factory.students, rooms, factory.carePlan)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose timetable: %v", err))
-	}
+	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, factory.ShiftType)
+	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
+	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
+	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
+	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
+	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
+	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
 	factory.BindTimetable(timetableCapability)
 	return factory
 }

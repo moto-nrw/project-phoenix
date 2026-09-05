@@ -38,7 +38,7 @@ type testContext struct {
 
 func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t, statisticsClocks...)
+	db, svc := testutil.SetupStatisticsModule(t, statisticsClocks...)
 	return &testContext{
 		db:               db,
 		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),

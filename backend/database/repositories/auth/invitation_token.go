@@ -147,7 +147,8 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
-		Where(`id = ?`, id)
+		Where(`id = ?`, id).
+		Where(`used_at IS NULL`)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -339,13 +340,13 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
 func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
+	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
 		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
 		token.EmailError = &truncated
 	}
 
-	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count", "updated_at")
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db)
+	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	config := env.config
 	config.LateInviteRepo = repos.LateInvite
 	svc := enrollmentService.NewRequestService(config)

@@ -10,16 +10,14 @@ import React, {
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ChevronRight } from "lucide-react";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { ChevronRight, Download } from "lucide-react";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
-import { Button } from "~/components/ui/button";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -56,6 +54,9 @@ interface Student {
 
 type ErrorCode =
   "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
+
+const ROOM_HISTORY_DESCRIPTION =
+  "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
@@ -133,7 +134,7 @@ function DayCard({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/50" : ""}`}
+        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
       >
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
@@ -281,27 +282,15 @@ function HistoryTable({
   const todayKey = todayISO();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-        <ConceptSectionHeader
-          title="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
-            <>
-              Letzte {caps.attendanceDays} Tage · Raumdetails für{" "}
-              {caps.roomDetailDays} Tage
-            </>
-          }
-        />
-      </div>
-
-      {days.length === 0 ? (
-        <div className="px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">
-            Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar.
-          </p>
-        </div>
-      ) : (
+    // bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
+    // ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante.
+    <SectionCard
+      title="Anwesenheitsprotokoll"
+      description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
+      leading={<ConceptIconTile concept="changeHistory" variant="section" />}
+      bodyClassName="mt-4 -mx-5 -mb-5"
+    >
+      {days.length === 0 ? null : (
         <>
           {/* Desktop table */}
           <div className="hidden md:block">
@@ -337,7 +326,7 @@ function HistoryTable({
                         tabIndex={0}
                         aria-expanded={isExpanded}
                         aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/50" : ""}`}
+                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
                       >
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-2">
@@ -543,7 +532,7 @@ function HistoryTable({
           </div>
         </>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -551,14 +540,13 @@ function HistoryTable({
 
 export default function StudentRoomHistoryPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RoomHistorySkeleton />}>
       <StudentRoomHistoryPageContent />
     </Suspense>
   );
 }
 
 function StudentRoomHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -685,97 +673,100 @@ function StudentRoomHistoryPageContent() {
     };
   }, [fetchStudent, fetchHistory]);
 
-  if (loading) {
-    return <RoomHistorySkeleton />;
-  }
-
-  if (errorCode !== null && errorCode !== "feature_disabled") {
-    return (
-      <>
-        <BackButton referrer={referrer} />
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <Button
-            type="button"
-            onClick={() => router.push(referrer)}
-            variant="secondary"
-            size="md"
-            className="mt-4"
-          >
-            Zurück
-          </Button>
-        </div>
-      </>
-    );
-  }
-
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
+  // Statuszeile: Klasse, Gruppe und die Zahl der protokollierten Tage, alles
+  // aus den Daten, die die Seite ohnehin geladen hat.
+  const dayCount = history?.days.length ?? 0;
+  const studentMeta = student
+    ? [
+        student.school_class,
+        student.group_name,
+        `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+  // „feature_disabled" ist kein Fehlerzustand der Seite, sondern ein Hinweis
+  // über dem Inhalt; alle anderen Codes ersetzen den Inhalt.
+  const errorMessage =
+    errorCode !== null && errorCode !== "feature_disabled"
+      ? ERROR_MESSAGES[errorCode]
+      : null;
+  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
+  // den Reiter, aus dem diese Unterseite geöffnet wurde.
+  const backReferrer =
+    errorMessage !== null
+      ? referrer
+      : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
-    <div className="w-full">
+    <>
       {/* Back button (mobile only). tab=historie returns to the originating tab
           on the detail page (this sub-page lives under Historie, issue #1501);
           from= still drives the detail page's own back button to the list. */}
-      <BackButton
-        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
-      />
+      <BackButton referrer={backReferrer} />
 
-      {student && (
-        <ConceptPageHeader
-          className="mb-6 ml-6"
-          title={displayName}
-          eyebrow="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
-            <>
-              {student.school_class}
-              {student.group_name ? ` · ${student.group_name}` : null}
-            </>
-          }
-        />
-      )}
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
+      <TenantPage
+        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        title={displayName || "Anwesenheitsprotokoll"}
+        stats={
+          studentMeta ||
+          `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`
+        }
+        statsLoading={loading}
+        loading={loading}
+        error={errorMessage}
+        // Herunterladen steht im Kebab der Kopfkarte, wie auf jeder anderen
+        // Werkzeugfläche -- keine eigene Knopfreihe je Format.
+        actions={
+          history && history.days.length > 0 ? (
+            <OverflowMenu
+              items={[
+                { kind: "header", label: "Herunterladen" },
+                ...EXPORT_FORMATS.map((format) => ({
+                  label:
+                    exporting === format
+                      ? "Wird exportiert…"
+                      : format.toUpperCase(),
+                  icon: <Download className="h-4 w-4" aria-hidden />,
+                  onClick: () => void downloadExport(format),
+                  disabled: exporting !== null,
+                })),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          ) : undefined
+        }
+        // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler; ebenso ein
+        // Zeitraum ohne Eintrag. Beide nennen den nächsten Schritt.
+        empty={
+          errorCode === "feature_disabled"
+            ? {
+                title: "Anwesenheitsprotokoll ist ausgeschaltet",
+                description: ERROR_MESSAGES.feature_disabled,
+              }
+            : history && history.days.length === 0
+              ? {
+                  title:
+                    "Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar",
+                  description: `Letzte ${history.caps.attendanceDays} Tage · Raumdetails für ${history.caps.roomDetailDays} Tage. Sobald das Kind an- oder abgemeldet wird, erscheint der Tag hier.`,
+                }
+              : null
+        }
+      >
+        {history && history.days.length > 0 && (
+          <>
+            {exportError && <Alert type="error" message={exportError} />}
 
-      {/* Feature disabled banner */}
-      {errorCode === "feature_disabled" && (
-        <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-4 rounded-xl border p-3 text-sm md:mb-6">
-          {ERROR_MESSAGES.feature_disabled}
-        </div>
-      )}
-
-      {history && (
-        <>
-          {exportError && (
-            <div className="mb-4">
-              <Alert type="error" message={exportError} />
-            </div>
-          )}
-          <div className="mb-4 flex flex-wrap justify-end gap-2">
-            {EXPORT_FORMATS.map((format) => (
-              <Button
-                key={format}
-                type="button"
-                variant="outline"
-                size="compact"
-                disabled={exporting !== null}
-                onClick={() => void downloadExport(format)}
-              >
-                {exporting === format
-                  ? "Wird exportiert…"
-                  : `${format.toUpperCase()} exportieren`}
-              </Button>
-            ))}
-          </div>
-          {/* Charts */}
-          <div className="mb-4 md:mb-6">
             <HistoryCharts days={history.days} />
-          </div>
 
-          {/* History table */}
-          <HistoryTable days={history.days} caps={history.caps} />
-        </>
-      )}
-    </div>
+            <HistoryTable days={history.days} caps={history.caps} />
+          </>
+        )}
+      </TenantPage>
+    </>
   );
 }

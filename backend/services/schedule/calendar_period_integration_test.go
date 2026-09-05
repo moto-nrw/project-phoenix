@@ -20,7 +20,7 @@ import (
 
 func setupCalendarPeriodService(t *testing.T, db *bun.DB) schedule.CalendarPeriodService {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.CalendarPeriod
@@ -357,7 +357,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	t.Run("rename-only update of a legacy overlapper stays allowed", func(t *testing.T) {
 		// Seed the overlap at the repository level, bypassing the service
 		// guard — this is the pre-rule legacy data shape.
-		repo := repositories.NewFactory(db).CalendarPeriod
+		repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 		legacy := makePeriod("SameType-Bestand", scheduleModels.PeriodTypeSemester,
 			scheduleModels.NewDate(2035, 9, 1), scheduleModels.NewDate(2035, 11, 30), true)
 		legacy.SetTenantID(tenantID)
@@ -385,7 +385,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 		// Repo-seed a pre-rule same-type overlap with the base semester, then
 		// resolve it by switching to a type with no active overlaps — the
 		// guard checks the NEW type, so this repair path must keep working.
-		repo := repositories.NewFactory(db).CalendarPeriod
+		repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 		legacy := makePeriod("SameType-Reparatur", scheduleModels.PeriodTypeSemester,
 			scheduleModels.NewDate(2035, 12, 1), scheduleModels.NewDate(2036, 1, 20), true)
 		legacy.SetTenantID(tenantID)

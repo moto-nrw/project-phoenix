@@ -3880,7 +3880,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
 	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	degraded := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,

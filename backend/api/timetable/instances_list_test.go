@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -204,7 +203,7 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 		SourceCareOfferingIDs: []int64{sourceID},
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := mustTimetableTestRepositories(s.db)
 	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
 
 	date := timezone.NewDate(2026, 8, 10)
@@ -322,7 +321,7 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := sickRow.ID
 	sickRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, repositories.NewFactory(s.db).InstanceStaff.Update(s.ctx, sickRow))
+	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, sickRow))
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
 

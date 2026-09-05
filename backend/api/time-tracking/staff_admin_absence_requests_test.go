@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,7 +55,7 @@ func createAbsence(t *testing.T, tc *testContext, staffID int64, absenceType, st
 		absence.DecisionNote = "Passt so"
 	}
 	absence.SetTenantID(tenantID)
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.TenantContext(tenantID), absence))
+	require.NoError(t, newWorkforceTestRepositories(t, tc.db).StaffAbsence.Create(testpkg.TenantContext(tenantID), absence))
 	return absence
 }
 

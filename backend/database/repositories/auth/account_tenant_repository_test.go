@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authMod
 	t.Helper()
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	factory.BindOrganizationTenancy(capability)
 	return factory.AccountTenant

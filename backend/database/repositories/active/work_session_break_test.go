@@ -22,8 +22,8 @@ func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates duration and ended_at of break", func(t *testing.T) {
@@ -116,8 +116,8 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates break with valid data", func(t *testing.T) {
@@ -239,8 +239,8 @@ func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all breaks for session", func(t *testing.T) {
@@ -283,8 +283,8 @@ func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active break without ended_at", func(t *testing.T) {
@@ -340,8 +340,8 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ends active break", func(t *testing.T) {
@@ -383,7 +383,7 @@ func TestWorkSessionBreakRepository_EndBreakRejectsStaleState(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Break", "Guard")
 	session := &active.WorkSession{
@@ -416,8 +416,8 @@ func TestWorkSessionBreakRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionBreak
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).WorkSession
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all breaks", func(t *testing.T) {

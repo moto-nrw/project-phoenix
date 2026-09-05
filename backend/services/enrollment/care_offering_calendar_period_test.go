@@ -80,7 +80,7 @@ func (f *calendarPeriodValidationFixture) createPeriod(
 		IsActive:        true,
 	}
 	period.SetTenantID(f.tenantID)
-	require.NoError(t, repositories.NewFactory(f.db).CalendarPeriod.Create(f.ctx, period))
+	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).CalendarPeriod.Create(f.ctx, period))
 	return period
 }
 
@@ -180,7 +180,7 @@ func (f *calendarPeriodValidationFixture) selectOfferingForSubmittedChild(
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon"},
 	}
-	require.NoError(t, repositories.NewFactory(f.db).RequestChildOffering.Create(f.ctx, row))
+	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).RequestChildOffering.Create(f.ctx, row))
 }
 
 func (f *calendarPeriodValidationFixture) validator(
@@ -270,7 +270,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, repositories.NewFactory(fixture.db).CareOffering.Update(fixture.ctx, offering))
+	require.NoError(t, repositories.NewFactory(fixture.db, repositories.NewUnobservedTimetableDependencies(fixture.db)).CareOffering.Update(fixture.ctx, offering))
 
 	replacement := *period
 	replacement.IsActive = false

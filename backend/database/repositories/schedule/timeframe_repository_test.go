@@ -17,7 +17,7 @@ import (
 
 func timeframeRepository(t *testing.T, db *bun.DB) timeframeQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.Timeframe.(timeframeQueryRepository)
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -121,10 +121,36 @@ describe("classArrivalExceptionLine", () => {
 });
 
 describe("ClassDayClass", () => {
+  // Die Ansicht zeigt am Wochenende „Kein Schultag“ statt der Klassenliste.
+  // Ohne feste Uhr sind diese Fälle samstags und sonntags rot, deshalb ein
+  // fester Montag.
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
+    // Weekday fixtures must not depend on the day CI runs. Keep async timers real.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-07T12:00:00+02:00"));
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["2026-09-05T12:00:00+02:00", "2026-09-06T12:00:00+02:00"])(
+    "does not load a class day or offer arrival changes on the weekend (%s)",
+    (date) => {
+      vi.setSystemTime(new Date(date));
+      const fetchClassDay = vi.fn(() => Promise.resolve(report()));
+
+      render(<ClassDayClass schoolClass="4a" fetchClassDay={fetchClassDay} />);
+
+      expect(screen.getByText("Kein Schultag")).toBeInTheDocument();
+      expect(fetchClassDay).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole("button", { name: /Ankunft/ }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("shows the class-wide exception line even without write access", async () => {
     render(

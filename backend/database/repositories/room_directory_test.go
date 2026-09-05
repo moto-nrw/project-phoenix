@@ -44,7 +44,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
@@ -98,7 +98,7 @@ func TestFindUnclaimedKeepsOnlySchulhofGroups(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	var schulhofID int64
 	err := db.NewRaw("INSERT INTO facilities.rooms (tenant_id, name) VALUES (?, ?) RETURNING id", tenantID, "Schulhof").Scan(testpkg.Ctx(t), &schulhofID)

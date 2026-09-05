@@ -15,7 +15,7 @@ func TestNewFactory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NotNil(t, factory)
 
 	// Verify auth repositories are initialized

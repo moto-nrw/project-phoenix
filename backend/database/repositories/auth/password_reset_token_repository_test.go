@@ -21,7 +21,7 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates password reset token with valid data", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing token by ID", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds token by token string", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all tokens for account", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds valid token", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("marks token as used", func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("marks all tokens as used for account", func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired and used tokens", func(t *testing.T) {
@@ -318,7 +318,7 @@ func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).PasswordResetToken
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PasswordResetToken
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates delivery metadata", func(t *testing.T) {

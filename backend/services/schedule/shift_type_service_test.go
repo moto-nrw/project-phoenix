@@ -29,7 +29,7 @@ func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -53,7 +53,7 @@ func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -81,7 +81,7 @@ func TestShiftTypeService_CreateDefaultsIsIdempotent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 
 	// Fresh tenant so the count is deterministic.
@@ -117,7 +117,7 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
@@ -160,7 +160,7 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 

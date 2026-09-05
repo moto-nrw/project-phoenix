@@ -20,7 +20,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := scheduleService.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,

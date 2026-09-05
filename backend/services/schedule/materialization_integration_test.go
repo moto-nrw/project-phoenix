@@ -65,7 +65,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
@@ -301,7 +301,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := repositories.NewFactory(s.db).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -388,7 +388,7 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	svc := scheduleSvc.NewMaterializationService(
@@ -426,7 +426,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	svc := scheduleSvc.NewMaterializationService(

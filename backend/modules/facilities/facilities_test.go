@@ -18,6 +18,8 @@ type recordingEngine struct {
 	rejections []string
 }
 
+func (e *recordingEngine) RequireTenant(context.Context) error { return nil }
+
 func (e *recordingEngine) FindRoom(_ context.Context, id int64) (facilities.Room, error) {
 	e.calls++
 	e.findID = id

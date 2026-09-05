@@ -4,30 +4,44 @@ import { PlannedStatusDaysModal } from "./planned-status-days-modal";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    title,
+// Das Panel laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
+// steht hier dieselbe Struktur ohne Animationsschicht.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
-    footer,
-    onClose,
   }: {
-    isOpen: boolean;
-    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
-    footer?: React.ReactNode;
-    onClose: () => void;
   }) =>
-    isOpen ? (
-      <div role="dialog" aria-label={title}>
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose}>
+    open ? (
+      <div role="dialog">
+        <button type="button" onClick={() => onOpenChange(false)}>
           Modal schließen
         </button>
         {children}
-        <div>{footer}</div>
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
 }));
 
 vi.mock("~/components/ui/date-picker", async () => ({
@@ -498,7 +512,7 @@ describe("PlannedStatusDaysModal", () => {
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Krankmeldung planen" }),
+      screen.getByRole("heading", { name: "Krankmeldung planen" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Kevin Anders")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Krankmelden" })).toBeDisabled();

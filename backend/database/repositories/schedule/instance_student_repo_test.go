@@ -23,12 +23,12 @@ import (
 )
 
 func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return repositories.NewFactory(db).StudentPickupException
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException
 }
 
 func instanceStudentFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	people, err := repositories.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	rooms, err := repositories.NewFacilities(db)

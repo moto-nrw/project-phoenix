@@ -3,9 +3,7 @@ package repositories
 import (
 	"context"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -75,52 +73,4 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 		panic("repository factory: care exit cleanup adapter is unavailable")
 	}
 	repository.BindActivityBookings(activityBookingDirectory{capability: capability})
-	f.ActivityCategory = timetableActivityCategoryRepository{timetable: capability}
-	activityGroups := timetableActivityGroupRepository{
-		timetable: capability, groups: f.schoolStructure, rooms: f.rooms,
-		calendar: f.schoolCalendar, shiftTypes: f.ShiftType,
-	}
-	var groupRepository activitiesModels.GroupRepository = activityGroups
-	if f.schoolStructure != nil {
-		groupRepository = groupActivityGroupRepository{activityGroupTargets: activityGroups, groups: f.schoolStructure}
-	}
-	f.ActivityGroup = f.decorateActivityGroups(groupRepository)
-	f.ActivitySchedule = timetableActivityScheduleRepository{timetable: capability}
-	var supervisors activitiesModels.SupervisorPlannedRepository = timetableActivitySupervisorRepository{timetable: capability}
-	if f.schoolMembership != nil {
-		supervisors = staffSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, membership: f.schoolMembership}
-	}
-	if f.peopleDirectoryBound {
-		supervisors = personSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, persons: f.students}
-	}
-	f.ActivitySupervisor = supervisors
-	f.StudentEnrollment = timetableStudentEnrollmentRepository{timetable: capability, students: f.students}
-	f.Timeframe = timetableTimeframeRepository{timetable: capability}
-	f.PlanningTrack = timetablePlanningTrackRepository{timetable: capability}
-	f.RecurrenceRule = timetableRecurrenceRuleRepository{timetable: capability}
-	f.ActivityException = timetableActivityExceptionRepository{timetable: capability}
-	instances := timetableActivityInstanceRepository{timetable: capability}
-	f.ActivityInstance = instances
-	f.InstanceIdempotency = instances
-	f.InstanceStaff = timetableInstanceStaffRepository{timetable: capability}
-	instanceStudents, ok := f.InstanceStudent.(*timetableInstanceStudentProxy)
-	if !ok {
-		panic("repository factory: instance student owner proxy is unavailable")
-	}
-	instanceStudents.Bind(capability)
-	if f.carePlan != nil {
-		f.InstanceStudent.(interface {
-			BindCarePlan(scheduleRepo.PickupExceptionDirectory)
-		}).BindCarePlan(pickupExceptionDirectory{query: f.carePlan})
-	}
-}
-
-func (f *Factory) decorateActivityGroups(groups activitiesModels.GroupRepository) activitiesModels.GroupRepository {
-	if f.schoolMembership != nil {
-		groups = newStaffActivityGroupRepository(groups, f.schoolMembership)
-	}
-	if f.peopleDirectoryBound {
-		groups = newPersonActivityGroupRepository(groups, f.students)
-	}
-	return groups
 }

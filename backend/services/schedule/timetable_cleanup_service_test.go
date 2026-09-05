@@ -134,7 +134,7 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 // literal default). Tests that need to override retention build their own
 // service with a stubSettingsService.
 func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
@@ -147,7 +147,7 @@ func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 }
 
 func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(scheduleTestTB{}, db))
 	return factory.InstanceStudent
 }
@@ -286,7 +286,7 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	// = true and ResolveInt = 30 — the same contract the real settings
 	// service provides when a school admin sets the value in the UI.
 	f, roomID := setupFixture(t)
-	repos := repositories.NewFactory(f.db)
+	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),

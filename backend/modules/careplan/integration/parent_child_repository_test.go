@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,7 +23,7 @@ import (
 // Directory (#2661), then the school projections on top.
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)

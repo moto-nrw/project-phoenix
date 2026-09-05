@@ -24,7 +24,7 @@ func TestGuestRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestGuestRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guest", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestGuestRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guest", func(t *testing.T) {
@@ -203,7 +203,7 @@ func TestGuestRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guest", func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestGuestRepository_FindActive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active guests with no date range", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestGuestRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Guest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Guest
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {

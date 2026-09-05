@@ -32,6 +32,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import {
   CardGridSkeleton,
@@ -41,6 +42,9 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { ButtonLink } from "~/components/ui/button";
+import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
@@ -63,7 +67,19 @@ interface CareOfferingStats {
   readonly activeInActivePhases: number;
 }
 
-export function AdminEnrollmentsList() {
+export interface AdminEnrollmentsSummary {
+  readonly activePhases: number;
+  readonly requests: number;
+  readonly openChangeRequests: number;
+}
+
+export function AdminEnrollmentsList({
+  onSummaryChange,
+}: {
+  /** Meldet die geladenen Zahlen an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onSummaryChange?: (summary: AdminEnrollmentsSummary | null) => void;
+} = {}) {
   const tenantSlug = useTenantSlugSafe();
   const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -158,9 +174,26 @@ export function AdminEnrollmentsList() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!onSummaryChange) return;
+    if (loading) {
+      onSummaryChange(null);
+      return;
+    }
+    onSummaryChange({
+      activePhases: phases.filter((phase) => phase.is_active).length,
+      requests: allRequests.length,
+      openChangeRequests: changeRequests.filter(
+        (request) =>
+          request.status === "pending_review" ||
+          request.status === "needs_parent_response",
+      ).length,
+    });
+  }, [loading, phases, allRequests, changeRequests, onSummaryChange]);
+
   if (loading) {
     return (
-      <SkeletonRegion label="Anmeldungen werden geladen" className="mt-4">
+      <SkeletonRegion label="Anmeldungen werden geladen">
         <CardGridSkeleton
           cards={3}
           rowsPerCard={2}
@@ -171,7 +204,7 @@ export function AdminEnrollmentsList() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="space-y-4">
       <EnrollmentSetupGuide
         enrollmentEnabled={enrollmentEnabled}
         phaseCount={phases.length}
@@ -196,11 +229,7 @@ export function AdminEnrollmentsList() {
         tenantPath={tenantPath}
       />
 
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
 
       <EnrollmentPhaseOverview
         phases={phases}
@@ -228,32 +257,31 @@ function ChangeRequestsOverview({
   const openCount = pending.length + waitingForParent.length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
             <MotoConceptIcon concept="parentConversations" size={20} />
           </span>
           <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Änderungen
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900">
               Änderungsanfragen
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Familien können nach einer Entscheidung Korrekturen einreichen.
-              Offene Anfragen prüfst du gesammelt im Anfragen-Modul.
+              Offene Anfragen prüfen Sie gesammelt im Anfragen-Modul.
             </p>
           </div>
         </div>
-        <Link
+        <ButtonLink
           href={tenantPath("/anfragen")}
-          className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+          variant="primary"
+          size="md"
+          className="inline-flex w-full shrink-0 items-center justify-center gap-2 sm:w-auto"
         >
           Anfragen prüfen
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </ButtonLink>
       </div>
       {error ? (
         <div className="mt-4">
@@ -264,15 +292,21 @@ function ChangeRequestsOverview({
         </div>
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <PhaseStat label="Offen" value={pending.length} />
-          <PhaseStat label="Rückfragen" value={waitingForParent.length} />
-          <PhaseStat label="Gesamt" value={requests.length} />
+          <EnrollmentStatTile label="Offen" value={pending.length} />
+          <EnrollmentStatTile
+            label="Rückfragen"
+            value={waitingForParent.length}
+          />
+          <EnrollmentStatTile label="Gesamt" value={requests.length} />
         </div>
       )}
       {!error && openCount === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">
-          Aktuell wartet keine Änderungsanfrage auf Bearbeitung.
-        </p>
+        <EmptyState
+          variant="compact"
+          className="mt-3"
+          title="Keine offenen Änderungsanfragen"
+          description="Aktuell wartet keine Änderungsanfrage auf Bearbeitung."
+        />
       ) : null}
     </section>
   );
@@ -293,15 +327,6 @@ function readEnrollmentEnabled(
     }
   }
   return null;
-}
-
-function formatPhaseDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 const OPEN_STATUSES = new Set<ChildStatus>([
@@ -353,23 +378,22 @@ function EnrollmentPhaseOverview({
 
   if (phases.length === 0) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Überblick
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Noch keine Anmeldephase
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Lege zuerst eine Anmeldephase an. Danach siehst du hier, welche Phasen
-          laufen und wie viele Anmeldungen eingegangen sind.
-        </p>
-        <Link
-          href="/enrollment-phases"
-          className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          Anmeldephase anlegen
-        </Link>
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+        {/* Leerzustand als EmptyState statt als loser Textblock mit Button. */}
+        <EmptyState
+          title="Noch keine Anmeldephase"
+          description="Legen Sie zuerst eine Anmeldephase an. Danach sehen Sie hier, welche Phasen laufen und wie viele Anmeldungen eingegangen sind."
+          action={
+            <ButtonLink
+              href={tenantPath("/enrollment-phases")}
+              variant="primary"
+              size="md"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              Anmeldephase anlegen
+            </ButtonLink>
+          }
+        />
       </section>
     );
   }
@@ -377,37 +401,38 @@ function EnrollmentPhaseOverview({
   return (
     <section
       id="enrollment-phase-overview"
-      className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Überblick
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Anmeldephasen und Eingänge
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Wähle eine Phase aus, um die eingegangenen Anmeldungen zu prüfen und
-            zu bearbeiten.
+            Wählen Sie eine Phase aus, um die eingegangenen Anmeldungen zu
+            prüfen und zu bearbeiten.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
+          <ButtonLink
             href="/enroll"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            variant="primary"
+            size="md"
+            className="inline-flex items-center justify-center gap-2"
           >
             Elternansicht öffnen
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </a>
-          <Link
-            href="/enrollment-phases"
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          </ButtonLink>
+          <ButtonLink
+            href={tenantPath("/enrollment-phases")}
+            variant="outline"
+            size="md"
+            className="inline-flex items-center justify-center"
           >
             Anmeldephasen verwalten
-          </Link>
+          </ButtonLink>
         </div>
       </div>
 
@@ -433,8 +458,8 @@ function EnrollmentPhaseOverview({
                     <DataTableStatusBadge active={phase.is_active} />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    {formatPhaseDate(phase.service_start_date)} bis{" "}
-                    {formatPhaseDate(phase.service_end_date)}
+                    {formatDate(phase.service_start_date)} bis{" "}
+                    {formatDate(phase.service_end_date)}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -448,10 +473,10 @@ function EnrollmentPhaseOverview({
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
-                <PhaseStat label="Gesamt" value={stats.total} />
-                <PhaseStat label="Offen" value={stats.open} />
-                <PhaseStat label="Bestätigt" value={stats.approved} />
-                <PhaseStat label="Abgelehnt" value={stats.rejected} />
+                <EnrollmentStatTile label="Gesamt" value={stats.total} />
+                <EnrollmentStatTile label="Offen" value={stats.open} />
+                <EnrollmentStatTile label="Bestätigt" value={stats.approved} />
+                <EnrollmentStatTile label="Abgelehnt" value={stats.rejected} />
               </div>
             </article>
           );
@@ -474,21 +499,25 @@ function PhasePublicLinkActions({
 
   return (
     <>
-      <a
+      <ButtonLink
         href={`/enroll/${encodeURIComponent(phase.id)}`}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        variant="outline"
+        size="md"
+        className="inline-flex items-center justify-center gap-1.5"
       >
         Formular ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </a>
-      <Link
+      </ButtonLink>
+      <ButtonLink
         href={enrollmentsHref}
-        className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        variant="primary"
+        size="md"
+        className="inline-flex items-center justify-center"
       >
         Anmeldungen ansehen
-      </Link>
+      </ButtonLink>
       {phaseUrl ? (
         <PublicLinkCopyButton
           url={phaseUrl}
@@ -496,20 +525,6 @@ function PhasePublicLinkActions({
         />
       ) : null}
     </>
-  );
-}
-
-function PhaseStat({
-  label,
-  value,
-}: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-semibold text-gray-900">{value}</span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
   );
 }
 
@@ -536,6 +551,7 @@ function EnrollmentSetupGuide({
   activeCareOfferingCount,
   requestCount,
 }: EnrollmentSetupGuideProps) {
+  const tenantPath = useTenantAwarePath();
   const readyForPreview =
     enrollmentEnabled === true &&
     activePhaseCount > 0 &&
@@ -583,7 +599,7 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldephase anlegen",
       description: "Zum Beispiel ein Halbjahr oder Schuljahr mit Anmeldefrist.",
-      href: "/enrollment-phases",
+      href: tenantPath("/enrollment-phases"),
       action: phaseCount > 0 ? "Anmeldephasen prüfen" : "Anlegen",
       status: activePhaseCount > 0 ? "done" : "todo",
       meta:
@@ -616,8 +632,10 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldeformular festlegen",
       description:
-        "Wähle in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
-      href: activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
+        "Wählen Sie in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
+      href: tenantPath(
+        activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
+      ),
       action: formStepAction,
       status: formStepStatus,
       meta: formStepMeta,
@@ -627,7 +645,7 @@ function EnrollmentSetupGuide({
     {
       title: "Elternansicht testen",
       description:
-        "Öffne die öffentliche Anmeldung und sende eine Testanmeldung ab.",
+        "Öffnen Sie die öffentliche Anmeldung und senden Sie eine Testanmeldung ab.",
       href: "/enroll",
       action: "Preview öffnen",
       status: readyForPreview ? "done" : "blocked",
@@ -664,14 +682,11 @@ function EnrollmentSetupGuide({
               aria-hidden="true"
             />
             <span className="min-w-0">
-              <span className="block text-xs font-medium tracking-wide text-gray-500 uppercase">
-                Einrichtung
-              </span>
-              <span className="mt-0.5 block text-base font-semibold text-gray-900">
+              <span className="block text-base font-semibold text-gray-900">
                 Online-Anmeldung eingerichtet
               </span>
               <span className="mt-0.5 block text-sm text-gray-500">
-                {setupSummary}. Für neue Zeiträume arbeitest du unten mit
+                {setupSummary}. Für neue Zeiträume arbeiten Sie unten mit
                 Anmeldephasen.
               </span>
             </span>
@@ -701,18 +716,15 @@ function EnrollmentSetupGuide({
               <div className="border-b border-gray-100 pb-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Einrichtung
-                    </p>
-                    <h2 className="mt-1 text-base font-semibold text-gray-900">
+                    <h2 className="text-base font-semibold text-gray-900">
                       {setupComplete
                         ? "Einrichtung abgeschlossen"
                         : "Online-Anmeldung vorbereiten"}
                     </h2>
                     <p className="mt-1 max-w-2xl text-sm text-gray-600">
                       {setupComplete
-                        ? "Die grundlegende Online-Anmeldung ist eingerichtet. Für neue Halbjahre, Ferienbetreuung oder andere Zeiträume legst du unten eine neue Anmeldephase an oder bearbeitest eine bestehende."
-                        : "Starte hier, wenn du neue Halbjahresanmeldungen, Ferienbetreuung oder andere Anmeldezeiträume konfigurieren möchtest. Das Basisformular ist immer vorhanden."}
+                        ? "Die grundlegende Online-Anmeldung ist eingerichtet. Für neue Halbjahre, Ferienbetreuung oder andere Zeiträume legen Sie unten eine neue Anmeldephase an oder bearbeiten eine bestehende."
+                        : "Starten Sie hier, wenn Sie neue Halbjahresanmeldungen, Ferienbetreuung oder andere Anmeldezeiträume konfigurieren möchten. Das Basisformular ist immer vorhanden."}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
@@ -793,10 +805,7 @@ function EnrollmentSetupGuide({
             <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-4 sm:p-5 lg:border-t-0 lg:border-l">
               <div className="relative z-10 space-y-4">
                 <div>
-                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Startpunkt
-                  </p>
-                  <h3 className="mt-1 text-base font-semibold text-gray-900">
+                  <h3 className="text-base font-semibold text-gray-900">
                     {setupComplete
                       ? "Mit Anmeldephasen arbeiten"
                       : nextActionStep?.status === "blocked"
@@ -807,30 +816,34 @@ function EnrollmentSetupGuide({
                     {setupComplete
                       ? "Die Einrichtung bleibt als Referenz erhalten. Der laufende Alltag passiert unten in der Phasenübersicht."
                       : nextActionStep?.status === "blocked"
-                        ? "Lege zuerst eine aktive Anmeldephase und ein Betreuungsangebot an."
+                        ? "Legen Sie zuerst eine aktive Anmeldephase und ein Betreuungsangebot an."
                         : nextActionStep?.description}
                   </p>
                 </div>
 
                 {setupComplete ? (
-                  <a
+                  <ButtonLink
                     href="#enrollment-phase-overview"
-                    className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    variant="primary"
+                    size="md"
+                    className="inline-flex w-full items-center justify-center"
                   >
                     Zur Phasenübersicht
-                  </a>
+                  </ButtonLink>
                 ) : nextActionStep ? (
-                  <Link
+                  <ButtonLink
                     href={nextActionStep.href}
-                    className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    variant="primary"
+                    size="md"
+                    className="inline-flex w-full items-center justify-center"
                   >
                     {nextActionStep.status === "blocked"
                       ? "Setup prüfen"
                       : nextActionStep.action}
-                  </Link>
+                  </ButtonLink>
                 ) : null}
 
-                <div className="moto-content-surface rounded-xl border p-3">
+                <div className="moto-content-surface rounded-2xl border p-3">
                   <p className="text-xs font-semibold text-gray-900">
                     Prozessstatus
                   </p>
@@ -856,8 +869,8 @@ function EnrollmentSetupGuide({
                 <div className="text-xs leading-relaxed text-gray-500">
                   Für den Elternlink sind Aktivierung, Anmeldephase und
                   Betreuungsangebote entscheidend. Jede Anmeldephase nutzt
-                  entweder das Basisformular oder eine eigene Vorlage. Lege
-                  zuerst eine Phase an und prüfe dort die Formularauswahl.
+                  entweder das Basisformular oder eine eigene Vorlage. Legen Sie
+                  zuerst eine Phase an und prüfen Sie dort die Formularauswahl.
                 </div>
               </div>
             </aside>

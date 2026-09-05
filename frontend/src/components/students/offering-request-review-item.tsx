@@ -414,7 +414,7 @@ export function OfferingRequestReviewItem({
       <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-x-3">
         <ReviewDiffPanel title="Änderungen">
           {row.diff.length === 0 && (
-            <span className="text-sm text-gray-500">—</span>
+            <span className="text-sm text-gray-500">–</span>
           )}
           {row.diff.map((entry) => {
             const previewSelection = previewByOffering.get(entry.offering_id);

@@ -215,7 +215,7 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 // restore through the real decision service against the same DB.
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentService.DecisionService {
 	t.Helper()
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
@@ -261,7 +261,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	assert.Equal(t, []int64{resA.Children[0].ID}, outcome.WaitlistedChildIDs,
 		"the offering is full again, so the restored child must come back waitlisted, not submitted")
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	children, err := repoFactory.RequestChild.ListByRequestID(ctx, resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
@@ -300,7 +300,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	require.Len(t, outcome.RestoredChildIDs, 1)
 	assert.Empty(t, outcome.WaitlistedChildIDs)
 
-	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -362,7 +362,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	assert.Empty(t, outcome.WaitlistedChildIDs,
 		"the claims never overlap, so the restore must come back submitted")
 
-	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -408,7 +408,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	// either interval fits alone but the overlap cannot.
 	one := 1
 	offering.Capacity = &one
-	require.NoError(t, repositories.NewFactory(env.db).CareOffering.Update(ctx, offering))
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).CareOffering.Update(ctx, offering))
 
 	decision := newRestoreDecisionServiceForRequestEnv(t, env)
 	outcome, err := decision.RestoreWithdrawn(ctx, res.Request.ID, env.creatorID)
@@ -417,7 +417,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	require.Len(t, outcome.WaitlistedChildIDs, 1,
 		"the overlapping restored claims share the single slot, so exactly one child must be waitlisted")
 
-	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, res.Request.ID)
+	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, res.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	statuses := map[string]int{}
@@ -460,7 +460,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 		"reject-mode phase must refuse the restore instead of overbooking")
 
 	// Nothing changed on the withdrawn request.
-	children, listErr := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, listErr := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
 	require.NoError(t, listErr)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)

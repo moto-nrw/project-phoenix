@@ -15,7 +15,7 @@ import (
 
 func recurrenceRuleRepository(t *testing.T, db *bun.DB) recurrenceRuleQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.RecurrenceRule.(recurrenceRuleQueryRepository)
 }

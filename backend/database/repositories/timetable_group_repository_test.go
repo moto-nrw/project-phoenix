@@ -12,7 +12,7 @@ import (
 func TestTimetableGroupAdapterPreservesDatabaseErrorBehavior(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repository := repositories.NewFactory(db).ActivityGroup
+	repository := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityGroup
 
 	group, err := repository.FindByID(testpkg.Ctx(t), int64(9_223_372_036_854_775_000))
 

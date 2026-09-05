@@ -204,7 +204,7 @@ export function ExcusedRequestReviewItem({
           {row.note.trim() ? (
             <span className="font-medium text-gray-900">{row.note}</span>
           ) : (
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-400">–</span>
           )}
         </div>
       </ReviewDiffPanel>

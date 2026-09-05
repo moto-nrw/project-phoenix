@@ -13,7 +13,7 @@ import (
 
 func setupReminderPresenceRoute(t *testing.T) *Resource {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
+	db, serviceFactory := testutil.SetupRemindersModule(t)
 	require.NoError(t, serviceFactory.Settings.SetValue(
 		testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil,
 	))

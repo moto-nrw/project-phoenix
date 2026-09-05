@@ -1610,6 +1610,7 @@ func newFactory(
 	}
 
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth:         authConfig.TokenAuth,
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,
@@ -1661,7 +1662,6 @@ func newFactory(
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxWorker.SetMaxAttempts(6)
 	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{

@@ -34,7 +34,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
@@ -790,7 +790,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
-	repos := repositories.NewFactory(countedDB)
+	repos := repositories.NewFactory(countedDB, repositories.NewUnobservedTimetableDependencies(countedDB))
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, ShiftWeeks: repos.StaffShift,
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,

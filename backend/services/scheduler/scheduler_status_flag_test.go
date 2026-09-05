@@ -13,7 +13,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +108,7 @@ type fakeStatusFlagSettings struct {
 
 func statusDayRepository(t *testing.T, db *bun.DB) activeModels.StudentStatusDayOverviewRepository {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory.StudentStatusDay
 }

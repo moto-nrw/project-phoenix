@@ -1,6 +1,8 @@
 "use client";
 
 import type React from "react";
+import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
@@ -23,7 +25,9 @@ import {
 } from "~/lib/student-helpers";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   companionDisplayName,
   fetchStudentCompanions,
@@ -33,6 +37,7 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
 import {
   ParentVisibleBadge,
   ParentVisibilityLegend,
@@ -300,22 +305,62 @@ interface StudentHeaderProps {
   sickReason?: string;
 }
 
-export function StudentDetailHeader({
+/**
+ * Foto des Kindes links vom Namen (das `leading` der Kopfkarte).
+ *
+ * Das Foto ist eine Einstellung je Schule. Ist sie aus, entfällt der ganze
+ * Platz inklusive der Initialen, damit diese Schulen denselben Kopf sehen wie
+ * vor der Funktion.
+ */
+export function StudentHeaderAvatar({
+  student,
+}: Readonly<{ student: ExtendedStudent }>) {
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  if (!photosEnabled) return null;
+
+  const fullName =
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+    student.name ||
+    "Kind";
+
+  // xl entspricht dem optischen Gewicht der Seitenüberschrift.
+  return (
+    <Avatar imageUrl={student.photo_url ?? null} name={fullName} size="xl" />
+  );
+}
+
+/** Der Name des Kindes als Titel der Kopfkarte. */
+export function studentHeaderTitle(student: ExtendedStudent): string {
+  return (
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+    student.name ||
+    "Kind"
+  );
+}
+
+/** Aktueller Aufenthaltsort, rechts in der Titelzeile der Kopfkarte. */
+export function StudentHeaderLocation({
   student,
   myGroups,
   myGroupRooms,
   mySupervisedRooms,
-  todayPickupPlannedTime,
-  todayPickupActualTime,
-  todayPickupNote,
-  isPickupException,
   todayArrivalPlannedTime,
-  todayArrivalActualTime,
   isArrivalException,
   isArrivalAbsent,
   todayArrivalNote,
-  sickReason,
-}: Readonly<StudentHeaderProps>) {
+}: Readonly<
+  Pick<
+    StudentHeaderProps,
+    | "student"
+    | "myGroups"
+    | "myGroupRooms"
+    | "mySupervisedRooms"
+    | "todayArrivalPlannedTime"
+    | "isArrivalException"
+    | "isArrivalAbsent"
+    | "todayArrivalNote"
+  >
+>) {
   // Spread the student so any field LocationBadge consumes (current_room_color,
   // future room-derived attributes, etc.) propagates without maintaining a
   // parallel whitelist here. Only the not_arrival_* fields are computed locally.
@@ -333,113 +378,116 @@ export function StudentDetailHeader({
       badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
   };
 
-  const fullName =
-    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-    student.name ||
-    "Kind";
+  return (
+    <LocationBadge
+      student={badgeStudent}
+      displayMode="contextAware"
+      userGroups={myGroups}
+      groupRooms={myGroupRooms}
+      supervisedRooms={mySupervisedRooms}
+      variant="modern"
+      size="md"
+      showLocationSince={true}
+    />
+  );
+}
 
-  // Photo feature is per-tenant. When disabled the entire avatar slot is
-  // suppressed (including the initials fallback) so opt-out schools see
-  // the same header layout they had before the feature shipped.
-  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+/**
+ * Statuszeile der Kopfkarte: Klasse und Gruppe des Kindes und die Zeiten des
+ * heutigen Tages. Alles steht schon im geladenen Datensatz.
+ *
+ * Bewusst nur `span`-Elemente: die Zeile steht im Beschreibungsabsatz der
+ * Kopfkarte.
+ */
+export function StudentHeaderStats({
+  student,
+  todayPickupPlannedTime,
+  todayPickupActualTime,
+  todayPickupNote,
+  isPickupException,
+  todayArrivalPlannedTime,
+  todayArrivalActualTime,
+  isArrivalException,
+  isArrivalAbsent,
+  todayArrivalNote,
+  sickReason,
+}: Readonly<
+  Omit<StudentHeaderProps, "myGroups" | "myGroupRooms" | "mySupervisedRooms">
+>) {
+  // Variant B: a sick/excused child without a completed pickup should not
+  // accrue overdue pickup urgency, even if they already checked in before the
+  // absence flag was set. Once pickup is recorded, the actual resolved times
+  // can render normally.
+  const absence = getStudentAbsence({
+    sick: student.sick,
+    classTrip: student.class_trip,
+    excused: student.excused,
+  });
+  const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
+  const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
 
   return (
-    <div className="mb-6">
-      <div className="flex items-end justify-between gap-4">
-        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
-          {photosEnabled ? (
-            // Header avatar — image when consent + photo are present, brand
-            // gradient initials otherwise. xl size mirrors the detail page's
-            // h1 visual weight; on mobile the flex container collapses
-            // avatar+name onto one row already because of items-center.
-            <Avatar
-              imageUrl={student.photo_url ?? null}
-              name={fullName}
-              size="xl"
-            />
+    <span className="block">
+      {student.group_name || student.school_class ? (
+        <span className="inline-flex flex-wrap items-center gap-2">
+          {student.school_class ? (
+            <span className="truncate">
+              Klasse {stripClassPrefix(student.school_class)}
+            </span>
           ) : null}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-              {student.first_name} {student.second_name}
-            </h1>
-            {student.group_name && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
-                  size={18}
-                />
-                <span className="truncate">{student.group_name}</span>
-              </div>
-            )}
-            {(() => {
-              // Variant B: a sick/excused child without a completed pickup
-              // should not accrue overdue pickup urgency, even if they already
-              // checked in before the absence flag was set. Once pickup is
-              // recorded, the actual resolved times can render normally.
-              const absence = getStudentAbsence({
-                sick: student.sick,
-                classTrip: student.class_trip,
-                excused: student.excused,
-              });
-              const dayPlanningNotComingLabel =
-                getDayPlanningNotComingLabel(student);
-              const notComingLabel =
-                absence?.label ?? dayPlanningNotComingLabel;
-              if (notComingLabel && !todayPickupActualTime) {
-                const reasonSuffix =
-                  student.sick && sickReason ? ` – ${sickReason}` : "";
-                return (
-                  <div
-                    data-testid="today-absence-row"
-                    className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
-                  >
-                    <ClockIcon className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium text-gray-900">
-                      {`Kommt heute nicht (${notComingLabel}${reasonSuffix})`}
-                    </span>
-                  </div>
-                );
-              }
-              return (
-                <>
-                  <TodayTimeStatusInlineRow
-                    kind="arrival"
-                    label="Heutige Ankunft"
-                    plannedTime={todayArrivalPlannedTime}
-                    actualTime={todayArrivalActualTime}
-                    isException={isArrivalException}
-                    note={isArrivalAbsent ? undefined : todayArrivalNote}
-                    isAbsent={isArrivalAbsent}
-                    absentReason={todayArrivalNote}
-                  />
-                  <TodayTimeStatusInlineRow
-                    kind="pickup"
-                    label="Heutige Abholung"
-                    plannedTime={todayPickupPlannedTime}
-                    actualTime={todayPickupActualTime}
-                    isException={isPickupException}
-                    note={todayPickupNote}
-                  />
-                </>
-              );
-            })()}
-          </div>
-        </div>
-        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
-          <LocationBadge
-            student={badgeStudent}
-            displayMode="contextAware"
-            userGroups={myGroups}
-            groupRooms={myGroupRooms}
-            supervisedRooms={mySupervisedRooms}
-            variant="modern"
-            size="md"
-            showLocationSince={true}
+          {student.school_class && student.group_name ? (
+            <span aria-hidden="true">·</span>
+          ) : null}
+          {student.group_name ? (
+            <span className="inline-flex items-center gap-2">
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.groups.icon}
+                tone={MOTO_CONCEPTS.groups.tone}
+                size={18}
+              />
+              <span className="truncate">{student.group_name}</span>
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        <span>Keine Klasse und keine Gruppe hinterlegt</span>
+      )}
+
+      {notComingLabel && !todayPickupActualTime ? (
+        <span
+          data-testid="today-absence-row"
+          className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+        >
+          <ClockIcon className="h-4 w-4 text-gray-400" />
+          <span className="font-medium text-gray-900">
+            {`Kommt heute nicht (${notComingLabel}${
+              student.sick && sickReason ? `: ${sickReason}` : ""
+            })`}
+          </span>
+        </span>
+      ) : (
+        <>
+          <TodayTimeStatusInlineRow
+            kind="arrival"
+            label="Heutige Ankunft"
+            plannedTime={todayArrivalPlannedTime}
+            actualTime={todayArrivalActualTime}
+            isException={isArrivalException}
+            note={isArrivalAbsent ? undefined : todayArrivalNote}
+            isAbsent={isArrivalAbsent}
+            absentReason={todayArrivalNote}
           />
-        </div>
-      </div>
-    </div>
+          <TodayTimeStatusInlineRow
+            kind="pickup"
+            label="Heutige Abholung"
+            plannedTime={todayPickupPlannedTime}
+            actualTime={todayPickupActualTime}
+            isException={isPickupException}
+            note={todayPickupNote}
+          />
+        </>
+      )}
+    </span>
   );
 }
 
@@ -487,7 +535,7 @@ function TodayTimeStatusInlineRow({
 
   if (isAbsent) {
     return (
-      <div
+      <span
         data-testid={`today-time-row-${kind}`}
         className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
       >
@@ -499,7 +547,7 @@ function TodayTimeStatusInlineRow({
             <span className="ml-1 text-gray-500">({absentReason})</span>
           )}
         </span>
-      </div>
+      </span>
     );
   }
 
@@ -513,7 +561,7 @@ function TodayTimeStatusInlineRow({
   const showPlannedHint = Boolean(plannedTime && actualTime);
 
   return (
-    <div
+    <span
       data-testid={`today-time-row-${kind}`}
       className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
     >
@@ -526,7 +574,7 @@ function TodayTimeStatusInlineRow({
           }
           style={status.textColor ? { color: status.textColor } : undefined}
         >
-          {status.displayTime ?? "—"}
+          {status.displayTime ?? "–"}
         </span>
         {showPlannedHint && plannedDisplay && (
           <span className="ml-1 text-gray-500">
@@ -547,7 +595,7 @@ function TodayTimeStatusInlineRow({
           />
         )}
       </span>
-    </div>
+    </span>
   );
 }
 
@@ -567,7 +615,7 @@ export function SupervisorsCard({
   if (supervisors.length === 0) return null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
@@ -628,14 +676,16 @@ function SupervisorItem({
         {supervisor.email && (
           <>
             <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
+              className="mt-3"
               onClick={handleEmailClick}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
             >
               <EmailIcon />
               Kontakt aufnehmen
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -740,204 +790,170 @@ export function PersonalInfoReadOnly({
   const addressDisplay = formatStudentAddress(student);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
-            <PersonIcon />
-          </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            <span className="sm:hidden">Persönliche Infos</span>
-            <span className="hidden sm:inline">Persönliche Informationen</span>
-          </h2>
+    <SectionCard
+      title="Persönliche Informationen"
+      leading={
+        <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
+          <PersonIcon />
         </div>
-        {showEditButton && onEditClick ? (
-          <button
+      }
+      action={
+        showEditButton && onEditClick ? (
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={onEditClick}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-            title="Bearbeiten"
           >
             Bearbeiten
-          </button>
+          </Button>
         ) : (
           <ViewOnlyBadge />
-        )}
-      </div>
+        )
+      }
+    >
       <ParentVisibilityLegend className="mb-4" />
-      <div className="space-y-3">
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Vollständiger Name"
-              hint={PARENT_VISIBLE_HINTS.name}
+      {/* Feldgitter aus dem Kit (`DataGrid`/`DataField`), kein eigenes
+          Feldraster: dieselbe Anatomie wie in jeder anderen Objektansicht. */}
+      <DataGrid>
+        <DataField label="Vollständiger Name">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.name}>
+            {student.name}
+          </ParentVisibleValue>
+        </DataField>
+        <DataField label="Klasse">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.schoolClass}>
+            {student.school_class}
+          </ParentVisibleValue>
+        </DataField>
+        <DataField label="Gruppe">
+          {student.group_name ?? "Nicht zugewiesen"}
+        </DataField>
+        <DataField label="Geburtsdatum">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.birthday}>
+            {birthdayDisplay}
+          </ParentVisibleValue>
+        </DataField>
+        {addressDisplay && (
+          <DataField label="Adresse" fullWidth>
+            {addressDisplay}
+          </DataField>
+        )}
+        <DataField label="Erlaubte Heimwege" fullWidth>
+          <span className="flex items-start gap-1.5">
+            <span className="min-w-0 flex-1">
+              <AllowedDepartureModesDisplay
+                value={
+                  student.allowed_departure_modes ??
+                  allowedDepartureModesFromDeparture(
+                    student.departure_days ??
+                      departureDaysFromLegacy(
+                        student.bus_days,
+                        student.pickup_days,
+                      ),
+                  )
+                }
+              />
+            </span>
+            <ParentVisibleBadge compact hint={PARENT_VISIBLE_HINTS.departure} />
+            <FieldHistoryInfo
+              studentId={student.id}
+              fields={["departure_days", "pickup_status"]}
             />
-          }
-          value={student.name}
-        />
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Klasse"
-              hint={PARENT_VISIBLE_HINTS.schoolClass}
-            />
-          }
-          value={student.school_class}
-        />
-        <InfoItem
-          label="Gruppe"
-          value={student.group_name ?? "Nicht zugewiesen"}
-        />
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Geburtsdatum"
-              hint={PARENT_VISIBLE_HINTS.birthday}
-            />
-          }
-          value={birthdayDisplay}
-        />
-        {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Erlaubte Heimwege"
-              hint={PARENT_VISIBLE_HINTS.departure}
-            />
-          }
-          value={
+          </span>
+        </DataField>
+        {companionsUnavailable && (
+          <DataField label="Geht mit" fullWidth>
+            <span className="text-sm text-gray-500">
+              Laufgemeinschaft konnte nicht geladen werden
+            </span>
+          </DataField>
+        )}
+        {!companionsUnavailable && companions.length > 0 && (
+          <DataField label="Geht mit" fullWidth>
+            <span className="space-y-0.5">
+              {companions.map((companion) => (
+                <span
+                  key={companion.companion_student_id}
+                  className="block text-sm"
+                >
+                  {companionDisplayName(companion)}
+                  <span className="text-gray-500">
+                    {" "}
+                    ({formatCompanionWeekdays(companion.weekdays)})
+                  </span>
+                </span>
+              ))}
+            </span>
+          </DataField>
+        )}
+        {student.departure_companion_note && (
+          <DataField label="Geht außerdem mit" fullWidth>
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 flex-1">
-                <AllowedDepartureModesDisplay
-                  value={
-                    student.allowed_departure_modes ??
-                    allowedDepartureModesFromDeparture(
-                      student.departure_days ??
-                        departureDaysFromLegacy(
-                          student.bus_days,
-                          student.pickup_days,
-                        ),
-                    )
-                  }
-                />
+                {student.departure_companion_note}
               </span>
               <FieldHistoryInfo
                 studentId={student.id}
-                fields={["departure_days", "pickup_status"]}
+                fields={["departure_companion_note"]}
               />
             </span>
-          }
-        />
-        {companionsUnavailable && (
-          <InfoItem
-            label="Geht mit"
-            value={
-              <span className="text-sm text-gray-500">
-                Laufgemeinschaft konnte nicht geladen werden
-              </span>
-            }
-          />
-        )}
-        {!companionsUnavailable && companions.length > 0 && (
-          <InfoItem
-            label="Geht mit"
-            value={
-              <span className="space-y-0.5">
-                {companions.map((companion) => (
-                  <span
-                    key={companion.companion_student_id}
-                    className="block text-sm"
-                  >
-                    {companionDisplayName(companion)}
-                    <span className="text-gray-500">
-                      {" "}
-                      ({formatCompanionWeekdays(companion.weekdays)})
-                    </span>
-                  </span>
-                ))}
-              </span>
-            }
-          />
-        )}
-        {student.departure_companion_note && (
-          <InfoItem
-            label="Geht außerdem mit"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">
-                  {student.departure_companion_note}
-                </span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["departure_companion_note"]}
-                />
-              </span>
-            }
-          />
+          </DataField>
         )}
         {student.health_info && (
-          <InfoItem
-            label={
-              <ParentVisibleLabel
-                label="Gesundheitsinformationen"
+          <DataField label="Gesundheitsinformationen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.health_info}</span>
+              <ParentVisibleBadge
+                compact
                 hint={PARENT_VISIBLE_HINTS.healthInfo}
               />
-            }
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">{student.health_info}</span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["health_info"]}
-                />
-              </span>
-            }
-          />
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["health_info"]}
+              />
+            </span>
+          </DataField>
         )}
         {student.supervisor_notes && (
-          <InfoItem
-            label="Betreuernotizen"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">
-                  {student.supervisor_notes}
-                </span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["supervisor_notes"]}
-                />
-              </span>
-            }
-          />
+          <DataField label="Betreuernotizen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.supervisor_notes}</span>
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["supervisor_notes"]}
+              />
+            </span>
+          </DataField>
         )}
         {student.extra_info && (
-          <InfoItem
-            label="Elternnotizen"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">{student.extra_info}</span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["extra_info"]}
-                />
-              </span>
-            }
-          />
+          <DataField label="Elternnotizen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.extra_info}</span>
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["extra_info"]}
+              />
+            </span>
+          </DataField>
         )}
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
-      </div>
-    </div>
+      </DataGrid>
+    </SectionCard>
   );
 }
 
-/** An InfoItem label carrying the "sichtbar für Eltern" marker (#2163). */
-function ParentVisibleLabel({
-  label,
+/**
+ * Wert eines Feldes, das auch das Eltern-Portal zeigt. Die Kennzeichnung sitzt
+ * am Wert, weil `DataField` nur einen Text als Beschriftung annimmt.
+ */
+function ParentVisibleValue({
   hint,
-}: Readonly<{ label: string; hint: string }>) {
+  children,
+}: Readonly<{ hint: string; children: ReactNode }>) {
   return (
     <span className="inline-flex items-center gap-1">
-      {label}
+      {children}
       <ParentVisibleBadge compact hint={hint} />
     </span>
   );
@@ -969,11 +985,9 @@ function EnrollmentExtraInfoItems({
               ? `${group.phase_name} · ${field.label}`
               : field.label;
           return (
-            <InfoItem
-              key={`${group.request_id}-${field.key}`}
-              label={label}
-              value={value}
-            />
+            <DataField key={`${group.request_id}-${field.key}`} label={label}>
+              {value}
+            </DataField>
           );
         }),
       )}

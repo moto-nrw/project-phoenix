@@ -59,7 +59,7 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t, clocks...)
+	db, factory := testutil.SetupTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 

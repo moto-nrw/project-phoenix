@@ -701,7 +701,7 @@ describe("MeinRaumPage roster actions", () => {
       await waitFor(() => {
         expect(timetableOperationsApi.checkIn).toHaveBeenCalled();
       });
-      fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+      fireEvent.click(await screen.findByRole("tab", { name: "Raum 202" }));
       await screen.findByText("Nora Neu");
 
       await act(async () => {
@@ -755,7 +755,7 @@ describe("MeinRaumPage roster actions", () => {
       expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Raum 202" }));
     await screen.findByText("Nora Neu");
 
     await act(async () => {

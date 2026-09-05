@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	timetabletest "github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -500,7 +499,7 @@ func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
 // served through the People Directory (#2661).
 func newPersonComposedGradeTransitionRepository(t *testing.T, db *bun.DB) educationModels.GradeTransitionRepository {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, timetabletest.New(t, db))
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory.GradeTransition
 }

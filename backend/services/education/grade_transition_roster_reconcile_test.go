@@ -34,7 +34,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
@@ -384,7 +384,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationService.GradeTransitionService {
 	t.Helper()
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),

@@ -51,7 +51,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	// into subsequent tests in the package-isolated database.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repoFactory.BindTimetable(timetabletest.New(t, db))
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true

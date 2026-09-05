@@ -49,7 +49,7 @@ type overdueSetup struct {
 func buildOverdue(t *testing.T) *overdueSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	spy := testpkg.NewRecordingBroadcaster()
 	sched := unitScheduler(&Scheduler{

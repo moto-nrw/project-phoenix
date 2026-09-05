@@ -7,7 +7,15 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { Input } from "~/components/ui/input";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { Textarea } from "~/components/ui/textarea";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService, CategoryApiError } from "~/lib/category-api";
@@ -297,144 +305,157 @@ export function CategoryManageModal({
 
   return (
     <>
-      <Modal
-        isOpen={isOpen && !archiveTarget}
-        onClose={onClose}
-        title={
-          view === "form"
-            ? editing
-              ? "Kategorie bearbeiten"
-              : "Neue Kategorie"
-            : "Kategorien verwalten"
-        }
-        footer={view === "form" ? formFooter : listFooter}
+      <SlideOver
+        open={isOpen && !archiveTarget}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
       >
-        {view === "list" ? (
-          <div className="space-y-4 text-sm">
-            <p className="text-gray-600">
-              Kategorien ordnen Termine und Aktivitäten ein, zum Beispiel
-              Essenszeiten, Lernzeit oder Freispiel. Sie gelten nur für diese
-              OGS.
-            </p>
-
-            {loadError ? (
-              <Alert
-                type="error"
-                message="Die Kategorien konnten nicht geladen werden. Bitte schließe den Dialog und lade die Seite neu."
-              />
-            ) : loading ? (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                Kategorien werden geladen…
-              </div>
-            ) : (
-              <>
-                {active.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
-                    Noch keine Kategorien angelegt.
-                  </div>
-                ) : (
-                  <ul className={categoryListClass}>
-                    {active.map((category) => (
-                      <CategoryRow key={category.id} category={category}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`${category.name} bearbeiten`}
-                          onClick={() => openEdit(category)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => setArchiveTarget(category)}
-                        >
-                          Archivieren
-                        </Button>
-                      </CategoryRow>
-                    ))}
-                  </ul>
-                )}
-
-                {archived.length > 0 && (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold text-gray-500 uppercase">
-                      Archiviert
-                    </p>
-                    <ul className={categoryListClass}>
-                      {archived.map((category) => (
-                        <CategoryRow
-                          key={category.id}
-                          category={category}
-                          archived
-                        >
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="compact"
-                            disabled={busy}
-                            onClick={() => void handleRestore(category)}
-                          >
-                            <ArchiveRestore className="mr-1.5 h-4 w-4" />
-                            Wiederherstellen
-                          </Button>
-                        </CategoryRow>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="flex justify-end">
+        <SlideOverContent widthClass="sm:w-[560px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>
+                {view === "form"
+                  ? editing
+                    ? "Kategorie bearbeiten"
+                    : "Neue Kategorie"
+                  : "Kategorien verwalten"}
+              </SlideOverTitle>
+            </div>
+            <SlideOverCloseButton aria-label="Kategorien schließen" />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {view === "list" ? (
+              <div className="space-y-4 text-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <p className="max-w-lg text-gray-600">
+                    Kategorien ordnen Termine und Aktivitäten ein, zum Beispiel
+                    Essenszeiten, Lernzeit oder Freispiel. Sie gelten nur für
+                    diese OGS.
+                  </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="md"
+                    className="shrink-0"
                     onClick={openCreate}
                   >
                     <Plus className="mr-1.5 h-4 w-4" />
                     Neue Kategorie
                   </Button>
                 </div>
-              </>
+
+                {loadError ? (
+                  <Alert
+                    type="error"
+                    message="Die Kategorien konnten nicht geladen werden. Bitte schließe den Dialog und lade die Seite neu."
+                  />
+                ) : loading ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                    Kategorien werden geladen…
+                  </div>
+                ) : (
+                  <>
+                    {active.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
+                        Noch keine Kategorien angelegt.
+                      </div>
+                    ) : (
+                      <ul className={categoryListClass}>
+                        {active.map((category) => (
+                          <CategoryRow key={category.id} category={category}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`${category.name} bearbeiten`}
+                              onClick={() => openEdit(category)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="compact"
+                              onClick={() => setArchiveTarget(category)}
+                            >
+                              Archivieren
+                            </Button>
+                          </CategoryRow>
+                        ))}
+                      </ul>
+                    )}
+
+                    {archived.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold text-gray-500 uppercase">
+                          Archiviert
+                        </p>
+                        <ul className={categoryListClass}>
+                          {archived.map((category) => (
+                            <CategoryRow
+                              key={category.id}
+                              category={category}
+                              archived
+                            >
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                disabled={busy}
+                                onClick={() => void handleRestore(category)}
+                              >
+                                <ArchiveRestore className="mr-1.5 h-4 w-4" />
+                                Wiederherstellen
+                              </Button>
+                            </CategoryRow>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {error && <Alert type="error" message={error} />}
+              </div>
+            ) : (
+              <div className="space-y-4 text-sm">
+                <Input
+                  name="category-name"
+                  label="Name*"
+                  value={name}
+                  maxLength={NAME_MAX_LENGTH}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Essen"
+                  autoFocus
+                />
+
+                <ColorPickerField
+                  value={color}
+                  onChange={setColor}
+                  label="Farbe"
+                  fallbackColor={DEFAULT_NEW_COLOR}
+                  helpText="Die Farbe kennzeichnet die Kategorie im Betreuungsplan."
+                />
+
+                <Textarea
+                  name="category-description"
+                  label="Beschreibung (optional)"
+                  value={description}
+                  maxLength={DESCRIPTION_MAX_LENGTH}
+                  rows={2}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+
+                {error && <Alert type="error" message={error} />}
+              </div>
             )}
-
-            {error && <Alert type="error" message={error} />}
           </div>
-        ) : (
-          <div className="space-y-4 text-sm">
-            <Input
-              name="category-name"
-              label="Name*"
-              value={name}
-              maxLength={NAME_MAX_LENGTH}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Essen"
-              autoFocus
-            />
-
-            <ColorPickerField
-              value={color}
-              onChange={setColor}
-              label="Farbe"
-              fallbackColor={DEFAULT_NEW_COLOR}
-              helpText="Die Farbe kennzeichnet die Kategorie im Betreuungsplan."
-            />
-
-            <Textarea
-              name="category-description"
-              label="Beschreibung (optional)"
-              value={description}
-              maxLength={DESCRIPTION_MAX_LENGTH}
-              rows={2}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-
-            {error && <Alert type="error" message={error} />}
-          </div>
-        )}
-      </Modal>
+          <SlideOverFooter>
+            {view === "form" ? formFooter : listFooter}
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
 
       {/* Archiving is reversible, so this is a plain confirmation rather than
           the gated ConfirmDeleteModal used for real deletions. */}

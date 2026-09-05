@@ -41,7 +41,7 @@ func TestGroupSupervisorRepositoryListPreservesActivePseudoFilterComposition(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).GroupSupervisor
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSupervisor
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	start := timezone.NewDate(2020, 1, 1)
@@ -76,7 +76,7 @@ func TestCombinedGroupRepositoryListPreservesActivePseudoFilterComposition(t *te
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	past := time.Date(2020, time.January, 2, 12, 0, 0, 0, time.UTC)
 	future := time.Date(2099, time.January, 2, 12, 0, 0, 0, time.UTC)
@@ -105,7 +105,7 @@ func TestCombinedGroupRepositoryListPreservesEmptyNilSlice(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).CombinedGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CombinedGroup
 	ctx := testpkg.Ctx(t)
 	future := time.Date(2099, time.January, 2, 12, 0, 0, 0, time.UTC)
 	group := &active.CombinedGroup{StartTime: future.Add(-time.Hour), EndTime: &future}

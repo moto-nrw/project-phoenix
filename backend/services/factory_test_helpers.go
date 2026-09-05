@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"log/slog"
 	"time"
 
@@ -12,9 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -48,23 +45,6 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	return newFactory(repos, db, logger, cfg, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
 }
 
-// NewFactoryForTestsWithFeedback keeps API integration tests on the real
-// feedback module while the remaining legacy dependencies stay optional.
-func NewFactoryForTestsWithFeedback(
-	repos *repositories.Factory,
-	db *bun.DB,
-	logger *slog.Logger,
-	feedback users.FeedbackEntryCounter,
-	bindFeedbackSettings FeedbackSettingsBinder,
-	clocks ...func() time.Time,
-) (*Factory, error) {
-	owners, err := newOwnerCapabilitiesForTests(db)
-	if err != nil {
-		return nil, err
-	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, feedback, bindFeedbackSettings, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
-}
-
 func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	organizations, err := repositories.NewOrganizationTenancy(db)
 	if err != nil {
@@ -90,9 +70,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: schedule.TimetableCareDayLocker(db), Observe: func(timetableCompose.Observation) {},
-	})
+	timetableCapability, err := repositories.NewTimetable(db, persons, rooms, schedule.TimetableCareDayLocker(db))
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
@@ -100,32 +78,4 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
 		membership: membership, calendar: calendar, timetable: timetableCapability,
 	}, nil
-}
-
-func timetableRooms(rooms facilitiesModule.Query) timetable.RoomDirectory {
-	return timetable.RoomDirectoryFunc(func(ctx context.Context, ids []int64) ([]timetable.RoomRef, error) {
-		values, err := rooms.LockRoomsByID(ctx, ids)
-		result := make([]timetable.RoomRef, 0, len(values))
-		for _, value := range values {
-			result = append(result, timetable.RoomRef{ID: value.ID, TenantID: value.TenantID})
-		}
-		return result, err
-	})
-}
-
-func timetableStudents(students peopledirectory.StudentQuery) timetableCompose.StudentDirectory {
-	return timetableCompose.StudentDirectoryFunc(func(ctx context.Context) ([]timetableCompose.TargetStudent, error) {
-		values, err := students.ListEnrolledStudents(ctx)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]timetableCompose.TargetStudent, 0, len(values))
-		for _, value := range values {
-			result = append(result, timetableCompose.TargetStudent{
-				ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
-				EnrolledUntil: value.EnrolledUntil,
-			})
-		}
-		return result, nil
-	})
 }

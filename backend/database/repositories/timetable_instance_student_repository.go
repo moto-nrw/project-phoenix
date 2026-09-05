@@ -15,56 +15,6 @@ type timetableInstanceStudentRepository struct {
 	timetable timetable.InstanceStudentCapability
 }
 
-type timetableInstanceStudentProxy struct {
-	scheduleModels.InstanceStudentRepository
-	carePlan scheduleRepo.PickupExceptionDirectory
-}
-
-func newTimetableInstanceStudentProxy() *timetableInstanceStudentProxy {
-	return &timetableInstanceStudentProxy{}
-}
-
-func (p *timetableInstanceStudentProxy) Bind(capability timetable.InstanceStudentCapability) {
-	if capability == nil {
-		panic("instance student compatibility: timetable owner is required")
-	}
-	repository := timetableInstanceStudentRepository{timetable: capability}
-	if p.carePlan != nil {
-		repository.BindCarePlan(p.carePlan)
-	}
-	p.InstanceStudentRepository = repository
-}
-
-func (p *timetableInstanceStudentProxy) BindCarePlan(query scheduleRepo.PickupExceptionDirectory) {
-	if query == nil {
-		panic("instance student compatibility: Care Plan is required")
-	}
-	p.carePlan = query
-	if p.InstanceStudentRepository != nil {
-		p.InstanceStudentRepository.(interface {
-			BindCarePlan(scheduleRepo.PickupExceptionDirectory)
-		}).BindCarePlan(query)
-	}
-}
-
-func (p *timetableInstanceStudentProxy) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date scheduleRepo.InstanceStudentDate, cutoff time.Time) ([]scheduleModels.PartialAbsenceBlock, error) {
-	repository, ok := p.InstanceStudentRepository.(interface {
-		FindPartialAbsenceBlocks(context.Context, int64, scheduleRepo.InstanceStudentDate, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
-	})
-	if !ok {
-		panic("instance student compatibility: timetable owner is not bound")
-	}
-	return repository.FindPartialAbsenceBlocks(ctx, studentID, date, cutoff)
-}
-
-func (r timetableInstanceStudentRepository) BindCarePlan(query scheduleRepo.PickupExceptionDirectory) {
-	binder, ok := r.timetable.(timetable.CarePlanBinder)
-	if !ok {
-		panic("instance student compatibility: timetable owner cannot bind Care Plan")
-	}
-	binder.BindCarePlan(timetableCarePlanDirectory{query: query})
-}
-
 type timetableCarePlanDirectory struct {
 	query scheduleRepo.PickupExceptionDirectory
 }

@@ -18,7 +18,7 @@ import (
 
 func activityExceptionRepository(t *testing.T, db *bun.DB) activityExceptionQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.ActivityException.(activityExceptionQueryRepository)
 }

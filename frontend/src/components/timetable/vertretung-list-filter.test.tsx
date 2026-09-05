@@ -17,12 +17,11 @@ describe("VertretungListFilter", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: "Nur Störungen" })).toHaveAttribute(
-      "data-state",
-      "active",
-    );
     expect(
-      screen.getByRole("tab", { name: "Ganze Woche" }),
+      screen.getByRole("button", { name: "Nur Störungen" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: "Ganze Woche" }),
     ).toBeInTheDocument();
   });
 
@@ -37,9 +36,7 @@ describe("VertretungListFilter", () => {
     );
 
     // Radix-Tabs aktivieren per mousedown, nicht per click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Ganzer Tag" }), {
-      button: 0,
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Ganzer Tag" }));
 
     expect(onModeChange).toHaveBeenCalledWith("ganzer-tag");
   });

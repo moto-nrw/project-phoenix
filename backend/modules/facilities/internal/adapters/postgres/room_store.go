@@ -73,10 +73,8 @@ func (s *Store) Update(ctx context.Context, input domain.UpdateRoom) (domain.Roo
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Column("name", "building", "floor", "capacity", "category", "color").
-		Where(`"room".id = ?`, input.ID)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
+		Where(`"room".id = ?`, input.ID).
+		Where(`"room".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
@@ -95,10 +93,8 @@ func (s *Store) Delete(ctx context.Context, id int64) (domain.OperationStats, er
 	}
 	query := db.NewDelete().Model((*roomRow)(nil)).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id = ?`, id)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
+		Where(`"room".id = ?`, id).
+		Where(`"room".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -125,10 +121,9 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (domain.Roo
 	row := roomRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	query := roomSelect(db, &row).Where(`"room".id = ?`, id)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
+	query := roomSelect(db, &row).
+		Where(`"room".id = ?`, id).
+		Where(`"room".tenant_id = ?`, tenantID)
 	if lock != "" {
 		query = query.For(lock)
 	}
@@ -150,10 +145,9 @@ func (s *Store) FindByName(ctx context.Context, name string) (domain.Room, bool,
 		return domain.Room{}, false, domain.OperationStats{}, err
 	}
 	row := roomRow{}
-	query := roomSelect(db, &row).Where(`LOWER("room".name) = LOWER(?)`, name)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
+	query := roomSelect(db, &row).
+		Where(`LOWER("room".name) = LOWER(?)`, name).
+		Where(`"room".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)
@@ -176,13 +170,11 @@ func (s *Store) FindToilet(ctx context.Context, excludeRoomID int64) (domain.Roo
 	row := roomRow{}
 	query := roomSelect(db, &row).
 		Where(`"room".name IN (?, ?)`, domain.WCRoomName, domain.WCRoomAliasName).
+		Where(`"room".tenant_id = ?`, tenantID).
 		OrderExpr(`CASE "room".name WHEN ? THEN 0 ELSE 1 END`, domain.WCRoomName).
 		Limit(1)
 	if excludeRoomID > 0 {
 		query = query.Where(`"room".id <> ?`, excludeRoomID)
-	}
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -204,10 +196,9 @@ func (s *Store) List(ctx context.Context, filter domain.RoomFilter) ([]domain.Ro
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []roomRow{}
-	query := roomSelect(db, &rows).OrderExpr(`"room".name ASC, "room".id ASC`)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
+	query := roomSelect(db, &rows).
+		Where(`"room".tenant_id = ?`, tenantID).
+		OrderExpr(`"room".name ASC, "room".id ASC`)
 	query, empty := applyRoomListFilter(query, filter)
 	if empty {
 		return []domain.Room{}, domain.OperationStats{}, nil
@@ -233,12 +224,13 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 		return nil, 0, domain.OperationStats{}, err
 	}
 	rows := []roomRow{}
-	query := roomSelect(db, &rows).OrderExpr(`"room".name ASC, "room".id ASC`)
-	countQuery := db.NewSelect().TableExpr(`facilities.rooms AS "room"`).ColumnExpr("COUNT(*)")
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-		countQuery = countQuery.Where(`"room".tenant_id = ?`, tenantID)
-	}
+	query := roomSelect(db, &rows).
+		Where(`"room".tenant_id = ?`, tenantID).
+		OrderExpr(`"room".name ASC, "room".id ASC`)
+	countQuery := db.NewSelect().
+		TableExpr(`facilities.rooms AS "room"`).
+		ColumnExpr("COUNT(*)").
+		Where(`"room".tenant_id = ?`, tenantID)
 	query, empty := applyRoomListFilter(query, filter)
 	countQuery, countEmpty := applyRoomListFilter(countQuery, filter)
 	if empty || countEmpty {
@@ -326,10 +318,8 @@ func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]doma
 	started := time.Now()
 	query := roomSelect(db, &rows).
 		Where(`"room".id IN (?)`, bun.List(ids)).
+		Where(`"room".tenant_id = ?`, tenantID).
 		OrderExpr(`"room".name ASC, "room".id ASC`)
-	if tenantID != 0 {
-		query = query.Where(`"room".tenant_id = ?`, tenantID)
-	}
 	if lock != "" {
 		query = query.For(lock)
 	}
