@@ -55,9 +55,9 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       typeof window !== "undefined" &&
       window.location.hostname.startsWith(`${tenantSlug}.`);
     if (inSubdomainMode) {
-      return `${origin}/enroll`;
+      return `${origin}/anmeldung`;
     }
-    return `${origin}/${tenantSlug}/enroll`;
+    return `${origin}/${tenantSlug}/anmeldung`;
   }, [origin, tenantSlug]);
 
   if (!enabled || !enrollUrl) {

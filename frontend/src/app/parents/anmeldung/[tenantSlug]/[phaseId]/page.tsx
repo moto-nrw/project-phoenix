@@ -127,7 +127,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         kicker={t("parentEmbeddedKicker")}
         title={t("formEyebrow")}
         description={t("parentEmbeddedDescription")}
-        backHref={parentPath("/parents/enroll")}
+        backHref={parentPath("/parents/anmeldung")}
         backLabel={t("backToPicker")}
       />
 

@@ -2643,7 +2643,7 @@ func (s *changeRequestService) emailPayload(ctx context.Context, req *enrollment
 		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
 		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         fmt.Sprintf("%s/enroll/status/%s", s.ParentsURL, req.StatusToken),
+		EnrollmentPayloadStatusURL:         enrollmentStatusURL(s.ParentsURL, req.StatusToken),
 		EnrollmentPayloadLogoURL:           logoURL,
 		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.ParentsURL),
 		EnrollmentPayloadRecipientEmail:    recipient,

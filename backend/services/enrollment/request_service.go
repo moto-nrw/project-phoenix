@@ -3151,7 +3151,7 @@ func enrollmentStatusURL(parentsURL, token string) string {
 	if host == "" {
 		host = "http://localhost:3000"
 	}
-	return fmt.Sprintf("%s/enroll/status/%s", host, token)
+	return fmt.Sprintf("%s/anmeldung/status/%s", host, token)
 }
 
 // IsEnrollmentEnabled is the public counterpart of isEnrollmentEnabled

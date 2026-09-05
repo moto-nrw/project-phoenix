@@ -229,7 +229,7 @@ func enqueueDecisionDigest(
 		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         fmt.Sprintf("%s/enroll/status/%s", parentsURL, request.StatusToken),
+		EnrollmentPayloadStatusURL:         enrollmentStatusURL(parentsURL, request.StatusToken),
 		EnrollmentPayloadLogoURL:           logoURL,
 		EnrollmentPayloadMotoLogoURL:       motoLogoURL(parentsURL),
 		EnrollmentPayloadPhaseName:         phaseName,
@@ -278,7 +278,7 @@ func enqueueImmediateDecisionEmail(
 	}
 
 	schoolName, logoURL := emailBrandForSchool(ctx, schoolRepo, request.TenantID, parentsURL)
-	statusURL := fmt.Sprintf("%s/enroll/status/%s", parentsURL, request.StatusToken)
+	statusURL := enrollmentStatusURL(parentsURL, request.StatusToken)
 	phaseName := ""
 	if phase != nil {
 		phaseName = phase.Name

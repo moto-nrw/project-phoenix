@@ -415,7 +415,7 @@ function EnrollmentPhaseOverview({
         </div>
         <div className="flex flex-wrap gap-2">
           <ButtonLink
-            href="/enroll"
+            href={tenantPath("/anmeldung")}
             target="_blank"
             rel="noreferrer"
             variant="primary"
@@ -466,6 +466,9 @@ function EnrollmentPhaseOverview({
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
+                    formHref={tenantPath(
+                      `/anmeldung/${encodeURIComponent(phase.id)}`,
+                    )}
                     enrollmentsHref={tenantPath(
                       `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
                     )}
@@ -489,10 +492,12 @@ function EnrollmentPhaseOverview({
 function PhasePublicLinkActions({
   phase,
   tenantSlug,
+  formHref,
   enrollmentsHref,
 }: Readonly<{
   phase: Phase;
   tenantSlug: string | null;
+  formHref: string;
   enrollmentsHref: string;
 }>) {
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
@@ -500,7 +505,7 @@ function PhasePublicLinkActions({
   return (
     <>
       <ButtonLink
-        href={`/enroll/${encodeURIComponent(phase.id)}`}
+        href={formHref}
         target="_blank"
         rel="noreferrer"
         variant="outline"
@@ -646,7 +651,7 @@ function EnrollmentSetupGuide({
       title: "Elternansicht testen",
       description:
         "Öffnen Sie die öffentliche Anmeldung und senden Sie eine Testanmeldung ab.",
-      href: "/enroll",
+      href: tenantPath("/anmeldung"),
       action: "Preview öffnen",
       status: readyForPreview ? "done" : "blocked",
       meta: readyForPreview ? "Bereit" : "Nicht bereit",
