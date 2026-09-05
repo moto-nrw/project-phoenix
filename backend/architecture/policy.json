@@ -35,6 +35,10 @@
       "kind": "domain"
     },
     {
+      "id": "parent-request-feed-view",
+      "kind": "projection"
+    },
+    {
       "id": "class-day-view",
       "kind": "projection"
     },
@@ -1864,6 +1868,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/parentrequestfeedprojection",
+      "owner": "parent-request-feed-view",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetable/internal/adapters/postgres",
       "owner": "timetable-activities",
       "role": "postgres",
@@ -2352,6 +2363,55 @@
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed",
+      "owner": "care-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/compose",
+      "owner": "care-plan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/http",
+      "owner": "care-plan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/adapters/postgres",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/application",
+      "owner": "care-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/domain",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/requestfeed/internal/ports",
+      "owner": "care-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -2365,6 +2425,10 @@
     },
     {
       "name": "active.excused_absence_requests",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "users.parent_request_rss_feeds",
       "write_owner": "care-plan"
     },
     {
@@ -3149,6 +3213,26 @@
     }
   ],
   "read_projections": [
+    {
+      "id": "parent-request-feed-read-model",
+      "package": "modules/parentrequestfeedprojection",
+      "data_objects": [
+        "active.excused_absence_requests",
+        "auth.account_permissions",
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.permissions",
+        "auth.role_permissions",
+        "auth.roles",
+        "enrollment.change_requests",
+        "enrollment.offering_change_requests",
+        "platform.schools",
+        "schedule.care_schedule_change_requests",
+        "users.student_data_change_requests"
+      ],
+      "tenant_safe": true
+    },
     {
       "id": "staff-announcement-audience",
       "package": "modules/communication/internal/adapters/audience",
@@ -5541,6 +5625,17 @@
       "target_role": "public"
     },
     {
+      "id": "care-plan.request-feed-http.public",
+      "description": "The request-feed HTTP adapter calls the Care Plan request-feed capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
       "id": "inbound-substitutions.to.workforce",
       "description": "inbound-substitutions calls exactly one public capability.",
       "scopes": [
@@ -6123,6 +6218,16 @@
         "external_test"
       ],
       "source_owner": "inbound-feedback",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "care-plan.request-feed-http-test.http-router",
+      "description": "Request-feed adapter tests exercise the real router and HTTP response contract.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
       "source_role": "adapter-test",
       "target_class": "http-router"
     },
@@ -10747,6 +10852,15 @@
       "target_role": "postgres"
     },
     {
+      "id": "care-plan.compose.parent-request-feed-view",
+      "description": "Care Plan composition binds current access through the request-feed projection.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "compose",
+      "target_owner": "parent-request-feed-view",
+      "target_role": "postgres"
+    },
+    {
       "id": "care-plan.compose.public",
       "description": "Care Plan composition returns its public facade.",
       "scopes": [
@@ -10834,6 +10948,15 @@
       "target_role": "public"
     },
     {
+      "id": "root-composition.to.request-feed-http",
+      "description": "The production root mounts the parent-request RSS HTTP adapter.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "http"
+    },
+    {
       "id": "legacy-composition.to.care-plan-compose",
       "description": "Legacy composition constructs Care Plan for repository and test graphs.",
       "scopes": [
@@ -10865,6 +10988,32 @@
       "source_role": "postgres",
       "target_owner": "care-plan",
       "target_role": "public"
+    },
+    {
+      "id": "care-plan.postgres.parent-request-feed-view",
+      "description": "Care Plan persistence consumes the tenant-safe parent-request feed projection.",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "target_owner": "parent-request-feed-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-request-feed-view.integration-test.support",
+      "description": "The request-feed projection integration test uses hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "parent-request-feed-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-request-feed-view.integration-test.orm-sql",
+      "description": "The request-feed projection integration test executes against a tenant Bun transaction.",
+      "scopes": ["internal_test"],
+      "source_owner": "parent-request-feed-view",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
     },
     {
       "id": "care-plan.domain.public",

@@ -3,13 +3,14 @@ import type { ErrorEvent } from "@sentry/nextjs";
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
 
-// Parent and staff calendar-feed capability tokens ride in the URL path
-// (/api/calendar-feed/{token}, proxied to /public/calendar/{token}). Redact it
-// from any recorded URL/path so a Sentry event can't leak a replayable token —
-// mirrors the backend request-log redactor.
+// Calendar- and request-feed capability tokens ride in URL paths. Redact them
+// from every recorded URL/path so a Sentry event cannot leak a replayable
+// secret. This mirrors the backend request-log redactor.
 const feedTokenPatterns = [
   /(\/api\/calendar-feed\/)[^/?#\s"]+/g,
   /(\/public\/calendar\/)[^/?#\s"]+/g,
+  /(\/api\/request-feed\/)[^/?#\s"]+/g,
+  /(\/public\/request-feed\/)[^/?#\s"]+/g,
 ];
 
 function redactFeedToken(value: string): string {
@@ -46,7 +47,7 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
     delete event.user.username;
   }
 
-  // Redact the calendar-feed token from any URL/path Sentry captured.
+  // Redact feed tokens from any URL/path Sentry captured.
   if (event.request?.url) {
     event.request.url = redactFeedToken(event.request.url);
   }

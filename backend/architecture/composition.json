@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        260
       ],
       "tables": []
     },
@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        97
+        101
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        164
+        168
       ],
       "tables": []
     },
@@ -119,8 +119,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        89,
-        100
+        96,
+        107
       ],
       "tables": []
     },
@@ -28871,22 +28871,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 159,
+          "line": 161,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 419,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 580,
+          "line": 582,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1076,
+          "line": 1097,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28896,7 +28896,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 258,
+          "line": 260,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28906,12 +28906,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 160,
+          "line": 162,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 577,
+          "line": 579,
           "declaration": "type API"
         },
         {

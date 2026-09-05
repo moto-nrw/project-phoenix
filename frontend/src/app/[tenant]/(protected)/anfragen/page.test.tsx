@@ -48,6 +48,11 @@ vi.mock("~/components/students/aggregated-request-list", () => ({
   ),
 }));
 
+vi.mock("~/components/students/request-feed-dialog", () => ({
+  RequestFeedDialog: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div role="dialog">RSS-Dialog</div> : null,
+}));
+
 // Ebenso die Abwesenheitsliste des Mitarbeitende-Reiters (#2433).
 vi.mock("~/components/staff/staff-absence-request-list", () => ({
   StaffAbsenceRequestList: ({
@@ -375,5 +380,49 @@ describe("AnfragenPage", () => {
       screen.getByRole("tab", { name: "Mitarbeitende" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
+  });
+
+  it("zeigt Gruppenleitungen kein RSS-Menü", () => {
+    render(<AnfragenPage />);
+
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeNull();
+  });
+
+  it("öffnet das RSS-Menü für OGS-Admins", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1", roles: ["admin"], permissions: ["admin:*"] } },
+      status: "authenticated" as const,
+    });
+
+    render(<AnfragenPage />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Weitere Aktionen" })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Neue Anfragen abonnieren" }),
+    );
+    expect(screen.getByRole("dialog", { name: "" })).toHaveTextContent(
+      "RSS-Dialog",
+    );
+  });
+
+  it("öffnet das RSS-Menü für Personen mit Anmeldungszugriff", () => {
+    mockUseSession.mockReturnValue(sessionWith(["config:manage"]));
+    mockUseChangeRequestAccess.mockImplementation(
+      () =>
+        ({
+          ...resolveChangeRequestAccess(mockUseSession().data ?? null, "none"),
+          isLoading: false,
+        }) as ReturnType<typeof useChangeRequestAccess>,
+    );
+
+    render(<AnfragenPage />);
+
+    expect(
+      screen.getAllByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toHaveLength(0);
   });
 });

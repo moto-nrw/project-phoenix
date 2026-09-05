@@ -9,6 +9,7 @@ import type { DateRange } from "react-day-picker";
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
 import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-request-list";
+import { RequestFeedDialog } from "~/components/students/request-feed-dialog";
 import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absence-request-list";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -152,6 +153,7 @@ export default function AnfragenPage() {
     [],
   );
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [requestFeedOpen, setRequestFeedOpen] = useState(false);
 
   // Stabil memoisiert: die Liste lädt bei jeder Identitätsänderung neu.
   const filters: AggregatedRequestFilters = useMemo(
@@ -368,6 +370,9 @@ export default function AnfragenPage() {
   const isReady = !isAccessLoading;
 
   const staffActive = activeTab === "mitarbeitende";
+  const canManageRequestFeed =
+    requestAccess.parentReviewAccess === "admin" ||
+    requestAccess.canReviewEnrollmentChangeRequests;
 
   const viewSwitcher = (
     <SegmentedControl
@@ -421,6 +426,16 @@ export default function AnfragenPage() {
         isReady ? (staffActive ? staffActiveFilters : activeFilters) : undefined
       }
       onClearAllFilters={clearAllFilters}
+      overflowMenu={
+        isReady && !staffActive && canManageRequestFeed
+          ? [
+              {
+                label: "Neue Anfragen abonnieren",
+                onClick: () => setRequestFeedOpen(true),
+              },
+            ]
+          : undefined
+      }
       tabs={
         isReady && hasTabs
           ? {
@@ -443,6 +458,12 @@ export default function AnfragenPage() {
       // im Inhalt.
       loading={!isReady}
       loadingLabel="Anfragen werden geladen…"
+      overlays={
+        <RequestFeedDialog
+          isOpen={requestFeedOpen}
+          onClose={() => setRequestFeedOpen(false)}
+        />
+      }
     >
       {staffActive ? (
         <MitarbeitendeTab

@@ -288,7 +288,7 @@ func setupOperatorInvitationRoute(golden *API) chi.Router {
 	api.Router = chi.NewRouter()
 	api.rateLimiting = true
 	api.authRateLimit = "5"
-	api.registerRoutesWithRateLimiting()
+	api.registerRoutesWithRateLimiting(nil)
 	return api.Router
 }
 

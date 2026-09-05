@@ -5,6 +5,7 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 export type ParentRequestReviewAccess = "admin" | "group_leader" | "none";
 
 export interface EffectiveChangeRequestAccess {
+  readonly parentReviewAccess: ParentRequestReviewAccess;
   readonly canReviewParentRequests: boolean;
   readonly canReviewStudentDataRequests: boolean;
   readonly canReviewEnrollmentChangeRequests: boolean;
@@ -116,6 +117,7 @@ export function resolveChangeRequestAccess(
     canReviewParentRequests || canReviewEnrollment || canReviewWithdrawals;
 
   return {
+    parentReviewAccess,
     canReviewParentRequests,
     canReviewStudentDataRequests: canReviewStudentData,
     canReviewEnrollmentChangeRequests: canReviewEnrollment,

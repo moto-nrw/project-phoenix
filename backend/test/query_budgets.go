@@ -109,6 +109,7 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	"modules.careplan.request_feed.list":               {max: 1, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
