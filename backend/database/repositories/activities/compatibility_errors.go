@@ -10,6 +10,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+type CategoryQueryOptions = modelBase.QueryOptions
+
+func ValidateCategoryListOptions(options *CategoryQueryOptions) error {
+	if options != nil && (options.Filter != nil || options.Pagination != nil || options.Sorting != nil) {
+		return errors.New("category list options are unsupported")
+	}
+	return nil
+}
+
 // WrapDatabaseError preserves the legacy repository error contract for
 // composition-layer adapters that cannot import legacy model infrastructure.
 func WrapDatabaseError(operation string, err error) error {

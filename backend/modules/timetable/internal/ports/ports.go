@@ -16,6 +16,8 @@ type Store interface {
 	UpdateCategoryIfActive(context.Context, int64, domain.CategoryFields) (domain.Category, bool, domain.OperationStats, error)
 	SetCategoryArchivedAt(context.Context, int64, *time.Time) (domain.Category, bool, domain.OperationStats, error)
 	SetCategoryShiftTypeLinks(context.Context, int64, []int64) (domain.OperationStats, error)
+	SetCategoryShiftTypeID(context.Context, int64, *int64) (domain.OperationStats, error)
+	DeleteCategory(context.Context, int64) (domain.OperationStats, error)
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (domain.CareExitEnrollmentChanges, domain.OperationStats, error)
 	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error)

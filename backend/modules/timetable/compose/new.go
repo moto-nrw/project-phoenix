@@ -99,8 +99,18 @@ func (e engine) FindCategoryForAssignment(ctx context.Context, id int64) (timeta
 	return categoryToPublic(value), mapError(err)
 }
 
+func (e engine) FindCategoryForShare(ctx context.Context, id int64) (timetable.Category, error) {
+	value, err := e.service.FindCategoryForShare(ctx, id)
+	return categoryToPublic(value), mapError(err)
+}
+
 func (e engine) FindCategoryByName(ctx context.Context, name string) (timetable.Category, error) {
 	value, err := e.service.FindCategoryByName(ctx, name)
+	return categoryToPublic(value), mapError(err)
+}
+
+func (e engine) FindCategoryByNameForAssignment(ctx context.Context, name string) (timetable.Category, error) {
+	value, err := e.service.FindCategoryByNameForAssignment(ctx, name)
 	return categoryToPublic(value), mapError(err)
 }
 
@@ -722,6 +732,14 @@ func (e engine) ArchiveCategory(ctx context.Context, id int64) (timetable.Catego
 func (e engine) RestoreCategory(ctx context.Context, id int64) (timetable.Category, error) {
 	value, err := e.service.RestoreCategory(ctx, id)
 	return categoryToPublic(value), mapError(err)
+}
+
+func (e engine) DeleteCategory(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteCategory(ctx, id))
+}
+
+func (e engine) SetCategoryShiftTypeID(ctx context.Context, id int64, shiftTypeID *int64) error {
+	return mapError(e.service.SetCategoryShiftTypeID(ctx, id, shiftTypeID))
 }
 
 func (e engine) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {

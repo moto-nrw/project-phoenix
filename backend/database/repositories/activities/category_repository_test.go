@@ -9,11 +9,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func categoryRepository(t *testing.T, db *bun.DB) activities.CategoryRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.ActivityCategory
+}
 
 // ============================================================================
 // CRUD Tests
@@ -24,7 +32,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates category with valid data", func(t *testing.T) {
@@ -46,7 +54,7 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing category", func(t *testing.T) {
@@ -69,7 +77,7 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds category by exact name", func(t *testing.T) {
@@ -116,7 +124,7 @@ func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	category := testpkg.CreateTestActivityCategory(t, db, "AssignmentLock")
 
 	ctx := context.Background()
@@ -149,7 +157,7 @@ func TestCategoryRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates category description", func(t *testing.T) {
@@ -201,7 +209,7 @@ func TestCategoryRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing category", func(t *testing.T) {
@@ -224,7 +232,7 @@ func TestCategoryRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all categories", func(t *testing.T) {
@@ -241,7 +249,7 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all categories without filters", func(t *testing.T) {
@@ -271,7 +279,7 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
@@ -286,7 +294,7 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
@@ -301,7 +309,7 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActivityCategory
+	repo := categoryRepository(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("does not error when deleting non-existent category", func(t *testing.T) {

@@ -36,7 +36,17 @@ func (e *recordingEngine) FindCategoryForAssignment(context.Context, int64) (tim
 	return timetable.Category{}, nil
 }
 
+func (e *recordingEngine) FindCategoryForShare(context.Context, int64) (timetable.Category, error) {
+	e.calls++
+	return timetable.Category{}, nil
+}
+
 func (e *recordingEngine) FindCategoryByName(context.Context, string) (timetable.Category, error) {
+	e.calls++
+	return timetable.Category{}, nil
+}
+
+func (e *recordingEngine) FindCategoryByNameForAssignment(context.Context, string) (timetable.Category, error) {
 	e.calls++
 	return timetable.Category{}, nil
 }
@@ -560,6 +570,16 @@ func (e *recordingEngine) ArchiveCategory(context.Context, int64) (timetable.Cat
 func (e *recordingEngine) RestoreCategory(context.Context, int64) (timetable.Category, error) {
 	e.calls++
 	return timetable.Category{}, nil
+}
+
+func (e *recordingEngine) DeleteCategory(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) SetCategoryShiftTypeID(context.Context, int64, *int64) error {
+	e.calls++
+	return nil
 }
 
 func (e *recordingEngine) SetCategoryShiftTypeLinks(context.Context, int64, []int64) error {

@@ -170,7 +170,9 @@ type Query interface {
 	InstanceStaffQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
+	FindCategoryForShare(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
+	FindCategoryByNameForAssignment(context.Context, string) (Category, error)
 	ListCategories(context.Context) ([]Category, error)
 	CountCategoryUsage(context.Context) (map[int64]int, error)
 	FindGroup(context.Context, int64) (Group, error)
@@ -195,6 +197,8 @@ type Command interface {
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
 	RestoreCategory(context.Context, int64) (Category, error)
+	DeleteCategory(context.Context, int64) error
+	SetCategoryShiftTypeID(context.Context, int64, *int64) error
 	SetCategoryShiftTypeLinks(context.Context, int64, []int64) error
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) error
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (CareExitEnrollmentChanges, error)
@@ -241,12 +245,27 @@ func (m *Module) FindCategoryForAssignment(ctx context.Context, id int64) (Categ
 	return m.engine.FindCategoryForAssignment(ctx, id)
 }
 
+func (m *Module) FindCategoryForShare(ctx context.Context, id int64) (Category, error) {
+	if id <= 0 {
+		return Category{}, m.reject("find_category_for_share", ErrInvalidCategory)
+	}
+	return m.engine.FindCategoryForShare(ctx, id)
+}
+
 func (m *Module) FindCategoryByName(ctx context.Context, name string) (Category, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Category{}, m.reject("find_category_by_name", ErrInvalidCategory)
 	}
 	return m.engine.FindCategoryByName(ctx, name)
+}
+
+func (m *Module) FindCategoryByNameForAssignment(ctx context.Context, name string) (Category, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Category{}, m.reject("find_category_by_name_for_assignment", ErrInvalidCategory)
+	}
+	return m.engine.FindCategoryByNameForAssignment(ctx, name)
 }
 
 func (m *Module) ListCategories(ctx context.Context) ([]Category, error) {
@@ -1035,6 +1054,20 @@ func (m *Module) RestoreCategory(ctx context.Context, id int64) (Category, error
 		return Category{}, m.reject("restore_category", ErrInvalidCategory)
 	}
 	return m.engine.RestoreCategory(ctx, id)
+}
+
+func (m *Module) DeleteCategory(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_category", ErrInvalidCategory)
+	}
+	return m.engine.DeleteCategory(ctx, id)
+}
+
+func (m *Module) SetCategoryShiftTypeID(ctx context.Context, id int64, shiftTypeID *int64) error {
+	if id <= 0 || (shiftTypeID != nil && *shiftTypeID <= 0) {
+		return m.reject("set_category_shift_type_id", ErrInvalidCategory)
+	}
+	return m.engine.SetCategoryShiftTypeID(ctx, id, shiftTypeID)
 }
 
 func (m *Module) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {

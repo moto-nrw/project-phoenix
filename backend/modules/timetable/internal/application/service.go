@@ -58,9 +58,41 @@ func (s *Service) FindCategoryForAssignment(ctx context.Context, id int64) (resu
 	return result, err
 }
 
+func (s *Service) FindCategoryForShare(ctx context.Context, id int64) (result domain.Category, err error) {
+	err = s.run("find_category_for_share", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindCategory(ctx, id, "SHARE")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrCategoryNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
 func (s *Service) FindCategoryByName(ctx context.Context, name string) (result domain.Category, err error) {
 	err = s.run("find_category_by_name", func(stats *domain.OperationStats) error {
 		value, found, queryStats, findErr := s.store.FindCategoryByName(ctx, name, false, "")
+		stats.Add(queryStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return domain.ErrCategoryNotFound
+		}
+		result = value
+		return nil
+	})
+	return result, err
+}
+
+func (s *Service) FindCategoryByNameForAssignment(ctx context.Context, name string) (result domain.Category, err error) {
+	err = s.run("find_category_by_name_for_assignment", func(stats *domain.OperationStats) error {
+		value, found, queryStats, findErr := s.store.FindCategoryByName(ctx, name, true, "SHARE")
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
@@ -318,6 +350,22 @@ func (s *Service) RestoreCategory(ctx context.Context, id int64) (result domain.
 func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
 	return s.runWrite(ctx, "set_category_shift_type_links", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.SetCategoryShiftTypeLinks(txCtx, shiftTypeID, categoryIDs)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+func (s *Service) SetCategoryShiftTypeID(ctx context.Context, id int64, shiftTypeID *int64) error {
+	return s.runWrite(ctx, "set_category_shift_type_id", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.SetCategoryShiftTypeID(txCtx, id, shiftTypeID)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+func (s *Service) DeleteCategory(ctx context.Context, id int64) error {
+	return s.runWrite(ctx, "delete_category", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.DeleteCategory(txCtx, id)
 		stats.Add(queryStats)
 		return err
 	})

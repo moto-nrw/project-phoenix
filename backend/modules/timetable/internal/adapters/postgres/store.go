@@ -212,6 +212,25 @@ func (s *Store) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64
 	return stats, setShiftTypeLinks(ctx, db, tenantID, shiftTypeID, ids, &stats)
 }
 
+func (s *Store) SetCategoryShiftTypeID(ctx context.Context, id int64, shiftTypeID *int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	return execMeasuredWrite(ctx, db.NewUpdate().Table("activities.categories").
+		Set("shift_type_id = ?", shiftTypeID).Where("tenant_id = ?", tenantID).Where("id = ?", id),
+		"set category shift type")
+}
+
+func (s *Store) DeleteCategory(ctx context.Context, id int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	return execMeasuredWrite(ctx, db.NewDelete().Table("activities.categories").
+		Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete category")
+}
+
 func (s *Store) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
