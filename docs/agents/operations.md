@@ -48,18 +48,60 @@ go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ## Test database
 
 Fixture rules: [backend test fixtures and lifecycle](backend-testing.md).
-Tests start the shared postgres-test container (port 5433), prepare a
-migration-hash template, and clone a database per package. Package exit drops
-its clone; generation GC cleans interrupted runs. The wrapper also sweeps at exit.
-Different migration hashes get different templates across worktrees.
+Tests start a postgres-test server for the configured `TEST_DB_PORT`, prepare
+migration-hash templates, and clone a database per package. Package exit drops
+its clone; generation GC cleans interrupted runs. The wrapper also sweeps at
+exit. Worktrees using the same port share a server; different ports are isolated.
 
-Manual maintenance (usually unnecessary):
+On macOS and Linux (including WSL), new managed test servers stop automatically
+after 15 minutes without a protected test process, checked every 30 seconds.
+The next test starts the server again. Containers and volumes are retained.
+Each DB test binary holds a kernel lease before connecting, including the
+`PHX_TEST_TEMPLATE` fast path. Exit, failure, Ctrl-C and SIGKILL release leases;
+paused or CPU-only test processes remain protected. Cleanup and startup share
+an exclusive/shared lock so a new test cannot connect during shutdown.
+
+A content-addressed helper in the user's cache starts automatically using the
+existing Go toolchain. It needs no cronjob, LaunchAgent or global installation
+and continues after its originating worktree is removed. It uses the original
+local Docker socket, not whichever context is selected later. If Docker discovery
+is unavailable, database readiness and startup keep their existing behavior;
+no new watcher is started. Saved registrations for the same test port still
+receive process leases, so an existing watcher cannot stop a live test.
+Registration and lease errors remain failures rather than bypassing protection.
+CI, remote Docker engines and native Windows are unchanged. Use WSL for
+Windows-local cleanup.
+
+Inspect registered servers without stopping anything:
 
 ```bash
-docker compose -p project-phoenix --profile test up -d postgres-test
-docker compose -p project-phoenix --profile test down
+cd backend
+../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/bootstrap --idle-status
+```
+
+Logs and registrations live under `moto-testdb/v1` in the OS user cache.
+A healthy watcher exits after stopping its server; the next test starts a new
+one. After a manually killed watcher, the next test process restores it.
+Do not remove lock files while tests or watchers are running.
+
+Only the `postgres-test` service in a `project-phoenix-testdb-<port>` project,
+with label `de.moto.testdb.lifecycle=1` and matching published port, is eligible.
+Legacy/unlabelled servers and application containers are not adopted or stopped.
+Migrate an old test server only after its users finish; do not recreate it under
+active tests. Apply the tracked Compose example when updating local Compose
+files. Open SQL client connections also defer cleanup, but older binaries and
+manual clients without leases cannot participate in the atomic startup lock.
+Do not mix those clients with managed tests on the same port.
+
+Manual clone maintenance (usually unnecessary):
+
+```bash
 cd backend && ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep
 ```
+
+Do not use project-wide `docker compose down` to clean a test run: the legacy
+`project-phoenix` project may also contain the development stack. Never prune
+Docker volumes as part of automatic test-server cleanup.
 
 ## Environment Management (SOPS)
 

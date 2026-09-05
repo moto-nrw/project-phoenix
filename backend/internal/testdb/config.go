@@ -100,7 +100,8 @@ func (c *Config) TemplateDSN() string {
 }
 
 // TemplateEnv carries the template name the once-per-run bootstrap resolved,
-// so package binaries can skip EnsureServer and EnsureTemplate. Unset means
+// so package binaries can skip EnsureTemplate. Each binary still protects
+// and checks the server, which may have stopped during a long build. Unset means
 // "resolve it yourself" — what a naked `go test` does.
 const TemplateEnv = "PHX_TEST_TEMPLATE"
 
