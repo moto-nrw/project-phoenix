@@ -43,7 +43,7 @@ interface NavigationProgressStore {
   readonly isPending: () => boolean;
   readonly startLink: () => void;
   readonly endLink: () => void;
-  readonly startProgrammatic: (target: string | null) => number;
+  readonly startProgrammatic: (target: string) => number;
   readonly startHistory: () => void;
   readonly completeProgrammatic: (currentUrl: string) => void;
   readonly cancelProgrammatic: (id: number) => void;
@@ -74,20 +74,16 @@ function createStore(): NavigationProgressStore {
     change();
     if (wasPending !== isPending()) notify();
   };
-  const startProgrammatic = (target: string | null) => {
+  const startNavigation = (
+    target: string | null,
+    supersededTargets: ReadonlySet<string>,
+  ) => {
     const id = nextProgrammaticNavigationId + 1;
     nextProgrammaticNavigationId = id;
     update(() => {
-      const previous = pendingProgrammaticNavigation;
-      // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
-      // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
-      // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
-      const supersededTargets = new Set(previous?.supersededTargets);
-      if (previous?.target !== null && previous?.target !== undefined) {
-        supersededTargets.add(previous.target);
+      if (pendingProgrammaticNavigation) {
+        clearTimeout(pendingProgrammaticNavigation.timeout);
       }
-      if (target !== null) supersededTargets.delete(target);
-      if (previous) clearTimeout(previous.timeout);
       pendingProgrammaticNavigation = {
         id,
         target,
@@ -101,6 +97,18 @@ function createStore(): NavigationProgressStore {
       };
     });
     return id;
+  };
+  const startProgrammatic = (target: string) => {
+    const previous = pendingProgrammaticNavigation;
+    // Das App-Routing lässt nur das zuletzt gestartete Ziel gewinnen. Ein
+    // verspätet eintreffendes, älteres Ziel ist kein Redirect des neuen
+    // Wechsels und darf den Balken deshalb nicht vorzeitig beenden.
+    const supersededTargets = new Set(previous?.supersededTargets);
+    if (previous?.target !== null && previous?.target !== undefined) {
+      supersededTargets.add(previous.target);
+    }
+    supersededTargets.delete(target);
+    return startNavigation(target, supersededTargets);
   };
   return {
     subscribe: (onChange) => {
@@ -122,7 +130,9 @@ function createStore(): NavigationProgressStore {
     },
     startProgrammatic,
     startHistory: () => {
-      startProgrammatic(null);
+      // Ein History-Ereignis hat kein angefordertes Ziel. Es muss unabhängig
+      // von einem zuvor verdrängten push/replace-Ziel abschließen können.
+      startNavigation(null, new Set());
     },
     completeProgrammatic: (url) => {
       const pending = pendingProgrammaticNavigation;

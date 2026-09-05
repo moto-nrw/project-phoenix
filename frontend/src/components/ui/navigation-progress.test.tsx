@@ -253,6 +253,16 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("does not show progress when popstate keeps the current URL", () => {
+    renderShell();
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("shows progress for a browser history navigation", () => {
     navigateTo("/rooms");
     const rendered = renderShell();
@@ -269,6 +279,38 @@ describe("NavigationProgress", () => {
       <AppRouterContext.Provider value={appRouter}>
         <NavigationProgressProvider>
           <NavigationProgressBar />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("completes a history navigation to a previously requested target", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useProgressRouter();
+      return (
+        <button type="button" onClick={() => progressRouter?.push("/first")}>
+          Erstes Ziel
+        </button>
+      );
+    }
+
+    navigateTo("/rooms");
+    const rendered = renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Erstes Ziel" }));
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    act(() => {
+      window.history.replaceState({}, "", "/first");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    route.pathname = "/first";
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
         </NavigationProgressProvider>
       </AppRouterContext.Provider>,
     );
