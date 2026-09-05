@@ -30,6 +30,7 @@ type idleServer struct {
 	Host    string
 	Project string
 	Docker  string
+	run     func(context.Context, ...string) ([]byte, error)
 }
 
 // HoldServer protects a local test server for this process's entire lifetime.
@@ -44,11 +45,18 @@ func HoldServer(ctx context.Context, cfg *Config) error {
 	defer serverLeases.Unlock()
 	project := composeProjectFor(cfg)
 	server, err := localIdleServer(ctx, project)
-	if err != nil {
-		return err
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
-	if server == nil {
-		return nil
+	if err != nil || server == nil {
+		// Docker discovery is optional for an already-reachable PostgreSQL
+		// instance. Still protect any previously registered servers: their
+		// watchers pin an endpoint and may outlive a broken Docker context.
+		cache, cacheErr := os.UserCacheDir()
+		if cacheErr != nil {
+			return cacheErr
+		}
+		return holdRegisteredIdleServers(ctx, cache, project, serverLeases.files)
 	}
 	identity := server.Host + "\n" + project
 	if _, ok := serverLeases.files[identity]; ok {
@@ -120,6 +128,43 @@ func HoldServer(ctx context.Context, cfg *Config) error {
 	}
 	serverLeases.files[identity] = lease
 	success = true
+	return nil
+}
+
+// Called with the process registry locked. Discovery failure must not bypass
+// known leases or start a watcher against an endpoint we could not establish.
+func holdRegisteredIdleServers(ctx context.Context, cache, project string, held map[string]*os.File) error {
+	paths, err := filepath.Glob(filepath.Join(cache, "moto-testdb", "v1", "*", "server.json"))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read registered test server: %w", err)
+		}
+		var server idleServer
+		if err := json.Unmarshal(data, &server); err != nil {
+			return fmt.Errorf("decode registered test server: %w", err)
+		}
+		if server.Project != project {
+			continue
+		}
+		identity := server.Host + "\n" + project
+		if _, ok := held[identity]; ok {
+			continue
+		}
+		lease, err := lockFile(ctx, filepath.Join(filepath.Dir(path), "users.lock"), syscall.LOCK_SH)
+		if err != nil {
+			return fmt.Errorf("protect registered test server: %w", err)
+		}
+		now := time.Now()
+		if err := os.Chtimes(lease.Name(), now, now); err != nil {
+			_ = lease.Close()
+			return err
+		}
+		held[identity] = lease
+	}
 	return nil
 }
 
@@ -238,6 +283,10 @@ func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll t
 	if err := json.Unmarshal(data, &server); err != nil {
 		return err
 	}
+	return watchIdle(ctx, dir, singleton, idle, poll, server)
+}
+
+func watchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll time.Duration, server idleServer) error {
 	lastUsed := time.Now()
 	for {
 		select {
@@ -284,7 +333,11 @@ func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll t
 func (s idleServer) command(ctx context.Context, args ...string) ([]byte, error) {
 	commandCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(commandCtx, s.Docker, append([]string{"--host", s.Host}, args...)...)
+	args = append([]string{"--host", s.Host}, args...)
+	if s.run != nil {
+		return s.run(commandCtx, args...)
+	}
+	cmd := exec.CommandContext(commandCtx, s.Docker, args...)
 	// Pin the engine even if the invoking shell selected a different context.
 	cmd.Env = replaceCommandEnvironment(os.Environ(), "DOCKER_CONTEXT", "")
 	return cmd.CombinedOutput()

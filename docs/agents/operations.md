@@ -64,8 +64,13 @@ an exclusive/shared lock so a new test cannot connect during shutdown.
 A content-addressed helper in the user's cache starts automatically using the
 existing Go toolchain. It needs no cronjob, LaunchAgent or global installation
 and continues after its originating worktree is removed. It uses the original
-local Docker socket, not whichever context is selected later. CI, remote Docker
-engines and native Windows are unchanged. Use WSL for Windows-local cleanup.
+local Docker socket, not whichever context is selected later. If Docker discovery
+is unavailable, database readiness and startup keep their existing behavior;
+no new watcher is started. Saved registrations for the same test port still
+receive process leases, so an existing watcher cannot stop a live test.
+Registration and lease errors remain failures rather than bypassing protection.
+CI, remote Docker engines and native Windows are unchanged. Use WSL for
+Windows-local cleanup.
 
 Inspect registered servers without stopping anything:
 

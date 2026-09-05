@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -18,22 +19,7 @@ import (
 func idleFixture(t *testing.T) (string, idleServer) {
 	t.Helper()
 	dir := t.TempDir()
-	docker := filepath.Join(dir, "docker")
-	script := `#!/bin/sh
-set -eu
-cd "$(dirname "$0")"
-[ "$1" = --host ] && [ "$2" = unix:///fixture.sock ] || exit 91
-shift 2
-case "$1" in
- ps) printf 'fixture\n';;
- inspect) cat container.json;;
- exec) if [ -f query-fails ]; then exit 1; fi; cat clients;;
- stop) printf '%s\n' "$*" > stopped; while [ -f block-stop ]; do sleep 0.01; done;;
- *) exit 92;;
-esac
-`
-	require.NoError(t, os.WriteFile(docker, []byte(script), 0700))
-	server := idleServer{Host: "unix:///fixture.sock", Project: composeProjectPrefix + "-6543", Docker: docker}
+	server := idleServer{Host: "unix:///fixture.sock", Project: composeProjectPrefix + "-6543", Docker: "/fixture/docker", run: idleFixtureCommand(dir)}
 	c := idleContainer{ID: "fixture"}
 	c.Config.Labels = map[string]string{idleLabel: "1", "com.docker.compose.project": server.Project, "com.docker.compose.service": "postgres-test"}
 	c.State.Running = true
@@ -48,18 +34,61 @@ esac
 	return dir, server
 }
 
+// Keep lock/timer tests independent of OS process-launch latency. The real
+// command path is exercised by the Docker smoke check and discovery child.
+func idleFixtureCommand(dir string) func(context.Context, ...string) ([]byte, error) {
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) < 3 || args[0] != "--host" || args[1] != "unix:///fixture.sock" {
+			return nil, fmt.Errorf("Docker endpoint was not pinned")
+		}
+		args = args[2:]
+		switch args[0] {
+		case "ps":
+			return []byte("fixture\n"), nil
+		case "inspect":
+			return os.ReadFile(filepath.Join(dir, "container.json"))
+		case "exec":
+			if _, err := os.Stat(filepath.Join(dir, "query-fails")); err == nil {
+				return nil, fmt.Errorf("fixture query failed")
+			}
+			return os.ReadFile(filepath.Join(dir, "clients"))
+		case "stop":
+			if err := os.WriteFile(filepath.Join(dir, "stopped"), []byte(strings.Join(args, " ")+"\n"), 0600); err != nil {
+				return nil, err
+			}
+			for {
+				if _, err := os.Stat(filepath.Join(dir, "block-stop")); os.IsNotExist(err) {
+					return nil, nil
+				}
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(10 * time.Millisecond):
+				}
+			}
+		default:
+			return nil, fmt.Errorf("unexpected Docker command: %s", args[0])
+		}
+	}
+}
+
 func runFixtureWatcher(t *testing.T, dir string) <-chan error {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	singleton, err := tryLockFile(filepath.Join(dir, "watcher.lock"), syscall.LOCK_EX)
 	require.NoError(t, err)
 	require.NotNil(t, singleton)
+	data, err := os.ReadFile(filepath.Join(dir, "server.json"))
+	require.NoError(t, err)
+	var server idleServer
+	require.NoError(t, json.Unmarshal(data, &server))
+	server.run = idleFixtureCommand(dir)
 	done := make(chan error, 1)
 	finished := make(chan struct{})
 	go func() {
 		defer close(finished)
 		defer func() { _ = singleton.Close() }()
-		done <- WatchIdle(ctx, dir, singleton, 100*time.Millisecond, 10*time.Millisecond)
+		done <- watchIdle(ctx, dir, singleton, 100*time.Millisecond, 10*time.Millisecond, server)
 	}()
 	t.Cleanup(func() { cancel(); <-finished })
 	return done
@@ -216,4 +245,99 @@ func TestIdleWatcherExitsWithoutAdoptingLegacyServer(t *testing.T) {
 	}
 	_, err = os.Stat(filepath.Join(dir, "stopped"))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+// The child runs the public entry point with a broken Docker context, without
+// changing the environment of parallel tests in the parent process.
+func TestIdleDiscoveryFailureChild(t *testing.T) {
+	t.Parallel()
+	dsn := os.Getenv("PHX_IDLE_DISCOVERY_TEST_DSN")
+	if dsn == "" {
+		return
+	}
+	cfg, err := NewConfig(dsn)
+	require.NoError(t, err)
+	require.NoError(t, pingServer(t.Context(), cfg), "the database must already be reachable")
+	require.NoError(t, EnsureServer(t.Context(), cfg), "optional Docker discovery must not block an already-running database")
+}
+
+func TestIdleDiscoveryFailureAllowsReachableDatabase(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	dir := t.TempDir()
+	docker := filepath.Join(dir, "docker")
+	require.NoError(t, os.WriteFile(docker, []byte("#!/bin/sh\necho 'test Docker context unavailable' >&2\nexit 73\n"), 0700))
+	output, err := os.Create(filepath.Join(dir, "child.log"))
+	require.NoError(t, err)
+	defer func() { _ = output.Close() }()
+	env := os.Environ()
+	for key, value := range map[string]string{
+		"PATH": dir + string(os.PathListSeparator) + os.Getenv("PATH"),
+		"HOME": dir, "XDG_CACHE_HOME": dir, "CI": "",
+		"DOCKER_CONTEXT": "unavailable-test-context", "DOCKER_HOST": "",
+		"PHX_IDLE_DISCOVERY_TEST_DSN": cfg.MaintenanceDSN(),
+	} {
+		env = replaceCommandEnvironment(env, key, value)
+	}
+	process, err := os.StartProcess(os.Args[0], []string{os.Args[0], "-test.run=^TestIdleDiscoveryFailureChild$"}, &os.ProcAttr{Env: env, Files: []*os.File{os.Stdin, output, output}})
+	require.NoError(t, err)
+	state, err := process.Wait()
+	require.NoError(t, err)
+	log, err := os.ReadFile(output.Name())
+	require.NoError(t, err)
+	require.True(t, state.Success(), "%s", log)
+}
+
+func TestIdleDiscoveryFallbackKeepsRegisteredServerProtected(t *testing.T) {
+	t.Parallel()
+	dir, server := idleFixture(t)
+	cache := t.TempDir()
+	registration := filepath.Join(cache, "moto-testdb", "v1", "registered")
+	require.NoError(t, os.MkdirAll(filepath.Dir(registration), 0700))
+	require.NoError(t, os.Symlink(dir, registration))
+	held := make(map[string]*os.File)
+	t.Cleanup(func() {
+		for _, lease := range held {
+			_ = lease.Close()
+		}
+	})
+	require.NoError(t, holdRegisteredIdleServers(t.Context(), cache, server.Project, held))
+	done := runFixtureWatcher(t, dir)
+	require.Never(t, func() bool { _, err := os.Stat(filepath.Join(dir, "stopped")); return err == nil }, time.Second, 10*time.Millisecond)
+	require.Len(t, held, 1)
+	// A second call retains the same lease, rather than opening/leaking another.
+	require.NoError(t, holdRegisteredIdleServers(t.Context(), cache, server.Project, held))
+	require.Len(t, held, 1)
+	for _, lease := range held {
+		require.NoError(t, lease.Close())
+	}
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not stop after fallback lease was released")
+	}
+}
+
+func TestIdleDiscoveryFallbackDoesNotHideLeaseErrors(t *testing.T) {
+	t.Parallel()
+	dir, server := idleFixture(t)
+	cache := t.TempDir()
+	registration := filepath.Join(cache, "moto-testdb", "v1", "registered")
+	require.NoError(t, os.MkdirAll(filepath.Dir(registration), 0700))
+	require.NoError(t, os.Symlink(dir, registration))
+	held := make(map[string]*os.File)
+	require.NoError(t, holdRegisteredIdleServers(t.Context(), cache, server.Project+"-other", held))
+	require.Empty(t, held, "unrelated test ports must not be held")
+	exclusive, err := lockFile(t.Context(), filepath.Join(dir, "users.lock"), syscall.LOCK_EX)
+	require.NoError(t, err)
+	defer func() { _ = exclusive.Close() }()
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, holdRegisteredIdleServers(ctx, cache, server.Project, held), context.DeadlineExceeded)
+	require.Empty(t, held, "cleanup/startup contention must never be silently bypassed")
+	require.NoError(t, exclusive.Close())
+	require.NoError(t, os.Remove(filepath.Join(dir, "users.lock")))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "users.lock"), 0700))
+	require.Error(t, holdRegisteredIdleServers(t.Context(), cache, server.Project, held), "invalid lease storage must remain an error")
 }
