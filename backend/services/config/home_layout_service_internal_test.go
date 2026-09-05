@@ -57,11 +57,23 @@ func (f *fakeHomeLayoutRepo) UpsertPolicies(_ context.Context, policies *configM
 
 // passthroughRuntime runs the closure without a real transaction; the tenant
 // boundary itself is covered by the repository tests against Postgres.
-type passthroughRuntime struct{ tenants []int64 }
+type passthroughRuntime struct {
+	tenants []int64
+	locks   []string
+	lockErr error
+}
 
 func (r *passthroughRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	r.tenants = append(r.tenants, tenantID)
 	return fn(ctx)
+}
+
+func (r *passthroughRuntime) AcquireLock(_ context.Context, key string, shared bool) error {
+	if shared {
+		return errors.New("home layout lock must be exclusive")
+	}
+	r.locks = append(r.locks, key)
+	return r.lockErr
 }
 
 func (*passthroughRuntime) AfterCommit(_ context.Context, fn func()) { fn() }
@@ -124,6 +136,27 @@ func TestHomeLayoutService_NotifiesAffectedStartPagesAfterWrites(t *testing.T) {
 		"7:home-layout:42",
 		"7:home-layout",
 	}, notifications)
+}
+
+func TestHomeLayoutService_PersonalWritesUseTheAccountLock(t *testing.T) {
+	t.Parallel()
+	service, _, runtime := newHomeLayoutTestService(t)
+
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
+	require.NoError(t, service.ResetOverrides(context.Background(), 7, 42))
+
+	assert.Equal(t, []string{"home-layout:7:42", "home-layout:7:42"}, runtime.locks)
+}
+
+func TestHomeLayoutService_PersonalWritesStopWhenTheAccountLockFails(t *testing.T) {
+	t.Parallel()
+	service, repo, runtime := newHomeLayoutTestService(t)
+	runtime.lockErr = errors.New("lock failed")
+
+	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false})
+
+	require.Error(t, err)
+	assert.Empty(t, repo.layouts)
 }
 
 func TestHomeLayoutService_View_SchoolPrescriptionBeatsStoredChoice(t *testing.T) {

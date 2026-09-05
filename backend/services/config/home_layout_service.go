@@ -123,6 +123,12 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 	}
 
 	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		// A row lock alone cannot protect the first save, because it has no row
+		// yet. This transaction-scoped lock serializes every write for this
+		// account, including reset, before it reads the map to replace.
+		if err := s.lockAccount(txCtx, tenantID, accountID); err != nil {
+			return err
+		}
 		policySet, err := s.repo.FindPolicies(txCtx)
 		if err != nil {
 			return err
@@ -166,6 +172,9 @@ func (s *HomeLayoutService) ResetOverrides(ctx context.Context, tenantID, accoun
 	}
 
 	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		if err := s.lockAccount(txCtx, tenantID, accountID); err != nil {
+			return err
+		}
 		if err := s.repo.DeleteForAccount(txCtx, accountID); err != nil {
 			return err
 		}
@@ -173,6 +182,17 @@ func (s *HomeLayoutService) ResetOverrides(ctx context.Context, tenantID, accoun
 		s.logger.Info("home_layout_reset", slog.Int64("account_id", accountID))
 		return nil
 	})
+}
+
+func (s *HomeLayoutService) lockAccount(ctx context.Context, tenantID, accountID int64) error {
+	if err := s.runtime.AcquireLock(ctx, homeLayoutAccountLockKey(tenantID, accountID), false); err != nil {
+		return fmt.Errorf("lock home layout: %w", err)
+	}
+	return nil
+}
+
+func homeLayoutAccountLockKey(tenantID, accountID int64) string {
+	return fmt.Sprintf("home-layout:%d:%d", tenantID, accountID)
 }
 
 // SetPolicies replaces the school's prescription.
