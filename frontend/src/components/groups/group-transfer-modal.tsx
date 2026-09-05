@@ -11,7 +11,15 @@ import {
   DataGrid,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
@@ -166,104 +174,117 @@ export function GroupTransferModal({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Gruppe "${group.name}" übergeben`}
-      footer={footer}
-      isDismissDisabled={loading}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !loading) onClose();
+      }}
     >
-      <div className="space-y-6">
-        {displayedError ? (
-          <div ref={errorRef}>
-            <Alert type="error" message={displayedError} />
+      <SlideOverContent widthClass="sm:w-[560px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
+            <SlideOverDescription>
+              Die Verantwortung für diese Gruppe heute übergeben.
+            </SlideOverDescription>
           </div>
-        ) : null}
+          <SlideOverCloseButton disabled={loading} />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+          {displayedError ? (
+            <div ref={errorRef}>
+              <Alert type="error" message={displayedError} />
+            </div>
+          ) : null}
 
-        <InfoSection
-          title="Was die Übergabe bewirkt"
-          icon={<Clock className="h-full w-full" />}
-        >
-          <p className="text-sm text-gray-600">
-            Die ausgewählte pädagogische Fachkraft ist{" "}
-            <strong className="font-medium text-gray-900">
-              heute zusätzlich zuständig
-            </strong>{" "}
-            für diese Gruppe. Die Gruppe erscheint für diese Person unter „Meine
-            Gruppen“.
-          </p>
-        </InfoSection>
-
-        <DataGrid>
-          <DataField label="Gruppe">{group.name}</DataField>
-          {group.studentCount !== undefined && (
-            <DataField label="Gruppengröße">
-              {group.studentCount} Kinder insgesamt
-            </DataField>
-          )}
-        </DataGrid>
-
-        {existingTransfers.length > 0 && (
-          <section className="space-y-2">
-            <p className="text-sm font-medium text-gray-700">
-              Aktuell übergeben an:
-            </p>
-            <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
-              {existingTransfers.map((transfer) => (
-                <li
-                  key={transfer.substitutionId}
-                  className="flex items-center justify-between gap-3 p-3"
-                >
-                  <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                    {transfer.targetName}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline_danger"
-                    size="compact"
-                    onClick={() => void handleCancel(transfer.substitutionId)}
-                    isLoading={deletingId === transfer.substitutionId}
-                    loadingText="Wird entfernt..."
-                    disabled={deletingId === transfer.substitutionId}
-                  >
-                    Entfernen
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <div>
-          <label
-            id="transfer-user-select-label"
-            htmlFor="transfer-user-select"
-            className="mb-2 block text-sm font-medium text-gray-700"
+          <InfoSection
+            title="Was die Übergabe bewirkt"
+            icon={<Clock className="h-full w-full" />}
           >
-            Übergeben an:
-          </label>
-          <CustomSelect
-            id="transfer-user-select"
-            ariaLabelledBy="transfer-user-select-label"
-            value={selectedStaffId}
-            onChange={setSelectedStaffId}
-            options={[
-              { value: "", label: "Fachkraft auswählen..." },
-              ...availableUsers.map((user) => ({
-                value: user.id,
-                label: user.fullName,
-              })),
-            ]}
-            placeholder="Fachkraft auswählen..."
-          />
-          {availableUsers.length === 0 && !loadError && (
-            <p className="mt-2 text-sm text-gray-500">
-              Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an
-              die Verwaltung.
+            <p className="text-sm text-gray-600">
+              Die ausgewählte pädagogische Fachkraft ist{" "}
+              <strong className="font-medium text-gray-900">
+                heute zusätzlich zuständig
+              </strong>{" "}
+              für diese Gruppe. Die Gruppe erscheint für diese Person unter
+              „Meine Gruppen“.
             </p>
+          </InfoSection>
+
+          <DataGrid>
+            <DataField label="Gruppe">{group.name}</DataField>
+            {group.studentCount !== undefined && (
+              <DataField label="Gruppengröße">
+                {group.studentCount} Kinder insgesamt
+              </DataField>
+            )}
+          </DataGrid>
+
+          {existingTransfers.length > 0 && (
+            <section className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">
+                Aktuell übergeben an:
+              </p>
+              <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
+                {existingTransfers.map((transfer) => (
+                  <li
+                    key={transfer.substitutionId}
+                    className="flex items-center justify-between gap-3 p-3"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                      {transfer.targetName}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline_danger"
+                      size="compact"
+                      onClick={() => void handleCancel(transfer.substitutionId)}
+                      isLoading={deletingId === transfer.substitutionId}
+                      loadingText="Wird entfernt..."
+                      disabled={deletingId === transfer.substitutionId}
+                    >
+                      Entfernen
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
+
+          <div>
+            <label
+              id="transfer-user-select-label"
+              htmlFor="transfer-user-select"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Übergeben an:
+            </label>
+            <CustomSelect
+              id="transfer-user-select"
+              ariaLabelledBy="transfer-user-select-label"
+              value={selectedStaffId}
+              onChange={setSelectedStaffId}
+              options={[
+                { value: "", label: "Fachkraft auswählen..." },
+                ...availableUsers.map((user) => ({
+                  value: user.id,
+                  label: user.fullName,
+                })),
+              ]}
+              placeholder="Fachkraft auswählen..."
+            />
+            {availableUsers.length === 0 && !loadError && (
+              <p className="mt-2 text-sm text-gray-500">
+                Keine pädagogische Fachkraft verfügbar. Bitte wenden Sie sich an
+                die Verwaltung.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
-    </Modal>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

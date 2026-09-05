@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
@@ -100,17 +102,11 @@ export function TrustedDevicesSection({
   );
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-gray-900">
-          Meine vertrauten Geräte
-        </h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die
-          Sie nicht mehr nutzen.
-        </p>
-      </div>
-
+    <SectionCard
+      headingLevel={3}
+      title="Meine vertrauten Geräte"
+      description="Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen."
+    >
       {error && (
         <div className="mb-4">
           <Alert type="error" message={error} />
@@ -124,9 +120,11 @@ export function TrustedDevicesSection({
         </div>
       )}
       {!loading && (!devices || devices.length === 0) && (
-        <p className="py-4 text-sm text-gray-500">
-          Sie haben aktuell keine vertrauten Geräte gespeichert.
-        </p>
+        <EmptyState
+          variant="compact"
+          title="Sie haben aktuell keine vertrauten Geräte gespeichert."
+          description="Beim nächsten Login können Sie ein Gerät merken lassen, um den 2FA-Code dort zu überspringen."
+        />
       )}
       {!loading && devices && devices.length > 0 && (
         <ul className="divide-y divide-gray-100">
@@ -163,6 +161,6 @@ export function TrustedDevicesSection({
           ))}
         </ul>
       )}
-    </div>
+    </SectionCard>
   );
 }

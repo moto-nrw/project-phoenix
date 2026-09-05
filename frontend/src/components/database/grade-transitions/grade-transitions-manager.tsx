@@ -4,6 +4,8 @@
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -179,8 +181,18 @@ function describeRevertWarning(warning: string): string {
 
 export function GradeTransitionsManager({
   permissions = FULL_ACCESS,
+  onSummaryChange,
 }: {
   readonly permissions?: TransitionPermissions;
+  /** Meldet die geladene Liste an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onSummaryChange?: (
+    summary: {
+      total: number;
+      applied: number;
+      latestYear: string | null;
+    } | null,
+  ) => void;
 }) {
   const toast = useToast();
   const [transitions, setTransitions] = useState<GradeTransition[] | null>(
@@ -222,6 +234,22 @@ export function GradeTransitionsManager({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!onSummaryChange) return;
+    if (!transitions) {
+      onSummaryChange(null);
+      return;
+    }
+    const years = [...transitions]
+      .map((t) => t.academicYear)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    onSummaryChange({
+      total: transitions.length,
+      applied: transitions.filter((t) => t.status === "applied").length,
+      latestYear: years.at(-1) ?? null,
+    });
+  }, [transitions, onSummaryChange]);
 
   const handleApplied = (result: TransitionResult) => {
     setPreviewFor(null);
@@ -445,48 +473,47 @@ export function GradeTransitionsManager({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Jahrgangswechsel
-            </h2>
-            <p className="text-sm text-gray-600">
-              Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge
-              zum Schuljahreswechsel.
-            </p>
-          </div>
-          {permissions.canCreate && (
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Liste weiter, die dann bis zur Unterkante des
+    // Bildschirms wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-4">
+      {loadError && <Alert type="error" message={loadError} />}
+
+      {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,
+          die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene
+          Zeile nur für den Knopf. */}
+      <SectionCard
+        title="Angelegte Jahrgangswechsel"
+        description="Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge zum Schuljahreswechsel."
+        actions={
+          permissions.canCreate ? (
             <Button type="button" size="md" onClick={() => openEditorFor(null)}>
               Neuer Jahrgangswechsel
             </Button>
-          )}
-        </div>
-      </div>
-
-      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-
-      <DataTable
-        columns={columns}
-        rows={transitions ?? []}
-        getRowKey={(t: GradeTransition) => t.id}
-        isLoading={transitions === null && !loadError}
-        defaultSortKey="createdAt"
-        defaultSortDirection="desc"
-        emptyState={
-          <div className="py-8 text-center text-sm text-gray-500">
-            <p className="font-medium text-gray-700">
-              Noch kein Jahrgangswechsel angelegt.
-            </p>
-            <p className="mt-1">
-              Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
-              vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
-              anpassen.
-            </p>
-          </div>
+          ) : undefined
         }
-      />
+      >
+        <DataTable
+          columns={columns}
+          rows={transitions ?? []}
+          getRowKey={(t: GradeTransition) => t.id}
+          isLoading={transitions === null && !loadError}
+          defaultSortKey="createdAt"
+          defaultSortDirection="desc"
+          emptyState={
+            <div className="py-8 text-center text-sm text-gray-500">
+              <p className="font-medium text-gray-700">
+                Noch kein Jahrgangswechsel angelegt.
+              </p>
+              <p className="mt-1">
+                Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
+                vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
+                anpassen.
+              </p>
+            </div>
+          }
+        />
+      </SectionCard>
 
       {editorOpen && (
         <TransitionEditor

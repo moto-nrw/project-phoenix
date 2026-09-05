@@ -24,15 +24,20 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
-import { BackButton } from "~/components/ui/back-button";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { SectionCard } from "~/components/ui/section-card";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { EmptyState } from "~/components/ui/empty-state";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
+import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -42,6 +47,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   berlinTodayISO,
+  formatStatusDate,
   isValidISODate,
   parseISODate,
   toISODate,
@@ -1038,6 +1044,20 @@ export default function SlotListsPage() {
     },
     [pickupCohort, replaceListUrl, resetFilters],
   );
+  // Tagesschritte der Bedienleiste. Sie schreiben denselben Weg wie die
+  // Datumsauswahl (pickDate) und respektieren dieselben Grenzen, die auch der
+  // Kalender kennt — ein Schritt über die Grenze wird gar nicht erst angeboten.
+  const stepDayISO = (deltaDays: number) => {
+    const next = parseISODate(dateISO);
+    next.setDate(next.getDate() + deltaDays);
+    return next;
+  };
+  const withinPickerRange = (date: Date) =>
+    (!pickerMinDate || date >= pickerMinDate) &&
+    (!pickerMaxDate || date <= pickerMaxDate);
+  const canGoPreviousDay = withinPickerRange(stepDayISO(-1));
+  const canGoNextDay = withinPickerRange(stepDayISO(1));
+
   const pickDate = useCallback(
     (date: Date | null) => {
       if (!date) return;
@@ -1053,6 +1073,8 @@ export default function SlotListsPage() {
     },
     [replaceListUrl, resetFilters],
   );
+  const stepDay = (deltaDays: number) => pickDate(stepDayISO(deltaDays));
+  const goToToday = () => pickDate(parseISODate(berlinTodayISO()));
   const toggleSlot = useCallback(
     (slotId: string) => {
       if (!selectableSlotIds.includes(slotId)) return;
@@ -2049,6 +2071,32 @@ export default function SlotListsPage() {
     return cols;
   }, [isPickupBased, source]);
 
+  // Drucken und Exportieren als EIN Menü im Kopf, unter derselben Überschrift
+  // wie in Dienstplan und Betreuungsplan. Gesperrt, solange keine Liste
+  // geladen ist — es gäbe nichts mitzunehmen.
+  const exportBlocked = isExporting || isLoading || !result;
+  const exportMenuItems: OverflowMenuEntry[] = [
+    { kind: "header", label: "Drucken oder exportieren" },
+    {
+      label: isExporting ? "Erstelle PDF…" : "Drucken",
+      icon: <Printer className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("pdf", "print"),
+      disabled: exportBlocked,
+    },
+    {
+      label: "PDF herunterladen",
+      icon: <Download className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("pdf", "download"),
+      disabled: exportBlocked,
+    },
+    {
+      label: "Excel herunterladen",
+      icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("xlsx", "download"),
+      disabled: exportBlocked,
+    },
+  ];
+
   if (timetableDisabled) {
     return (
       <PlanningDisabledState
@@ -2073,17 +2121,53 @@ export default function SlotListsPage() {
     selectedOption?.label ??
     "";
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
-      <BackButton referrer="/database/exports" />
-      {/* Selection: source + date + data mode */}
-      <section
-        aria-label="Listenauswahl"
-        className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
-      >
-        <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Quelle
-        </p>
+    <TenantPage
+      title="Tageslisten"
+      // Erreichbar über Datenverwaltung → Exporte, kein eigener Eintrag in
+      // der Seitenleiste.
+      back
+      backHref="/database/exports"
+      backLabel="Zurück zu den Exporten"
+      // Statuszeile: der gewählte Tag und die geplanten Kinder aus den
+      // Zählern der geladenen Liste.
+      stats={
+        result
+          ? `${formatStatusDate(dateISO)} · ${result.counters.planned} Kinder geplant`
+          : null
+      }
+      statsLoading={isLoading || !result}
+      // Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
+      // Kopfkarte, nicht als Knopfreihe in einer Inhaltskarte.
+      actions={
+        <OverflowMenu items={exportMenuItems} ariaLabel="Weitere Aktionen" />
+      }
+      // Bauart 3, Regel 1: die Tageswahl sitzt im Bedienband der Kopfkarte,
+      // an derselben Stelle wie die Zeitnavigation der Planungsflächen.
+      searchSlot={
+        <PlanningContextBar
+          navigationSlot={
+            <DatePicker
+              value={parseISODate(dateISO)}
+              onChange={pickDate}
+              placeholder="Datum"
+              hideClearButton
+              minDate={pickerMinDate}
+              maxDate={pickerMaxDate}
+              className="w-full min-w-0 md:w-auto"
+            />
+          }
+          onPrevious={canGoPreviousDay ? () => stepDay(-1) : undefined}
+          onNext={canGoNextDay ? () => stepDay(1) : undefined}
+          previousLabel="Vorheriger Tag"
+          nextLabel="Nächster Tag"
+          onToday={dateISO === berlinTodayISO() ? undefined : goToToday}
+        >
+          {result ? <span>Datenherkunft: {result.provenance}</span> : null}
+        </PlanningContextBar>
+      }
+    >
+      {/* Auswahl: Quelle, Datum, Datenbasis */}
+      <SectionCard title="Quelle" bodyClassName="mt-3">
         <div className="grid auto-rows-fr grid-cols-2 gap-2.5 lg:grid-cols-3">
           {SELECTION_OPTIONS.map((option) => {
             const Icon = option.icon;
@@ -2184,7 +2268,7 @@ export default function SlotListsPage() {
         {isManualSlotSelection ? (
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="mb-2 grid min-h-7 grid-cols-[auto_1fr_auto] items-center gap-2">
-              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <span className="text-sm font-medium text-gray-700">
                 Enthaltene Angebote
               </span>
               <span className="min-w-0 truncate text-xs text-gray-500">
@@ -2243,35 +2327,31 @@ export default function SlotListsPage() {
               </p>
             )}
             {cancelledSlotCount > 0 ? (
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten
-                aufgenommen.
-              </p>
+              <div className="mt-2">
+                <Alert
+                  type="info"
+                  message="Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten aufgenommen."
+                />
+              </div>
             ) : null}
           </div>
         ) : null}
 
-        {/* Compact controls row — no dead space, provenance pinned right */}
+        {/* Datenbasis. Die Datenherkunft steht in der Kontextzeile der
+            Kopfkarte, nicht ein zweites Mal hier. */}
         <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Datum</span>
-            <DatePicker
-              value={parseISODate(dateISO)}
-              onChange={pickDate}
-              placeholder="Datum"
-              hideClearButton
-              minDate={pickerMinDate}
-              maxDate={pickerMaxDate}
-            />
-          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">
               Datenbasis
             </span>
-            <Tabs
+            <SegmentedControl
+              ariaLabel="Datenbasis"
               value={source}
-              onValueChange={(v) => {
-                const nextSource = v as SlotListSource;
+              items={SOURCES.map((s) => ({
+                value: s,
+                label: SLOT_LIST_SOURCE_LABELS[s],
+              }))}
+              onChange={(nextSource) => {
                 setSource(nextSource);
                 setSelectedGroupIds(null);
                 setSelectedClasses(null);
@@ -2296,87 +2376,31 @@ export default function SlotListsPage() {
                   selectedClasses: null,
                 });
               }}
-            >
-              <TabsList variant="default">
-                {SOURCES.map((s) => (
-                  <TabsTrigger key={s} value={s}>
-                    {SLOT_LIST_SOURCE_LABELS[s]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            />
           </div>
-          {result ? (
-            <p className="text-xs leading-5 text-gray-500 sm:ml-auto sm:max-w-[18rem] sm:text-right">
-              Datenherkunft: {result.provenance}
-            </p>
+        </div>
+      </SectionCard>
+
+      {error ? <Alert type="error" message={error} /> : null}
+
+      {/* Vorschau. Drucken und Exportieren liegen im Kebab der Kopfkarte,
+          wie auf jeder anderen Werkzeugfläche. */}
+      <SectionCard title="Vorschau">
+        {/* Filter und Zähler teilen sich eine Zeile, statt zwei fast leere
+            Zeilen übereinander zu stapeln. */}
+        <div className="flex min-w-0 flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* Standard filters that narrow the list (offering / group / class) */}
+            {filterConfigs.length > 0 ? (
+              <DesktopFilters filters={filterConfigs} />
+            ) : null}
+            {hiddenActiveFilters.length > 0 ? (
+              <ActiveFilterChips filters={hiddenActiveFilters} />
+            ) : null}
+          </div>
+          {result && !isLoading ? (
+            <CounterChips counters={result.counters} source={source} />
           ) : null}
-        </div>
-      </section>
-
-      {error ? (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mt-4 rounded-xl border p-3 text-sm">
-          {error}
-        </div>
-      ) : null}
-
-      {/* Preview + export */}
-      <section
-        aria-label="Vorschau und Export"
-        className="moto-content-surface mt-4 rounded-2xl border p-4 shadow-sm sm:p-5"
-      >
-        <div className="space-y-3 border-b border-gray-100 pb-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0 space-y-3">
-              {/* Standard filters that narrow the list (offering / group / class) */}
-              {filterConfigs.length > 0 ? (
-                <DesktopFilters filters={filterConfigs} />
-              ) : null}
-              {hiddenActiveFilters.length > 0 ? (
-                <ActiveFilterChips filters={hiddenActiveFilters} />
-              ) : null}
-              {result && !isLoading ? (
-                <CounterChips counters={result.counters} source={source} />
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                isLoading={isExporting}
-                loadingText="Erstelle PDF…"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("pdf", "print")}
-                className="gap-2"
-              >
-                <Printer className="h-4 w-4" aria-hidden />
-                Drucken
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("pdf", "download")}
-                className="gap-2"
-              >
-                <Download className="h-4 w-4" aria-hidden />
-                PDF herunterladen
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("xlsx", "download")}
-                className="gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                XLSX
-              </Button>
-            </div>
-          </div>
         </div>
 
         <div className="mt-4">
@@ -2410,18 +2434,22 @@ export default function SlotListsPage() {
               isLoading={isLoading}
               pageSize={PREVIEW_PAGE_SIZE}
               emptyState={
-                <div className="py-8 text-center text-gray-500">
-                  {isPickupBased
-                    ? "Keine Kinder mit passender Abholzeit an diesem Tag."
-                    : listKind
-                      ? `Keine Kinder für „${selectedListLabel}“ an diesem Tag.`
-                      : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben ein oder mehrere Angebote.`}
-                </div>
+                <EmptyState
+                  className="py-8"
+                  title="Keine Kinder in dieser Liste"
+                  description={
+                    isPickupBased
+                      ? "Keine Kinder mit passender Abholzeit an diesem Tag."
+                      : listKind
+                        ? `Keine Kinder für „${selectedListLabel}“ an diesem Tag.`
+                        : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wählen Sie oben ein oder mehrere Angebote.`
+                  }
+                />
               }
             />
           )}
         </div>
-      </section>
-    </main>
+      </SectionCard>
+    </TenantPage>
   );
 }

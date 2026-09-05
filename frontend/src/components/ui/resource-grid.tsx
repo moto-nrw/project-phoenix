@@ -73,6 +73,12 @@ interface ResourceGridProps<TRow> {
   readonly onEmptyCellClick?: (row: TRow, column: ResourceGridColumn) => void;
   /** Footer slot rendered inside <tfoot>, e.g. a CapacityStrip row. */
   readonly footer?: ReactNode;
+  /**
+   * Legende des Rasters. Sie sitzt als Fußband IN der Rasterfläche, nicht
+   * darunter auf dem Grund: auf dem gemusterten Hintergrund steht kein Text
+   * (BAUARTEN-SPEC Teil 3). Dieselbe Bauart wie bei Wochen- und Monatsraster.
+   */
+  readonly legend?: ReactNode;
   /** Accessible label for the scroll region. */
   readonly ariaLabel?: string;
   /**
@@ -162,6 +168,7 @@ export function ResourceGrid<TRow>({
   emptyCellLabel,
   onEmptyCellClick,
   footer,
+  legend,
   ariaLabel,
   scrollHintId,
   className,
@@ -301,6 +308,9 @@ export function ResourceGrid<TRow>({
           {footer && <tfoot>{footer}</tfoot>}
         </table>
       </div>
+      {legend && (
+        <div className="border-t border-gray-200 px-3 py-2">{legend}</div>
+      )}
     </div>
   );
 }

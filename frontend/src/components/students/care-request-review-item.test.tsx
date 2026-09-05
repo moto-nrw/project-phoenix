@@ -64,7 +64,7 @@ function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
     diff: [
       {
         label: "Montag · Abholzeit",
-        old: "—",
+        old: "–",
         new: "15:00",
         weekday: 1,
         care_kind: "pickup",
@@ -184,9 +184,9 @@ describe("CareRequestReviewItem", () => {
       <CareRequestReviewItem
         row={row({
           diff: [
-            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
-            { label: "Montag · Abholart", old: "—", new: "Geht alleine" },
-            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
+            { label: "Montag · Abholzeit", old: "–", new: "15:00" },
+            { label: "Montag · Abholart", old: "–", new: "Geht alleine" },
+            { label: "Dienstag · Abholzeit", old: "–", new: "15:00" },
           ],
         })}
         onDecided={vi.fn()}
@@ -204,11 +204,11 @@ describe("CareRequestReviewItem", () => {
       <CareRequestReviewItem
         row={row({
           diff: [
-            { label: "Montag · Abholzeit", old: "—", new: "15:00" },
-            { label: "Dienstag · Abholzeit", old: "—", new: "15:00" },
-            { label: "Mittwoch · Abholzeit", old: "—", new: "15:00" },
-            { label: "Donnerstag · Abholzeit", old: "—", new: "15:00" },
-            { label: "Freitag · Abholart", old: "—", new: "Geht alleine" },
+            { label: "Montag · Abholzeit", old: "–", new: "15:00" },
+            { label: "Dienstag · Abholzeit", old: "–", new: "15:00" },
+            { label: "Mittwoch · Abholzeit", old: "–", new: "15:00" },
+            { label: "Donnerstag · Abholzeit", old: "–", new: "15:00" },
+            { label: "Freitag · Abholart", old: "–", new: "Geht alleine" },
           ],
         })}
         onDecided={vi.fn()}

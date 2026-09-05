@@ -272,7 +272,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     sections: [
       {
         title: "Persönliche Daten",
-        titleColor: "text-moto-blue-strong",
         items: [
           {
             label: "Name",
@@ -294,7 +293,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Berufliche Informationen",
-        titleColor: "text-moto-indigo-strong",
         items: [
           {
             label: "Fachgebiet",
@@ -320,7 +318,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Konto-Status",
-        titleColor: "text-moto-purple-strong",
         items: [
           {
             label: "Konto-Informationen",
@@ -363,7 +360,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   list: {
     title: "Personal auswählen",
     description: "Verwalten Sie Profile des Personals und Zuordnungen",
-    searchPlaceholder: "Personal suchen...",
+    searchPlaceholder: "Personal suchen…",
 
     // Frontend search for small dataset
     searchStrategy: "frontend",
@@ -403,13 +400,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           return initials || "L";
         },
       },
-      badges: [
-        {
-          label: (teacher: Teacher) => teacher.role ?? "",
-          color: "bg-moto-purple-soft text-moto-purple-strong",
-          showWhen: (teacher: Teacher) => !!teacher.role,
-        },
-      ],
     },
   },
 

@@ -67,18 +67,22 @@ vi.mock("~/lib/tenant-context", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// Der Auslöser existiert pro Breakpoint einmal: als Kopfaktion (inline) und
+// als schwebender Knopf (floating). Die Testkennung trägt deshalb die
+// Variante, damit die Abfragen eindeutig bleiben.
 vi.mock("~/components/students/school-checkin-fab", () => ({
   SchoolCheckinFab: (props: {
     isActive: boolean;
     onToggle: () => void;
     successCount: number;
     pendingCount: number;
+    variant: string;
   }) => {
     mockFab(props);
     return (
       <button
         type="button"
-        data-testid="school-checkin-fab"
+        data-testid={`school-checkin-fab-${props.variant}`}
         data-active={props.isActive}
         data-pending={props.pendingCount}
         data-success-count={props.successCount}
@@ -414,7 +418,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
+    expect(screen.getByTestId("school-checkin-fab-inline")).toBeInTheDocument();
   });
 
   it("clicking the FAB calls toggleActive on the hook", async () => {
@@ -424,7 +428,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("school-checkin-fab"));
+    fireEvent.click(screen.getByTestId("school-checkin-fab-inline"));
     expect(mockToggleActive).toHaveBeenCalledTimes(1);
   });
 
@@ -510,7 +514,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+    expect(screen.getByTestId("school-checkin-fab-inline")).toHaveAttribute(
       "data-pending",
       "2",
     );
@@ -532,7 +536,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-42")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
+    expect(screen.getByTestId("school-checkin-fab-inline")).toHaveAttribute(
       "data-success-count",
       "5",
     );

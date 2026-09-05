@@ -72,12 +72,16 @@ export function DateRangePicker({
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className={`inline-flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors ${
+        // Gleiche Geometrie wie jedes andere Bedienelement im Seitenkopf:
+        // 36 px hoch, 12 px Radius, 14 px Schrift. Die frühere Pille (32 px,
+        // rounded-full, 12 px Schrift) stand neben 36-px-Knöpfen und las sich
+        // als anderes Bauteil.
+        className={`inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors ${
           isOpen ? "bg-gray-50" : "hover:bg-gray-50"
         } ${triggerClassName}`}
       >
         <svg
-          className="h-3.5 w-3.5 text-gray-400"
+          className="h-4 w-4 text-gray-400"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -89,7 +93,9 @@ export function DateRangePicker({
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
-        <span>{formatRangeLabel(value)}</span>
+        <span className="whitespace-nowrap tabular-nums">
+          {formatRangeLabel(value)}
+        </span>
       </button>
 
       {isOpen && (
@@ -119,10 +125,17 @@ function formatRangeLabel(range: DateRange | undefined): string {
     return format(range.from, "d. MMM yyyy", { locale: de });
   }
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
-  if (sameYear) {
-    return `${format(range.from, "d. MMM", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  const sameMonth = sameYear && range.from.getMonth() === range.to.getMonth();
+  // Je kürzer, desto eher passt das Label in einen Chip neben den Pfeilen,
+  // ohne dass auf dem Telefon das Jahr in eine zweite Zeile rutscht:
+  // „1.–30. Aug. 2026" statt „1. Aug. – 30. Aug. 2026".
+  if (sameMonth) {
+    return `${format(range.from, "d.", { locale: de })}–${format(range.to, "d. MMM yyyy", { locale: de })}`;
   }
-  return `${format(range.from, "d. MMM yyyy", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  if (sameYear) {
+    return `${format(range.from, "d. MMM", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  }
+  return `${format(range.from, "d. MMM yyyy", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
 }
 
 // The panel keeps its content width — a two-month grid with a preset column
@@ -303,21 +316,21 @@ export function RangeCalendarInline({
       className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
     >
       {hasPresets && (
-        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-3 text-xs sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0">
+        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-2 text-sm sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:p-3">
           {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="shrink-0 rounded-md px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
             >
               {preset.label}
             </button>
           ))}
         </div>
       )}
-      <div className="p-3">
-        <div className="mb-2 px-1 text-center text-xs text-gray-500">
+      <div className="p-3 sm:p-4">
+        <div className="mb-3 text-center text-sm font-medium text-gray-700">
           {draftLabel}
         </div>
         <div className="mb-3 flex items-center justify-between">

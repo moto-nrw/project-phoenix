@@ -6,7 +6,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
 import type {
   EventFormState,
@@ -317,25 +316,20 @@ export function StepPersonalKinder({
           <span className="text-xs font-semibold text-gray-700">
             Zielgruppe
           </span>
-          <Tabs
+          {/* Fünf Segmente sprengen schmale Ansichten; sie brechen um,
+              statt aus dem Dialog zu laufen. */}
+          <SegmentedControl
+            ariaLabel="Zielgruppe"
+            className="max-w-full"
             value={form.targetGroupType}
-            onValueChange={(value) =>
+            onChange={(value) =>
               changeTargetGroupType(value as TargetGroupType)
             }
-          >
-            {/* Five pills exceed narrow viewports; wrap instead of bleeding
-                out of the dialog (h-auto overrides the kit's fixed h-9). */}
-            <TabsList
-              aria-label="Zielgruppe"
-              className="h-auto w-fit max-w-full flex-wrap justify-start"
-            >
-              {TARGET_GROUP_OPTIONS.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+            items={TARGET_GROUP_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
 
           {form.targetGroupType === "jahrgang" && (
             <div className="mt-1">
@@ -493,13 +487,10 @@ export function StepPersonalKinder({
                 <Alert type="warning" message={offeringSourcesError} />
               ) : null}
               {form.sourceCareOfferingIds.length === 0 && (
-                <p className="text-xs text-gray-500">
-                  Mit Angeboten als Quelle übernimmt der Regeltermin die
-                  angemeldeten Kinder automatisch – auch bei späteren An- und
-                  Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die
-                  unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld
-                  „Regeltermin“).
-                </p>
+                <Alert
+                  type="info"
+                  message="Mit Angeboten als Quelle übernimmt der Regeltermin die angemeldeten Kinder automatisch, auch bei späteren An- und Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld „Regeltermin“)."
+                />
               )}
               {/* Gate on the FORM selection, matching hasOfferingSource: a
                   stored source missing from the fetched list still hides the
@@ -511,7 +502,9 @@ export function StepPersonalKinder({
                     <legend className="text-xs font-semibold text-gray-700">
                       Kinder eingrenzen
                     </legend>
-                    <p className="text-xs text-gray-500">
+                    {/* Erklärtext gehört direkt unter die Legend, Legend und
+                        Text bilden einen Kopf. */}
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
                       Sie können die Kinder nach Jahrgang oder nach einzelnen
                       Klassen eingrenzen. Beides zusammen geht nicht.
                     </p>
@@ -663,13 +656,12 @@ export function StepPersonalKinder({
 
           {form.targetGroupType !== "none" &&
             form.targetGroupType !== "angebot" && (
-              <p className="mt-2 text-xs leading-5 text-gray-600">
-                Die Kinderliste wird bei der Planung aus allen ausgewählten
-                Zielgruppen gebildet. Überschneidungen werden automatisch
-                entfernt, spätere Gruppenwechsel werden bei einer Neuplanung
-                berücksichtigt. Mit der Schaltfläche darunter kannst du die
-                aktuell passenden Kinder zusätzlich fest auswählen.
-              </p>
+              <div className="mt-2">
+                <Alert
+                  type="info"
+                  message="Die Kinderliste wird bei der Planung aus allen ausgewählten Zielgruppen gebildet. Überschneidungen werden automatisch entfernt, spätere Gruppenwechsel werden bei einer Neuplanung berücksichtigt. Mit der Schaltfläche darunter können Sie die aktuell passenden Kinder zusätzlich fest auswählen."
+                />
+              </div>
             )}
           {targetCohort.label && !loadingStudents && !studentLoadError ? (
             <Button
@@ -812,27 +804,27 @@ export function StepPersonalKinder({
           {coverageWarnings.slice(0, 3).map((warning) => (
             <p
               key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-              className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700"
+              className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700"
             >
               {warning.message}
             </p>
           ))}
           {coverageWarningCount > 3 && (
-            <details className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700">
-              <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-[#EAB308] focus-visible:outline-none">
+            <details className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700">
+              <summary className="focus-visible:ring-moto-amber cursor-pointer font-medium focus-visible:ring-2 focus-visible:outline-none">
                 {coverageWarningCount - 3} weitere Lücken anzeigen
               </summary>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {coverageWarnings.slice(3).map((warning) => (
                   <p
                     key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-                    className="border-t border-[#EAB308]/20 pt-2 first:border-t-0 first:pt-0"
+                    className="border-moto-amber/20 border-t pt-2 first:border-t-0 first:pt-0"
                   >
                     {warning.message}
                   </p>
                 ))}
                 {coverageWarningCount > coverageWarnings.length && (
-                  <p className="border-t border-[#EAB308]/20 pt-2 font-medium">
+                  <p className="border-moto-amber/20 border-t pt-2 font-medium">
                     Es werden höchstens 100 Beispiele angezeigt.
                   </p>
                 )}

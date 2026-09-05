@@ -1,5 +1,7 @@
 "use client";
 
+import { CollectionGrid } from "~/components/ui/collection-grid";
+
 // Brand color hex codes via LOCATION_COLORS (CLAUDE.md §0,
 // lib/location-helper.ts): OTHER_ROOM (#5080D8) for blue accents,
 // DANGER (#DC2626) for occupied/error, GROUP_ROOM (#83CD2D) for free
@@ -37,14 +39,14 @@ export function RoomsGridSkeleton() {
   // breakpoints as the populated grid below so the swap is purely a
   // child-level change, not a container reshape.
   return (
-    <output
-      aria-label="Räume werden geladen"
-      data-testid="rooms-grid-skeleton"
-      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+    <CollectionGrid
+      as="output"
+      ariaLabel="Räume werden geladen"
+      testId="rooms-grid-skeleton"
     >
       {Array.from({ length: 8 }).map((_, i) => (
         <RoomCardSkeleton key={i} />
       ))}
-    </output>
+    </CollectionGrid>
   );
 }

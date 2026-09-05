@@ -35,6 +35,8 @@ export interface OverflowMenuItem {
   readonly href?: string;
   /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
   readonly external?: boolean;
+  /** Marks the current item in a navigational overflow menu. */
+  readonly selected?: boolean;
 }
 
 /** Non-interactive thin divider between item groups. */
@@ -68,6 +70,15 @@ interface OverflowMenuProps {
   readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /**
+   * Rolle und Auswahlzustand des Auslösers. Nötig für den gebündelten
+   * Seitenreiter (`TenantPageTab.menu`): er sieht aus wie ein Reiter und
+   * verhält sich so, meldete sich Hilfstechnik aber als reine Schaltfläche.
+   */
+  readonly triggerRole?: "tab";
+  readonly triggerAriaSelected?: boolean;
+  /** Tabulator-Reihenfolge für einen Auslöser, der Teil eines Composite-Widgets ist. */
+  readonly triggerTabIndex?: number;
   /** Called when the menu is opened from its trigger. */
   readonly onOpen?: () => void;
   /**
@@ -104,6 +115,9 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  triggerRole,
+  triggerAriaSelected,
+  triggerTabIndex,
   onOpen,
   triggerSize = "default",
   triggerClassName = "",
@@ -116,7 +130,14 @@ export function OverflowMenu({
   // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
   // that class-string order would not resolve).
   const triggerSizeClass =
-    triggerContent != null ? "" : triggerSize === "sm" ? "size-6" : "size-9";
+    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
+    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
+    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    triggerContent != null
+      ? ""
+      : triggerSize === "sm"
+        ? "size-6"
+        : "aspect-square h-9";
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
@@ -271,16 +292,24 @@ export function OverflowMenu({
   if (items.length === 0) return null;
 
   return (
-    <div className="relative inline-block">
+    <div
+      className="relative inline-block"
+      // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
+      // Zeile; ein reines Symbol behält sein Maß.
+      data-icon-only={triggerContent == null ? "" : undefined}
+    >
       <button
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
+        role={triggerRole}
+        aria-selected={triggerAriaSelected}
+        tabIndex={triggerTabIndex}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`}
       >
         {triggerContent ?? (
           <MoreVertical className={iconSizeClass} aria-hidden />
@@ -310,7 +339,7 @@ export function OverflowMenu({
                   return (
                     <div
                       key={`header-${entry.label}`}
-                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                      className={`px-3 py-2 ${index > 0 ? "mt-1 border-t border-gray-100 pt-3" : ""}`}
                     >
                       <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
                         {entry.label}
@@ -333,7 +362,7 @@ export function OverflowMenu({
                         entry.onClick();
                       }}
                       onKeyDown={onItemKey(entry)}
-                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                         entry.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "hover:bg-gray-50 active:bg-gray-100"
@@ -364,7 +393,7 @@ export function OverflowMenu({
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
-                const itemClassName = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                const itemClassName = `flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
 
                 const inner = (
                   <>
@@ -392,6 +421,7 @@ export function OverflowMenu({
                       <a
                         key={`item-${item.label}`}
                         role="menuitem"
+                        aria-current={item.selected ? "true" : undefined}
                         tabIndex={0}
                         href={item.href}
                         target="_blank"
@@ -407,6 +437,7 @@ export function OverflowMenu({
                     <Link
                       key={`item-${item.label}`}
                       role="menuitem"
+                      aria-current={item.selected ? "true" : undefined}
                       tabIndex={0}
                       href={item.href}
                       onClick={onLinkActivate}
@@ -422,6 +453,7 @@ export function OverflowMenu({
                     key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
+                    aria-current={item.selected ? "true" : undefined}
                     disabled={item.disabled}
                     onClick={() => {
                       if (item.disabled) return;

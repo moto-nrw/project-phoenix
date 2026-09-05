@@ -417,7 +417,7 @@ describe("Action button click handlers", () => {
     });
   });
 
-  it("clicking mobile release supervision button opens the modal", async () => {
+  it("clicking the release action opens the modal", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -463,16 +463,11 @@ describe("Action button click handlers", () => {
 
     render(<MeinRaumPage />);
 
-    // Wait for release buttons to appear
-    await waitFor(() => {
-      expect(
-        screen.getAllByLabelText("Aufsicht abgeben").length,
-      ).toBeGreaterThanOrEqual(2);
+    // Die Aktion steht seit der Kopfkarten-Umstellung einmal im Kopf.
+    const releaseButton = await screen.findByRole("button", {
+      name: "Aufsicht abgeben",
     });
-
-    // Click the mobile release button (second one with aria-label)
-    const releaseButtons = screen.getAllByLabelText("Aufsicht abgeben");
-    fireEvent.click(releaseButtons[1]!);
+    fireEvent.click(releaseButton);
 
     // Modal should now be open
     await waitFor(() => {
@@ -592,7 +587,7 @@ describe("Action button click handlers", () => {
 
     // Should show loading text
     await waitFor(() => {
-      expect(screen.getByText("Wird übernommen...")).toBeInTheDocument();
+      expect(screen.getByText("Wird übernommen…")).toBeInTheDocument();
     });
   });
 });
@@ -727,11 +722,11 @@ describe("Schulhof tab onTabChange callback", () => {
 
     // Wait for tabs to render
     await waitFor(() => {
-      expect(screen.getByTestId("tab-schulhof")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
     });
 
     // Click the Schulhof tab - triggers onTabChange with "schulhof" (lines 1232-1259)
-    const schulhofTab = screen.getByTestId("tab-schulhof");
+    const schulhofTab = screen.getByRole("tab", { name: "Schulhof" });
     fireEvent.click(schulhofTab);
 
     // Should have called router.push with schulhof URL
@@ -811,11 +806,11 @@ describe("Schulhof tab onTabChange callback", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("tab-schulhof")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
     });
 
     // Click Schulhof tab
-    fireEvent.click(screen.getByTestId("tab-schulhof"));
+    fireEvent.click(screen.getByRole("tab", { name: "Schulhof" }));
 
     // Should push to schulhof URL
     await waitFor(() => {
@@ -885,11 +880,11 @@ describe("Schulhof tab onTabChange callback", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("tab-room-1")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Raum A" })).toBeInTheDocument();
     });
 
     // Click regular room tab (switching from Schulhof to room)
-    fireEvent.click(screen.getByTestId("tab-room-1"));
+    fireEvent.click(screen.getByRole("tab", { name: "Raum A" }));
 
     // Should have called router.push with room URL
     await waitFor(() => {
@@ -927,7 +922,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
   });
 
   it("renders content for non-admin users", async () => {
@@ -939,7 +936,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -967,7 +966,9 @@ describe("RoleGuard integration", () => {
     render(<MeinRaumPage />);
 
     // Admin with rooms should pass the gate and render content
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -993,7 +994,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -1027,7 +1030,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
   });
 
   it("shows loading state while supervision is loading for admin", async () => {

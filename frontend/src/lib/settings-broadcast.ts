@@ -6,8 +6,7 @@ const CHANNEL_NAME = "phoenix:settings-changed";
 
 // jsdom does not ship BroadcastChannel; guard for tests.
 function getChannelCtor():
-  | (new (name: string) => BroadcastChannel)
-  | undefined {
+  (new (name: string) => BroadcastChannel) | undefined {
   if (typeof BroadcastChannel === "undefined") return undefined;
   return BroadcastChannel;
 }

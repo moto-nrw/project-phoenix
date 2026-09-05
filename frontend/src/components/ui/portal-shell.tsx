@@ -19,6 +19,13 @@ interface PortalShellProps {
   readonly header: ReactNode;
   readonly headerClassName?: string;
   readonly backgroundClassName?: string;
+  /**
+   * Klassen der Inhaltshülle direkt um `children`. Das Personal-Portal gibt
+   * hier eine Flex-Spalte hinein (`flex flex-1 flex-col`), damit eine Seite
+   * die Höhe des Bildschirms bis zur Unterkante füllen kann; ohne Angabe
+   * bleibt die Hülle ein gewöhnlicher Block.
+   */
+  readonly contentClassName?: string;
   readonly topLayer?: ReactNode;
   readonly sidebar: ReactNode;
   readonly bottomNav: ReactNode;
@@ -29,13 +36,19 @@ export function PortalShell({
   header,
   headerClassName = "sticky top-0 z-40",
   backgroundClassName = "",
+  contentClassName = "",
   topLayer,
   sidebar,
   bottomNav,
   children,
 }: PortalShellProps) {
   return (
-    <div className="relative min-h-screen">
+    // Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
+    // Zeile aus Seitenleiste und <main> immer bis zur Unterkante des
+    // Bildschirms, und eine Seite kann ihren Inhalt daran ausrichten (die
+    // letzte Fläche des Personal-Gerüsts wächst bis dorthin). Jede Stufe hat
+    // genau ein Kind, deshalb ändert die Spalte an Abständen nichts.
+    <div className="relative flex min-h-screen flex-col">
       <div
         data-portal-background
         className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
@@ -45,11 +58,11 @@ export function PortalShell({
 
       <div className={headerClassName}>{header}</div>
 
-      <div className="relative z-10 flex">
+      <div className="relative z-10 flex flex-1">
         {sidebar}
 
-        <main className="min-w-0 flex-1 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
-          <div className="relative z-10">{children}</div>
+        <main className="flex min-w-0 flex-1 flex-col p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
+          <div className={`relative z-10 ${contentClassName}`}>{children}</div>
         </main>
       </div>
 

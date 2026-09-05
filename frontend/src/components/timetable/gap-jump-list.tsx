@@ -66,7 +66,7 @@ export function GapJumpList({
         className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
         title="Personal-Lücken werden geprüft"
       >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]" />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
         Lücken werden geprüft …
       </span>
     );
@@ -80,7 +80,7 @@ export function GapJumpList({
         className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
         title="Keine offenen Lücken im sichtbaren Zeitraum"
       >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]" />
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
         Keine Lücken
       </span>
     );

@@ -265,9 +265,7 @@ describe("VertretungDayList", () => {
       />,
     );
 
-    expect(
-      screen.getByText("Keine Termine an diesem Tag."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Keine Termine an diesem Tag")).toBeInTheDocument();
   });
 
   it("zeigt Ersatzkräfte blockweit statt sie abwesenden Personen zuzuordnen", () => {

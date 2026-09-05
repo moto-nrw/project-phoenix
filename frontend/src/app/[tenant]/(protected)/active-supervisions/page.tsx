@@ -9,6 +9,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   useAttendanceWebEnabled,
+  useNFCEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -16,14 +17,11 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
-import {
-  CardGridSkeleton,
-  PageHeaderSkeleton,
-  SkeletonRegion,
-} from "~/components/ui/page-skeletons";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { isCaregiver } from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
@@ -31,7 +29,6 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
-  NoActiveSupervisionAccessView,
   ReleaseSupervisionModal,
   SchulhofNotSupervisingView,
 } from "~/components/active-supervisions/states";
@@ -43,6 +40,8 @@ import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
   additionalSupervisionTarget,
+  roomsOutsideSchulhofStatus,
+  supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
@@ -52,11 +51,11 @@ import { useTimetableActions } from "~/components/active-supervisions/use-timeta
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
-import { SupervisionHeader } from "~/components/active-supervisions/supervision-header";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
+  const nfcEnabled = useNFCEnabled();
   const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -220,19 +219,83 @@ function MeinRaumPageContent() {
     }
   };
 
-  if (
+  // Laden, fehlender Zugriff und Fehler laufen ueber das Geruest
+  // (`loading`/`empty`/`error`) und nicht mehr ueber vollstaendige
+  // Alternativ-Rueckgaben: sonst verliert die Seite genau in diesen
+  // Zustaenden Kopf, Titel und Orientierung.
+  const isPageLoading =
     status === "loading" ||
     dashboard.isInitialLoading ||
     dashboard.isSwitchingSession ||
-    dashboard.hasAccess === null
-  ) {
-    return <ActiveSupervisionLoadingView />;
-  }
+    dashboard.hasAccess === null;
+  const hasNoAccess = !isPageLoading && !dashboard.hasAccess;
 
-  // Show empty state if no active supervision
-  if (!dashboard.hasAccess) {
-    return <NoActiveSupervisionAccessView />;
-  }
+  // Statuszeile unter dem Seitentitel: welche Aufsicht gerade offen ist und
+  // wie viele Kinder in ihr geführt werden. Beides steht schon im geladenen
+  // Dashboard-Zustand.
+  const supervisionName = isSchulhofTabSelected
+    ? SCHULHOF_ROOM_NAME
+    : (currentRoom?.name ?? currentRoom?.room_name ?? null);
+  // Die Zahl kommt aus derselben Quelle wie früher der Zähler im Kopf: der
+  // gemeldeten Belegung der Aufsicht, ersatzweise den geladenen Kindern.
+  const supervisionCount = isSchulhofTabSelected
+    ? (schulhofStatus?.studentCount ?? students.length)
+    : (currentRoom?.student_count ?? students.length);
+  const supervisionSummary = supervisionName
+    ? `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`
+    : "Keine Aufsicht aktiv";
+
+  // Reiterleiste der einzelnen Aufsichten. Am Desktop wechselt die
+  // Seitenleiste die Aufsicht, deshalb stehen die Reiter nur darunter.
+  const roomsOutsideStatus = roomsOutsideSchulhofStatus(allRooms, {
+    schulhofTabEnabled: dashboard.schulhofTabEnabled,
+    statusActiveGroupId: schulhofStatus?.activeGroupId,
+  });
+  const totalSupervisions =
+    roomsOutsideStatus.length + (schulhofTabAvailable ? 1 : 0);
+  const allSupervisionTabItems = [
+    // Reguläre Aufsichten, einschließlich einer parallelen
+    // Schulhof-Gruppe, die der feste Reiter nicht abbildet.
+    ...roomsOutsideStatus.map((room) => ({
+      value: room.id,
+      label: supervisionTabLabel(
+        room,
+        dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
+      ),
+    })),
+    // Fester Schulhof-Reiter, nur mit spontaner Aufsicht (#2161).
+    ...(schulhofTabAvailable
+      ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
+      : []),
+  ];
+  const supervisionTabItems = allSupervisionTabItems;
+  const supervisionTabs =
+    totalSupervisions >= 2 && !isDesktop
+      ? {
+          value: isSchulhofTabSelected
+            ? SCHULHOF_TAB_ID
+            : (currentRoom?.id ?? ""),
+          onChange: handleTabChange,
+          items: supervisionTabItems,
+          label: "Meine Aufsichten",
+        }
+      : undefined;
+
+  // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt; im
+  // Leerzustand steht dort stattdessen „Beaufsichtigen".
+  const releaseAction =
+    isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
+      <Button
+        type="button"
+        variant="outline_danger"
+        size="md"
+        onClick={() => schulhof.setShowReleaseModal(true)}
+        className="gap-2"
+      >
+        <LogOut className="h-4 w-4" aria-hidden="true" />
+        Aufsicht abgeben
+      </Button>
+    ) : undefined;
 
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
@@ -248,7 +311,7 @@ function MeinRaumPageContent() {
     />
   ) : null;
   const reopenBanner = reopen.reopenableInstanceId ? (
-    <div className="mb-4">
+    <div>
       <Alert
         type="success"
         message="Aktivität wurde beendet. Die Rücknahme ist fünf Minuten lang möglich."
@@ -266,6 +329,9 @@ function MeinRaumPageContent() {
     </div>
   ) : null;
 
+  // Zusätzliche Betreuer (#2806): auf der eigenen aktiven Aufsicht steht die
+  // Aktion in der Kopfkarte; das Gerüst regelt die mobile Darstellung, eine
+  // eigene Icon-Variante braucht es nicht mehr.
   const additionalSupervisionActiveGroupId = additionalSupervisionTarget({
     currentRoom,
     isSchulhofTabSelected,
@@ -291,46 +357,15 @@ function MeinRaumPageContent() {
       </Button>
     </>
   ) : null;
-  const mobileAddSupervisorButton = additionalSupervisionActiveGroupId ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      onClick={() => setShowAddSupervisor(true)}
-      aria-label="Betreuer hinzufügen"
-    >
-      <UserPlus className="h-4 w-4" aria-hidden="true" />
-    </Button>
-  ) : null;
 
-  // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
-  // If the Schulhof tab is available, we'll show the main view with just that tab
-  if (
+  // Keine eigene Aufsicht, kein Schulhof, nichts geplant: dieselbe Kopfkarte,
+  // nur ein anderer Inhalt — keine zweite Seite.
+  const showUnclaimedOnly =
+    !isPageLoading &&
+    !hasNoAccess &&
     allRooms.length === 0 &&
     !schulhofTabAvailable &&
-    plannedNow.length === 0
-  ) {
-    return (
-      <div className="w-full">
-        {reopenBanner}
-        {spontaneousStartBanner}
-        <EmptyRoomsView
-          onClaimed={refresh}
-          cachedActiveGroups={dashboard.cachedActiveGroups}
-          currentStaffId={currentStaffId}
-          searchTerm={filters.searchTerm}
-          setSearchTerm={filters.setSearchTerm}
-          setGroupFilter={filters.setGroupFilter}
-          setSelectedYear={filters.setSelectedYear}
-          filterConfigs={filters.filterConfigs}
-          activeFilters={filters.activeFilters}
-        />
-        {/* The day review must survive the empty state: after the last block
-            ends, supervisors land exactly here (#2335). */}
-        <PastBlocksSection />
-      </div>
-    );
-  }
+    plannedNow.length === 0;
 
   // Render helper for student grid content
   const renderStudentContent = () => {
@@ -386,183 +421,180 @@ function MeinRaumPageContent() {
   };
 
   return (
-    <div className="w-full">
-      {reopenBanner}
-      <ConfirmationModal
-        isOpen={actions.showCompleteConfirmation}
-        onClose={() => actions.setShowCompleteConfirmation(false)}
-        onConfirm={() => void actions.confirmCompleteTimetableInstance()}
-        title="Aktivität wirklich beenden?"
-        confirmText="Aktivität beenden"
-        isConfirmLoading={actions.isCompletingInstance}
-        isDismissDisabled={actions.isCompletingInstance}
-      >
-        <div className="space-y-3 text-sm text-gray-700">
-          <p>
-            <strong>{currentTimetableRoster?.instance.title}</strong> endet laut
-            Plan um {currentTimetableRoster?.instance.endTime} Uhr.
-          </p>
-          <p>
-            Aktuell anwesend:{" "}
-            {currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
-              .length ?? 0}
-          </p>
-          {(currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
-            .length ?? 0) > 0 ? (
-            <ul className="list-disc space-y-1 pl-5">
-              {currentTimetableRoster?.rows
-                .filter((row) => row.currentlyPresent)
-                .map((row) => (
-                  <li key={row.studentId}>{row.studentName}</li>
-                ))}
-            </ul>
+    <TenantPage
+      title="Aktuelle Aufsicht"
+      stats={supervisionSummary}
+      actions={
+        (addSupervisorButton ?? releaseAction) ? (
+          <>
+            {addSupervisorButton}
+            {releaseAction}
+          </>
+        ) : undefined
+      }
+      search={{
+        value: filters.searchTerm,
+        onChange: filters.setSearchTerm,
+        placeholder: "Name suchen…",
+      }}
+      filters={filters.filterConfigs}
+      activeFilters={filters.activeFilters}
+      onClearAllFilters={filters.clearAllFilters}
+      tabs={supervisionTabs}
+      statsLoading={isPageLoading}
+      loading={isPageLoading}
+      loadingLabel="Aktuelle Aufsicht wird geladen…"
+      empty={
+        hasNoAccess
+          ? {
+              icon: <MotoConceptIcon concept="rooms" size={48} />,
+              title: "Keine aktive Raum-Aufsicht",
+              description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
+                nfcEnabled ? "an einem Terminal" : "in der Web-App"
+              }, um Live-Raumdaten einzusehen.`,
+            }
+          : null
+      }
+      overlays={
+        <>
+          <ConfirmationModal
+            isOpen={actions.showCompleteConfirmation}
+            onClose={() => actions.setShowCompleteConfirmation(false)}
+            onConfirm={() => void actions.confirmCompleteTimetableInstance()}
+            title="Aktivität wirklich beenden?"
+            confirmText="Aktivität beenden"
+            isConfirmLoading={actions.isCompletingInstance}
+            isDismissDisabled={actions.isCompletingInstance}
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                <strong>{currentTimetableRoster?.instance.title}</strong> endet
+                laut Plan um {currentTimetableRoster?.instance.endTime} Uhr.
+              </p>
+              <p>
+                Aktuell anwesend:{" "}
+                {currentTimetableRoster?.rows.filter(
+                  (row) => row.currentlyPresent,
+                ).length ?? 0}
+              </p>
+              {(currentTimetableRoster?.rows.filter(
+                (row) => row.currentlyPresent,
+              ).length ?? 0) > 0 ? (
+                <ul className="list-disc space-y-1 pl-5">
+                  {currentTimetableRoster?.rows
+                    .filter((row) => row.currentlyPresent)
+                    .map((row) => (
+                      <li key={row.studentId}>{row.studentName}</li>
+                    ))}
+                </ul>
+              ) : null}
+            </div>
+          </ConfirmationModal>
+          {/* Schulhof Release Supervision Modal */}
+          <ReleaseSupervisionModal
+            isOpen={schulhof.showReleaseModal}
+            onClose={() => schulhof.setShowReleaseModal(false)}
+            onConfirm={() =>
+              schulhof.handleReleaseSupervision().catch(() => undefined)
+            }
+            isConfirmLoading={schulhof.isReleasingSupervision}
+          />
+          {showAddSupervisor ? (
+            <AddSupervisorModal
+              activeGroupId={additionalSupervisionActiveGroupId}
+              isOpen
+              onClose={() => setShowAddSupervisor(false)}
+              onAdded={mutateDashboard}
+            />
           ) : null}
-        </div>
-      </ConfirmationModal>
-      {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
-      <UnclaimedRooms
-        onClaimed={refresh}
-        activeGroups={
-          dashboard.cachedActiveGroups.length > 0
-            ? dashboard.cachedActiveGroups
-            : undefined
-        }
-        currentStaffId={currentStaffId}
-      />
-
-      <PlannedNowSection
-        plannedNow={plannedNow}
-        hasActiveTimetableSession={currentTimetableRoster !== null}
-        isStartingInstance={actions.isStartingInstance}
-        onStart={(instance) =>
-          void actions.handleStartPlannedInstance(instance)
-        }
-      />
-
-      {spontaneousStartBanner}
-
-      <SupervisionHeader
-        isDesktop={isDesktop}
-        allRooms={allRooms}
-        currentRoom={currentRoom}
-        isSchulhofTabSelected={isSchulhofTabSelected}
-        schulhofTabEnabled={dashboard.schulhofTabEnabled}
-        schulhofTabAvailable={schulhofTabAvailable}
-        schulhofStatus={schulhofStatus}
-        sessionInfoByActiveGroup={dashboard.sessionInfoByActiveGroup}
-        searchTerm={filters.searchTerm}
-        onSearchChange={filters.setSearchTerm}
-        filterConfigs={filters.filterConfigs}
-        activeFilters={filters.activeFilters}
-        onClearAllFilters={filters.clearAllFilters}
-        onTabChange={handleTabChange}
-        actionButton={
-          additionalSupervisionActiveGroupId ||
-          (isSchulhofTabSelected && schulhofStatus?.isUserSupervising) ? (
-            <div className="flex items-center gap-2">
-              {isDesktop ? addSupervisorButton : mobileAddSupervisorButton}
-              {isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-                <button
-                  type="button"
-                  onClick={() => schulhof.setShowReleaseModal(true)}
-                  className="border-moto-red/20 bg-moto-red-soft text-moto-red hover:bg-moto-red/15 flex h-10 items-center gap-2 rounded-full border px-4 transition-colors"
-                  aria-label="Aufsicht abgeben"
-                >
-                  <LogOut className="h-5 w-5" aria-hidden="true" />
-                  <span className="text-sm font-medium">Aufsicht abgeben</span>
-                </button>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-        mobileActionButton={
-          mobileAddSupervisorButton ||
-          (isSchulhofTabSelected && schulhofStatus?.isUserSupervising) ? (
-            <div className="flex items-center gap-2">
-              {mobileAddSupervisorButton}
-              {isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-                <button
-                  type="button"
-                  onClick={() => schulhof.setShowReleaseModal(true)}
-                  className="border-moto-red/20 bg-moto-red-soft text-moto-red hover:bg-moto-red/15 flex h-8 w-8 items-center justify-center rounded-full border transition-colors"
-                  aria-label="Aufsicht abgeben"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-          ) : undefined
-        }
-      />
-
-      {showAddSupervisor ? (
-        <AddSupervisorModal
-          activeGroupId={additionalSupervisionActiveGroupId}
-          isOpen
-          onClose={() => setShowAddSupervisor(false)}
-          onAdded={mutateDashboard}
-        />
-      ) : null}
-
-      {/* Schulhof Release Supervision Modal */}
-      <ReleaseSupervisionModal
-        isOpen={schulhof.showReleaseModal}
-        onClose={() => schulhof.setShowReleaseModal(false)}
-        onConfirm={() =>
-          schulhof.handleReleaseSupervision().catch(() => undefined)
-        }
-        isConfirmLoading={schulhof.isReleasingSupervision}
-      />
-
-      {/* Mobile Error Display */}
-      {error && (
-        <div className="mb-4 md:hidden">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
-      {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
-      {isSchulhofTabSelected &&
-        schulhofStatus &&
-        !schulhofStatus.isUserSupervising && (
-          <SchulhofNotSupervisingView
-            supervisorCount={schulhofStatus.supervisorCount}
-            supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
-            isToggling={schulhof.isTogglingSchulhof}
-            startDisabled={
-              !schulhofStatus.activeGroupId &&
-              dashboard.spontaneousStartAvailability?.available === false
+        </>
+      }
+    >
+      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
+          `error`-Zustand des Geruests: hier meldet auch eine misslungene
+          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
+          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
+      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
+      {showUnclaimedOnly ? (
+        <>
+          {reopenBanner}
+          {spontaneousStartBanner}
+          <EmptyRoomsView
+            onClaimed={refresh}
+            cachedActiveGroups={dashboard.cachedActiveGroups}
+            currentStaffId={currentStaffId}
+          />
+          {/* The day review must survive the empty state: after the last block
+              ends, supervisors land exactly here (#2335). */}
+          <PastBlocksSection />
+        </>
+      ) : (
+        <>
+          {reopenBanner}
+          {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
+          <UnclaimedRooms
+            onClaimed={refresh}
+            activeGroups={
+              dashboard.cachedActiveGroups.length > 0
+                ? dashboard.cachedActiveGroups
+                : undefined
             }
-            startDisabledReason={
-              schulhofStatus.activeGroupId
-                ? undefined
-                : spontaneousStartBlockedReason
-            }
-            onToggle={() =>
-              schulhof.handleToggleSchulhof().catch(() => undefined)
+            currentStaffId={currentStaffId}
+          />
+
+          <PlannedNowSection
+            plannedNow={plannedNow}
+            hasActiveTimetableSession={currentTimetableRoster !== null}
+            isStartingInstance={actions.isStartingInstance}
+            onStart={(instance) =>
+              void actions.handleStartPlannedInstance(instance)
             }
           />
-        )}
 
-      {currentRoom &&
-      (!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) ? (
-        <div className="mb-4">
-          <Suspense fallback={null}>
-            <TransitStudentsSection
-              fromReferrer="/active-supervisions"
-              collapsible
-            />
-          </Suspense>
-        </div>
-      ) : null}
+          {spontaneousStartBanner}
 
-      {/* Student Grid - Mobile Optimized */}
-      {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
-        renderStudentContent()}
+          {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
+          {isSchulhofTabSelected &&
+            schulhofStatus &&
+            !schulhofStatus.isUserSupervising && (
+              <SchulhofNotSupervisingView
+                supervisorCount={schulhofStatus.supervisorCount}
+                supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
+                isToggling={schulhof.isTogglingSchulhof}
+                startDisabled={
+                  !schulhofStatus.activeGroupId &&
+                  dashboard.spontaneousStartAvailability?.available === false
+                }
+                startDisabledReason={
+                  schulhofStatus.activeGroupId
+                    ? undefined
+                    : spontaneousStartBlockedReason
+                }
+                onToggle={() =>
+                  schulhof.handleToggleSchulhof().catch(() => undefined)
+                }
+              />
+            )}
 
-      {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
-      <PastBlocksSection />
-    </div>
+          {currentRoom &&
+          (!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) ? (
+            <Suspense fallback={null}>
+              <TransitStudentsSection
+                fromReferrer="/active-supervisions"
+                collapsible
+              />
+            </Suspense>
+          ) : null}
+
+          {/* Student Grid - Mobile Optimized */}
+          {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
+            renderStudentContent()}
+
+          {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
+          <PastBlocksSection />
+        </>
+      )}
+    </TenantPage>
   );
 }
 
@@ -580,7 +612,14 @@ function ActiveSupervisionGate({
   const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
-    return <ActiveSupervisionLoadingView />;
+    return (
+      <TenantPage
+        title="Aktuelle Aufsicht"
+        statsLoading
+        loading
+        loadingLabel="Aktuelle Aufsicht wird geladen…"
+      />
+    );
   }
 
   // Caregivers (user/teacher role) always have access
@@ -596,7 +635,9 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  return <ForbiddenPage />;
+  // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe
+  // Kopfkarte mit demselben Titel, darunter der ruhige Leerzustand.
+  return <ForbiddenPage title="Aktuelle Aufsicht" />;
 }
 
 // Main component with Suspense wrapper. BinaryModeGuard runs first so
@@ -604,17 +645,15 @@ function ActiveSupervisionGate({
 // data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <BinaryModeGuard>
+    <BinaryModeGuard title="Aktuelle Aufsicht">
       <Suspense
         fallback={
-          <SkeletonRegion label="Mein Raum wird geladen">
-            <PageHeaderSkeleton actions={1} />
-            <CardGridSkeleton
-              cards={6}
-              rowsPerCard={2}
-              className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-            />
-          </SkeletonRegion>
+          <TenantPage
+            title="Aktuelle Aufsicht"
+            statsLoading
+            loading
+            loadingLabel="Aktuelle Aufsicht wird geladen…"
+          />
         }
       >
         <ActiveSupervisionGate>

@@ -211,7 +211,7 @@ function SettingsTabContent({
             <SettingsCategory
               key={expansionKey(hit.tab.key, hit.category.key)}
               category={hit.category}
-              kicker={tabLabel(hit.tab)}
+              tabLabel={tabLabel(hit.tab)}
               filterQuery={normalizedQuery}
               onSave={onSave}
               onReset={onReset}
@@ -379,20 +379,24 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   // Server error on initial fetch — show retry.
   if (fetchError && !schema) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-moto-red-strong text-sm">
-          {fetchError instanceof Error
+      <Alert
+        type="error"
+        message={
+          fetchError instanceof Error
             ? fetchError.message
-            : "Einstellungen konnten nicht geladen werden"}
-        </p>
-        <button
-          type="button"
-          onClick={() => void revalidate()}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          Erneut versuchen
-        </button>
-      </div>
+            : "Einstellungen konnten nicht geladen werden"
+        }
+        action={
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            onClick={() => void revalidate()}
+          >
+            Erneut versuchen
+          </Button>
+        }
+      />
     );
   }
 
@@ -405,9 +409,10 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
 
   if (!tab) {
     return (
-      <div className="py-8 text-center text-sm text-gray-500">
-        Keine Einstellungen verfügbar.
-      </div>
+      <EmptyState
+        title="Keine Einstellungen verfügbar."
+        description="Für diesen Bereich sind derzeit keine Einstellungen freigeschaltet."
+      />
     );
   }
 

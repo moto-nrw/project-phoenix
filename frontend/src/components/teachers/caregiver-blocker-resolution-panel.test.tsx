@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CaregiverBlockerResolutionModal } from "./caregiver-blocker-resolution-modal";
+import { CaregiverBlockerResolutionPanel } from "./caregiver-blocker-resolution-panel";
 
 const { mockToastSuccess, mockGetAllAvailableStaff, mockFetch } = vi.hoisted(
   () => ({
@@ -10,33 +10,6 @@ const { mockToastSuccess, mockGetAllAvailableStaff, mockFetch } = vi.hoisted(
     mockFetch: vi.fn(),
   }),
 );
-
-vi.mock("~/components/ui/form-modal", async () => {
-  const { createElement } = await import("react");
-
-  return {
-    FormModal: ({
-      isOpen,
-      title,
-      footer,
-      children,
-    }: {
-      isOpen: boolean;
-      title: string;
-      footer: ReactNode;
-      children: ReactNode;
-    }) =>
-      isOpen
-        ? createElement(
-            "div",
-            { "data-testid": "form-modal" },
-            createElement("h1", null, title),
-            createElement("div", null, children),
-            createElement("div", null, footer),
-          )
-        : null,
-  };
-});
 
 vi.mock("~/components/ui/alert", async () => {
   const { createElement } = await import("react");
@@ -119,7 +92,7 @@ function createState(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("CaregiverBlockerResolutionModal", () => {
+describe("CaregiverBlockerResolutionPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAllAvailableStaff.mockResolvedValue([
@@ -130,10 +103,8 @@ describe("CaregiverBlockerResolutionModal", () => {
 
   it("loads available staff and excludes the current caregiver from replacements", async () => {
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activitySupervisions: [
             {
@@ -164,14 +135,7 @@ describe("CaregiverBlockerResolutionModal", () => {
   it("shows when replacement staff cannot be loaded", async () => {
     mockGetAllAvailableStaff.mockRejectedValueOnce(new Error("invalid data"));
 
-    render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
-        state={createState()}
-      />,
-    );
+    render(<CaregiverBlockerResolutionPanel active state={createState()} />);
 
     expect(
       await screen.findByText(
@@ -184,10 +148,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activeSupervisions: [
             { id: "7", groupName: "Gruppe Blau", startDate: "2026-04-05" },
@@ -216,10 +178,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activeSubstitutions: [
             {
@@ -254,10 +214,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activitySupervisions: [
             {
@@ -302,10 +260,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activitySupervisions: [
             {
@@ -338,10 +294,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           activitySupervisions: [
             {
@@ -368,10 +322,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           groupAssignments: [
             {
@@ -406,10 +358,8 @@ describe("CaregiverBlockerResolutionModal", () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onResolved={vi.fn()}
+      <CaregiverBlockerResolutionPanel
+        active
         state={createState({
           groupAssignments: [
             {
@@ -446,22 +396,13 @@ describe("CaregiverBlockerResolutionModal", () => {
     );
   });
 
-  it("calls onResolved and onClose once everything is cleared", async () => {
-    const onResolved = vi.fn();
-    const onClose = vi.fn();
+  it("weist auf den Rückweg hin, sobald nichts mehr offen ist", () => {
+    render(<CaregiverBlockerResolutionPanel active state={createState()} />);
 
-    render(
-      <CaregiverBlockerResolutionModal
-        isOpen={true}
-        onClose={onClose}
-        onResolved={onResolved}
-        state={createState()}
-      />,
-    );
-
-    fireEvent.click(screen.getByText("Fertig"));
-
-    expect(onResolved).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText(
+        "Alle Zuordnungen wurden aufgelöst. Gehen Sie zurück zur Übersicht, um die Betreuung zu deaktivieren.",
+      ),
+    ).toBeInTheDocument();
   });
 });
