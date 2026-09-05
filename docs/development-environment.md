@@ -44,6 +44,12 @@ Use `devbox run claude` or `devbox run codex` from the root. These keep child
 commands in Devbox. The Claude launcher prefers the native installer under
 the user's home over old global installations; clients remain vendor-updated.
 
+Codex's project configuration uses non-login shells: host login profiles can
+replace the inherited Devbox PATH with Homebrew paths. Start a new session after
+changing this setting. Desktop sessions launched without Devbox still need
+explicit `devbox run` commands; disabling login profiles does not install tools
+or activate Devbox by itself.
+
 Claude's project settings register the small local `moto-lsp` plugin, which
 selects these same tools and SDK. Accept the normal project/plugin trust prompt
 when first opening a new checkout. The generic official Go/TypeScript plugins
