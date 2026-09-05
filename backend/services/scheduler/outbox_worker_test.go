@@ -9,21 +9,22 @@ import (
 	"testing"
 	"time"
 
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type unitOfWorkOutboxRunner struct {
-	called  bool
-	backlog int
-	err     error
+	maxAttempts int
+	called      bool
+	backlog     int
+	err         error
 }
 
-func (*unitOfWorkOutboxRunner) SetMaxAttempts(int) {}
-
-func (w *unitOfWorkOutboxRunner) RunOnce(ctx context.Context, _ int) (int, error) {
+func (w *unitOfWorkOutboxRunner) RunOnce(ctx context.Context, _ int, maxAttempts int) (int, error) {
 	w.called = true
+	w.maxAttempts = maxAttempts
 	if w.err != nil {
 		return 0, w.err
 	}
@@ -63,6 +64,7 @@ func TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence(t *testing.T) {
 	scheduler.runOutboxOnce(context.Background(), &ScheduledTask{})
 
 	assert.True(t, runner.called)
+	assert.Equal(t, 6, runner.maxAttempts)
 	assert.Equal(t, []string{"commit"}, results)
 	assert.True(t, strings.Contains(logs.String(), "job_id=email-outbox"))
 	assert.True(t, strings.Contains(logs.String(), "backlog=7"))
@@ -86,6 +88,21 @@ func TestRunOutboxOnceReportsFailure(t *testing.T) {
 
 	assert.Equal(t, "email-outbox", operation)
 	assert.Equal(t, "run_failure", outcome)
+}
+
+func TestRunOutboxOncePassesRetryLimitOnEachTick(t *testing.T) {
+	t.Parallel()
+	runner := &unitOfWorkOutboxRunner{}
+	settings := &fakeSettingsResolver{intValues: map[string]int{configModel.KeyEnrollmentOutboxMaxAttempts: 3}}
+	scheduler := newScheduler(WorkerDependencies{
+		Logger: slog.Default(), TenantRuntime: newTestUnitOfWork(t), OutboxWorker: runner, Settings: settings,
+	})
+	task := &ScheduledTask{}
+	scheduler.runOutboxOnce(context.Background(), task)
+	assert.Equal(t, 3, runner.maxAttempts)
+	settings.intValues[configModel.KeyEnrollmentOutboxMaxAttempts] = 5
+	scheduler.runOutboxOnce(context.Background(), task)
+	assert.Equal(t, 5, runner.maxAttempts)
 }
 
 func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {

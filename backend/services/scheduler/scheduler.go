@@ -270,9 +270,8 @@ type Scheduler struct {
 // platform outbox worker. Defined here so the scheduler doesn't import
 // services/platform.
 type OutboxWorkerRunner interface {
-	RunOnce(ctx context.Context, batchSize int) (int, error)
+	RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error)
 	Backlog(ctx context.Context) (int, error)
-	SetMaxAttempts(n int)
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
