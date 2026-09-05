@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Modal } from "~/components/ui/modal";
 import type {
   HomeBlockDefinition,
@@ -28,6 +29,7 @@ export function CustomizeDashboardModal({
   onClose,
   adjustable,
   visible,
+  currentOverrides,
   customized,
   prescribedCount,
   onSave,
@@ -37,6 +39,7 @@ export function CustomizeDashboardModal({
   onClose: () => void;
   adjustable: readonly HomeBlockDefinition[];
   visible: ReadonlySet<HomeBlockKey>;
+  currentOverrides: HomeLayoutOverrides;
   customized: boolean;
   prescribedCount: number;
   onSave: (overrides: HomeLayoutOverrides) => Promise<void>;
@@ -69,11 +72,16 @@ export function CustomizeDashboardModal({
     setBusy(true);
     setError(null);
     try {
-      const overrides: HomeLayoutOverrides = {};
+      // Nur die Bausteine aus diesem Dialog dürfen geändert werden. Bereits
+      // gespeicherte Entscheidungen zu zeitweise fehlenden oder von der Schule
+      // festgelegten Bausteinen bleiben deshalb in der Karte.
+      const overrides: HomeLayoutOverrides = { ...currentOverrides };
       for (const block of adjustable) {
         const shown = selected.has(block.key);
         if (shown !== block.defaultVisible) {
           overrides[block.key] = shown;
+        } else {
+          delete overrides[block.key];
         }
       }
       await onSave(overrides);
@@ -211,14 +219,16 @@ function BlockGroup({
   return (
     <fieldset>
       <legend className="text-sm font-semibold text-gray-900">{heading}</legend>
-      <ul className="mt-2 divide-y divide-gray-100">
+      <ul className="mt-2 space-y-2">
         {blocks.map((block) => {
           const id = `home-block-${block.key.replace(".", "-")}`;
           return (
             <li key={block.key}>
-              <label
+              <ChoiceTile
+                as="label"
                 htmlFor={id}
-                className="flex cursor-pointer items-start gap-3 py-2.5"
+                selected={selected.has(block.key)}
+                className="items-start"
               >
                 <Checkbox
                   id={id}
@@ -236,7 +246,7 @@ function BlockGroup({
                     {block.description}
                   </span>
                 </span>
-              </label>
+              </ChoiceTile>
             </li>
           );
         })}

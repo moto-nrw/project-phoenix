@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, SlidersHorizontal } from "lucide-react";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
@@ -26,6 +26,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { DashboardSkeleton } from "./page-skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -120,6 +121,7 @@ function DashboardContent() {
   const nfcEnabled = useNFCEnabled();
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
+  const tenantSlug = useTenantSlugSafe();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -133,6 +135,7 @@ function DashboardContent() {
     reset: resetHomeLayout,
   } = useHomeLayout();
   const [customizing, setCustomizing] = useState(false);
+  const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
 
   // Der Betriebsmodus der Schule. Ob es Geburtstage gibt, steht erst in der
   // Antwort, über die wir hier entscheiden — also optimistisch annehmen und
@@ -152,7 +155,7 @@ function DashboardContent() {
   // sie bei einer hängenden Abfrage leer. Innerhalb einer Sitzung kennt SWR
   // die Auswahl, ausgeblendete Kacheln fragen dann nichts mehr nach.
   const wantsBirthdays = isHomeBlockVisible(
-    blockContext,
+    { ...blockContext, birthdaysEnabled },
     homeLayout.overrides,
     homeLayout.policies,
     "section.birthdays",
@@ -177,19 +180,24 @@ function DashboardContent() {
       { refreshInterval: 30 * 60 * 1000 },
     );
 
+  useEffect(() => {
+    setBirthdaysEnabled(true);
+  }, [tenantSlug, session?.user?.id]);
+
+  useEffect(() => {
+    if (birthdays?.enabled === false) {
+      setBirthdaysEnabled(false);
+    }
+  }, [birthdays?.enabled]);
+
   const { adjustable, visible, customized } = useMemo(
     () =>
       resolveHomeBlocks(
-        { ...blockContext, birthdaysEnabled: birthdays?.enabled ?? true },
+        { ...blockContext, birthdaysEnabled },
         homeLayout.overrides,
         homeLayout.policies,
       ),
-    [
-      blockContext,
-      birthdays?.enabled,
-      homeLayout.overrides,
-      homeLayout.policies,
-    ],
+    [blockContext, birthdaysEnabled, homeLayout.overrides, homeLayout.policies],
   );
 
   const shown = (key: HomeBlockKey) => visible.has(key);
@@ -243,17 +251,26 @@ function DashboardContent() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
+  const headerStats =
+    dashboardData &&
+    (shown("tile.students_present") || shown("tile.students_sick"))
+      ? [
+          formatStatusDate(),
+          ...(shown("tile.students_present")
+            ? [`${dashboardData.studentsPresent} Kinder anwesend`]
+            : []),
+          ...(shown("tile.students_sick")
+            ? [`${dashboardData.studentsSick} krank`]
+            : []),
+        ].join(" · ")
+      : undefined;
 
   return (
     <TenantPage
       title={`${greeting}, ${firstName}`}
       prominent
       statsLoading={isLoading}
-      stats={
-        dashboardData
-          ? `${formatStatusDate()} · ${dashboardData.studentsPresent} Kinder anwesend · ${dashboardData.studentsSick} krank`
-          : undefined
-      }
+      stats={headerStats}
       error={
         error
           ? { message: error, keepContent: dashboardData !== undefined }
@@ -660,6 +677,7 @@ function DashboardContent() {
         onClose={() => setCustomizing(false)}
         adjustable={adjustable}
         visible={visible}
+        currentOverrides={homeLayout.overrides}
         customized={customized}
         prescribedCount={Object.keys(homeLayout.policies).length}
         onSave={saveHomeLayout}

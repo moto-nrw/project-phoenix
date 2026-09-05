@@ -14,7 +14,6 @@ import {
   type HomeBlockPolicies,
   type HomeBlockPolicy,
 } from "~/lib/home-blocks";
-import { saveHomeBlockPolicies } from "~/lib/home-layout-api";
 import { useHomeLayout } from "~/lib/hooks/use-home-layout";
 import { createLogger } from "~/lib/logger";
 import {
@@ -42,7 +41,7 @@ const POLICY_ITEMS: readonly { value: HomeBlockPolicy; label: string }[] = [
  * Baustein aus dem persönlichen Dialog heraus.
  */
 export function HomeBlocksTab() {
-  const { state, isLoading } = useHomeLayout();
+  const { state, isLoading, savePolicies } = useHomeLayout();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
   const nfcEnabled = useNFCEnabled();
@@ -98,7 +97,7 @@ export function HomeBlocksTab() {
     setBusy(true);
     setError(null);
     try {
-      await saveHomeBlockPolicies(draft);
+      await savePolicies(draft);
       setSaved(true);
     } catch (err) {
       logger.error("home_block_policies_save_failed", {

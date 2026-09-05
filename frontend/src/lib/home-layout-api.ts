@@ -9,7 +9,12 @@ import { sessionFetch } from "./session-cache";
 
 const logger = createLogger({ component: "HomeLayoutApi" });
 
-export const HOME_LAYOUT_SWR_KEY = "home-layout";
+export function homeLayoutSWRKey(
+  tenantSlug: string,
+  accountID: string,
+): string {
+  return `home-layout:${tenantSlug}:${accountID}`;
+}
 
 /** Was die Startseite zum Rendern braucht: eigene Auswahl und Vorgabe der Schule. */
 export interface HomeLayoutState {

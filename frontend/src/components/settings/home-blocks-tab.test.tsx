@@ -18,18 +18,14 @@ const mockState = {
   },
 };
 
-vi.mock("~/lib/home-layout-api", () => ({
-  HOME_LAYOUT_SWR_KEY: "home-layout",
-  saveHomeBlockPolicies: (policies: HomeBlockPolicies) =>
-    mockSavePolicies(policies) as Promise<void>,
-}));
-
 vi.mock("~/lib/hooks/use-home-layout", () => ({
   useHomeLayout: () => ({
     state: mockState.value,
     isLoading: false,
     save: vi.fn(),
     reset: vi.fn(),
+    savePolicies: (policies: HomeBlockPolicies) =>
+      mockSavePolicies(policies) as Promise<void>,
   }),
 }));
 
@@ -43,12 +39,14 @@ const { HomeBlocksTab } = await import("./home-blocks-tab");
 
 describe("HomeBlocksTab", () => {
   beforeEach(() => {
-    mockSavePolicies.mockReset().mockResolvedValue(undefined);
     mockState.value = {
       overrides: {},
       policies: {},
       canManagePolicies: true,
     };
+    mockSavePolicies.mockReset().mockImplementation(async (policies) => {
+      mockState.value = { ...mockState.value, policies };
+    });
   });
 
   it("sperrt 'Speichern', solange nichts geändert wurde", () => {
@@ -73,6 +71,8 @@ describe("HomeBlocksTab", () => {
         "section.birthdays": "required",
       }),
     );
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByText("Gespeichert.")).toBeInTheDocument();
   });
 
   it("speichert 'Frei wählbar' nicht mit", async () => {

@@ -166,6 +166,26 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     expect(requestedKeys()).not.toContain("birthday-overview");
   });
 
+  it("beendet die Geburtstagsabfrage, wenn sie an dieser Schule ausgeschaltet ist", async () => {
+    vi.mocked(useSWRAuth).mockImplementation(
+      (key: string | null) =>
+        ({
+          data: key === "birthday-overview" ? { enabled: false } : undefined,
+          isLoading: false,
+          error: undefined,
+          mutate: vi.fn(),
+          isValidating: false,
+        }) as unknown as ReturnType<typeof useSWRAuth>,
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => expect(requestedKeys()).toContain(null));
+    expect(
+      requestedKeys().filter((key) => key === "birthday-overview"),
+    ).toHaveLength(1);
+  });
+
   it("nutzt den gemerkten Stand, während die Auswahl noch nachgeladen wird", async () => {
     // Der gemerkte Stand dieses Browsers liegt schon beim ersten Rendern vor,
     // die Abfrage bestätigt ihn nur. Deshalb wird auch dann nichts geholt,

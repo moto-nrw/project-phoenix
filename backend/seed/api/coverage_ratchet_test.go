@@ -60,6 +60,8 @@ var seedCoverageExemptions = map[string]string{
 
 	"config.work_time_model_entries": "empty in prod too",
 	"config.work_time_models":        "empty in prod too",
+	"config.home_block_policies":     "empty in prod too",
+	"config.home_layouts":            "empty in prod too",
 
 	"display.displays": "empty in prod too",
 

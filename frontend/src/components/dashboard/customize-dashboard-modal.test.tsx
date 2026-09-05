@@ -33,6 +33,7 @@ function renderModal(
       onClose={vi.fn()}
       adjustable={resolved.adjustable}
       visible={resolved.visible}
+      currentOverrides={overrides}
       customized={resolved.customized}
       prescribedCount={Object.keys(policies).length}
       onSave={onSave}
@@ -73,6 +74,23 @@ describe("CustomizeDashboardModal", () => {
     expect(
       screen.getByText(/Ihre Schule hat\s+eine Kachel\s+fest eingestellt/),
     ).toBeInTheDocument();
+  });
+
+  it("behält Entscheidungen für festgelegte Bausteine beim Speichern", async () => {
+    const { onSave } = renderModal(
+      { "section.birthdays": false },
+      { "section.birthdays": "required" },
+    );
+
+    fireEvent.click(screen.getByLabelText(/Kinder anwesend/));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        "section.birthdays": false,
+        "tile.students_present": false,
+      }),
+    );
   });
 
   it("sperrt 'Zurücksetzen', solange nichts vom Standard abweicht", () => {

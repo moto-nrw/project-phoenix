@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -70,7 +70,7 @@ func init() {
 // unique key carries tenant_id and one person keeps a separate start page per
 // school.
 func homeLayoutsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.368: Creating config.home_layouts and config.home_block_policies...")
+	slog.Info("migration starting", "migration", homeLayoutsVersion)
 	return ensureHomeLayouts(ctx, db)
 }
 
@@ -80,8 +80,12 @@ func ensureHomeLayouts(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			slog.Warn(
+				"migration rollback failed",
+				"migration", homeLayoutsVersion,
+				"error", rollbackErr,
+			)
 		}
 	}()
 
@@ -160,7 +164,7 @@ func ensureHomeLayouts(ctx context.Context, db *bun.DB) error {
 // homeLayoutsDown drops both tables. The rows are a display preference the
 // person can re-enter in a dialog, and nothing else references them.
 func homeLayoutsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.368: Dropping config.home_layouts and config.home_block_policies...")
+	slog.Info("migration rollback starting", "migration", homeLayoutsVersion)
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS config.home_layouts;
 		DROP TABLE IF EXISTS config.home_block_policies;

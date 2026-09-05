@@ -95,20 +95,17 @@ func (s *HomeLayoutService) View(ctx context.Context, tenantID, accountID int64,
 		return HomeLayoutView{}, fmt.Errorf("read home layout: %w", err)
 	}
 
-	// The school's word beats a stored personal choice, including one stored
-	// before the school changed its mind. Applying it on read as well as on
-	// write means an admin's change takes effect for everybody immediately,
-	// without a migration over other people's rows.
-	view.Overrides = applyPolicies(view.Overrides, view.Policies)
+	// The client applies Policies when deciding visibility. Keep every stored
+	// personal choice here, including one for a block the school currently
+	// settles, so it becomes effective again if the school releases that block.
 	return view, nil
 }
 
 // SetOverrides replaces one person's deviations.
 //
-// Entries the school has settled are dropped rather than rejected: a client
-// that still shows a block the admin has just disabled would otherwise get an
-// error it cannot explain to the user. What survives is exactly what the person
-// is actually allowed to decide.
+// A concurrent school policy wins over an incoming choice without destroying
+// the choice already stored for that block. The client sends its full stored
+// map so choices for currently unavailable blocks also survive another edit.
 func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
 	if err := s.ready(); err != nil {
 		return err
@@ -129,11 +126,18 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 		if policySet != nil {
 			policies = policySet.Policies
 		}
+		existing, err := s.repo.FindByAccount(txCtx, accountID)
+		if err != nil {
+			return err
+		}
 
 		layout := &configModel.HomeLayout{
 			TenantID:  tenantID,
 			AccountID: accountID,
-			Overrides: applyPolicies(overrides, policies),
+			Overrides: mergeHomeLayoutOverrides(overrides, existing, policies),
+		}
+		if err := validateBlockKeys(layout.Overrides); err != nil {
+			return err
 		}
 		if err := s.repo.UpsertForAccount(txCtx, layout); err != nil {
 			return err
@@ -235,22 +239,25 @@ func invalidBlocks(reason string) error {
 	return &InvalidValueError{Key: homeBlocksErrorKey, Reason: reason}
 }
 
-// applyPolicies drops every personal deviation the school has already settled.
-//
-// A required block is shown to everybody and a disabled block to nobody, so in
-// both cases the person has nothing left to choose and their stored entry is
-// noise. Dropping it rather than inverting it means the person's original
-// choice comes back untouched if the school later releases the block again —
-// which is exactly what someone expects after an admin undoes a decision.
-func applyPolicies(overrides map[string]bool, policies map[string]configModel.BlockPolicy) map[string]bool {
+// mergeHomeLayoutOverrides preserves stored choices the school currently
+// settles. A stale client cannot create or replace one of those choices, but a
+// later policy rollback still reveals the person's original selection.
+func mergeHomeLayoutOverrides(overrides map[string]bool, existing *configModel.HomeLayout, policies map[string]configModel.BlockPolicy) map[string]bool {
 	result := make(map[string]bool, len(overrides))
 	for key, shown := range overrides {
-		switch policies[key] {
-		case configModel.BlockRequired, configModel.BlockDisabled:
+		result[key] = shown
+	}
+	for key, policy := range policies {
+		if policy != configModel.BlockRequired && policy != configModel.BlockDisabled {
 			continue
-		default:
-			result[key] = shown
 		}
+		if existing != nil {
+			if shown, ok := existing.Overrides[key]; ok {
+				result[key] = shown
+				continue
+			}
+		}
+		delete(result, key)
 	}
 	return result
 }

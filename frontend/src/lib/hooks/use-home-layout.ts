@@ -1,15 +1,18 @@
 "use client";
 
 import useSWR from "swr";
+import { useSession } from "next-auth/react";
 
-import type { HomeLayoutOverrides } from "~/lib/home-blocks";
+import type { HomeBlockPolicies, HomeLayoutOverrides } from "~/lib/home-blocks";
 import {
   fetchHomeLayout,
-  HOME_LAYOUT_SWR_KEY,
+  homeLayoutSWRKey,
   resetHomeLayout,
+  saveHomeBlockPolicies,
   saveHomeLayout,
   type HomeLayoutState,
 } from "~/lib/home-layout-api";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const EMPTY: HomeLayoutState = {
   overrides: {},
@@ -37,9 +40,17 @@ export function useHomeLayout(): {
   isLoading: boolean;
   save: (overrides: HomeLayoutOverrides) => Promise<void>;
   reset: () => Promise<void>;
+  savePolicies: (policies: HomeBlockPolicies) => Promise<void>;
 } {
+  const { data: session, status } = useSession();
+  const tenantSlug = useTenantSlugSafe();
+  const accountID = session?.user?.id;
+  const cacheKey =
+    status === "authenticated" && tenantSlug && accountID
+      ? homeLayoutSWRKey(tenantSlug, accountID)
+      : null;
   const { data, isLoading, mutate } = useSWR<HomeLayoutState>(
-    HOME_LAYOUT_SWR_KEY,
+    cacheKey,
     fetchHomeLayout,
     { revalidateOnFocus: false },
   );
@@ -58,5 +69,12 @@ export function useHomeLayout(): {
     });
   };
 
-  return { state: data ?? EMPTY, isLoading, save, reset };
+  const savePolicies = async (policies: HomeBlockPolicies) => {
+    await saveHomeBlockPolicies(policies);
+    await mutate((current) => ({ ...(current ?? EMPTY), policies }), {
+      revalidate: true,
+    });
+  };
+
+  return { state: data ?? EMPTY, isLoading, save, reset, savePolicies };
 }

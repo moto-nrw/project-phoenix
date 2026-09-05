@@ -129,10 +129,14 @@ func TestHomeLayoutService_View_SchoolPrescriptionBeatsStoredChoice(t *testing.T
 	view, err := service.View(context.Background(), 7, 42, nil)
 	require.NoError(t, err)
 
-	// Both settled blocks drop out of the personal map: there is nothing left
-	// for this person to decide about them, and the school's word must take
-	// effect without rewriting everybody's row.
-	assert.Equal(t, map[string]bool{"tile.students_home": true}, view.Overrides)
+	// Settled blocks remain in the personal map. The client applies the school
+	// policy for visibility, while this preserved choice becomes effective again
+	// if the school releases the block.
+	assert.Equal(t, map[string]bool{
+		"section.birthdays":  false,
+		"tile.students_sick": true,
+		"tile.students_home": true,
+	}, view.Overrides)
 	assert.Equal(t, configModel.BlockRequired, view.Policies["section.birthdays"])
 	assert.Equal(t, configModel.BlockDisabled, view.Policies["tile.students_sick"])
 }
@@ -158,6 +162,34 @@ func TestHomeLayoutService_SetOverrides_DropsBlocksTheSchoolHasSettled(t *testin
 	assert.Equal(t, map[string]bool{"section.birthdays": false}, stored.Overrides)
 	assert.Equal(t, int64(7), stored.TenantID)
 	assert.Equal(t, int64(42), stored.AccountID)
+}
+
+func TestHomeLayoutService_SetOverrides_PreservesChoiceForSettledBlock(t *testing.T) {
+	t.Parallel()
+	service, repo, _ := newHomeLayoutTestService(t)
+	repo.layouts[42] = &configModel.HomeLayout{
+		TenantID:  7,
+		AccountID: 42,
+		Overrides: map[string]bool{"section.birthdays": false},
+	}
+	repo.policies = &configModel.HomeBlockPolicySet{
+		TenantID: 7,
+		Policies: map[string]configModel.BlockPolicy{
+			"section.birthdays": configModel.BlockRequired,
+		},
+	}
+
+	// A client that was open while the policy changed must not replace the
+	// previous choice for the now-settled block by saving another choice.
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{
+		"section.birthdays":  true,
+		"tile.students_home": false,
+	}))
+
+	assert.Equal(t, map[string]bool{
+		"section.birthdays":  false,
+		"tile.students_home": false,
+	}, repo.layouts[42].Overrides)
 }
 
 func TestHomeLayoutService_SetOverrides_RejectsMalformedKey(t *testing.T) {
