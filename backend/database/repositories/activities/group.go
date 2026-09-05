@@ -32,6 +32,27 @@ type GroupRepository struct {
 	db       *bun.DB
 	students StudentDirectory
 	periods  CalendarPeriodSource
+	rooms    TemplateRoomDirectory
+	shifts   TemplateShiftTypeDirectory
+}
+
+type TemplateRoom struct {
+	ID   int64
+	Name string
+}
+
+type TemplateRoomDirectory interface {
+	ListRoomsByID(context.Context, []int64) ([]TemplateRoom, error)
+}
+
+type TemplateShiftType struct {
+	ID    int64
+	Name  string
+	Color string
+}
+
+type TemplateShiftTypeDirectory interface {
+	ListShiftTypes(context.Context) ([]TemplateShiftType, error)
 }
 
 // BindStudentDirectory installs the People Directory the dynamic target
@@ -44,6 +65,14 @@ func (r *GroupRepository) BindStudentDirectory(students StudentDirectory) {
 // occurrences read active periods through (#2666).
 func (r *GroupRepository) BindCalendarPeriods(periods CalendarPeriodSource) {
 	r.periods = periods
+}
+
+func (r *GroupRepository) BindTemplateRooms(rooms TemplateRoomDirectory) {
+	r.rooms = rooms
+}
+
+func (r *GroupRepository) BindTemplateShiftTypes(shifts TemplateShiftTypeDirectory) {
+	r.shifts = shifts
 }
 
 // NewGroupRepository creates a new GroupRepository
@@ -390,39 +419,6 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	return groups, nil
 }
 
-// CountByCategory returns the number of activity groups per category id for
-// the current tenant. Archived templates are counted too: they still reference
-// their category and are restorable, so a category backing only archived rows
-// is "in use" for the purpose of the archive warning (#2131).
-func (r *GroupRepository) CountByCategory(ctx context.Context) (map[int64]int, error) {
-	var rows []struct {
-		CategoryID int64 `bun:"category_id"`
-		Total      int   `bun:"total"`
-	}
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(tableExprActivitiesGroupsAsGrp).
-		ColumnExpr(`"group".category_id AS category_id`).
-		ColumnExpr(`COUNT(*) AS total`).
-		GroupExpr(`"group".category_id`)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count by category",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	counts := make(map[int64]int, len(rows))
-	for _, row := range rows {
-		counts[row.CategoryID] = row.Total
-	}
-
-	return counts, nil
-}
-
 // FindOpenGroups finds all groups that are open for enrollment
 func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Group, error) {
 	var groups []*activities.Group
@@ -698,7 +694,7 @@ const templateListSelect = `
 			COALESCE(pt.color, '') AS planning_track_color,
 			pt.sort_order AS planning_track_sort_order,
 				g.planned_room_id AS room_id,
-				COALESCE(r.name, '') AS room_name,
+				'' AS room_name,
 				g.education_group_id,
 				g.is_open,
 			COALESCE(g.max_participants, 0) AS max_participants,
@@ -712,8 +708,9 @@ const templateListSelect = `
 			COALESCE(g.source_school_classes::text, '') AS source_school_classes_json,
 			g.list_kind,
 			g.notes,
-			COALESCE(st.name, '') AS shift_type_name,
-			COALESCE(st.color, '') AS shift_type_color,
+			c.shift_type_id,
+			'' AS shift_type_name,
+			'' AS shift_type_color,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
 			COALESCE(supervisors.count, 0) AS supervisor_count,
 			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
@@ -736,10 +733,7 @@ const templateListSelect = `
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
 		LEFT JOIN schedule.planning_tracks AS pt
 			ON pt.id = g.planning_track_id AND pt.tenant_id = g.tenant_id
-			LEFT JOIN schedule.shift_types AS st
-				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
-			LEFT JOIN facilities.rooms AS r
-				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id`
+			`
 
 // enrollmentDisplayValidityFilter is the student-row admission test shared by
 // the template display-roster reads. Open rows (valid_until IS NULL) always
@@ -770,7 +764,7 @@ const enrollmentDisplayValidityFilter = `
 func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int64) ([]activities.TemplateListRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateListRow, 0)
-	query := templateListSelect + `
+	const query = templateListSelect + `
 			LEFT JOIN (
 				SELECT
 					activity_group_id,
@@ -801,17 +795,15 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	WHERE g.tenant_id = ?
 	  AND g.is_template = true
 	  AND g.archived_at IS NULL
-	  AND s.valid_until IS NULL`
-	args := []any{tenantID, timezone.TodayDate(), tenantID, tenantID}
-	if templateID != nil {
-		query += ` AND g.id = ?`
-		args = append(args, *templateID)
-	}
-	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
-	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+	  AND s.valid_until IS NULL
+	  AND (?::BIGINT IS NULL OR g.id = ?)
+	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		query, tenantID, timezone.TodayDate(), tenantID, tenantID, templateID, templateID,
+	).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return rows, r.attachTemplateOwnerNames(ctx, rows)
 }
 
 // ListTemplateRowsForTemplatePeriod returns the editable detail read model for
@@ -825,7 +817,7 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 ) ([]activities.TemplateListRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateListRow, 0)
-	query := templateListSelect + `
+	const query = templateListSelect + `
 		LEFT JOIN (
 			SELECT
 				activity_group_id,
@@ -878,15 +870,14 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 	  )
 	  AND g.id = ?
 	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
-	args := []any{
-		tenantID, timezone.TodayDate(), periodID,
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		query, tenantID, timezone.TodayDate(), periodID,
 		periodID, tenantID, periodID,
 		tenantID, periodID, periodID, templateID,
-	}
-	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+	).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return rows, r.attachTemplateOwnerNames(ctx, rows)
 }
 
 // ListTemplateWeekdayRoster returns the weekday-scoped roster memberships of
@@ -904,198 +895,123 @@ func (r *GroupRepository) ListTemplateRowsForTemplatePeriod(
 // selects only unscoped rows; it must never mean "all periods", because the
 // response has no period field with which the caller could separate those
 // rosters again.
+const templateWeekdayRosterQuery = `
+		WITH parameters AS (
+			SELECT ?::BIGINT AS tenant_id, ?::BIGINT AS period_id, ?::BIGINT AS template_id
+		), per_weekday_templates AS (
+			SELECT supervisor.group_id AS template_id
+			FROM activities.supervisors AS supervisor, parameters
+			WHERE supervisor.tenant_id = parameters.tenant_id
+			  AND supervisor.valid_until IS NULL AND supervisor.weekday IS NOT NULL
+			  AND ((parameters.period_id IS NULL AND supervisor.calendar_period_id IS NULL)
+			       OR (parameters.period_id IS NOT NULL AND
+			           (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = parameters.period_id)))
+			GROUP BY supervisor.group_id
+			UNION
+			SELECT enrollment.activity_group_id AS template_id
+			FROM activities.student_enrollments AS enrollment, parameters
+			WHERE enrollment.tenant_id = parameters.tenant_id` + enrollmentDisplayValidityFilter + `
+			  AND enrollment.weekday IS NOT NULL
+			  AND ((parameters.period_id IS NULL AND enrollment.calendar_period_id IS NULL)
+			       OR (parameters.period_id IS NOT NULL AND
+			           (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = parameters.period_id)))
+			GROUP BY enrollment.activity_group_id
+		), scheduled_template_weekdays AS (
+			SELECT activity_group.id AS template_id, schedule.weekday
+			FROM activities.groups AS activity_group
+			JOIN activities.schedules AS schedule
+			  ON schedule.activity_group_id = activity_group.id AND schedule.tenant_id = activity_group.tenant_id
+			CROSS JOIN parameters
+			WHERE activity_group.tenant_id = parameters.tenant_id
+			  AND activity_group.is_template = TRUE AND activity_group.archived_at IS NULL
+			  AND schedule.valid_until IS NULL
+			  AND (parameters.period_id IS NULL OR schedule.calendar_period_id = parameters.period_id
+			       OR (schedule.calendar_period_id IS NULL AND
+			           (activity_group.calendar_period_id = parameters.period_id OR activity_group.calendar_period_id IS NULL)))
+			  AND (parameters.template_id IS NULL OR activity_group.id = parameters.template_id)
+			GROUP BY activity_group.id, schedule.weekday
+		), template_weekdays AS (
+			SELECT scheduled.template_id, scheduled.weekday
+			FROM scheduled_template_weekdays AS scheduled
+			JOIN per_weekday_templates AS scoped ON scoped.template_id = scheduled.template_id
+		), effective_primary_staff AS (
+			SELECT template_day.template_id, template_day.weekday, primary_staff.staff_id
+			FROM template_weekdays AS template_day
+			CROSS JOIN parameters
+			LEFT JOIN LATERAL (
+				SELECT candidate.staff_id
+				FROM activities.supervisors AS candidate
+				WHERE candidate.tenant_id = parameters.tenant_id
+				  AND candidate.group_id = template_day.template_id AND candidate.valid_until IS NULL
+				  AND ((parameters.period_id IS NULL AND candidate.calendar_period_id IS NULL)
+				       OR (parameters.period_id IS NOT NULL AND
+				           (candidate.calendar_period_id IS NULL OR candidate.calendar_period_id = parameters.period_id)))
+				  AND (candidate.weekday IS NULL OR candidate.weekday = template_day.weekday)
+				  AND candidate.is_primary
+				ORDER BY (candidate.calendar_period_id IS NOT NULL) DESC,
+				         (candidate.weekday IS NOT NULL) DESC, candidate.id DESC
+				LIMIT 1
+			) AS primary_staff ON TRUE
+		)
+		SELECT template_day.template_id, template_day.weekday, 'empty' AS kind,
+		       0 AS person_id, FALSE AS is_primary
+		FROM template_weekdays AS template_day
+		UNION ALL
+		SELECT supervisor.group_id, template_day.weekday, 'staff', supervisor.staff_id,
+		       COALESCE(BOOL_OR(supervisor.staff_id = primary_staff.staff_id), FALSE)
+		FROM activities.supervisors AS supervisor
+		JOIN template_weekdays AS template_day
+		  ON template_day.template_id = supervisor.group_id
+		 AND (supervisor.weekday IS NULL OR template_day.weekday = supervisor.weekday)
+		JOIN effective_primary_staff AS primary_staff
+		  ON primary_staff.template_id = template_day.template_id AND primary_staff.weekday = template_day.weekday
+		CROSS JOIN parameters
+		WHERE supervisor.tenant_id = parameters.tenant_id AND supervisor.valid_until IS NULL
+		  AND ((parameters.period_id IS NULL AND supervisor.calendar_period_id IS NULL)
+		       OR (parameters.period_id IS NOT NULL AND
+		           (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = parameters.period_id)))
+		GROUP BY supervisor.group_id, template_day.weekday, supervisor.staff_id
+		UNION ALL
+		SELECT enrollment.activity_group_id, template_day.weekday, 'student', enrollment.student_id, FALSE
+		FROM activities.student_enrollments AS enrollment
+		JOIN template_weekdays AS template_day
+		  ON template_day.template_id = enrollment.activity_group_id
+		 AND (enrollment.weekday IS NULL OR template_day.weekday = enrollment.weekday)
+		CROSS JOIN parameters
+		WHERE enrollment.tenant_id = parameters.tenant_id` + enrollmentDisplayValidityFilter + `
+		  AND ((parameters.period_id IS NULL AND enrollment.calendar_period_id IS NULL)
+		       OR (parameters.period_id IS NOT NULL AND
+		           (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = parameters.period_id)))
+		  AND (enrollment.selected_weekdays IS NULL OR jsonb_array_length(enrollment.selected_weekdays) = 0
+		       OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday))
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
+		UNION ALL
+		SELECT enrollment.activity_group_id, template_day.weekday, 'protected_student', enrollment.student_id, FALSE
+		FROM activities.student_enrollments AS enrollment
+		JOIN scheduled_template_weekdays AS template_day ON template_day.template_id = enrollment.activity_group_id
+		CROSS JOIN parameters
+		WHERE enrollment.tenant_id = parameters.tenant_id` + enrollmentDisplayValidityFilter + `
+		  AND ((parameters.period_id IS NULL AND enrollment.calendar_period_id IS NULL)
+		       OR (parameters.period_id IS NOT NULL AND
+		           (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = parameters.period_id)))
+		  AND (enrollment.enrollment_request_child_id IS NOT NULL
+		       OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0)
+		  AND (enrollment.weekday IS NULL OR enrollment.weekday = template_day.weekday)
+		  AND (enrollment.selected_weekdays IS NULL OR jsonb_array_length(enrollment.selected_weekdays) = 0
+		       OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday))
+		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
+		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
+
 func (r *GroupRepository) ListTemplateWeekdayRoster(
 	ctx context.Context,
 	templateID, calendarPeriodID *int64,
 ) ([]activities.TemplateWeekdayRosterRow, error) {
 	tenantID := tenant.FromContext(ctx)
-	today := timezone.TodayDate()
 	rows := make([]activities.TemplateWeekdayRosterRow, 0)
-	query := `
-		WITH per_weekday_templates AS (
-			SELECT supervisor.group_id AS template_id
-			FROM activities.supervisors AS supervisor
-			WHERE supervisor.tenant_id = ?
-			  AND supervisor.valid_until IS NULL
-			  AND supervisor.weekday IS NOT NULL
-	`
-	args := []any{tenantID}
-	if calendarPeriodID != nil {
-		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND supervisor.calendar_period_id IS NULL`
-	}
-	query += `
-			GROUP BY supervisor.group_id
-			UNION
-			SELECT enrollment.activity_group_id AS template_id
-			FROM activities.student_enrollments AS enrollment
-			WHERE enrollment.tenant_id = ?` + enrollmentDisplayValidityFilter + `
-			  AND enrollment.weekday IS NOT NULL
-	`
-	args = append(args, tenantID, today)
-	if calendarPeriodID != nil {
-		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND enrollment.calendar_period_id IS NULL`
-	}
-	query += `
-			GROUP BY enrollment.activity_group_id
-		), scheduled_template_weekdays AS (
-			SELECT g.id AS template_id, schedule.weekday
-			FROM activities.groups AS g
-			INNER JOIN activities.schedules AS schedule
-				ON schedule.activity_group_id = g.id
-				AND schedule.tenant_id = g.tenant_id
-			WHERE g.tenant_id = ?
-			  AND g.is_template = TRUE
-			  AND g.archived_at IS NULL
-			  AND schedule.valid_until IS NULL`
-	args = append(args, tenantID)
-	if calendarPeriodID != nil {
-		query += ` AND (
-				schedule.calendar_period_id = ?
-				OR (
-					schedule.calendar_period_id IS NULL
-					AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
-				)
-			)`
-		args = append(args, *calendarPeriodID, *calendarPeriodID)
-	}
-	if templateID != nil {
-		query += ` AND g.id = ?`
-		args = append(args, *templateID)
-	}
-	query += `
-			GROUP BY g.id, schedule.weekday
-		), template_weekdays AS (
-			SELECT scheduled.template_id, scheduled.weekday
-			FROM scheduled_template_weekdays AS scheduled
-			INNER JOIN per_weekday_templates AS scoped
-				ON scoped.template_id = scheduled.template_id
-		), effective_primary_staff AS (
-			SELECT
-				template_day.template_id,
-				template_day.weekday,
-				primary_staff.staff_id
-			FROM template_weekdays AS template_day
-			LEFT JOIN LATERAL (
-				SELECT candidate.staff_id
-				FROM activities.supervisors AS candidate
-				WHERE candidate.tenant_id = ?
-				  AND candidate.group_id = template_day.template_id
-				  AND candidate.valid_until IS NULL`
-	args = append(args, tenantID)
-	if calendarPeriodID != nil {
-		query += `
-				  AND (candidate.calendar_period_id IS NULL OR candidate.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += `
-				  AND candidate.calendar_period_id IS NULL`
-	}
-	query += `
-				  AND (candidate.weekday IS NULL OR candidate.weekday = template_day.weekday)
-				  AND candidate.is_primary
-				ORDER BY
-					(candidate.calendar_period_id IS NOT NULL) DESC,
-					(candidate.weekday IS NOT NULL) DESC,
-					candidate.id DESC
-				LIMIT 1
-			) AS primary_staff ON TRUE
-		)
-		SELECT
-			template_day.template_id,
-			template_day.weekday,
-			'empty' AS kind,
-			0 AS person_id,
-			FALSE AS is_primary
-		FROM template_weekdays AS template_day
-		UNION ALL
-		SELECT
-			supervisor.group_id AS template_id,
-			template_day.weekday,
-			'staff' AS kind,
-			supervisor.staff_id AS person_id,
-			COALESCE(BOOL_OR(supervisor.staff_id = effective_primary.staff_id), FALSE) AS is_primary
-		FROM activities.supervisors AS supervisor
-		INNER JOIN template_weekdays AS template_day
-			ON template_day.template_id = supervisor.group_id
-			AND (supervisor.weekday IS NULL OR template_day.weekday = supervisor.weekday)
-		INNER JOIN effective_primary_staff AS effective_primary
-			ON effective_primary.template_id = template_day.template_id
-			AND effective_primary.weekday = template_day.weekday
-		WHERE supervisor.tenant_id = ?
-		  AND supervisor.valid_until IS NULL`
-	args = append(args, tenantID)
-	if calendarPeriodID != nil {
-		query += ` AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND supervisor.calendar_period_id IS NULL`
-	}
-	query += `
-		GROUP BY supervisor.group_id, template_day.weekday, supervisor.staff_id
-		UNION ALL
-		SELECT
-			enrollment.activity_group_id AS template_id,
-			template_day.weekday,
-			'student' AS kind,
-			enrollment.student_id AS person_id,
-			FALSE AS is_primary
-		FROM activities.student_enrollments AS enrollment
-		INNER JOIN template_weekdays AS template_day
-			ON template_day.template_id = enrollment.activity_group_id
-			AND (enrollment.weekday IS NULL OR template_day.weekday = enrollment.weekday)
-		WHERE enrollment.tenant_id = ?` + enrollmentDisplayValidityFilter
-	args = append(args, tenantID, today)
-	if calendarPeriodID != nil {
-		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND enrollment.calendar_period_id IS NULL`
-	}
-	query += `
-		  AND (
-			enrollment.selected_weekdays IS NULL
-			OR jsonb_array_length(enrollment.selected_weekdays) = 0
-			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
-		  )
-		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
-		UNION ALL
-		SELECT
-			enrollment.activity_group_id AS template_id,
-			template_day.weekday,
-			'protected_student' AS kind,
-			enrollment.student_id AS person_id,
-			FALSE AS is_primary
-		FROM activities.student_enrollments AS enrollment
-		INNER JOIN scheduled_template_weekdays AS template_day
-			ON template_day.template_id = enrollment.activity_group_id
-		WHERE enrollment.tenant_id = ?` + enrollmentDisplayValidityFilter
-	args = append(args, tenantID, today)
-	if calendarPeriodID != nil {
-		query += ` AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = ?)`
-		args = append(args, *calendarPeriodID)
-	} else {
-		query += ` AND enrollment.calendar_period_id IS NULL`
-	}
-	query += `
-		  AND (
-			enrollment.enrollment_request_child_id IS NOT NULL
-			OR COALESCE(jsonb_array_length(enrollment.selected_weekdays), 0) > 0
-		  )
-		  AND (enrollment.weekday IS NULL OR enrollment.weekday = template_day.weekday)
-		  AND (
-			enrollment.selected_weekdays IS NULL
-			OR jsonb_array_length(enrollment.selected_weekdays) = 0
-			OR enrollment.selected_weekdays @> jsonb_build_array(template_day.weekday)
-		  )
-		GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
-		ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
-	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		templateWeekdayRosterQuery, tenantID, calendarPeriodID, templateID,
+		timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(),
+	).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
 	return rows, nil
@@ -1106,7 +1022,7 @@ func (r *GroupRepository) ListTemplateWeekdayRoster(
 func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activities.TemplateListRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateListRow, 0)
-	query := templateListSelect + `
+	const query = templateListSelect + `
 			LEFT JOIN (
 				SELECT
 					activity_group_id,
@@ -1137,30 +1053,84 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	WHERE g.tenant_id = ?
 	  AND g.is_template = true
 	  AND g.archived_at IS NULL
-	  AND s.valid_until IS NULL`
+	  AND s.valid_until IS NULL
+	  AND (?::BIGINT IS NULL OR (
+		s.calendar_period_id = ?
+		OR (s.calendar_period_id IS NULL
+			AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL))
+	  ))
+	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
 
-	args := []any{tenantID, timezone.TodayDate()}
-	args = append(args, tenantID)
-	args = append(args, tenantID)
-	if periodID != nil {
-		// Match materialization's period precedence exactly: a schedule pin is
-		// authoritative; an unpinned schedule inherits the group pin; only a
-		// schedule and group that are both unpinned are period-flexible.
-		query += ` AND (
-			s.calendar_period_id = ?
-			OR (
-				s.calendar_period_id IS NULL
-				AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
-			)
-		)`
-		args = append(args, *periodID, *periodID)
-	}
-	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
-
-	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		query, tenantID, timezone.TodayDate(), tenantID, tenantID, periodID, periodID, periodID,
+	).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	return rows, nil
+	return rows, r.attachTemplateOwnerNames(ctx, rows)
+}
+
+func (r *GroupRepository) attachTemplateOwnerNames(ctx context.Context, rows []activities.TemplateListRow) error {
+	roomNames, err := r.templateRoomNames(ctx, rows)
+	if err != nil {
+		return err
+	}
+	shiftTypes, err := r.templateShiftTypes(ctx)
+	if err != nil {
+		return err
+	}
+	for index := range rows {
+		if rows[index].RoomID.Valid {
+			rows[index].RoomName.String, rows[index].RoomName.Valid = roomNames[rows[index].RoomID.Int64], true
+		}
+		if rows[index].ShiftTypeID.Valid {
+			shift := shiftTypes[rows[index].ShiftTypeID.Int64]
+			rows[index].ShiftTypeName, rows[index].ShiftTypeColor = shift.Name, shift.Color
+		}
+	}
+	return nil
+}
+
+func (r *GroupRepository) templateRoomNames(ctx context.Context, rows []activities.TemplateListRow) (map[int64]string, error) {
+	if r.rooms == nil {
+		return nil, errors.New("activities repositories: template room directory is not bound")
+	}
+	ids := make([]int64, 0)
+	for _, row := range rows {
+		if row.RoomID.Valid {
+			ids = append(ids, row.RoomID.Int64)
+		}
+	}
+	rooms, err := r.rooms.ListRoomsByID(ctx, dedupeInt64(ids))
+	result := make(map[int64]string, len(rooms))
+	for _, room := range rooms {
+		result[room.ID] = room.Name
+	}
+	return result, err
+}
+
+func dedupeInt64(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
+}
+
+func (r *GroupRepository) templateShiftTypes(ctx context.Context) (map[int64]TemplateShiftType, error) {
+	if r.shifts == nil {
+		return nil, errors.New("activities repositories: template shift type directory is not bound")
+	}
+	rows, err := r.shifts.ListShiftTypes(ctx)
+	result := make(map[int64]TemplateShiftType, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result, err
 }
 
 // ListTemplateCapacityOccurrences returns one row for every date on which at
@@ -1168,42 +1138,7 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 // result date-granular is essential: the tenant-specific children/staff ratio
 // is business logic, and combining non-concurrent rosters here would erase the
 // evidence the service needs to choose the real worst occurrence.
-func (r *GroupRepository) ListTemplateCapacityOccurrences(
-	ctx context.Context,
-	periodID *int64,
-	templateIDs []int64,
-) ([]activities.TemplateCapacityOccurrence, error) {
-	if len(templateIDs) == 0 {
-		return []activities.TemplateCapacityOccurrence{}, nil
-	}
-
-	occurrences := make([]activities.TemplateCapacityOccurrence, 0)
-	tenantID := tenant.FromContext(ctx)
-	dynamicTemplateIDs, dynamicStudentIDs, err := r.dynamicTargetPairs(ctx, templateIDs)
-	if err != nil {
-		return nil, err
-	}
-	if r.periods == nil {
-		return nil, errCalendarPeriodSourceRequired
-	}
-	activePeriods, err := r.periods.ListActiveCalendarPeriods(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// The former subqueries correlated the period with the template's
-	// tenant; keeping only the caller's tenant preserves that even when the
-	// owner query ran unscoped.
-	tenantPeriods := activePeriods[:0:0]
-	for _, period := range activePeriods {
-		if period.TenantID == tenantID {
-			tenantPeriods = append(tenantPeriods, period)
-		}
-	}
-	periodIDs, periodStarts, periodEnds, periodCycleLengths, periodAnchors := capacityPeriodColumns(tenantPeriods)
-	// The tenant's active periods arrive from the School Calendar owner as
-	// parallel arrays; active_periods replaces the former read of
-	// schedule.calendar_periods with the same columns and semantics.
-	err = base.GetDB(ctx, r.db).NewRaw(`
+const templateCapacityOccurrencesQuery = `
 		WITH active_periods AS (
 			SELECT
 				period.calendar_period_id,
@@ -1217,7 +1152,7 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 			SELECT calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
 			FROM active_periods
 			WHERE (?::BIGINT IS NULL OR calendar_period_id = ?)
-		), candidate_occurrences AS MATERIALIZED (
+		), candidate_occurrences AS (
 			SELECT DISTINCT
 				g.id AS template_id,
 				period.calendar_period_id,
@@ -1245,9 +1180,9 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 			  AND g.id IN (?)
 			  AND g.is_template = TRUE
 			  AND g.archived_at IS NULL
-			  AND exception.exception_type IS DISTINCT FROM 'cancelled'
+			  AND (exception.exception_type IS NULL OR exception.exception_type <> 'cancelled')
 			  AND COALESCE(exception.room_id, g.planned_room_id, 0) > 0
-			  AND EXTRACT(ISODOW FROM days.day)::INT = s.weekday
+			  AND DATE_PART('isodow', days.day)::INT = s.weekday
 			  AND (s.valid_from IS NULL OR s.valid_from <= days.day::DATE)
 			  AND (s.valid_until IS NULL OR s.valid_until > days.day::DATE)
 			  AND (
@@ -1303,11 +1238,11 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 					AND (
 						enrollment.selected_weekdays IS NULL
 						OR jsonb_array_length(enrollment.selected_weekdays) = 0
-						OR enrollment.selected_weekdays @> jsonb_build_array(EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT)
+						OR enrollment.selected_weekdays @> jsonb_build_array(DATE_PART('isodow', occurrence.occurrence_date)::INT)
 					)
 					AND (
 						enrollment.weekday IS NULL
-						OR enrollment.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+						OR enrollment.weekday = DATE_PART('isodow', occurrence.occurrence_date)::INT
 					)
 				UNION
 				SELECT dynamic.student_id
@@ -1333,7 +1268,7 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
 				AND (
 					supervisor.weekday IS NULL
-					OR supervisor.weekday = EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+					OR supervisor.weekday = DATE_PART('isodow', occurrence.occurrence_date)::INT
 				)
 			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
 
@@ -1361,8 +1296,39 @@ func (r *GroupRepository) ListTemplateCapacityOccurrences(
 			MAX(supervisor_count) AS supervisor_count
 		FROM capacity_parts
 		GROUP BY template_id, calendar_period_id, occurrence_date
-		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC
-	`, pgdialect.Array(periodIDs), pgdialect.Array(periodStarts), pgdialect.Array(periodEnds),
+		ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC`
+
+func (r *GroupRepository) ListTemplateCapacityOccurrences(
+	ctx context.Context,
+	periodID *int64,
+	templateIDs []int64,
+) ([]activities.TemplateCapacityOccurrence, error) {
+	if len(templateIDs) == 0 {
+		return []activities.TemplateCapacityOccurrence{}, nil
+	}
+	dynamicTemplateIDs, dynamicStudentIDs, err := r.dynamicTargetPairs(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	if r.periods == nil {
+		return nil, errCalendarPeriodSourceRequired
+	}
+	activePeriods, err := r.periods.ListActiveCalendarPeriods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenantPeriods := activePeriods[:0:0]
+	for _, period := range activePeriods {
+		if period.TenantID == tenantID {
+			tenantPeriods = append(tenantPeriods, period)
+		}
+	}
+	periodIDs, periodStarts, periodEnds, periodCycleLengths, periodAnchors := capacityPeriodColumns(tenantPeriods)
+	occurrences := make([]activities.TemplateCapacityOccurrence, 0)
+	err = base.GetDB(ctx, r.db).NewRaw(
+		templateCapacityOccurrencesQuery,
+		pgdialect.Array(periodIDs), pgdialect.Array(periodStarts), pgdialect.Array(periodEnds),
 		pgdialect.Array(periodCycleLengths), pgdialect.Array(periodAnchors),
 		periodID, periodID,
 		tenantID, bun.List(templateIDs),

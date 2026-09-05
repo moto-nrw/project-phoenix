@@ -20,6 +20,7 @@ func TestErrorMessageConstants(t *testing.T) {
 
 	assert.NotEmpty(t, shared.ErrMsgPersonNotStudent)
 	assert.NotEmpty(t, shared.ErrMsgRFIDTagNotFound)
+	assert.Equal(t, "rfid_tag_not_found", shared.ErrCodeRFIDTagNotFound)
 }
 
 // Test RoomCapacityExceededError

@@ -41,7 +41,7 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 }
 
 // runOutboxOnce calls the worker. Re-entry is guarded by task.Running
-// so a slow tick can't overlap. MaxAttempts is pushed from the
+// so a slow tick can't overlap. MaxAttempts is passed per run from the
 // `enrollment.outbox_max_attempts` setting on each tick — admins can
 // tune retry budget without restart.
 func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
@@ -66,14 +66,13 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	}()
 
 	maxAttempts := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxMaxAttempts, "", 6)
-	s.outboxWorker.SetMaxAttempts(maxAttempts)
 
 	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 	ctx = s.withUnitOfWork(ctx)
 
 	const batchSize = 25
-	processed, err := s.outboxWorker.RunOnce(ctx, batchSize)
+	processed, err := s.outboxWorker.RunOnce(ctx, batchSize, maxAttempts)
 	if err != nil {
 		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)

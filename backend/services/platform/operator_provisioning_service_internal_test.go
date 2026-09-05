@@ -340,10 +340,6 @@ func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.C
 	return nil, nil
 }
 
-func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, int64, []int64) error {
-	return nil
-}
-
 func (s *internalCategoryRepoStub) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
 	return 1, nil
 }

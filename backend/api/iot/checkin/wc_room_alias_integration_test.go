@@ -68,7 +68,7 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -120,7 +120,7 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 		testutil.WithStaffContext(staff),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequestForTest(t, router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	var aliasCount int

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
-	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	activities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
@@ -828,6 +828,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	})
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
 	factory.bindAppointments(appointmentsModule)
+	factory.bindActivityTemplateShiftTypes()
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)

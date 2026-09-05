@@ -37,14 +37,6 @@ type CategoryRepository interface {
 	// cannot reactivate a category or overwrite a concurrent shift mapping.
 	UpdateIfActive(ctx context.Context, category *Category) (updated bool, err error)
 
-	// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one
-	// shift type (#1837 follow-up): it sets shift_type_id = shiftTypeID for the
-	// given category IDs and clears it on any category that currently points at
-	// this shift type but is no longer in the list. A cross-row set/clear that
-	// isn't reducible to a single-entity filter, so it lives here rather than on
-	// the generic Repository[T].
-	SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
-
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary key
 	// and returns the number of rows affected. Archive/restore writes just
@@ -117,13 +109,6 @@ type GroupRepository interface {
 
 	// FindByCategory finds all groups in a specific category
 	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
-
-	// CountByCategory returns how many activity groups (Aktivitäten and
-	// Termin-Vorlagen alike) reference each category in the current tenant,
-	// keyed by category id. Categories with no groups are absent from the map.
-	// A GROUP BY aggregate across the whole table that the generic
-	// Repository[T] shape cannot express (#2131).
-	CountByCategory(ctx context.Context) (map[int64]int, error)
 
 	// FindOpenGroups finds all groups that are open for enrollment
 	FindOpenGroups(ctx context.Context) ([]*Group, error)
@@ -384,10 +369,11 @@ type TemplateListRow struct {
 	Notes sql.NullString `bun:"notes"`
 	// ShiftTypeName/ShiftTypeColor come from the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
-	ShiftTypeName   string `bun:"shift_type_name"`
-	ShiftTypeColor  string `bun:"shift_type_color"`
-	EnrollmentCount int    `bun:"enrollment_count"`
-	SupervisorCount int    `bun:"supervisor_count"`
+	ShiftTypeID     sql.NullInt64 `bun:"shift_type_id"`
+	ShiftTypeName   string        `bun:"shift_type_name"`
+	ShiftTypeColor  string        `bun:"shift_type_color"`
+	EnrollmentCount int           `bun:"enrollment_count"`
+	SupervisorCount int           `bun:"supervisor_count"`
 	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
 	// the actual recurrence date selected as worst for the template. They
 	// intentionally differ from the period-tolerant display roster below.

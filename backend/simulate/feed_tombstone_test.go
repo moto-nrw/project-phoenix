@@ -70,7 +70,7 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
 				w.WriteHeader(404)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": "rfid_tag_not_found"})
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
@@ -92,6 +92,7 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Julia Klein"}},
 		},
 		Devices:    map[string]SeedDevice{"device": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
 		Rooms:      map[string]int64{"OGS-Raum 1": 1},
 		Activities: map[string]int64{"Hausaufgaben": 50},
 	}

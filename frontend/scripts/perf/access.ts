@@ -1,44 +1,19 @@
 import type { Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-export interface SeedAccess {
-  slug: string;
-  email: string;
-  password: string;
-}
+import { loadSeedAccess, type SeedAccess } from "../seed-state";
 
 /**
  * Tenant-Slug und Admin-Login aus backend/.seed-state.json; E2E_TENANT_SLUG /
  * E2E_TEST_EMAIL / E2E_TEST_PASSWORD überschreiben. Gleiches Muster wie die
  * e2e-Specs (frontend/e2e/betreuungsplan-flow.spec.ts).
  */
-export function loadAccess(): SeedAccess {
-  let slug = process.env.E2E_TENANT_SLUG;
-  let email = process.env.E2E_TEST_EMAIL;
-  let password = process.env.E2E_TEST_PASSWORD;
-  try {
-    const raw = readFileSync(
-      join(process.cwd(), "..", "backend", ".seed-state.json"),
-      "utf8",
-    );
-    const seed = JSON.parse(raw) as {
-      bootstrap?: { tenant_slug?: string };
-      accounts?: { admin?: Array<{ email?: string; password?: string }> };
-    };
-    const admin = seed.accounts?.admin?.[0];
-    slug ??= seed.bootstrap?.tenant_slug;
-    email ??= admin?.email;
-    password ??= admin?.password;
-  } catch {
-    // Keine Seed-Datei: nur Env-Werte zählen.
-  }
-  if (!slug || !email || !password) {
+export function loadAccess(profile?: string): SeedAccess {
+  const access = loadSeedAccess(profile ? { profile } : {});
+  if (!access) {
     throw new Error(
       "Perf harness needs backend/.seed-state.json or E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD.",
     );
   }
-  return { slug, email, password };
+  return access;
 }
 
 /**

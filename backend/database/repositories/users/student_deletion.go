@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -75,7 +76,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			(SELECT COUNT(*) FROM schedule.instance_students WHERE tenant_id = ? AND student_id = ?)::int AS timetable_assignments,
-			(SELECT COUNT(*) FROM activities.student_enrollments WHERE tenant_id = ? AND student_id = ?)::int AS activity_enrollments,
+			0::int AS activity_enrollments,
 			(
 				active.count_student_visits_for_deletion(?, ?) +
 				(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
@@ -107,13 +108,16 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			)::int AS other_records
 	`,
 		tenantID, studentID,
-		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.ActivityEnrollments, err = timetableprojection.CountStudentEnrollments(ctx, base.GetDB(ctx, r.db), tenantID, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}

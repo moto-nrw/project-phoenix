@@ -15,7 +15,6 @@ const (
 	defaultSeedOrganizationName = "Demo Organization"
 	defaultSeedOrganizationSlug = "demo-organization"
 	defaultSeedSchoolName       = "Demo School"
-	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
 	seedTokenHeader             = "X-Phoenix-Seed-Token"
 	defaultSeedParentPassword   = "ParentSeed1234%"
@@ -23,23 +22,25 @@ const (
 	seedPasswordLength          = 12
 )
 
-// SeedOptions holds optional CLI flags for deterministic seeding.
-// When a field is empty, the seeder falls back to its default behavior
-// (random suffixes, generated passwords).
+// SeedOptions controls the API seeder. The default is the stable vollbetrieb
+// profile; Randomize is an explicit escape hatch for parallel ad-hoc stacks.
 type SeedOptions struct {
-	TenantSlug    string // Fixed tenant slug instead of demo-school-{timestamp}
+	TenantSlug    string // Optional tenant slug override
 	StaffPassword string // Shared password for all 20 staff accounts
-	AdminEmail    string // Fixed email for the bootstrap school admin
+	AdminEmail    string // Optional bootstrap school admin email override
+	Randomize     bool   // Append unique suffixes and generate admin credentials
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 }
 
 // Seeder orchestrates the complete API-based seeding process
 type Seeder struct {
-	client    *Client
-	random    io.Reader
-	verbose   bool
-	options   SeedOptions
-	statePath string
+	client     *Client
+	random     io.Reader
+	verbose    bool
+	options    SeedOptions
+	statePath  string
+	profile    string
+	definition demoProfileDefinition
 }
 
 // SeedResult contains counts of created entities
@@ -61,6 +62,13 @@ type bootstrapSeedState struct {
 	AdminPosition    string
 }
 
+type seedProfileIdentity struct {
+	organizationName string
+	organizationSlug string
+	schoolName       string
+	schoolSlug       string
+}
+
 // NewSeeder creates a new API seeder
 func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOptions) *Seeder {
 	statePath := options.StatePath
@@ -68,11 +76,13 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		statePath = DefaultSeedStatePath
 	}
 	return &Seeder{
-		client:    NewClientWithAdapter(adapter, verbose),
-		random:    random,
-		verbose:   verbose,
-		options:   options,
-		statePath: statePath,
+		client:     NewClientWithAdapter(adapter, verbose),
+		random:     random,
+		verbose:    verbose,
+		options:    options,
+		statePath:  statePath,
+		profile:    DefaultProfileKey,
+		definition: fullOperationProfileDefinition(),
 	}
 }
 
@@ -89,101 +99,110 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	if err := workflow.Run(ctx, runtime); err != nil {
 		var stepErr *StepError
 		if errors.As(err, &stepErr) {
-			return nil, s.formatError(stepErr.Step, stepErr.Err)
+			return nil, s.formatProfileError(s.profile, stepErr.Step, stepErr.Err)
 		}
-		return nil, s.formatError(workflow.Name, err)
+		return nil, s.formatProfileError(s.profile, workflow.Name, err)
 	}
 	return runtime.Result, nil
 }
 
 // bootstrapTenant creates the demo organization, school, and admin account.
-// When SeedOptions provides a TenantSlug or AdminEmail, deterministic values
-// are used — re-running without 'migrate reset' will fail with 409.
-// Without options, random suffixes ensure each run creates unique entities.
+// Stable profile values are the default, so re-running without a database
+// reset fails clearly with 409. Randomize must be requested explicitly.
 func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, error) {
-	var orgName, orgSlug, schoolName, schoolSlug, schoolSubdomain string
-
-	if s.options.TenantSlug != "" {
-		// Deterministic: use fixed slugs
-		orgName = defaultSeedOrganizationName
-		orgSlug = defaultSeedOrganizationSlug
-		schoolName = defaultSeedSchoolName
-		schoolSlug = s.options.TenantSlug
-		schoolSubdomain = s.options.TenantSlug
-	} else {
-		// Random: append timestamp suffix (default behavior)
-		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-		orgName = fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix)
-		orgSlug = fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix)
-		schoolName = fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix)
-		schoolSlug = fmt.Sprintf("%s-%s", defaultSeedSchoolSlug, suffix)
-		schoolSubdomain = truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix))
-	}
-
-	orgID, err := s.createSeedOrganization(orgName, orgSlug)
+	identity := s.profileIdentity()
+	orgID, err := s.createSeedOrganization(identity.organizationName, identity.organizationSlug)
 	if err != nil {
 		return nil, wrapConflictError(err, "organization")
 	}
-
-	schoolID, tenantSlug, err := s.createSeedSchool(orgID, schoolName, schoolSlug, schoolSubdomain)
+	schoolID, tenantSlug, err := s.createSeedSchool(orgID, identity.schoolName, identity.schoolSlug, identity.schoolSlug)
 	if err != nil {
 		return nil, wrapConflictError(err, "school")
 	}
-
-	var adminEmail, adminPassword string
-	if s.options.AdminEmail != "" {
-		adminEmail = s.options.AdminEmail
-	} else {
-		adminEmail = fmt.Sprintf("school-admin-%d@example.com", time.Now().UnixNano())
+	adminEmail, adminPassword, err := s.profileAdminCredentials()
+	if err != nil {
+		return nil, err
 	}
-
-	if s.options.StaffPassword != "" {
-		adminPassword = s.options.StaffPassword
-	} else {
-		adminPassword, err = generateSeedPassword(s.random)
-		if err != nil {
-			return nil, fmt.Errorf("generate admin password: %w", err)
-		}
-	}
-
 	adminName := "Seed Admin"
 	adminPosition := "OGS-Büro"
+	if err := s.inviteSeedAdmin(schoolID, adminEmail, adminPassword, adminPosition); err != nil {
+		return nil, err
+	}
+	return &bootstrapSeedState{
+		OrganizationID: orgID, OrganizationName: identity.organizationName, OrganizationSlug: identity.organizationSlug,
+		SchoolID: schoolID, SchoolName: identity.schoolName, SchoolSlug: identity.schoolSlug, TenantSlug: tenantSlug,
+		AdminEmail: adminEmail, AdminPassword: adminPassword, AdminName: adminName, AdminPosition: adminPosition,
+	}, nil
+}
+
+func (s *Seeder) profileIdentity() seedProfileIdentity {
+	if s.options.Randomize {
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		return seedProfileIdentity{
+			organizationName: fmt.Sprintf("%s %s", defaultSeedOrganizationName, suffix),
+			organizationSlug: fmt.Sprintf("%s-%s", defaultSeedOrganizationSlug, suffix),
+			schoolName:       fmt.Sprintf("%s %s", defaultSeedSchoolName, suffix),
+			schoolSlug:       truncateSeedSubdomain(fmt.Sprintf("%s-%s", defaultSeedSchoolSubdomain, suffix)),
+		}
+	}
+	slug := s.definition.SchoolSlug
+	if s.options.TenantSlug != "" {
+		slug = s.options.TenantSlug
+	}
+	return seedProfileIdentity{
+		organizationName: s.definition.OrganizationName, organizationSlug: s.definition.OrganizationSlug,
+		schoolName: s.definition.SchoolName, schoolSlug: slug,
+	}
+}
+
+func (s *Seeder) profileAdminCredentials() (string, string, error) {
+	return s.profileAdminCredentialsFor(s.definition)
+}
+
+func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (string, string, error) {
+	email := definition.SchoolAdminEmail
+	if s.options.AdminEmail != "" && definition.Key == s.definition.Key {
+		email = s.options.AdminEmail
+	} else if s.options.Randomize {
+		email = fmt.Sprintf("%s-admin-%d@example.com", definition.Key, time.Now().UnixNano())
+	}
+	if s.options.StaffPassword != "" {
+		return email, s.options.StaffPassword, nil
+	}
+	if !s.options.Randomize {
+		return email, definition.SchoolAdminPassword, nil
+	}
+	password, err := generateSeedPassword(s.random)
+	if err != nil {
+		return "", "", fmt.Errorf("generate admin password: %w", err)
+	}
+	return email, password, nil
+}
+
+func (s *Seeder) inviteSeedAdmin(schoolID int64, email, password, position string) error {
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
-		"email":      adminEmail,
+		"email":      email,
 		"first_name": "Seed",
 		"last_name":  "Admin",
-		"position":   adminPosition,
+		"position":   position,
 	}, map[string]string{
 		seedTokenHeader: "true",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("invite school admin: %w", err)
+		return fmt.Errorf("invite school admin: %w", err)
 	}
 	token, err := s.extractBootstrapInvitationToken(inviteResp)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if _, err := s.client.PostPublic(fmt.Sprintf("/auth/invitations/%s/accept", token), map[string]any{
-		"password":         adminPassword,
-		"confirm_password": adminPassword,
+		"password":         password,
+		"confirm_password": password,
 	}); err != nil {
-		return nil, fmt.Errorf("accept invitation: %w", err)
+		return fmt.Errorf("accept invitation: %w", err)
 	}
-
-	return &bootstrapSeedState{
-		OrganizationID:   orgID,
-		OrganizationName: orgName,
-		OrganizationSlug: orgSlug,
-		SchoolID:         schoolID,
-		SchoolName:       schoolName,
-		SchoolSlug:       schoolSlug,
-		TenantSlug:       tenantSlug,
-		AdminEmail:       adminEmail,
-		AdminPassword:    adminPassword,
-		AdminName:        adminName,
-		AdminPosition:    adminPosition,
-	}, nil
+	return nil
 }
 
 func (s *Seeder) extractBootstrapInvitationToken(inviteResp []byte) (string, error) {
@@ -294,7 +313,7 @@ func truncateSeedSubdomain(subdomain string) string {
 func wrapConflictError(err error, entity string) error {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) && apiErr.StatusCode == 409 {
-		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'go run main.go migrate reset' before re-seeding", entity)
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
 	}
 	return err
 }
@@ -302,14 +321,17 @@ func wrapConflictError(err error, entity string) error {
 // collectSeedState builds SeedState from the FixedSeeder's internal maps
 func (s *Seeder) collectSeedState(fs *FixedSeeder, staffPIN string, bootstrap *bootstrapSeedState) *SeedState {
 	state := &SeedState{
-		Version:    CurrentSeedStateVersion,
-		CreatedAt:  time.Now().UTC(),
-		BaseURL:    s.client.baseURL,
-		DevicePIN:  staffPIN,
-		Devices:    make(map[string]SeedDevice),
-		Rooms:      make(map[string]int64),
-		Activities: make(map[string]int64),
-		Groups:     make(map[string]int64),
+		Version:        CurrentSeedStateVersion,
+		CreatedAt:      time.Now().UTC(),
+		BaseURL:        s.client.baseURL,
+		DefaultProfile: s.definition.Key,
+		DevicePIN:      staffPIN,
+		Devices:        make(map[string]SeedDevice),
+		Rooms:          make(map[string]int64),
+		Activities:     make(map[string]int64),
+		Groups:         make(map[string]int64),
+		Settings:       cloneProfileSettings(s.definition.Settings),
+		Expected:       s.definition.Expected,
 	}
 	state.Bootstrap = makeBootstrapSeedState(bootstrap)
 
@@ -355,11 +377,15 @@ func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
 	for _, cred := range fs.staffCredentials {
 		staffKey := cred.Name
 		ac := AccountCredentials{
-			Email:    cred.Email,
-			Password: cred.Password,
-			PIN:      cred.PIN,
-			Name:     cred.Name,
-			StaffID:  fs.staffIDs[staffKey],
+			AccountID: cred.AccountID,
+			Email:     cred.Email,
+			Password:  cred.Password,
+			PIN:       cred.PIN,
+			Name:      cred.Name,
+			StaffID:   fs.staffIDs[staffKey],
+		}
+		if len(DemoStaff) > 0 && cred.Name == DemoStaff[0].FirstName+" "+DemoStaff[0].LastName {
+			ac.Key = sharedDeveloperAdminKey
 		}
 		if tid, ok := fs.teacherIDs[staffKey]; ok {
 			ac.TeacherID = tid
@@ -382,8 +408,10 @@ func (s *Seeder) populateSeedDevices(state *SeedState, fs *FixedSeeder) {
 	for _, device := range DemoDevices {
 		if apiKey, ok := fs.deviceKeys[device.DeviceID]; ok {
 			state.Devices[device.DeviceID] = SeedDevice{
-				APIKey: apiKey,
-				Name:   device.Name,
+				DeviceID:   device.DeviceID,
+				DeviceType: "terminal",
+				APIKey:     apiKey,
+				Name:       device.Name,
 			}
 		}
 	}
@@ -393,6 +421,7 @@ func (s *Seeder) populateSeedStudents(state *SeedState, fs *FixedSeeder) {
 	for i, student := range DemoStudents {
 		if id, ok := fs.studentIDByIndex[i]; ok {
 			state.Students = append(state.Students, SeedStudent{
+				Key:       semanticKey(student.FirstName + " " + student.LastName),
 				ID:        id,
 				FirstName: student.FirstName,
 				LastName:  student.LastName,
@@ -409,12 +438,14 @@ func copySeedIDMap(dst map[string]int64, src map[string]int64) {
 	}
 }
 
-// formatError creates a user-friendly error message
-func (s *Seeder) formatError(stage string, err error) error {
+func (s *Seeder) formatProfileError(profile, stage string, err error) error {
 	fmt.Printf("\nFailed at: %s\n", stage)
 	fmt.Printf("  Error: %v\n\n", err)
-	fmt.Println("Run './main migrate reset' and try again.")
-	return fmt.Errorf("%s failed: %w", stage, err)
+	request := ""
+	if s.client != nil && s.client.lastMethod != "" && !strings.Contains(err.Error(), s.client.lastMethod+" "+s.client.lastPath) {
+		request = fmt.Sprintf(", last request %s %s returned status %d", s.client.lastMethod, s.client.lastPath, s.client.lastStatus)
+	}
+	return fmt.Errorf("demo school profile %q, workflow step %s failed%s: %w", profile, stage, request, err)
 }
 
 // printSuccessSummary prints the final demo-ready status with all created data
@@ -423,11 +454,14 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println("=== DEMO READY ===")
 	fmt.Println()
 
-	// Admin account used for seeding
-	fmt.Println("ADMIN ACCOUNT (used for seeding):")
-	fmt.Printf("  Email:    %s\n", email)
-	fmt.Printf("  Password: %s\n", adminPassword)
-	fmt.Println()
+	if state != nil && len(state.Profiles) > 0 {
+		printSeedProfiles(state)
+	} else {
+		fmt.Println("ADMIN ACCOUNT (used for seeding):")
+		fmt.Printf("  Email:    %s\n", email)
+		fmt.Printf("  Password: %s\n", adminPassword)
+		fmt.Println()
+	}
 
 	// Staff accounts with correct individual passwords
 	fmt.Println("STAFF ACCOUNTS:")
@@ -485,6 +519,46 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", s.statePath)
 	fmt.Println()
+}
+
+func printSeedProfiles(state *SeedState) {
+	fmt.Println("DEMO SCHOOL PROFILES:")
+	for _, key := range slices.Sorted(maps.Keys(state.Profiles)) {
+		profile := state.Profiles[key]
+		if profile == nil {
+			continue
+		}
+		fmt.Printf("  %s: %s (slug: %s)\n", profile.Key, profile.Name, profile.School.TenantSlug)
+		fmt.Printf("    School admin: %s / %s\n", profile.Credentials.SchoolAdmin.Email, profile.Credentials.SchoolAdmin.Password)
+		fmt.Printf("    Account keys: %s\n", formatAccountKeys(profile.Credentials.Accounts))
+		fmt.Printf("    Student keys: %s\n", formatSortedKeys(profile.Entities.Students))
+		fmt.Printf("    Contact keys: %s\n", formatSortedKeys(profile.Entities.Guardians))
+		fmt.Printf("    Group keys: %s\n", formatSortedKeys(profile.Entities.Groups))
+		fmt.Printf("    Device keys: %s\n", formatSortedKeys(profile.Devices))
+	}
+	fmt.Println()
+}
+
+func formatAccountKeys(accounts SeedStateAccounts) string {
+	keys := make([]string, 0, len(accounts.Admin)+len(accounts.Betreuer))
+	for _, account := range accounts.Admin {
+		keys = append(keys, account.Key)
+	}
+	for _, account := range accounts.Betreuer {
+		keys = append(keys, account.Key)
+	}
+	if len(keys) == 0 {
+		return "-"
+	}
+	slices.Sort(keys)
+	return strings.Join(keys, ", ")
+}
+
+func formatSortedKeys[V any](values map[string]V) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	return strings.Join(slices.Sorted(maps.Keys(values)), ", ")
 }
 
 func printCareWithdrawalDemo(state *SeedState) {

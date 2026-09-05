@@ -137,6 +137,23 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, b))
 	})
 
+	t.Run("partial unique index allows multiple activity-linked spontaneous rows on same slot", func(t *testing.T) {
+		fx := newActivityInstanceFixtures(t, db, "create-linked-spon-dup")
+		defer fx.cleanup()
+
+		date := timezone.NewDate(2026, 9, 18)
+		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
+
+		a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Spontan A")
+		a.IsSpontaneous = true
+		b := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Spontan B")
+		b.IsSpontaneous = true
+
+		require.NoError(t, repo.Create(ctx, a))
+		require.NoError(t, repo.Create(ctx, b), "kiosk mirrors are spontaneous even when linked to an activity")
+	})
+
 	t.Run("partial unique index rejects duplicate template slot", func(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-dup")
 		defer fx.cleanup()

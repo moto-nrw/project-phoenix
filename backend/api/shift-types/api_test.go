@@ -46,7 +46,8 @@ func setupShiftTypeRoute(t *testing.T) *shiftTypeTestSetup {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), testpkg.Tenant(t))
+			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
 	r.Post("/", res.create)

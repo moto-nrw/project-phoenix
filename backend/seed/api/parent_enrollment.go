@@ -48,7 +48,10 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	enrollmentState.Settings = settings
+	enrollmentState.Settings, err = encodeSeedStateSettings(settings)
+	if err != nil {
+		return fmt.Errorf("encode enrollment settings: %w", err)
+	}
 
 	if len(parents) > 0 {
 		actions, err := s.seedParentPortalActions(rt, parentAuths[parents[0].Email], parents[0])
@@ -83,6 +86,18 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[s
 		}
 	}
 	return settings, nil
+}
+
+func encodeSeedStateSettings(settings map[string]any) (map[string]json.RawMessage, error) {
+	encoded := make(map[string]json.RawMessage, len(settings))
+	for key, value := range settings {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("setting %s: %w", key, err)
+		}
+		encoded[key] = raw
+	}
+	return encoded, nil
 }
 
 func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Runtime, adminAuth AuthRef) ([]ParentCredentials, map[string]AuthRef, error) {
@@ -193,7 +208,7 @@ func (s parentEnrollmentSeedStep) acceptGuardianInvitation(rt *Runtime, token, p
 func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef, parents []ParentCredentials, parentAuths map[string]AuthRef) (SeedEnrollmentState, error) {
 	state := SeedEnrollmentState{
 		Offerings: make(map[string]int64),
-		Settings:  make(map[string]any),
+		Settings:  make(map[string]json.RawMessage),
 	}
 
 	schemaID, err := s.createEnrollmentSchema(rt, adminAuth)

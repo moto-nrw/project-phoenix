@@ -13,6 +13,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -37,6 +38,7 @@ type CareExitCleanupRepository struct {
 	// owner on restore (#2665).
 	rooms    RoomDirectory
 	carePlan CarePlanDirectory
+	bookings ActivityBookingDirectory
 }
 
 // BindRoomDirectory installs the Facilities directory the restore
@@ -59,6 +61,43 @@ type CareOfferingProjection struct {
 // PendingOfferingChange identifies one open request affected by a care exit.
 type PendingOfferingChange struct {
 	StudentID int64
+}
+
+type ActivityBooking struct {
+	ID                       int64
+	TenantID                 int64
+	StudentID                int64
+	ActivityGroupID          int64
+	ValidFrom                string
+	ValidUntil               *string
+	CalendarPeriodID         *int64
+	EnrollmentRequestChildID *int64
+	SelectedWeekdays         []int
+	AttendanceStatus         *string
+	Weekday                  *int
+}
+
+type ActivityBookingCap struct {
+	StudentID          int64
+	ID                 int64
+	PreviousValidUntil *string
+}
+
+type ActivityBookingChanges struct {
+	Deleted []ActivityBooking
+	Capped  []ActivityBookingCap
+}
+
+type ActivityBookingRemoval struct {
+	ActivityBooking
+	WasDeleted         bool
+	PreviousValidUntil *string
+}
+
+type ActivityBookingDirectory interface {
+	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) error
+	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (ActivityBookingChanges, error)
+	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []ActivityBookingRemoval) (int, error)
 }
 
 type CareExitRemoval struct {
@@ -161,6 +200,20 @@ func (r *CareExitCleanupRepository) BindCarePlan(capability CarePlanDirectory) {
 	r.carePlan = capability
 }
 
+func (r *CareExitCleanupRepository) BindActivityBookings(capability ActivityBookingDirectory) {
+	if capability == nil {
+		panic("users repositories: activity booking directory is required")
+	}
+	r.bookings = capability
+}
+
+func (r *CareExitCleanupRepository) requireActivityBookings() error {
+	if r.bookings == nil {
+		return errors.New("users repositories: activity booking directory is not bound")
+	}
+	return nil
+}
+
 func (r *CareExitCleanupRepository) requireCarePlan() error {
 	if r.carePlan == nil {
 		return errors.New("care exit cleanup requires the Care Plan capability")
@@ -224,26 +277,6 @@ func (r *CareExitCleanupRepository) careExitSourceRemovalProjection(ctx context.
 		return "", fmt.Errorf("encode care exit source removals: %w", err)
 	}
 	return string(encoded), nil
-}
-
-type bookingRemoval struct {
-	ID                       int64          `bun:"id"`
-	TenantID                 int64          `bun:"tenant_id"`
-	StudentID                int64          `bun:"student_id"`
-	ActivityGroupID          int64          `bun:"activity_group_id"`
-	ValidFrom                timezone.Date  `bun:"valid_from"`
-	ValidUntil               *timezone.Date `bun:"valid_until"`
-	CalendarPeriodID         *int64         `bun:"calendar_period_id"`
-	EnrollmentRequestChildID *int64         `bun:"enrollment_request_child_id"`
-	SelectedWeekdays         []int          `bun:"selected_weekdays,type:jsonb"`
-	AttendanceStatus         *string        `bun:"attendance_status"`
-	Weekday                  *int           `bun:"weekday"`
-}
-
-type bookingCapSnapshot struct {
-	StudentID  int64          `bun:"student_id"`
-	ID         int64          `bun:"id"`
-	ValidUntil *timezone.Date `bun:"valid_until"`
 }
 
 const careExitRemovalRecordset = `jsonb_to_recordset(?::jsonb) AS rm(
@@ -619,12 +652,10 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 		FOR UPDATE OF s`, bun.List(studentIDs), after, tenantID); err != nil {
 		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: base.TranslateNotFound(err)}
 	}
-	if _, err := db.ExecContext(ctx, `
-		SELECT e.id
-		FROM activities.student_enrollments AS e
-		WHERE e.tenant_id = ? AND e.student_id IN (?)
-		  AND (e.valid_until IS NULL OR e.valid_until > ?)
-		FOR UPDATE OF e`, tenantID, bun.List(studentIDs), after.AddDays(1)); err != nil {
+	if err := r.requireActivityBookings(); err != nil {
+		return err
+	}
+	if err := r.bookings.LockStudentEnrollmentsForCareExit(ctx, studentIDs, after.AddDays(1).String()); err != nil {
 		return &modelBase.DatabaseError{Op: "lock bookings for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if _, err := db.ExecContext(ctx, `
@@ -666,60 +697,11 @@ func (r *CareExitCleanupRepository) CountRunningByStudentIDsAfter(
 		return nil, err
 	}
 	tenantID := tenant.FromContext(ctx)
-	var rows []struct {
-		StudentID int64 `bun:"student_id"`
-		Total     int   `bun:"total"`
-	}
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT student_id, COUNT(*)::int AS total FROM (
-			-- Still live, and either open-ended or running past the cutoff. A
-			-- row a previous exit capped is joined to its ledger entry so it is
-			-- judged by the interval it will be RESTORED to, not by the capped
-			-- one.
-			SELECT e.student_id AS student_id
-			FROM activities.student_enrollments AS e
-			LEFT JOIN jsonb_to_recordset(?::jsonb) AS rm(
-			     tenant_id bigint, student_id bigint, kind text,
-			     enrollment_id bigint, was_deleted boolean,
-			     previous_valid_until date
-			)
-			       ON rm.kind = 'booking'
-			      AND rm.tenant_id = e.tenant_id
-			      AND rm.enrollment_id = e.id
-			      AND rm.was_deleted = FALSE
-			WHERE e.tenant_id = ? AND e.student_id IN (?)
-			  AND (
-			        (rm.enrollment_id IS NULL AND (e.valid_until IS NULL OR e.valid_until > ?))
-			        OR (rm.enrollment_id IS NOT NULL AND (rm.previous_valid_until IS NULL OR rm.previous_valid_until > ?))
-			      )
-			UNION ALL
-			-- Deleted outright by a previous exit; the restore writes it back.
-			SELECT rm.student_id AS student_id
-			FROM jsonb_to_recordset(?::jsonb) AS rm(
-			     tenant_id bigint, student_id bigint, kind text,
-			     enrollment_id bigint, was_deleted boolean,
-			     previous_valid_until date
-			)
-			WHERE rm.kind = 'booking'
-			  AND rm.was_deleted = TRUE
-			  AND rm.tenant_id = ?
-			  AND rm.student_id IN (?)
-			  AND (rm.previous_valid_until IS NULL OR rm.previous_valid_until > ?)
-			  -- Same guard as above: a booking re-created under that id in the
-			  -- meantime is already counted by the live branch.
-			  AND NOT EXISTS (
-			        SELECT 1 FROM activities.student_enrollments AS live
-			         WHERE live.id = rm.enrollment_id
-			           AND live.tenant_id = rm.tenant_id
-			      )
-		) AS baseline
-		GROUP BY student_id
-	`, removals, tenantID, bun.List(studentIDs), validUntil, validUntil,
-		removals, tenantID, bun.List(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
+	counts, err = timetableprojection.CountRunningEnrollmentsAfter(
+		ctx, base.GetDB(ctx, r.db), tenantID, studentIDs, validUntil, removals,
+	)
+	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "count running bookings after care end", Err: base.TranslateNotFound(err)}
-	}
-	for _, row := range rows {
-		counts[row.StudentID] = row.Total
 	}
 	return counts, nil
 }
@@ -807,82 +789,30 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 func (r *CareExitCleanupRepository) capByStudentIDs(
 	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
 ) (int64, error) {
-	db, tenantID := base.GetDB(ctx, r.db), tenant.FromContext(ctx)
-	deleted, err := deleteFutureBookings(ctx, db, tenantID, studentIDs, validUntil)
-	if err != nil {
+	if err := r.requireActivityBookings(); err != nil {
 		return 0, err
 	}
-	if err := r.carePlan.RecordCareExitRemovals(ctx, deletedBookingRemovals(deleted)); err != nil {
+	changes, err := r.bookings.EndStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil.String())
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "end activity bookings after care end", Err: err}
+	}
+	if err := r.carePlan.RecordCareExitRemovals(ctx, deletedBookingRemovals(changes.Deleted)); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "record deleted future bookings after care end", Err: err}
 	}
-	capped, err := listCappedBookings(ctx, db, tenantID, studentIDs, validUntil)
-	if err != nil {
-		return 0, err
-	}
-	if err := r.carePlan.RecordCareExitRemovals(ctx, cappedBookingRemovals(capped)); err != nil {
+	if err := r.carePlan.RecordCareExitRemovals(ctx, cappedBookingRemovals(changes.Capped)); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "record capped bookings after care end", Err: err}
 	}
-	cappedRows, err := capBookings(ctx, db, tenantID, studentIDs, validUntil)
-	return int64(len(deleted)) + cappedRows, err
+	return int64(len(changes.Deleted) + len(changes.Capped)), nil
 }
 
-func deleteFutureBookings(
-	ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil timezone.Date,
-) ([]bookingRemoval, error) {
-	removed := make([]bookingRemoval, 0)
-	err := db.NewRaw(`
-		DELETE FROM activities.student_enrollments
-		WHERE tenant_id = ? AND student_id IN (?) AND valid_from >= ?
-		  AND (valid_until IS NULL OR valid_until > ?)
-		RETURNING id, tenant_id, student_id, activity_group_id, valid_from,
-		          valid_until, calendar_period_id, enrollment_request_child_id,
-		          selected_weekdays, attendance_status, weekday
-	`, tenantID, bun.List(studentIDs), validUntil, validUntil).Scan(ctx, &removed)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: base.TranslateNotFound(err)}
-	}
-	return removed, nil
-}
-
-const capBookingPredicate = `
-	e.tenant_id = ? AND e.student_id IN (?) AND e.valid_from < ?
-	  AND (e.valid_until IS NULL OR e.valid_until > ?)`
-
-func listCappedBookings(
-	ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil timezone.Date,
-) ([]bookingCapSnapshot, error) {
-	rows := make([]bookingCapSnapshot, 0)
-	err := db.NewRaw(`SELECT e.student_id, e.id, e.valid_until
-		FROM activities.student_enrollments AS e WHERE `+capBookingPredicate,
-		tenantID, bun.List(studentIDs), validUntil, validUntil).Scan(ctx, &rows)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "record capped bookings after care end", Err: base.TranslateNotFound(err)}
-	}
-	return rows, nil
-}
-
-func capBookings(
-	ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, validUntil timezone.Date,
-) (int64, error) {
-	result, err := db.ExecContext(ctx, `
-		UPDATE activities.student_enrollments AS e
-		SET valid_until = ?, updated_at = NOW()
-		WHERE `+capBookingPredicate, validUntil, tenantID, bun.List(studentIDs), validUntil, validUntil)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "cap bookings after care end", Err: base.TranslateNotFound(err)}
-	}
-	affected, _ := result.RowsAffected()
-	return affected, nil
-}
-
-func deletedBookingRemovals(rows []bookingRemoval) []CareExitRemoval {
+func deletedBookingRemovals(rows []ActivityBooking) []CareExitRemoval {
 	result := make([]CareExitRemoval, 0, len(rows))
 	for _, row := range rows {
 		enrollmentID, groupID := row.ID, row.ActivityGroupID
-		from := timezone.Date(row.ValidFrom.String())
+		from := timezone.Date(row.ValidFrom)
 		result = append(result, CareExitRemoval{
 			StudentID: row.StudentID, Kind: CareExitRemovalBooking, EnrollmentID: &enrollmentID,
-			WasDeleted: true, PreviousValidUntil: carePlanDate(row.ValidUntil), ActivityGroupID: &groupID,
+			WasDeleted: true, PreviousValidUntil: carePlanDateString(row.ValidUntil), ActivityGroupID: &groupID,
 			ValidFrom: &from, CalendarPeriodID: row.CalendarPeriodID,
 			EnrollmentRequestChildID: row.EnrollmentRequestChildID,
 			SelectedWeekdays:         row.SelectedWeekdays, AttendanceStatus: row.AttendanceStatus, Weekday: row.Weekday,
@@ -891,24 +821,67 @@ func deletedBookingRemovals(rows []bookingRemoval) []CareExitRemoval {
 	return result
 }
 
-func cappedBookingRemovals(rows []bookingCapSnapshot) []CareExitRemoval {
+func cappedBookingRemovals(rows []ActivityBookingCap) []CareExitRemoval {
 	result := make([]CareExitRemoval, 0, len(rows))
 	for _, row := range rows {
 		enrollmentID := row.ID
 		result = append(result, CareExitRemoval{
 			StudentID: row.StudentID, Kind: CareExitRemovalBooking, EnrollmentID: &enrollmentID,
-			PreviousValidUntil: carePlanDate(row.ValidUntil),
+			PreviousValidUntil: carePlanDateString(row.PreviousValidUntil),
 		})
 	}
 	return result
 }
 
-func carePlanDate(value *timezone.Date) *timezone.Date {
+func carePlanDateString(value *string) *timezone.Date {
 	if value == nil {
 		return nil
 	}
-	date := timezone.Date(value.String())
+	date := timezone.Date(*value)
 	return &date
+}
+
+func activityBookingRemovals(encoded string) ([]ActivityBookingRemoval, error) {
+	var ledger []CareExitRemoval
+	if err := json.Unmarshal([]byte(encoded), &ledger); err != nil {
+		return nil, fmt.Errorf("decode activity booking removals: %w", err)
+	}
+	result := make([]ActivityBookingRemoval, 0)
+	for _, removal := range ledger {
+		if removal.Kind != CareExitRemovalBooking || removal.EnrollmentID == nil {
+			continue
+		}
+		result = append(result, activityBookingRemoval(removal))
+	}
+	return result, nil
+}
+
+func activityBookingRemoval(removal CareExitRemoval) ActivityBookingRemoval {
+	booking := ActivityBooking{ID: *removal.EnrollmentID, TenantID: removal.TenantID, StudentID: removal.StudentID}
+	if removal.ActivityGroupID != nil {
+		booking.ActivityGroupID = *removal.ActivityGroupID
+	}
+	if removal.ValidFrom != nil {
+		booking.ValidFrom = removal.ValidFrom.String()
+	}
+	booking.ValidUntil = dateString(removal.PreviousValidUntil)
+	booking.CalendarPeriodID = removal.CalendarPeriodID
+	booking.EnrollmentRequestChildID = removal.EnrollmentRequestChildID
+	booking.SelectedWeekdays = removal.SelectedWeekdays
+	booking.AttendanceStatus = removal.AttendanceStatus
+	booking.Weekday = removal.Weekday
+	return ActivityBookingRemoval{
+		ActivityBooking: booking, WasDeleted: removal.WasDeleted,
+		PreviousValidUntil: dateString(removal.PreviousValidUntil),
+	}
+}
+
+func dateString(value *timezone.Date) *string {
+	if value == nil {
+		return nil
+	}
+	result := value.String()
+	return &result
 }
 
 func (r *CareExitCleanupRepository) EndSourceBookingsAndSchedules(
@@ -1317,32 +1290,9 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 	rosterRows, _ := rosterResult.RowsAffected() // nil-driver-safe: fall through with 0
 	restored += int(rosterRows)
 
-	// Bookings that were only capped: the previous upper bound goes back on.
-	cappedResult, err := db.ExecContext(ctx, `
-		UPDATE activities.student_enrollments AS e
-		SET valid_until = rm.previous_valid_until, updated_at = NOW()
-		FROM `+careExitRemovalRecordset+`
-		WHERE rm.kind = 'booking'
-		  AND rm.was_deleted = FALSE
-		  AND rm.tenant_id = e.tenant_id
-		  AND rm.enrollment_id = e.id
-		  AND rm.tenant_id = ?
-		  AND rm.student_id IN (?)
-	`, removals, tenantID, bun.List(studentIDs))
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore capped bookings after care exit change", Err: base.TranslateNotFound(err)}
-	}
-	cappedRows, _ := cappedResult.RowsAffected()
-	restored += int(cappedRows)
-
-	// Bookings that were deleted: written back under their ORIGINAL id, so
-	// anything that referenced the booking still finds it. ON CONFLICT DO
-	// NOTHING carries no target on purpose — besides the primary key there is a
-	// partial unique index over the open-ended bookings, and a booking somebody
-	// re-created in the meantime must be left alone, not error out the restore.
-	// The calendar period reference is re-validated against the School
-	// Calendar owner's surviving ids (#2666): a snapshot that points at a
-	// deleted period restores as NULL, exactly like the former subquery.
+	// The Timetable owner restores capped and deleted bookings. It keeps the
+	// original ids, re-validates the enrollment provenance, and treats duplicate
+	// recreation as an idempotent no-op.
 	if r.periods == nil {
 		return 0, errCalendarPeriodDirectoryRequired
 	}
@@ -1350,32 +1300,18 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 	if err != nil {
 		return 0, err
 	}
-	deletedResult, err := db.ExecContext(ctx, `
-		INSERT INTO activities.student_enrollments (
-			id, tenant_id, student_id, activity_group_id, valid_from, valid_until,
-			calendar_period_id, enrollment_request_child_id, selected_weekdays,
-			attendance_status, weekday
-		)
-		SELECT rm.enrollment_id, rm.tenant_id, rm.student_id, rm.activity_group_id,
-		       rm.valid_from, rm.previous_valid_until,
-		       CASE WHEN rm.calendar_period_id = ANY(?::BIGINT[]) THEN rm.calendar_period_id END,
-		       (SELECT rc.id FROM enrollment.request_children AS rc
-		         WHERE rc.tenant_id = rm.tenant_id AND rc.id = rm.enrollment_request_child_id),
-		       rm.selected_weekdays, rm.attendance_status, rm.weekday
-		FROM `+careExitRemovalRecordset+`
-		JOIN activities.groups AS g
-		  ON g.tenant_id = rm.tenant_id AND g.id = rm.activity_group_id
-		WHERE rm.kind = 'booking'
-		  AND rm.was_deleted = TRUE
-		  AND rm.tenant_id = ?
-		  AND rm.student_id IN (?)
-		ON CONFLICT DO NOTHING
-	`, pgdialect.Array(periodIDs), removals, tenantID, bun.List(studentIDs))
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore deleted bookings after care exit change", Err: base.TranslateNotFound(err)}
+	if err := r.requireActivityBookings(); err != nil {
+		return 0, err
 	}
-	deletedRows, _ := deletedResult.RowsAffected()
-	restored += int(deletedRows)
+	bookingRemovals, err := activityBookingRemovals(removals)
+	if err != nil {
+		return 0, err
+	}
+	bookingRows, err := r.bookings.RestoreStudentEnrollmentsForCareExit(ctx, studentIDs, periodIDs, bookingRemovals)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "restore activity bookings after care exit change", Err: err}
+	}
+	restored += bookingRows
 
 	// Source bookings capped by the exit recover their original exclusive end.
 	if _, err := db.ExecContext(ctx, `
