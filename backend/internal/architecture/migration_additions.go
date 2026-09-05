@@ -10,11 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 )
-
-var createDataObjectPattern = regexp.MustCompile(`(?i)\bCREATE\s+(?:(?:UNLOGGED\s+|FOREIGN\s+)?TABLE|(?:OR\s+REPLACE\s+)?VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z][a-z0-9_]*)"?\s*\.\s*"?([a-z][a-z0-9_]*)"?`)
 
 // candidateMigrationDataObjects returns schema-qualified tables and views created by Go
 // migration files that are new relative to the immutable PR base. Modified
@@ -77,47 +74,61 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 	return result, nil
 }
 
-// migrationCreateDataObjects inspects only SQL string literals passed to NewRaw
-// or ExecContext. Plain comments or unrelated string constants therefore cannot
-// grant an ownership exception.
+// migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw
+// or ExecContext. Unresolved SQL fails closed in candidate migrations.
 func migrationCreateDataObjects(filename string, contents []byte) (map[string]struct{}, error) {
-	file, err := parser.ParseFile(token.NewFileSet(), filename, contents, 0)
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filename, contents, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
 	}
 	result := make(map[string]struct{})
+	queries := analyzeMigrationQueries(file, fset)
+	var problems []error
 	ast.Inspect(file, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
+		selector := queries.selector(call.Fun, 0)
+		if selector == nil {
+			return true
+		}
+		if selector.Sel.Name == "NewCreateTable" || selector.Sel.Name == "NewCreateView" {
+			problems = append(problems, fmt.Errorf("candidate migration %s: schema builder cannot be classified; use static SQL", filename))
 			return true
 		}
 		sqlArgument := 0
-		if selector.Sel.Name == "ExecContext" {
+		switch selector.Sel.Name {
+		case "ExecContext", "QueryContext", "QueryRowContext":
 			sqlArgument = 1
-		} else if selector.Sel.Name != "NewRaw" {
+		case "Exec", "Query", "QueryRow":
+			if queries.builder(selector.X, 0) {
+				return true
+			}
+		case "NewRaw":
+		default:
 			return true
 		}
 		if len(call.Args) <= sqlArgument {
 			return true
 		}
-		literal, ok := call.Args[sqlArgument].(*ast.BasicLit)
-		if !ok || literal.Kind != token.STRING {
+		sql, ok := queries.expression(call.Args[sqlArgument], 0)
+		if !ok {
+			problems = append(problems, fmt.Errorf("candidate migration %s: SQL argument cannot be resolved statically", filename))
 			return true
 		}
-		sql, unquoteErr := strconv.Unquote(literal.Value)
-		if unquoteErr != nil {
+		objects, sqlErr := migrationSQLDataObjects(sql)
+		if sqlErr != nil {
+			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
 			return true
 		}
-		for _, match := range createDataObjectPattern.FindAllStringSubmatch(stripSQLLiteralsAndComments(sql), -1) {
-			result[strings.ToLower(match[1]+"."+match[2])] = struct{}{}
+		for name := range objects {
+			result[name] = struct{}{}
 		}
 		return true
 	})
-	return result, nil
+	return result, errors.Join(problems...)
 }
 
 func baseMigrationsMentionDataObject(root, sha, migrationDir, object string) (bool, error) {
@@ -125,7 +136,7 @@ func baseMigrationsMentionDataObject(root, sha, migrationDir, object string) (bo
 	if len(parts) != 2 {
 		return false, fmt.Errorf("inspect base migrations: invalid data object %q", object)
 	}
-	pattern := fmt.Sprintf(`"?%s"?[[:space:]]*\.[[:space:]]*"?%s"?`, parts[0], parts[1])
+	pattern := fmt.Sprintf(`(^|[^[:alnum:]_$])"?%s"?[[:space:]]*\.[[:space:]]*"?%s"?([^[:alnum:]_$]|$)`, regexp.QuoteMeta(parts[0]), regexp.QuoteMeta(parts[1]))
 	command := exec.Command("git", "-C", root, "grep", "-E", "-i", "-q", pattern, sha, "--", filepath.ToSlash(migrationDir))
 	output, err := command.CombinedOutput()
 	if err == nil {
