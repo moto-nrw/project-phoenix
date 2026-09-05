@@ -38,6 +38,7 @@ DELETE /api/schedules/dateframes/{id}
 DELETE /api/schedules/recurrence-rules/{id}
 DELETE /api/schedules/timeframes/{id}
 DELETE /api/settings/enrollment/legal-agb-document
+DELETE /api/settings/home-layout
 DELETE /api/settings/login-image
 DELETE /api/settings/values/{key}
 DELETE /api/shift-types/{id}
@@ -310,6 +311,7 @@ GET /api/schedules/timeframes/
 GET /api/schedules/timeframes/active
 GET /api/schedules/timeframes/by-range
 GET /api/schedules/timeframes/{id}
+GET /api/settings/home-layout
 GET /api/settings/login-image
 GET /api/settings/payroll-status
 GET /api/settings/schema
@@ -948,6 +950,8 @@ PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
 PUT /api/schedules/recurrence-rules/{id}
 PUT /api/schedules/timeframes/{id}
+PUT /api/settings/home-layout
+PUT /api/settings/home-layout/policies
 PUT /api/settings/values/{key}
 PUT /api/shift-types/{id}
 PUT /api/staff-notices/{noticeId}

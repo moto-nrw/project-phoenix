@@ -17,6 +17,9 @@ type SettingsTestModule struct {
 	TenantSettings *config.TenantOperations
 	payroll        config.PayrollStatusGetter
 	runtime        config.TenantOperationsRuntime
+	// homeLayouts is kept so the callbacks module can reuse the same start
+	// page store instead of rebuilding it from a runtime it cannot narrow.
+	homeLayouts *config.HomeLayoutService
 }
 
 // NewSettingsTestModule retains the real settings storage, guards and tenant
@@ -57,10 +60,14 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 		}
 		return len(staff), missing, nil
 	})
+	// The start page store is wired here too so HTTP tests that drive the
+	// settings router reach the real /home-layout endpoints.
+	homeLayouts := config.NewHomeLayoutService(repositories.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	return SettingsTestModule{
 		Settings:       settings,
 		payroll:        payroll,
 		runtime:        runtime,
-		TenantSettings: config.NewTenantOperations(settings, payroll, runtime, nil, nil),
+		homeLayouts:    homeLayouts,
+		TenantSettings: config.NewTenantOperations(settings, payroll, runtime, homeLayouts, nil, nil),
 	}, nil
 }

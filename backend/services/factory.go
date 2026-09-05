@@ -3166,10 +3166,21 @@ func newFactory(
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	// Start page composition (#2875) shares the settings tenant runtime: the
+	// personal layout and the school's prescription are read inside the same
+	// tenant transaction as every other tenant-scoped setting. The repository
+	// is built here rather than on the repository factory so the start page
+	// adds no field to a composition root.
+	homeLayoutService := config.NewHomeLayoutService(
+		repositories.NewHomeLayoutRepository(settingsRuntime),
+		settingsRuntime,
+		logger,
+	)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,
 		payrollStatusService,
 		settingsRuntime,
+		homeLayoutService,
 		factory.SettingsSideEffects.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})

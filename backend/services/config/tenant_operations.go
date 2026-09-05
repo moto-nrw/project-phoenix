@@ -33,10 +33,13 @@ type TenantOperations struct {
 	runtime  TenantOperationsRuntime
 	hook     TenantValueSetHook
 	notify   SettingsChangedNotifier
+	// homeLayouts serves the personal start page composition (#2875). Optional:
+	// nil makes those endpoints answer "not configured" instead of panicking.
+	homeLayouts *HomeLayoutService
 }
 
-func NewTenantOperations(settings SettingsService, payroll PayrollStatusGetter, runtime TenantOperationsRuntime, hook TenantValueSetHook, notify SettingsChangedNotifier) *TenantOperations {
-	return &TenantOperations{settings: settings, payroll: payroll, runtime: runtime, hook: hook, notify: notify}
+func NewTenantOperations(settings SettingsService, payroll PayrollStatusGetter, runtime TenantOperationsRuntime, homeLayouts *HomeLayoutService, hook TenantValueSetHook, notify SettingsChangedNotifier) *TenantOperations {
+	return &TenantOperations{settings: settings, payroll: payroll, runtime: runtime, homeLayouts: homeLayouts, hook: hook, notify: notify}
 }
 
 func (o *TenantOperations) SetValueSetHook(hook func(context.Context, int64, string, any) (func(), error)) {
@@ -223,4 +226,59 @@ func tenantWritableDefinition(settings SettingsService, key string) (*configMode
 		return nil, ErrDirectManagedSetting
 	}
 	return def, nil
+}
+
+// --- Start page composition (#2875) ---
+
+func (o *TenantOperations) homeLayoutService() (*HomeLayoutService, error) {
+	if o == nil || o.homeLayouts == nil {
+		return nil, ErrHomeLayoutUnavailable
+	}
+	return o.homeLayouts, nil
+}
+
+// HomeLayout returns one person's start page composition plus the school's
+// prescription. Readable by every signed-in account: the start page renders
+// for everybody.
+func (o *TenantOperations) HomeLayout(ctx context.Context, tenantID, accountID int64, permissions []string) (any, error) {
+	service, err := o.homeLayoutService()
+	if err != nil {
+		return nil, err
+	}
+	return service.View(ctx, tenantID, accountID, permissions)
+}
+
+// SetHomeLayout replaces the caller's own composition. The account comes from
+// the token, so there is no way to write somebody else's start page.
+func (o *TenantOperations) SetHomeLayout(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
+	service, err := o.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	return service.SetOverrides(ctx, tenantID, accountID, overrides)
+}
+
+// ResetHomeLayout restores the composition recommended for the caller's role.
+func (o *TenantOperations) ResetHomeLayout(ctx context.Context, tenantID, accountID int64) error {
+	service, err := o.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	return service.ResetOverrides(ctx, tenantID, accountID)
+}
+
+// SetHomeBlockPolicies replaces what the school prescribes. The permission is
+// checked in the application layer, not by the route: the same path is read by
+// everybody and written only by config:update.
+func (o *TenantOperations) SetHomeBlockPolicies(ctx context.Context, tenantID, accountID int64, permissions []string, policies map[string]string) error {
+	service, err := o.homeLayoutService()
+	if err != nil {
+		return err
+	}
+
+	parsed := make(map[string]configModel.BlockPolicy, len(policies))
+	for key, policy := range policies {
+		parsed[key] = configModel.BlockPolicy(policy)
+	}
+	return service.SetPolicies(ctx, tenantID, accountID, permissions, parsed)
 }

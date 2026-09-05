@@ -37,7 +37,9 @@ func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker
 		Broadcaster: hub, Unlinker: unlinker, DB: db, Logger: slog.Default(),
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
-	operations := config.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime, module.SettingsSideEffects.Dispatch,
+	operations := config.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
+		settings.homeLayouts,
+		module.SettingsSideEffects.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
 		})
