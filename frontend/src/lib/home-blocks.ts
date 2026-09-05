@@ -215,7 +215,13 @@ export function resolveHomeBlocks(
   const available = HOME_BLOCKS.filter((block) => block.available(ctx));
   const adjustable: HomeBlockDefinition[] = [];
   const visible = new Set<HomeBlockKey>();
-  let customized = false;
+  // A stored deviation remains resettable while a school policy or operating
+  // mode temporarily hides its block. Otherwise a person could no longer
+  // clear a hidden choice that becomes relevant again later.
+  const customized = HOME_BLOCKS.some((block) => {
+    const override = overrides?.[block.key];
+    return override !== undefined && override !== block.defaultVisible;
+  });
 
   for (const block of available) {
     const policy = policies?.[block.key] ?? "optional";
@@ -229,9 +235,6 @@ export function resolveHomeBlocks(
     adjustable.push(block);
     const override = overrides?.[block.key];
     const shown = override ?? block.defaultVisible;
-    if (override !== undefined && override !== block.defaultVisible) {
-      customized = true;
-    }
     if (shown) visible.add(block.key);
   }
 

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -63,7 +64,7 @@ func (r *passthroughRuntime) WithinTenant(ctx context.Context, tenantID int64, f
 	return fn(ctx)
 }
 
-func (r *passthroughRuntime) AfterCommit(context.Context, func()) {}
+func (*passthroughRuntime) AfterCommit(_ context.Context, fn func()) { fn() }
 
 func newHomeLayoutTestService(t *testing.T) (*HomeLayoutService, *fakeHomeLayoutRepo, *passthroughRuntime) {
 	t.Helper()
@@ -101,6 +102,28 @@ func TestHomeLayoutService_View_ReportsPolicyPermission(t *testing.T) {
 	view, err = service.View(context.Background(), 7, 42, []string{"groups:read"})
 	require.NoError(t, err)
 	assert.False(t, view.CanManagePolicies, "a care worker is not")
+}
+
+func TestHomeLayoutService_NotifiesAffectedStartPagesAfterWrites(t *testing.T) {
+	t.Parallel()
+	repo := newFakeHomeLayoutRepo()
+	runtime := &passthroughRuntime{}
+	var notifications []string
+	service := NewHomeLayoutService(repo, runtime, slog.Default(), func(_ context.Context, tenantID int64, key string) {
+		notifications = append(notifications, fmt.Sprintf("%d:%s", tenantID, key))
+	})
+
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
+	require.NoError(t, service.ResetOverrides(context.Background(), 7, 42))
+	require.NoError(t, service.SetPolicies(context.Background(), 7, 42, []string{adminPermissions}, map[string]configModel.BlockPolicy{
+		"tile.students_sick": configModel.BlockRequired,
+	}))
+
+	assert.Equal(t, []string{
+		"7:home-layout:42",
+		"7:home-layout:42",
+		"7:home-layout",
+	}, notifications)
 }
 
 func TestHomeLayoutService_View_SchoolPrescriptionBeatsStoredChoice(t *testing.T) {

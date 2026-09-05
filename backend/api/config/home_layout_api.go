@@ -41,7 +41,12 @@ func (rs *SettingsResource) getHomeLayout(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	view, err := rs.operations.HomeLayout(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions)
+	if rs.homeLayouts == nil {
+		rs.renderSettingsError(w, r, errors.New("home layout service is not configured"))
+		return
+	}
+
+	view, err := rs.homeLayouts.HomeLayout(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions)
 	if err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
@@ -64,7 +69,12 @@ func (rs *SettingsResource) setHomeLayout(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := rs.operations.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides); err != nil {
+	if rs.homeLayouts == nil {
+		rs.renderSettingsError(w, r, errors.New("home layout service is not configured"))
+		return
+	}
+
+	if err := rs.homeLayouts.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides); err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
 	}
@@ -80,7 +90,12 @@ func (rs *SettingsResource) resetHomeLayout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.operations.ResetHomeLayout(r.Context(), actor.TenantID, actor.AccountID); err != nil {
+	if rs.homeLayouts == nil {
+		rs.renderSettingsError(w, r, errors.New("home layout service is not configured"))
+		return
+	}
+
+	if err := rs.homeLayouts.ResetHomeLayout(r.Context(), actor.TenantID, actor.AccountID); err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
 	}
@@ -102,7 +117,12 @@ func (rs *SettingsResource) setHomeBlockPolicies(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err := rs.operations.SetHomeBlockPolicies(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, req.Policies)
+	if rs.homeLayouts == nil {
+		rs.renderSettingsError(w, r, errors.New("home layout service is not configured"))
+		return
+	}
+
+	err := rs.homeLayouts.SetHomeBlockPolicies(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, req.Policies)
 	if err != nil {
 		rs.renderSettingsError(w, r, err)
 		return

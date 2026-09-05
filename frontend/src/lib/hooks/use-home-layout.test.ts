@@ -66,4 +66,37 @@ describe("useHomeLayout", () => {
       { revalidateOnFocus: false },
     );
   });
+
+  it("revalidates only the changed account or a school-wide prescription", () => {
+    const mutate = vi.fn();
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate,
+    });
+    renderHook(() => useHomeLayout());
+
+    window.dispatchEvent(
+      new CustomEvent("phoenix:tenant-settings-stale", {
+        detail: { source: "home-layout:account-b" },
+      }),
+    );
+    expect(mutate).not.toHaveBeenCalled();
+
+    window.dispatchEvent(
+      new CustomEvent("phoenix:tenant-settings-stale", {
+        detail: { source: "home-layout:account-a" },
+      }),
+    );
+    expect(mutate).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(
+      new CustomEvent("phoenix:tenant-settings-stale", {
+        detail: { source: "home-layout" },
+      }),
+    );
+    expect(mutate).toHaveBeenCalledTimes(2);
+  });
 });

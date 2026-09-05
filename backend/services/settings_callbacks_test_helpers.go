@@ -14,6 +14,7 @@ import (
 )
 
 type SettingsCallbacksTestModule struct {
+	Settings       config.SettingsService
 	TenantSettings *config.TenantOperations
 	RealtimeHub    *realtime.Hub
 }
@@ -38,10 +39,9 @@ func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
 	operations := config.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
-		settings.homeLayouts,
 		module.SettingsSideEffects.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {
 			_ = hub.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key}))
 		})
-	return SettingsCallbacksTestModule{TenantSettings: operations, RealtimeHub: hub}, nil
+	return SettingsCallbacksTestModule{Settings: settings.Settings, TenantSettings: operations, RealtimeHub: hub}, nil
 }

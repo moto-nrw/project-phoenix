@@ -42,11 +42,16 @@ type HomeLayoutService struct {
 	repo    configModel.HomeLayoutRepository
 	runtime TenantOperationsRuntime
 	logger  *slog.Logger
+	notify  SettingsChangedNotifier
 }
 
 // NewHomeLayoutService wires the store and the tenant transaction runtime.
-func NewHomeLayoutService(repo configModel.HomeLayoutRepository, runtime TenantOperationsRuntime, logger *slog.Logger) *HomeLayoutService {
-	return &HomeLayoutService{repo: repo, runtime: runtime, logger: logger.With("service", "home_layout")}
+func NewHomeLayoutService(repo configModel.HomeLayoutRepository, runtime TenantOperationsRuntime, logger *slog.Logger, notifiers ...SettingsChangedNotifier) *HomeLayoutService {
+	var notify SettingsChangedNotifier
+	if len(notifiers) > 0 {
+		notify = notifiers[0]
+	}
+	return &HomeLayoutService{repo: repo, runtime: runtime, logger: logger.With("service", "home_layout"), notify: notify}
 }
 
 func (s *HomeLayoutService) ready() error {
@@ -142,6 +147,7 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 		if err := s.repo.UpsertForAccount(txCtx, layout); err != nil {
 			return err
 		}
+		s.scheduleNotification(txCtx, tenantID, homeLayoutAccountChangeKey(accountID))
 		s.logger.Info("home_layout_saved",
 			slog.Int64("account_id", accountID),
 			slog.Int("blocks", len(layout.Overrides)),
@@ -163,6 +169,7 @@ func (s *HomeLayoutService) ResetOverrides(ctx context.Context, tenantID, accoun
 		if err := s.repo.DeleteForAccount(txCtx, accountID); err != nil {
 			return err
 		}
+		s.scheduleNotification(txCtx, tenantID, homeLayoutAccountChangeKey(accountID))
 		s.logger.Info("home_layout_reset", slog.Int64("account_id", accountID))
 		return nil
 	})
@@ -212,12 +219,29 @@ func (s *HomeLayoutService) SetPolicies(ctx context.Context, tenantID, accountID
 		if err := s.repo.UpsertPolicies(txCtx, set); err != nil {
 			return err
 		}
+		s.scheduleNotification(txCtx, tenantID, homeLayoutPoliciesChangeKey)
 		s.logger.Info("home_block_policies_saved",
 			slog.Int64("account_id", accountID),
 			slog.Int("prescribed", len(cleaned)),
 		)
 		return nil
 	})
+}
+
+const homeLayoutPoliciesChangeKey = "home-layout"
+
+func homeLayoutAccountChangeKey(accountID int64) string {
+	return fmt.Sprintf("home-layout:%d", accountID)
+}
+
+// scheduleNotification broadcasts only after the tenant transaction commits.
+// A personal change addresses that account's open start pages; a school-wide
+// prescription addresses every start page in the tenant.
+func (s *HomeLayoutService) scheduleNotification(ctx context.Context, tenantID int64, key string) {
+	if s.notify == nil || tenantID <= 0 {
+		return
+	}
+	s.runtime.AfterCommit(ctx, func() { s.notify(ctx, tenantID, key) })
 }
 
 func validateBlockKeys(overrides map[string]bool) error {

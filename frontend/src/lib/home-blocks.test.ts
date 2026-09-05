@@ -85,6 +85,16 @@ describe("resolveHomeBlocks — eigene Auswahl", () => {
 
     expect(visible.has("tile.capacity_utilization")).toBe(false);
   });
+
+  it("lässt eine nicht verfügbare Abweichung zurücksetzen", () => {
+    const { customized } = resolveHomeBlocks(
+      { ...fullContext, detailed: false },
+      { "tile.capacity_utilization": false },
+      {},
+    );
+
+    expect(customized).toBe(true);
+  });
 });
 
 describe("resolveHomeBlocks — Vorgabe der Einrichtung", () => {
@@ -112,6 +122,16 @@ describe("resolveHomeBlocks — Vorgabe der Einrichtung", () => {
     expect(adjustable.map((block) => block.key)).not.toContain(
       "tile.students_sick",
     );
+  });
+
+  it("lässt eine von der Schule überstimmte Abweichung zurücksetzen", () => {
+    const { customized } = resolveHomeBlocks(
+      fullContext,
+      { "section.birthdays": false },
+      { "section.birthdays": "required" },
+    );
+
+    expect(customized).toBe(true);
   });
 
   it("stellt die alte Auswahl wieder her, wenn die Vorgabe zurückgenommen wird", () => {

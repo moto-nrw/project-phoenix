@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
 
@@ -19,6 +20,12 @@ const EMPTY: HomeLayoutState = {
   policies: {},
   canManagePolicies: false,
 };
+
+const HOME_LAYOUT_POLICIES_CHANGED = "home-layout";
+
+function homeLayoutAccountChanged(accountID: string): string {
+  return `home-layout:${accountID}`;
+}
 
 /**
  * Auswahl und Vorgabe der Startseite (#2875).
@@ -54,6 +61,31 @@ export function useHomeLayout(): {
     fetchHomeLayout,
     { revalidateOnFocus: false },
   );
+
+  useEffect(() => {
+    if (!cacheKey || !accountID || typeof window === "undefined") {
+      return undefined;
+    }
+
+    const revalidate = (event: Event) => {
+      const source =
+        event instanceof CustomEvent && typeof event.detail?.source === "string"
+          ? event.detail.source
+          : null;
+      if (
+        source !== HOME_LAYOUT_POLICIES_CHANGED &&
+        source !== homeLayoutAccountChanged(accountID)
+      ) {
+        return;
+      }
+      void mutate();
+    };
+
+    window.addEventListener("phoenix:tenant-settings-stale", revalidate);
+    return () => {
+      window.removeEventListener("phoenix:tenant-settings-stale", revalidate);
+    };
+  }, [accountID, cacheKey, mutate]);
 
   const save = async (overrides: HomeLayoutOverrides) => {
     await saveHomeLayout(overrides);

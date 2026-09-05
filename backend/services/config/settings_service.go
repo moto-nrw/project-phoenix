@@ -21,6 +21,7 @@ type settingsService struct {
 	logger        *slog.Logger
 	registry      *config.Registry
 	observeLookup SettingsLookupObserver
+	homeLayouts   *HomeLayoutService
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -56,6 +57,52 @@ func (s *settingsService) SetLookupObserver(observer SettingsLookupObserver) {
 
 func (s *settingsService) SetRuntime(runtime Runtime) { s.runtime = runtime }
 
+func (s *settingsService) homeLayoutService() (*HomeLayoutService, error) {
+	if s == nil || s.homeLayouts == nil {
+		return nil, ErrHomeLayoutUnavailable
+	}
+	return s.homeLayouts, nil
+}
+
+// HomeLayout returns the caller's start-page composition plus the school's
+// prescription. It is an optional public capability of the settings platform
+// so unrelated settings test doubles remain narrow.
+func (s *settingsService) HomeLayout(ctx context.Context, tenantID, accountID int64, permissions []string) (any, error) {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return nil, err
+	}
+	return homeLayouts.View(ctx, tenantID, accountID, permissions)
+}
+
+func (s *settingsService) SetHomeLayout(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	return homeLayouts.SetOverrides(ctx, tenantID, accountID, overrides)
+}
+
+func (s *settingsService) ResetHomeLayout(ctx context.Context, tenantID, accountID int64) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	return homeLayouts.ResetOverrides(ctx, tenantID, accountID)
+}
+
+func (s *settingsService) SetHomeBlockPolicies(ctx context.Context, tenantID, accountID int64, permissions []string, policies map[string]string) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	parsed := make(map[string]config.BlockPolicy, len(policies))
+	for key, policy := range policies {
+		parsed[key] = config.BlockPolicy(policy)
+	}
+	return homeLayouts.SetPolicies(ctx, tenantID, accountID, permissions, parsed)
+}
+
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
 // by the concrete-class collection guard. Kept off the constructor (and off
 // the SettingsService interface) so existing call sites and tests are
@@ -87,6 +134,33 @@ func NewSettingsService(
 	logger *slog.Logger,
 	registries ...*config.Registry,
 ) SettingsService {
+	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, nil, registries...)
+}
+
+// NewSettingsServiceWithHomeLayouts wires the settings platform's start-page
+// capability at construction time. Keeping it on this owner avoids widening
+// the legacy TenantOperations composition graph.
+func NewSettingsServiceWithHomeLayouts(
+	valueRepo config.SettingValueRepository,
+	auditRepo config.SettingAuditRepository,
+	schoolStore SchoolSettingsStore,
+	runtime Runtime,
+	logger *slog.Logger,
+	homeLayouts *HomeLayoutService,
+	registries ...*config.Registry,
+) SettingsService {
+	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
+}
+
+func newSettingsService(
+	valueRepo config.SettingValueRepository,
+	auditRepo config.SettingAuditRepository,
+	schoolStore SchoolSettingsStore,
+	runtime Runtime,
+	logger *slog.Logger,
+	homeLayouts *HomeLayoutService,
+	registries ...*config.Registry,
+) SettingsService {
 	registry := config.DefaultRegistry()
 	if len(registries) > 0 && registries[0] != nil {
 		registry = registries[0]
@@ -98,6 +172,7 @@ func NewSettingsService(
 		runtime:     runtime,
 		logger:      logger.With("service", "settings"),
 		registry:    registry,
+		homeLayouts: homeLayouts,
 	}
 }
 

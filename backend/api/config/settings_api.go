@@ -30,8 +30,9 @@ const (
 
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
-	operations Operations
-	runtime    Runtime
+	operations  Operations
+	homeLayouts HomeLayoutOperations
+	runtime     Runtime
 }
 
 type Operations interface {
@@ -44,17 +45,19 @@ type Operations interface {
 	LoginImageURL(context.Context, int64) (string, error)
 	SetLoginImageURL(context.Context, int64, string) (string, error)
 	ClearLoginImageURL(context.Context, int64) (string, error)
-	// Start page composition (#2875). HomeLayout is readable by every signed-in
-	// account; SetHomeBlockPolicies enforces the school-wide write permission
-	// itself, because the route group cannot express "read for all, write for
-	// config:update" on the same path.
+	SetLegalDocument(context.Context, int64, int64, []string, string, func(context.Context, int64, string, string) (func(), error)) error
+	DeleteLegalDocument(context.Context, int64, int64, []string, func(context.Context, int64, string, string) (func(), error)) error
+	ClassifyError(error) string
+}
+
+// HomeLayoutOperations is the settings-platform capability for personal start
+// pages and school-wide prescriptions. It is intentionally separate from the
+// legacy tenant settings operations graph, which is shrink-only.
+type HomeLayoutOperations interface {
 	HomeLayout(context.Context, int64, int64, []string) (any, error)
 	SetHomeLayout(context.Context, int64, int64, map[string]bool) error
 	ResetHomeLayout(context.Context, int64, int64) error
 	SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
-	SetLegalDocument(context.Context, int64, int64, []string, string, func(context.Context, int64, string, string) (func(), error)) error
-	DeleteLegalDocument(context.Context, int64, int64, []string, func(context.Context, int64, string, string) (func(), error)) error
-	ClassifyError(error) string
 }
 
 const (
@@ -63,8 +66,8 @@ const (
 	settingsErrorForbidden = "forbidden"
 )
 
-func NewSettingsResource(operations Operations, runtime Runtime) *SettingsResource {
-	return &SettingsResource{operations: operations, runtime: runtime}
+func NewSettingsResource(operations Operations, homeLayouts HomeLayoutOperations, runtime Runtime) *SettingsResource {
+	return &SettingsResource{operations: operations, homeLayouts: homeLayouts, runtime: runtime}
 }
 
 func (rs *SettingsResource) OnValueSet(hook func(context.Context, int64, string, any) (func(), error)) {
