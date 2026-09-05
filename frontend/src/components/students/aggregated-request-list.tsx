@@ -85,9 +85,12 @@ function bulkRef(item: AggregatedOpenRequest): BulkApproveRequestRef[] {
 export function AggregatedRequestList({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
+  /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
+  onCountChange?: (count: number | null, hasMore: boolean) => void;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -310,6 +313,28 @@ export function AggregatedRequestList({
     [setItems],
   );
 
+  const visibleWithdrawals =
+    view === "history"
+      ? withdrawals.filter((row) => {
+          const resolvedDate = row.resolvedAt?.slice(0, 10);
+          return (
+            resolvedDate !== undefined &&
+            (!filters.from || resolvedDate >= filters.from) &&
+            (!filters.to || resolvedDate <= filters.to)
+          );
+        })
+      : withdrawals;
+
+  // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
+  // einen Skelett-Balken statt einer falschen Null.
+  const visibleCount =
+    loading || withdrawalsLoading
+      ? null
+      : items.length + visibleWithdrawals.length;
+  useEffect(() => {
+    onCountChange?.(visibleCount, hasMore);
+  }, [onCountChange, visibleCount, hasMore]);
+
   if (loading || withdrawalsLoading) {
     return (
       <SkeletonRegion label="Anfragen werden geladen">
@@ -326,17 +351,6 @@ export function AggregatedRequestList({
     filters.statuses.length > 0 ||
     Boolean(filters.from) ||
     Boolean(filters.to);
-  const visibleWithdrawals =
-    view === "history"
-      ? withdrawals.filter((row) => {
-          const resolvedDate = row.resolvedAt?.slice(0, 10);
-          return (
-            resolvedDate !== undefined &&
-            (!filters.from || resolvedDate >= filters.from) &&
-            (!filters.to || resolvedDate <= filters.to)
-          );
-        })
-      : withdrawals;
 
   const showList = view === "open" && (wide || selectedCase === undefined);
   const showDetail = view === "open" && (wide || selectedCase !== undefined);

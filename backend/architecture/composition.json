@@ -8562,17 +8562,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/auth_core_test.go",
-      "declaration": "setupInvitationService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        59
+        52
       ],
       "tables": []
     },
@@ -8663,22 +8653,6 @@
       ],
       "tables": [
         "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/invitation_rollback_internal_test.go",
-      "declaration": "TestAcceptInvitationRollsBackAccountMappingAndRole",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        50
-      ],
-      "tables": [
-        "auth.account_roles",
-        "auth.account_tenants",
-        "auth.accounts",
-        "auth.invitation_tokens",
-        "users.persons"
       ]
     },
     {

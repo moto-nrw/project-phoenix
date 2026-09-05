@@ -39,6 +39,9 @@ export function DatabaseCreateAction({
         type="button"
         onClick={onClick}
         className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg md:hidden"
+        // Schwebender Symbolknopf: das Gerüst der Kopfkarte darf ihn auf dem
+        // Telefon nicht wie einen Textknopf über die Zeile strecken.
+        data-icon-only=""
         aria-label={ariaLabel}
       >
         <svg

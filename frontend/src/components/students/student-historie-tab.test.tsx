@@ -118,7 +118,7 @@ describe("StudentHistorieTab", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Keine Einträge im sichtbaren Zeitraum."),
+        screen.getByText("Keine Einträge im sichtbaren Zeitraum"),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText(/Letzte 30 Tage/)).toBeInTheDocument();
@@ -214,7 +214,7 @@ describe("StudentHistorieTab", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("Keine Einträge im sichtbaren Zeitraum."),
+        screen.getByText("Keine Einträge im sichtbaren Zeitraum"),
       ).toBeInTheDocument(),
     );
   });

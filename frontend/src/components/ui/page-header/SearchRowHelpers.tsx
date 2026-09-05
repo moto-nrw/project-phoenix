@@ -97,9 +97,17 @@ export function DesktopSearchAction({
   statusIndicator,
   badge,
 }: DesktopSearchActionProps) {
-  // Action button for pages WITHOUT tabs
+  // Action button for pages WITHOUT tabs. Der Zähler stellt sich daneben,
+  // statt eine eigene, fast leere Zeile darunter zu belegen.
   if (!hasTabs && actionButton) {
-    return <div className="ml-auto">{actionButton}</div>;
+    return (
+      <div className="ml-auto flex items-center gap-2">
+        {/* Nur der Zähler stellt sich dazu; der Statusanzeiger bleibt der
+            Aktion untergeordnet und erscheint weiter nur ohne sie. */}
+        {badge ? <InlineStatusBadge badge={badge} variant="desktop" /> : null}
+        {actionButton}
+      </div>
+    );
   }
 
   // Status/badge for pages without tabs, title, or action button

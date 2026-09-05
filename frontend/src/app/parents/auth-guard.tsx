@@ -20,6 +20,8 @@ import { ParentNotificationOnboarding } from "~/components/parent/parent-notific
  * "session loading" → spinner and "session missing" → /parents/login.
  */
 const PARENT_PUBLIC_PAGES = [
+  "/invite",
+  "/parents/invite",
   "/parents/login",
   "/login",
   "/parents/reset-password",

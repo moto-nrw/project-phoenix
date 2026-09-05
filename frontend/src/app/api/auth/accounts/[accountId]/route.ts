@@ -41,8 +41,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 
       if (userResponse.ok) {
         const userData = (await userResponse.json()) as
-          | { data?: UserData }
-          | UserData;
+          { data?: UserData } | UserData;
 
         const user =
           "data" in userData && userData.data

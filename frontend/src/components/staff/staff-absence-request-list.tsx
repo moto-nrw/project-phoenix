@@ -72,9 +72,12 @@ function decidedByLabel(row: StaffAbsenceRequestRow): string | undefined {
 export function StaffAbsenceRequestList({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: StaffAbsenceRequestFilters;
+  /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
+  onCountChange?: (count: number | null) => void;
 }>) {
   const toast = useToast();
   const { mutate: swrMutate } = useSWRConfig();
@@ -88,6 +91,13 @@ export function StaffAbsenceRequestList({
   );
   const [questionModal, setQuestionModal] =
     useState<StaffAbsenceRequestRow | null>(null);
+
+  // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
+  // einen Skelett-Balken statt einer falschen Null.
+  const reportedCount = loading ? null : rows.length;
+  useEffect(() => {
+    onCountChange?.(reportedCount);
+  }, [onCountChange, reportedCount]);
 
   const load = useCallback(
     () =>

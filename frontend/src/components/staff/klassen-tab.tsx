@@ -153,10 +153,7 @@ export function KlassenTab({
 
   return (
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-        Klassen
-      </p>
-      <h2 className="mt-1 text-base font-semibold text-gray-900">
+      <h2 className="text-base font-semibold text-gray-900">
         Zugewiesene Schulklassen
       </h2>
       <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">

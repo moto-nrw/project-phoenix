@@ -5,6 +5,68 @@ roles, tenant-safe read projections, legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
+## Canonical module map
+
+[ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
+records File Storage as the eighteenth domain for
+[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
+[#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+The canonical owner lists are:
+
+| Domain (18) | Policy owner |
+|---|---|
+| Identity & Access | `identity-access` |
+| People Directory | `people-directory` |
+| School Membership | `school-membership` |
+| Organisation & Tenancy | `organization-tenancy` |
+| School Structure | `school-structure` |
+| School Calendar | `school-calendar` |
+| Facilities | `facilities` |
+| Enrollment | `enrollment` |
+| Care Plan | `care-plan` |
+| Timetable & Activities | `timetable-activities` |
+| Student Presence | `student-presence` |
+| Workforce | `workforce` |
+| Appointments | `appointments` |
+| Communication | `communication` |
+| Device Fleet | `device-fleet` |
+| Meal Plan | `meal-plan` |
+| Feedback | `feedback` |
+| File Storage | `file-storage` |
+
+| Platform (9) | Policy owner |
+|---|---|
+| Tenant Runtime | `tenant-runtime` |
+| Transaction Runtime | `transaction-runtime` |
+| Security Runtime | `security-runtime` |
+| Settings Platform | `settings-platform` |
+| Delivery Platform | `delivery-platform` |
+| Observability | `observability` |
+| Audit Platform | `audit-platform` |
+| Scheduler Runtime | `scheduler-runtime` |
+| Document Rendering | `document-rendering` |
+
+Policy validation pins these exact IDs and kinds for the moto module path;
+missing, extra, renamed, or reclassified owners fail before graph analysis.
+Declaration order is irrelevant. Independent evaluator fixtures retain their
+own module maps. A future domain/platform change requires an explicit
+architecture decision, reflected in #2580, this map, and validation.
+
+File Storage owns the managed file lifecycle: file metadata, folders,
+folder-role/account grants, quota, and cleanup intents. Identity supplies
+account and role facts; File Storage applies school-scoped folder grants.
+Communication retains announcement-access rules, including for attachments.
+Document Rendering produces output without owning its audience or storage;
+rendering alone neither saves a file nor grants access.
+
+This decision does not change runtime write owners or ratchet entries.
+Missing mappings for `documents.files`, `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, and
+`documents.file_cleanup` remain migration work in #2707. Existing announcement
+attachment and cleanup ownership stays unchanged. `target.svg` is generated
+from the unchanged policy and shows File Storage as domain and Document
+Rendering as platform; do not commit the generated diagram.
+
 ## Commands
 
 Run commands from the repository root:
@@ -75,7 +137,8 @@ The current backend still violates the target policy, so the normal `check`
 loads the committed exact baseline from `architecture/legacy.jsonl`. It passes
 only when the current violation set is exactly equal to that baseline. Pull
 request CI additionally reads the policy and baseline from the event's full
-base-commit SHA and permits only removal of existing tuples. The required
+base-commit SHA. Debt is shrink-only, except when a policy tightening exposes
+an exact import already present and allowed at that SHA (see below). The required
 status is `Backend architecture ratchet`.
 
 ## Generated projections
@@ -125,9 +188,42 @@ errors. The normal command has no init, approve, update, or rebaseline mode.
 Local mode requires exact equality between the current violations and the
 committed baseline. PR mode adds `--base-ref` with the event's full 40-character
 base commit SHA and reads the baseline and policy directly from that Git object.
-Candidate entries must be a subset of the base entries, unchanged entries must
-keep their issue, and candidate policy, package classification, and ownership
-changes may not weaken the checks enforced by the base policy.
+Candidate entries must be a subset of the base entries or meet the import-debt
+conversion rule below. Unchanged entries must keep their issue. Candidate
+policy, package classification, and ownership changes may not weaken the checks
+enforced by the base policy.
+
+### Converting temporary permissions to exact debt
+
+Temporary compatibility imports belong in `legacy.jsonl`, not target-allowed
+rules. Remove their policy permissions and record each resulting
+`imports.forbidden` tuple with its open cleanup issue. PR mode accepts a newly
+recorded tuple only when all three conditions hold:
+
+1. The base policy allowed that exact source, target, and scope.
+2. The source package imported that target in that scope at the immutable base
+   SHA, under the policy's fixed build context.
+3. The candidate policy no longer allows the import.
+
+The checker reads import headers from Git blobs and lets `go list` select the
+production, internal-test, and external-test files. Candidate imports cannot
+supply base evidence. New targets, new sources, scope changes, and imports
+excluded by build tags, OS, or cgo cannot become historical debt. Existing
+violations and semantic findings do not qualify for this conversion.
+
+Once recorded, the tuple follows the ordinary shrink-only and issue-audit
+rules. Restoring its target permission is still policy loosening. Removing the
+import requires removing its debt entry in the same change. No schema change
+or second allowlist is needed for the final contract step.
+
+The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
+representation. Its remaining imports and repository-composition caller are
+bound to #2743, the root API caller to #2750, and the test-support caller to
+#2748. The conversion in #3032 removes 13 target permissions and records 14
+existing imports; it adds no runtime dependency or composition caller.
+`target.svg` has no compatibility-rule edges. `migration.svg` renders these
+exact imports as orange-red `legacy` debt, separate from gray target-valid
+imports and dashed-red new violations, even when they share owner endpoints.
 
 PR mode allows a classification when the candidate adds the first Go file in
 that exact package. Rules added with it must be anchored to an owner and role

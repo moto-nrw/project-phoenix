@@ -87,7 +87,7 @@ function CareHistoryCard({
               className="text-sm text-gray-700"
             >
               {showDiff
-                ? `${entry.label}: ${entry.old || "—"} → ${entry.new}`
+                ? `${entry.label}: ${entry.old || "–"} → ${entry.new}`
                 : `${entry.label}: ${entry.new}`}
             </p>
           ))}

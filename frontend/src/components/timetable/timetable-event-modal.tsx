@@ -970,7 +970,7 @@ export function TimetableEventModal({
                 ))}
               </ul>
               <p className="text-xs leading-relaxed text-gray-500">
-                Notiere dir diese Termine, um sie anschließend erneut
+                Notieren Sie sich diese Termine, um sie anschließend erneut
                 anzupassen.
               </p>
             </div>

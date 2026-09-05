@@ -791,6 +791,38 @@ func TestAuditIssuesRequiresAPIURL(t *testing.T) {
 	}
 }
 
+func TestAuditIssuesCoversConvertedImportDebt(t *testing.T) {
+	t.Parallel()
+	repo, baseRef := ratchetRepositoryWithPolicy(t, "", readFile(t, fixturePath(t, "vertical-allowed.json")))
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), readFile(t, fixturePath(t, "vertical-forbidden.json")))
+	manifest := filepath.Join(repo, "architecture", "legacy.jsonl")
+	writeFile(t, manifest, legacyRecord(2743))
+	if output, err := runRepositoryCheck(t, repo, baseRef); err != nil {
+		t.Fatalf("convert import debt: %v\n%s", err, output)
+	}
+	for _, state := range []string{"open", "closed"} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+				if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2743" {
+					w.WriteHeader(testpkg.HTTPStatusNotFound)
+					return
+				}
+				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2743"}`))
+			})
+			defer server.Close()
+			output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", server.URL)
+			if state == "open" {
+				if err != nil || !strings.Contains(output, "1 open migration issue(s) cover 1 legacy violation(s)") {
+					t.Fatalf("open debt audit failed: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, "is closed") {
+				t.Fatalf("closed converted debt passed audit: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
 func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	t.Parallel()
 

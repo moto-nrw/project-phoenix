@@ -1,20 +1,23 @@
 "use client";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { RoomsGridSkeleton } from "./page-skeleton";
 
 export default function RoomsLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Räume"
-        search={{
-          value: "",
-          onChange: () => {},
-          inputProps: { disabled: true },
-        }}
-      />
+    // Titel und Suchfeld sind fest und rendern sofort im echten Gerüst; nur
+    // die Statuszeile und das Raster darunter skelettieren.
+    <TenantPage
+      title="Räume"
+      statsLoading
+      search={{
+        value: "",
+        onChange: () => {},
+        placeholder: "Raum suchen…",
+        inputProps: { disabled: true },
+      }}
+    >
       <RoomsGridSkeleton />
-    </div>
+    </TenantPage>
   );
 }

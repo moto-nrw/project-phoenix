@@ -31,6 +31,7 @@ import { Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
+import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -42,9 +43,10 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { PlanLegend } from "~/components/ui/plan-legend";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
@@ -66,7 +68,6 @@ import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-d
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
-import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
@@ -154,6 +155,11 @@ function viewToTab(view: TimetableView): ViewParam {
   return "woche";
 }
 
+// Die Legenden-Ableitung teilen sich Betreuungsplan und Vertretung, damit
+// beide Raster dieselben Farben mit denselben Wörtern erklären. Der Re-Export
+// hält den bestehenden Import-Pfad dieser Datei stabil.
+export { buildPlanningTrackLegend };
+
 // Dichte-Umschalter des Wochenrasters (reiner Component-State, nie in der URL).
 // Der Bedienknopf sitzt seit dem Chrome-Abbau als kleines Kebab-Menü in der
 // PlanningContextBar-Aktionszeile (nur in der Wochenansicht).
@@ -190,36 +196,6 @@ function schoolYearPeriodDefaults(anchor: Date): {
     startDate: `${startYear}-08-01`,
     endDate: `${endYear}-07-31`,
   };
-}
-
-export function buildPlanningTrackLegend(
-  instances: readonly EnrichedInstance[],
-): PlanLegendEntry[] {
-  const used = new Map<string, PlanLegendEntry & { sortOrder: number }>();
-  let hasUnassigned = false;
-  for (const instance of instances) {
-    if (!instance.planningTrackId || !instance.planningTrackName) {
-      hasUnassigned = true;
-      continue;
-    }
-    used.set(instance.planningTrackId, {
-      key: instance.planningTrackId,
-      label: instance.planningTrackName,
-      color: instance.planningTrackColor,
-      sortOrder: instance.planningTrackSortOrder ?? Number.MAX_SAFE_INTEGER,
-    });
-  }
-  const entries = [...used.values()]
-    .sort(
-      (left, right) =>
-        left.sortOrder - right.sortOrder ||
-        left.label.localeCompare(right.label, "de"),
-    )
-    .map(({ sortOrder: _sortOrder, ...entry }) => entry);
-  if (hasUnassigned) {
-    entries.push({ key: "unassigned", label: "Ohne Planungsspur" });
-  }
-  return entries;
 }
 
 function TimetablesContent() {
@@ -928,6 +904,18 @@ function TimetablesContent() {
     };
   }, [canManageSchedules, error, instances.length, weekPeriodCoverage]);
 
+  // Legende der Planungsspuren als Fussband IM Raster (BAUARTEN-SPEC Teil 3:
+  // auf dem gemusterten Grund steht kein Text).
+  const planningTrackLegendNode =
+    shouldLoadInstances &&
+    !isInstanceDataLoading &&
+    planningTrackLegend.length > 0 ? (
+      <PlanLegend
+        entries={planningTrackLegend}
+        aria-label="Planungsspuren im sichtbaren Betreuungsplan"
+      />
+    ) : null;
+
   // Bedarfsquellen-Zuordnung (06 §3.2), reine Funktion.
   const demandOrigin = useMemo(
     () => resolveDemandOrigin(phases, visiblePeriod?.id ?? null, dayISO),
@@ -1379,323 +1367,75 @@ function TimetablesContent() {
         ]
       : [];
 
+  // Alles, was neben "Neu" noch erreichbar sein muss. Die Zeilenhöhe ist eine
+  // Feinjustage der Wochenansicht und erscheint nur dort; Drucken meint immer
+  // die Woche, die gerade zu sehen ist.
+  const menuItems: OverflowMenuEntry[] = [
+    ...(canManageSchedules && (view === "week" || view === "day")
+      ? densityMenuItems
+      : []),
+    ...(canManageSchedules ? hiddenConflictsMenuItems : []),
+    ...(canManageSchedules && canExportBetreuungsplan
+      ? [
+          {
+            label: "Drucken oder exportieren",
+            icon: <Printer className="h-4 w-4" aria-hidden />,
+            onClick: () => setExportOpen(true),
+          },
+        ]
+      : []),
+  ];
+
   // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
   // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
   const showEmptyPeriodState = periodsReady && calendarPeriods.length === 0;
   const periodLoadError = periodsError !== undefined;
-  return (
-    <div className="flex flex-col gap-4">
-      <PlanningContextBar
-        title="Betreuungsplan"
-        onPrevious={view === "series" ? undefined : handlePrev}
-        onNext={view === "series" ? undefined : handleNext}
-        previousLabel="Zurück"
-        nextLabel="Weiter"
-        dateLabel={
-          view === "series"
-            ? (visiblePeriod?.name ?? undefined)
-            : view === "month"
-              ? monthLabel
-              : view === "day"
-                ? dayLabel
-                : weekLabel
-        }
-        onToday={showTodayButton ? goToToday : undefined}
-        viewSwitcher={
-          // Tag und Woche stehen allen offen (#2621); Monat und Serien sind
-          // Planungsansichten und bleiben Planenden vorbehalten.
-          <Tabs
-            value={viewToTab(view)}
-            onValueChange={(v) => setViewParam(v as ViewParam)}
-          >
-            <TabsList variant="default">
-              <TabsTrigger value="tag">Tag</TabsTrigger>
-              <TabsTrigger value="woche">Woche</TabsTrigger>
-              {canManageSchedules && (
-                <>
-                  <TabsTrigger value="monat">Monat</TabsTrigger>
-                  <TabsTrigger value="serien">Serien</TabsTrigger>
-                </>
-              )}
-            </TabsList>
-          </Tabs>
-        }
-        actions={
-          <>
-            {canManageSchedules && hiddenConflictsMenuItems.length > 0 ? (
-              // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
-              // einstieg und muss überall erreichbar sein (auch mobil und in
-              // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
-              // gebunden.
-              <OverflowMenu
-                ariaLabel="Weitere Optionen"
-                items={[
-                  ...(view === "week" || view === "day"
-                    ? densityMenuItems
-                    : []),
-                  ...hiddenConflictsMenuItems,
-                ]}
-              />
-            ) : (
-              canManageSchedules &&
-              (view === "week" || view === "day") && (
-                // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
-                // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
-                // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
-                // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
-                <span className="hidden sm:contents">
-                  <OverflowMenu
-                    ariaLabel="Zeilenhöhe"
-                    items={densityMenuItems}
-                  />
-                </span>
-              )
-            )}
-            {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
-                Export die Woche meint, die gerade zu sehen ist. Unter sm nur
-                das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
-                und "Neu". */}
-            {canManageSchedules && canExportBetreuungsplan && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                aria-label="Betreuungsplan drucken oder exportieren"
-                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-                onClick={() => setExportOpen(true)}
-              >
-                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  Drucken
-                </span>
-              </Button>
-            )}
-            {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
-                das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
-            {canManageSchedules ? (
-              <TimetableAddMenu
-                onAddInstance={openEventCreate}
-                onAddSeries={openSeriesCreate}
-                disabled={!periodsReady || firstCoveredDateISO === undefined}
-              />
-            ) : (
-              <StatusBadge
-                label="Nur ansehen"
-                tone="gray"
-                title="Du kannst den Betreuungsplan ansehen. Ändern können ihn nur Admins."
-              />
-            )}
-          </>
-        }
-      >
-        {periodsReady && calendarPeriods.length > 0 && (
-          <PeriodSwitcherDropdown
-            periods={calendarPeriods}
-            weekDays={periodContextDays}
-            view={view}
-            selectedPeriodId={focusedPeriodID}
-            isLoading={periodsLoading}
-            onCreate={openPeriodCreate}
-            onEdit={openPeriodEdit}
-            onSelect={jumpToPeriod}
-            canManage={canManageSchedules}
-          />
-        )}
-        {demandOriginChip}
-        {shouldLoadGaps && !gapsError && (
-          <GapJumpList
-            gaps={gaps}
-            state={gapsData === undefined ? "loading" : "ready"}
-            onJump={(gap) =>
-              updateUrlParams({ d: gap.date, block: gap.instanceId })
-            }
-          />
-        )}
-      </PlanningContextBar>
 
-      {periodLoadError && (
-        <Alert
-          type="error"
-          title="Planungszeiträume konnten nicht geladen werden"
-          message="Bitte laden Sie die Seite neu."
-        />
-      )}
+  // Zeitraum, den die Fläche gerade zeigt: Überschrift der Zeitleiste und
+  // erstes Stück der Statuszeile.
+  const periodLabel =
+    view === "series"
+      ? // Ohne Planungszeitraum bleibt die Angabe nicht leer: dann steht dort
+        // die Woche des sichtbaren Datums.
+        (visiblePeriod?.name ?? weekLabel)
+      : view === "month"
+        ? monthLabel
+        : view === "day"
+          ? dayLabel
+          : weekLabel;
 
-      {showEmptyPeriodState ? (
-        <div className={`${timetableSurface} p-10 text-center`}>
-          <MotoConceptIcon
-            concept="closingDays"
-            size={42}
-            className="mx-auto"
-          />
-          <h2 className="mt-4 text-base font-semibold text-gray-900">
-            Noch kein Planungszeitraum
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-            {canManageSchedules
-              ? "Lege einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
-              : "Es gibt noch keinen Planungszeitraum. Ein Admin muss ihn zuerst anlegen."}
-          </p>
-          {canManageSchedules && (
-            <div className="mt-4 flex justify-center">
-              <Button
-                type="button"
-                variant="primary"
-                onClick={openPeriodCreate}
-              >
-                Planungszeitraum anlegen
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
-          {canManageSchedules && shouldLoadInstances && (
-            <ConflictWarningsBanner
-              openConflicts={openConflicts}
-              hiddenConflicts={hiddenConflicts}
-              periodLabel={
-                view === "month"
-                  ? "in diesem Monat"
-                  : view === "day"
-                    ? "an diesem Tag"
-                    : "diese Woche"
-              }
-              onHide={handleHideConflict}
-              onHideAll={handleHideAllConflicts}
-              onUnhide={handleUnhideConflict}
-              onJump={handleJumpToConflict}
-              revealHidden={hiddenConflictsPanelOpen}
-              onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
-            />
-          )}
+  // Statuszeile der Kopfkarte: Zeitraum und die Zahlen, die die Fläche ohnehin
+  // lädt. Vom Wochenlabel steht hier nur der Kopf ("KW 29"), weil die
+  // Zeitleiste direkt darunter dasselbe Label vollständig trägt.
+  const statsLoading =
+    showSkeleton ||
+    (view === "series" ? templatesLoading : isInstanceDataLoading);
+  // Ladezustand des Inhalts: dieselbe Bedingung, die vorher je Ansicht ein
+  // eigenes Skelett einblendete — jetzt einmal an das Gerüst gereicht.
+  const contentLoading = statsLoading;
+  const instanceCount = visibleInstances.length;
+  // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
+  // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
+  // auf dem Telefon eine Zeile, die nichts sagte.
+  const statusLine = [
+    ...(view === "series"
+      ? [
+          `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,
+        ]
+      : [
+          `${instanceCount} ${instanceCount === 1 ? "Termin" : "Termine"}`,
+          ...(canManageSchedules && openConflicts.length > 0
+            ? [
+                `${openConflicts.length} ${openConflicts.length === 1 ? "Konflikt" : "Konflikte"}`,
+              ]
+            : []),
+        ]),
+  ].join(" · ");
 
-          {shouldLoadInstances &&
-            !isInstanceDataLoading &&
-            planningTrackLegend.length > 0 && (
-              <PlanLegend
-                entries={planningTrackLegend}
-                aria-label="Planungsspuren im sichtbaren Betreuungsplan"
-              />
-            )}
-
-          {view === "month" &&
-            (showSkeleton || isInstanceDataLoading ? (
-              <TimetableContentSkeleton view="month" />
-            ) : (
-              <MonthPlannerGrid
-                days={monthDays}
-                monthDate={visibleDate}
-                instances={visibleInstances}
-                todayISO={todayISO}
-                closingDays={closingDays}
-                planningDisabledDateISOs={planningDisabledDateISOs}
-                onDayClick={openWeekForDay}
-                onInstanceClick={handleSelectInstance}
-              />
-            ))}
-
-          {view === "day" && (
-            <>
-              {showSkeleton || isInstanceDataLoading ? (
-                <TimetableContentSkeleton view="day" />
-              ) : (
-                <WeeklyCalendarGrid
-                  weekDays={dayOnly}
-                  instances={visibleInstances}
-                  selectedId={selectedInstanceId}
-                  onInstanceClick={handleSelectInstance}
-                  onSlotClick={canManageSchedules ? openQuickCreate : undefined}
-                  gapInstanceIds={gapInstanceIds}
-                  planningDisabledDateISOs={planningDisabledDateISOs}
-                  closingDays={closingDays}
-                  todayISO={todayISO}
-                  dayStartHour={dayStartHour}
-                  dayEndHour={dayEndHour}
-                  hourHeightPx={hourHeightPx}
-                  showDayHeader
-                  emptyState={
-                    instances.length === 0 && !error
-                      ? {
-                          // Der Schließtag ist der stärkste Grund und steht
-                          // deshalb vorn. Ohne Planungsrecht sagt der Text
-                          // nicht "Planungszeitraum": das ist ein Begriff aus
-                          // der Planung und für Lesende keine Auskunft.
-                          title: dayClosingReason
-                            ? "Schließtag"
-                            : dayHasPeriodCoverage || !canManageSchedules
-                              ? "An diesem Tag ist nichts geplant"
-                              : "Dieser Tag hat keinen Planungszeitraum",
-                          description: dayClosingReason
-                            ? `Die Betreuung entfällt: ${dayClosingReason}`
-                            : // Leseansicht (#2283): keine Handlungs-
-                              // aufforderung an Leute, die nicht planen dürfen
-                              // — stattdessen, wer den Tag plant.
-                              canManageSchedules
-                              ? dayHasPeriodCoverage
-                                ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
-                                : "Legen Sie zuerst einen aktiven Planungszeitraum an."
-                              : "Geplant wird von den Admins Ihrer Schule.",
-                        }
-                      : undefined
-                  }
-                />
-              )}
-            </>
-          )}
-
-          {view === "week" && (
-            <>
-              {showSkeleton || isInstanceDataLoading ? (
-                <TimetableContentSkeleton view="week" />
-              ) : (
-                <WeeklyCalendarGrid
-                  weekDays={weekDays}
-                  instances={visibleInstances}
-                  selectedId={selectedInstanceId}
-                  onInstanceClick={handleSelectInstance}
-                  onSlotClick={canManageSchedules ? openQuickCreate : undefined}
-                  gapInstanceIds={gapInstanceIds}
-                  planningDisabledDateISOs={planningDisabledDateISOs}
-                  closingDays={closingDays}
-                  todayISO={todayISO}
-                  dayStartHour={dayStartHour}
-                  dayEndHour={dayEndHour}
-                  hourHeightPx={hourHeightPx}
-                  showDayHeader
-                  emptyState={weekEmptyState}
-                />
-              )}
-            </>
-          )}
-
-          {view === "series" && (
-            <>
-              {showSkeleton || templatesLoading ? (
-                <TimetableContentSkeleton view="series" />
-              ) : (
-                <TemplateList
-                  templates={templates}
-                  canManage={canManageSchedules}
-                  onCreate={openSeriesCreate}
-                  onEdit={(template) => {
-                    setEditingInstance(null);
-                    setConvertingInstance(null);
-                    setEditingTemplate(template);
-                    setEventDefaultRepeat("weekly");
-                    setEventModalOpen(true);
-                  }}
-                  onApply={(template) => void handleApplyTemplate(template)}
-                  onArchive={setArchivingTemplate}
-                />
-              )}
-            </>
-          )}
-        </>
-      )}
-
+  const overlays = (
+    <>
       <InstanceDetailModal
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
@@ -1867,7 +1607,271 @@ function TimetablesContent() {
           Betreuungsplan erhalten.
         </p>
       </ConfirmationModal>
-    </div>
+    </>
+  );
+
+  return (
+    <TenantPage
+      overlays={overlays}
+      title="Betreuungsplan"
+      stats={statusLine}
+      statsLoading={statsLoading}
+      actions={
+        <>
+          {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
+              das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
+          {canManageSchedules ? (
+            <TimetableAddMenu
+              onAddInstance={openEventCreate}
+              onAddSeries={openSeriesCreate}
+              disabled={!periodsReady || firstCoveredDateISO === undefined}
+            />
+          ) : (
+            <StatusBadge
+              label="Nur ansehen"
+              tone="gray"
+              title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+            />
+          )}
+          {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
+              Konflikte und Drucken lagen vorher in zwei Menüs und einem
+              eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
+              Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
+              rechts davon das Menü -- dieselbe Aufteilung wie auf jeder
+              anderen Seite. */}
+          {menuItems.length > 0 && (
+            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
+          )}
+        </>
+      }
+      searchSlot={
+        <PlanningContextBar
+          contextRowWrap
+          dateLabel={periodLabel}
+          onPrevious={view === "series" ? undefined : handlePrev}
+          onNext={view === "series" ? undefined : handleNext}
+          previousLabel="Zurück"
+          nextLabel="Weiter"
+          onToday={showTodayButton ? goToToday : undefined}
+          viewSwitcher={
+            // Tag und Woche stehen allen offen (#2621); Monat und Serien sind
+            // Planungsansichten und bleiben Planenden vorbehalten.
+            <SegmentedControl
+              ariaLabel="Ansicht"
+              value={viewToTab(view)}
+              onChange={(next) => setViewParam(next as ViewParam)}
+              items={[
+                { value: "tag", label: "Tag" },
+                { value: "woche", label: "Woche" },
+                ...(canManageSchedules
+                  ? [
+                      { value: "monat", label: "Monat" },
+                      { value: "serien", label: "Serien" },
+                    ]
+                  : []),
+              ]}
+            />
+          }
+        >
+          {periodsReady && calendarPeriods.length > 0 && (
+            <PeriodSwitcherDropdown
+              periods={calendarPeriods}
+              weekDays={periodContextDays}
+              view={view}
+              selectedPeriodId={focusedPeriodID}
+              isLoading={periodsLoading}
+              onCreate={openPeriodCreate}
+              onEdit={openPeriodEdit}
+              onSelect={jumpToPeriod}
+              canManage={canManageSchedules}
+            />
+          )}
+          {demandOriginChip}
+          {shouldLoadGaps && !gapsError && (
+            <GapJumpList
+              gaps={gaps}
+              state={gapsData === undefined ? "loading" : "ready"}
+              onJump={(gap) =>
+                updateUrlParams({ d: gap.date, block: gap.instanceId })
+              }
+            />
+          )}
+        </PlanningContextBar>
+      }
+      // Bauart 3, Regel 5: Laden, Fehler und Leerzustand kommen aus dem
+      // Gerüst. Ein Ladefehler ist `error` — nie `empty` und nie ein leerer
+      // Plan, der so aussieht, als sei nichts geplant.
+      // Struktur-Skelett statt der generischen Karten: ein Wochen- bzw.
+      // Monatsraster lädt nicht wie eine Kartenliste.
+      loading={
+        contentLoading ? <TimetableContentSkeleton view={view} /> : false
+      }
+      loadingLabel="Betreuungsplan wird geladen…"
+      error={
+        errorMessage && !data
+          ? {
+              message:
+                "Betreuungsplan konnte nicht geladen werden. Die Termine konnten nicht abgerufen werden.",
+              action: (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => void tenantMutate(swrKey)}
+                >
+                  Erneut versuchen
+                </Button>
+              ),
+            }
+          : null
+      }
+      empty={
+        showEmptyPeriodState
+          ? {
+              icon: <MotoConceptIcon concept="closingDays" size={42} />,
+              title: "Noch kein Planungszeitraum",
+              description: canManageSchedules
+                ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+                : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen.",
+              action: canManageSchedules ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={openPeriodCreate}
+                >
+                  Planungszeitraum anlegen
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+    >
+      {periodLoadError && (
+        <Alert
+          type="error"
+          title="Planungszeiträume konnten nicht geladen werden"
+          message="Bitte laden Sie die Seite neu."
+        />
+      )}
+
+      {canManageSchedules && shouldLoadInstances && (
+        <ConflictWarningsBanner
+          openConflicts={openConflicts}
+          hiddenConflicts={hiddenConflicts}
+          periodLabel={
+            view === "month"
+              ? "in diesem Monat"
+              : view === "day"
+                ? "an diesem Tag"
+                : "diese Woche"
+          }
+          onHide={handleHideConflict}
+          onHideAll={handleHideAllConflicts}
+          onUnhide={handleUnhideConflict}
+          onJump={handleJumpToConflict}
+          revealHidden={hiddenConflictsPanelOpen}
+          onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
+        />
+      )}
+
+      {view === "month" && (
+        <MonthPlannerGrid
+          // Bauart 3, Regel 3 + Teil 3: die Legende gehoert auf die Flaeche
+          // des Rasters, das sie erklaert — nicht frei auf den Grund.
+          legend={planningTrackLegendNode}
+          days={monthDays}
+          monthDate={visibleDate}
+          instances={visibleInstances}
+          todayISO={todayISO}
+          closingDays={closingDays}
+          planningDisabledDateISOs={planningDisabledDateISOs}
+          onDayClick={openWeekForDay}
+          onInstanceClick={handleSelectInstance}
+        />
+      )}
+
+      {view === "day" && (
+        <WeeklyCalendarGrid
+          legend={planningTrackLegendNode}
+          weekDays={dayOnly}
+          instances={visibleInstances}
+          selectedId={selectedInstanceId}
+          onInstanceClick={handleSelectInstance}
+          onSlotClick={canManageSchedules ? openQuickCreate : undefined}
+          gapInstanceIds={gapInstanceIds}
+          planningDisabledDateISOs={planningDisabledDateISOs}
+          closingDays={closingDays}
+          todayISO={todayISO}
+          dayStartHour={dayStartHour}
+          dayEndHour={dayEndHour}
+          hourHeightPx={hourHeightPx}
+          showDayHeader
+          emptyState={
+            instances.length === 0 && !error
+              ? {
+                  // Der Schließtag ist der stärkste Grund und steht
+                  // deshalb vorn. Ohne Planungsrecht sagt der Text
+                  // nicht "Planungszeitraum": das ist ein Begriff aus
+                  // der Planung und für Lesende keine Auskunft.
+                  title: dayClosingReason
+                    ? "Schließtag"
+                    : dayHasPeriodCoverage || !canManageSchedules
+                      ? "An diesem Tag ist nichts geplant"
+                      : "Dieser Tag hat keinen Planungszeitraum",
+                  description: dayClosingReason
+                    ? `Die Betreuung entfällt: ${dayClosingReason}`
+                    : // Leseansicht (#2283): keine Handlungs-
+                      // aufforderung an Leute, die nicht planen dürfen
+                      // — stattdessen, wer den Tag plant.
+                      canManageSchedules
+                      ? dayHasPeriodCoverage
+                        ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+                        : "Legen Sie zuerst einen aktiven Planungszeitraum an."
+                      : "Geplant wird von den Admins Ihrer Schule.",
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {view === "week" && (
+        <WeeklyCalendarGrid
+          legend={planningTrackLegendNode}
+          weekDays={weekDays}
+          instances={visibleInstances}
+          selectedId={selectedInstanceId}
+          onInstanceClick={handleSelectInstance}
+          onSlotClick={canManageSchedules ? openQuickCreate : undefined}
+          gapInstanceIds={gapInstanceIds}
+          planningDisabledDateISOs={planningDisabledDateISOs}
+          closingDays={closingDays}
+          todayISO={todayISO}
+          dayStartHour={dayStartHour}
+          dayEndHour={dayEndHour}
+          hourHeightPx={hourHeightPx}
+          showDayHeader
+          emptyState={weekEmptyState}
+        />
+      )}
+
+      {view === "series" && (
+        <TemplateList
+          templates={templates}
+          canManage={canManageSchedules}
+          onCreate={openSeriesCreate}
+          onEdit={(template) => {
+            setEditingInstance(null);
+            setConvertingInstance(null);
+            setEditingTemplate(template);
+            setEventDefaultRepeat("weekly");
+            setEventModalOpen(true);
+          }}
+          onApply={(template) => void handleApplyTemplate(template)}
+          onArchive={setArchivingTemplate}
+        />
+      )}
+    </TenantPage>
   );
 }
 

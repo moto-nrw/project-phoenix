@@ -374,40 +374,108 @@ export function AbwesenheitenTab({
 
   const content = (
     <div className="space-y-5">
-      {/* Quota KPI cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <QuotaTile
-          label="Resturlaub"
-          value={`${quota?.remaining_days ?? 0}`}
-          hint="Tage"
-          tone="primary"
-        />
-        <QuotaTile
-          label="Anspruch"
-          value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
-          hint={
-            (quota?.carryover_days ?? 0) > 0
-              ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
-              : "Tage"
-          }
-          tone="primary"
-          onEdit={canEditQuota ? () => setQuotaModal(true) : undefined}
-        />
-        <QuotaTile
-          label="Genommen"
-          value={`${quota?.taken_days ?? 0}`}
-          hint="genehmigt"
-          tone="success"
-        />
-        <QuotaTile
-          label="Beantragt"
-          value={`${quota?.reserved_days ?? 0}`}
-          hint="offene Anträge"
-          tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
-        />
-      </div>
+      <SectionCard
+        title="Urlaub und Abwesenheiten"
+        headingLevel={3}
+        description="Urlaubskonto, gemeldete Krankheitstage und Freizeitausgleich dieser Person."
+        actions={
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              {canManageSickReports && staff && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setManagedAbsenceType("sick");
+                      setSickStaff(staff);
+                    }}
+                  >
+                    <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+                    Krank melden
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setManagedAbsenceType("comp_time");
+                      setSickStaff(staff);
+                    }}
+                  >
+                    <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
+                    Freizeitausgleich eintragen
+                  </Button>
+                </>
+              )}
+              {canManageSickReports &&
+              staff &&
+              bookingAllowances.some((entry) => entry.type.isActive) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setCustomAbsenceModal(true)}
+                >
+                  <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
+                  Weitere Abwesenheit
+                </Button>
+              ) : null}
+              {canManageSickReports && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setOpeningModal(true)}
+                >
+                  <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
+                  Urlaubs-Übernahme
+                </Button>
+              )}
+            </div>
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+              Jahr {year}
+            </span>
+          </>
+        }
+        bodyClassName="mt-4 space-y-4"
+      >
+        {/* Quota KPI cards */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <QuotaTile
+            label="Resturlaub"
+            value={`${quota?.remaining_days ?? 0}`}
+            hint="Tage"
+            tone="primary"
+          />
+          <QuotaTile
+            label="Anspruch"
+            value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
+            hint={
+              (quota?.carryover_days ?? 0) > 0
+                ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
+                : "Tage"
+            }
+            tone="primary"
+            onEdit={canEditQuota ? () => setQuotaModal(true) : undefined}
+          />
+          <QuotaTile
+            label="Genommen"
+            value={`${quota?.taken_days ?? 0}`}
+            hint="genehmigt"
+            tone="success"
+          />
+          <QuotaTile
+            label="Beantragt"
+            value={`${quota?.reserved_days ?? 0}`}
+            hint="offene Anträge"
+            tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
+          />
+        </div>
 
-      {quota?.opening && <VacationOpeningSummary opening={quota.opening} />}
+        {quota?.opening && <VacationOpeningSummary opening={quota.opening} />}
+      </SectionCard>
 
       {customAllowances.length > 0 ? (
         <SectionCard title="Weitere Kontingente" headingLevel={3}>
@@ -481,66 +549,6 @@ export function AbwesenheitenTab({
           </div>
         </SectionCard>
       ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {canManageSickReports && staff && (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  setManagedAbsenceType("sick");
-                  setSickStaff(staff);
-                }}
-              >
-                <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
-                Krank melden
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  setManagedAbsenceType("comp_time");
-                  setSickStaff(staff);
-                }}
-              >
-                <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
-                Freizeitausgleich eintragen
-              </Button>
-            </>
-          )}
-          {canManageSickReports &&
-          staff &&
-          bookingAllowances.some((entry) => entry.type.isActive) ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setCustomAbsenceModal(true)}
-            >
-              <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
-              Weitere Abwesenheit
-            </Button>
-          ) : null}
-          {canManageSickReports && (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setOpeningModal(true)}
-            >
-              <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
-              Urlaubs-Übernahme
-            </Button>
-          )}
-        </div>
-        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
-          Jahr {year}
-        </span>
-      </div>
 
       <PendingAbsences
         rows={pending}

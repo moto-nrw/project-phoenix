@@ -172,7 +172,9 @@ describe("FilterPanel", () => {
       );
 
       const activeButton = screen.getByText("Aktiv");
-      expect(activeButton).toHaveClass("bg-gray-900", "text-white");
+      // Das aktive Segment ist hell auf grauer Spur hervorgehoben statt
+      // schwarz gefüllt — dieselbe Aussage, andere Bauart.
+      expect(activeButton).toHaveClass("bg-white", "text-gray-900");
     });
 
     it("handles single-select button click", () => {
