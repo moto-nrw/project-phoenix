@@ -477,8 +477,8 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 text-[11px]@901 text-[11px]@962 text-[11px]@966 text-[11px]@972 text-[11px]@1018 text-[11px]@1024 text-[10px]@1044 text-[11px]@1097 text-[11px]@1177 text-[11px]@1183 text-[11px]@1188
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/dashboard/sidebar.tsx|text-[10px]@1306
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@915 text-[11px]@934
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1296 text-[11px]@2973 text-[11px]@3165 text-[11px]@3170 text-[11px]@3175 text-[11px]@3329 text-[11px]@3921 text-[10px]@4138 text-[11px]@4150 text-[11px]@4185 text-[10px]@4199 text-[10px]@4243
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1304 text-[11px]@2989 text-[11px]@3181 text-[11px]@3186 text-[11px]@3191 text-[11px]@3345 text-[11px]@3937 text-[10px]@4154 text-[11px]@4166 text-[11px]@4201 text-[10px]@4215 text-[10px]@4259
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
 src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
