@@ -246,13 +246,6 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
-  const pathname = usePathname();
-  const lastPathname = useRef(pathname);
-  const hasNavigated = useRef(false);
-  if (lastPathname.current !== pathname) {
-    lastPathname.current = pathname;
-    hasNavigated.current = true;
-  }
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
@@ -272,12 +265,17 @@ function NavigationProgressRouter({
   }, [router, store]);
 
   const content = (
-    <NavigationFallbackContext.Provider value={hasNavigated.current}>
-      <Suspense fallback={null}>
-        <NavigationProgressCompletion store={store} />
-      </Suspense>
-      {children}
-    </NavigationFallbackContext.Provider>
+    <Suspense
+      fallback={
+        <NavigationFallbackContext.Provider value={false}>
+          {children}
+        </NavigationFallbackContext.Provider>
+      }
+    >
+      <NavigationProgressRouteProvider store={store}>
+        {children}
+      </NavigationProgressRouteProvider>
+    </Suspense>
   );
 
   if (progressRouter === null) return content;
@@ -286,6 +284,31 @@ function NavigationProgressRouter({
     <AppRouterContext.Provider value={progressRouter}>
       {content}
     </AppRouterContext.Provider>
+  );
+}
+
+function NavigationProgressRouteProvider({
+  children,
+  store,
+}: {
+  readonly children: ReactNode;
+  readonly store: NavigationProgressStore;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const url = normalizedUrl(pathname, searchParams?.toString() ?? "");
+  const lastUrl = useRef(url);
+  const hasNavigated = useRef(false);
+  if (lastUrl.current !== url) {
+    lastUrl.current = url;
+    hasNavigated.current = true;
+  }
+
+  return (
+    <NavigationFallbackContext.Provider value={hasNavigated.current}>
+      <NavigationProgressCompletion store={store} />
+      {children}
+    </NavigationFallbackContext.Provider>
   );
 }
 
