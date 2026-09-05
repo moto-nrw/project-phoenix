@@ -1296,6 +1296,9 @@ func domainStudentInstanceRefs(refs []timetable.StudentInstanceRef) []domain.Stu
 }
 
 func mapError(err error) error {
+	if errors.Is(err, domain.ErrInvalidRecurrenceRange) {
+		return timetable.ErrInvalidRecurrenceRange
+	}
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
 		return timetable.ErrCategoryNotFound

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -78,7 +79,7 @@ func TestCalendarReminderScanQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueries(t, db)
 	run := func(expectedQueued int) []string {
 		counter.Reset()
-		queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+		queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 		require.NoError(t, err)
 		require.Equal(t, expectedQueued, queued)
 		return counter.Operation("SELECT")

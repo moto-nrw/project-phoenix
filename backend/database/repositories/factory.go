@@ -533,7 +533,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
-	activityInstance := schedule.NewActivityInstanceRepository(db, now)
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	attendance := active.NewAttendanceRepository(db, now)
 	parentAnnouncement := users.NewParentAnnouncementRepository(db, now)
@@ -661,11 +660,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		PlanningTrack:             nil, // bound to Timetable below
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
-		ActivityInstance:          activityInstance,
-		InstanceIdempotency:       activityInstance,
-		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
+		ActivityInstance:          nil, // bound to Timetable below
+		InstanceIdempotency:       nil, // bound to Timetable below
+		InstanceStaff:             nil, // bound to Timetable below
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: timetableCapability},
-		ActivityException:         schedule.NewActivityExceptionRepository(db),
+		ActivityException:         nil, // bound to Timetable below
 
 		// Activities repositories
 		ActivityGroup:      nil, // bound to Timetable below

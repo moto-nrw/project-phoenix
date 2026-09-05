@@ -31,7 +31,8 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 		Today: timezone.TodayDate, LockTemplateRecurrence: lock, Logger: slog.Default(),
 	})
 	service := schedule.NewServiceWithConfig(schedule.ServiceConfig{
-		DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule,
+		RecurrenceEvents: r.Timetable,
+		DateframeRepo:    r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule,
 		LockTemplateRecurrence:              lock,
 		ValidateCareOfferingTimeframeChange: offerings.(enrollment.CareOfferingMaterializationResourceValidator).ValidateTimeframeChange,
 	})

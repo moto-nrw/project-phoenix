@@ -34,17 +34,8 @@ type CareExitCleanupRepository struct {
 	db          *bun.DB
 	assignments CareExitAssignments
 	periods     CalendarPeriodDirectory
-	// rooms re-validates snapshot room references through the Facilities
-	// owner on restore (#2665).
-	rooms    RoomDirectory
-	carePlan CarePlanDirectory
-	bookings ActivityBookingDirectory
-}
-
-// BindRoomDirectory installs the Facilities directory the restore
-// re-validates room references through (#2665).
-func (r *CareExitCleanupRepository) BindRoomDirectory(rooms RoomDirectory) {
-	r.rooms = rooms
+	carePlan    CarePlanDirectory
+	bookings    ActivityBookingDirectory
 }
 
 // CareOfferingProjection is the narrow owner data used by care-exit cleanup.
@@ -95,6 +86,9 @@ type ActivityBookingRemoval struct {
 }
 
 type ActivityBookingDirectory interface {
+	LockPlannedRosterForCareExit(context.Context, []int64, string) error
+	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]CareExitRemoval, error)
+	RestoreRosterForCareExit(context.Context, []int64, []CareExitRemoval) (int, error)
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) error
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (ActivityBookingChanges, error)
 	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []ActivityBookingRemoval) (int, error)
@@ -447,6 +441,10 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 }
 
 func (r *CareExitCleanupRepository) LatestAttendanceDate(ctx context.Context, studentID int64) (*timezone.Date, error) {
+	rosterDay, err := timetableprojection.LatestRosterAttendanceDate(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: base.TranslateNotFound(err)}
+	}
 	var day *timezone.Date
 	if err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT MAX(recorded.day) FROM (
@@ -462,18 +460,8 @@ func (r *CareExitCleanupRepository) LatestAttendanceDate(ctx context.Context, st
 		tenant.FromContext(ctx), studentID).Scan(ctx, &day); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: base.TranslateNotFound(err)}
 	}
-	rosterDay, err := r.assignments.LatestStudentAssignmentAttendanceDate(ctx, studentID)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: err}
-	}
-	if rosterDay != nil {
-		parsed, parseErr := timezone.ParseDate(*rosterDay)
-		if parseErr != nil {
-			return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: parseErr}
-		}
-		if day == nil || parsed.After(*day) {
-			day = &parsed
-		}
+	if rosterDay != nil && (day == nil || rosterDay.After(*day)) {
+		day = rosterDay
 	}
 	return day, nil
 }
@@ -524,20 +512,20 @@ func (r *CareExitCleanupRepository) closeOpenPresence(ctx context.Context, stude
 // the still-live rows and the restorable ledger rows are counted together —
 // otherwise moving a planned exit from June to July would promise "0 Termine
 // entfallen" while July's rows are restored and then removed again.
-func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (map[int64]int, error) {
+func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
 	if len(studentIDs) == 0 {
-		return map[int64]int{}, nil
+		return counts, nil
 	}
-	if err := r.requireCarePlan(); err != nil {
+	removals, err := r.careExitRemovalProjection(ctx, studentIDs)
+	if err != nil {
 		return nil, err
 	}
-	removals, err := r.carePlan.ListCareExitRemovals(ctx, studentIDs)
+	counts, err = timetableprojection.CountPlannedRosterAfter(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentIDs, after, removals)
 	if err != nil {
-		return nil, fmt.Errorf("list care exit removals: %w", err)
-	}
-	counts, err := r.assignments.CountPlannedStudentAssignmentsAfter(ctx, studentIDs, after.String(), removals)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: base.TranslateNotFound(err)}
 	}
 	return counts, nil
 }
@@ -572,7 +560,10 @@ func (r *CareExitCleanupRepository) DeletePlannedByStudentIDsAfter(
 func (r *CareExitCleanupRepository) deletePlannedByStudentIDsAfter(
 	ctx context.Context, studentIDs []int64, after timezone.Date,
 ) (int64, error) {
-	removed, err := r.assignments.RemovePlannedStudentAssignmentsAfter(ctx, studentIDs, after.String())
+	if err := r.requireActivityBookings(); err != nil {
+		return 0, err
+	}
+	removed, err := r.bookings.RemovePlannedRosterForCareExit(ctx, studentIDs, after.String())
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: err}
 	}
@@ -593,8 +584,11 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 	}
 	tenantID := tenant.FromContext(ctx)
 	db := base.GetDB(ctx, r.db)
-	if err := r.assignments.LockPlannedStudentAssignmentsAfter(ctx, studentIDs, after.String()); err != nil {
-		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: err}
+	if err := r.requireActivityBookings(); err != nil {
+		return err
+	}
+	if err := r.bookings.LockPlannedRosterForCareExit(ctx, studentIDs, after.String()); err != nil {
+		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if err := r.requireActivityBookings(); err != nil {
 		return err
@@ -1168,53 +1162,26 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 		return 0, err
 	}
 
-	// Rosters. room_id / student_status_day_id / pickup_exception_id are
-	// re-validated instead of trusted: all three are ON DELETE SET NULL on the
-	// live table, so a snapshot may point at something that is gone, and a bare
-	// insert would fail the whole restore over a deleted room. Rooms are
-	// validated through their owner (#2665), the other two in place.
-	var archivedRoomIDs []int64
-	if err := db.NewRaw(`SELECT DISTINCT rm.room_id FROM `+careExitRemovalRecordset+`
-		WHERE rm.kind = 'roster' AND rm.tenant_id = ?
-		  AND rm.student_id IN (?) AND rm.room_id IS NOT NULL`,
-		removals, tenantID, bun.List(studentIDs)).Scan(ctx, &archivedRoomIDs); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
+	// Timetable validates the surviving room and care-plan references and
+	// restores its roster in this same outer transaction.
+	if err := r.requireActivityBookings(); err != nil {
+		return 0, err
 	}
-	roomIDs, err := validRoomIDs(ctx, r.rooms, tenantID, archivedRoomIDs)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
-	}
-	var archivedPickupExceptionIDs []int64
-	if err := db.NewRaw(`SELECT DISTINCT rm.pickup_exception_id FROM `+careExitRemovalRecordset+`
-		WHERE rm.kind = 'roster' AND rm.tenant_id = ?
-		  AND rm.student_id IN (?) AND rm.pickup_exception_id IS NOT NULL`,
-		removals, tenantID, bun.List(studentIDs)).Scan(ctx, &archivedPickupExceptionIDs); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
-	}
-	validPickupExceptionIDs, err := r.carePlan.ExistingPickupExceptionIDs(ctx, archivedPickupExceptionIDs)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
-	}
-	var archivedStatusDayIDs []int64
-	if err := db.NewRaw(`SELECT DISTINCT rm.student_status_day_id FROM `+careExitRemovalRecordset+`
-		WHERE rm.kind = 'roster' AND rm.tenant_id = ?
-		  AND rm.student_id IN (?) AND rm.student_status_day_id IS NOT NULL`,
-		removals, tenantID, bun.List(studentIDs)).Scan(ctx, &archivedStatusDayIDs); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
-	}
-	validStatusDayIDs, err := r.carePlan.ExistingStudentStatusDayIDs(ctx, archivedStatusDayIDs)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
-	}
-	var rosterRemovals []CareExitRemoval
-	if err := json.Unmarshal([]byte(removals), &rosterRemovals); err != nil {
+	var ledger []CareExitRemoval
+	if err := json.Unmarshal([]byte(removals), &ledger); err != nil {
 		return 0, fmt.Errorf("decode care exit roster removals: %w", err)
 	}
-	rosterRows, err := r.assignments.RestoreCareExitStudentAssignments(ctx, studentIDs, roomIDs, validStatusDayIDs, validPickupExceptionIDs, rosterRemovals)
+	rosterRows, err := r.bookings.RestoreRosterForCareExit(ctx, studentIDs, ledger)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
 	}
-	restored += int(rosterRows)
+	restored += rosterRows
+	var archivedPickupExceptionIDs []int64
+	for _, removal := range ledger {
+		if removal.Kind == CareExitRemovalRoster && removal.PickupExceptionID != nil {
+			archivedPickupExceptionIDs = append(archivedPickupExceptionIDs, *removal.PickupExceptionID)
+		}
+	}
 
 	// The Timetable owner restores capped and deleted bookings. It keeps the
 	// original ids, re-validates the enrollment provenance, and treats duplicate
@@ -1275,11 +1242,11 @@ func (r *CareExitCleanupRepository) restoreRemovals(ctx context.Context, student
 	// roster ledger is shared with older exits. Reconnect the FK now that the
 	// exception snapshots are back; otherwise cancellation would silently turn
 	// an exception-bound roster row into an ordinary row.
-	validPickupExceptionIDs, err = r.carePlan.ExistingPickupExceptionIDs(ctx, archivedPickupExceptionIDs)
+	validPickupExceptionIDs, err := r.carePlan.ExistingPickupExceptionIDs(ctx, archivedPickupExceptionIDs)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: err}
 	}
-	if err := r.assignments.ReconnectCareExitAssignmentPickupExceptions(ctx, studentIDs, validPickupExceptionIDs, rosterRemovals); err != nil {
+	if err := r.assignments.ReconnectCareExitAssignmentPickupExceptions(ctx, studentIDs, validPickupExceptionIDs, ledger); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: err}
 	}
 
