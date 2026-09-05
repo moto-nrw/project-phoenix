@@ -7,6 +7,7 @@
  */
 
 import { validateSessionToken } from "./token-validation";
+import type { JwtPayload } from "./jwt-payload";
 import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
@@ -24,24 +25,7 @@ export const logger = createLogger({ component: "NextAuthConfig" });
 // Types
 // ---------------------------------------------------------------------------
 
-export interface JwtPayload {
-  id: string | number;
-  exp?: number;
-  token?: string;
-  sub?: string;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  roles?: string[];
-  permissions?: string[];
-  is_admin?: boolean;
-  tenant_id?: number;
-  org_id?: number;
-  scope?: string;
-  read_only?: boolean;
-  acting_admin_id?: number;
-}
+export type { JwtPayload } from "./jwt-payload";
 
 // ---------------------------------------------------------------------------
 // Module augmentation (shared across both configs)

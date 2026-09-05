@@ -899,14 +899,6 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 	return invitation, nil
 }
 
-func (s *invitationService) lookupRoleName(ctx context.Context, roleID int64) (string, error) {
-	role, err := s.lookupRole(ctx, roleID)
-	if err != nil {
-		return "", err
-	}
-	return role.Name, nil
-}
-
 // lookupRole resolves the full role record — needed where the caller must
 // branch on role properties beyond the name (school-portal link decision).
 func (s *invitationService) lookupRole(ctx context.Context, roleID int64) (*authModels.Role, error) {

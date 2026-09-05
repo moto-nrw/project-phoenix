@@ -1528,7 +1528,7 @@ func TestInvitationLookupErrorBranches(t *testing.T) {
 		stubRoleRepository: newStubRoleRepository(),
 		findErr:            errors.New("role lookup failed"),
 	}
-	_, err = svc.lookupRoleName(context.Background(), 1)
+	_, err = svc.lookupRole(context.Background(), 1)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "role lookup failed")
 

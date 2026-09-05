@@ -1,5 +1,5 @@
 import { getServerApiUrl } from "~/lib/server-api-url";
-import type { JwtPayload } from "./shared";
+import type { JwtPayload } from "./jwt-payload";
 
 type Portal = "tenant" | "platform" | "parent" | "school";
 
