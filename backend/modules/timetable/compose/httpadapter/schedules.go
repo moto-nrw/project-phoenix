@@ -1,4 +1,4 @@
-package schedules
+package httpadapter
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 // Use shared constants from common package
-var dateLayout = common.DateFormatISO
+var scheduleDateLayout = common.DateFormatISO
 
 const (
 	errMsgInvalidDateframeID      = "invalid dateframe ID"
@@ -32,22 +32,22 @@ const (
 	msgRecurrenceRulesRetrieved   = "Recurrence rules retrieved successfully"
 )
 
-// Resource defines the schedules API resource
-type Resource struct {
+// SchedulesResource defines the schedules API resource
+type SchedulesResource struct {
 	ScheduleService scheduleSvc.Service
 	db              *bun.DB
 }
 
-// NewResource creates a new schedules resource
-func NewResource(scheduleService scheduleSvc.Service, db *bun.DB) *Resource {
-	return &Resource{
+// NewSchedulesResource creates a new schedules resource
+func NewSchedulesResource(scheduleService scheduleSvc.Service, db *bun.DB) *SchedulesResource {
+	return &SchedulesResource{
 		ScheduleService: scheduleService,
 		db:              db,
 	}
 }
 
 // Router returns a configured router for schedule endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *SchedulesResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -243,14 +243,14 @@ func (req *FindAvailableSlotsRequest) Bind(_ *http.Request) error {
 // Helper functions
 
 // parseDateframeDates parses and validates start and end dates, handling errors internally
-func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, startStr, endStr string) (time.Time, time.Time, bool) {
-	startDate, err := time.Parse(dateLayout, startStr)
+func (rs *SchedulesResource) parseDateframeDates(w http.ResponseWriter, r *http.Request, startStr, endStr string) (time.Time, time.Time, bool) {
+	startDate, err := time.Parse(scheduleDateLayout, startStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
 		return time.Time{}, time.Time{}, false
 	}
 
-	endDate, err := time.Parse(dateLayout, endStr)
+	endDate, err := time.Parse(scheduleDateLayout, endStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return time.Time{}, time.Time{}, false
@@ -260,7 +260,7 @@ func (rs *Resource) parseDateframeDates(w http.ResponseWriter, r *http.Request, 
 }
 
 // parseTimeframeTimes parses and validates start time and optional end time, handling errors internally
-func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, startStr string, endStr *string) (time.Time, *time.Time, bool) {
+func (rs *SchedulesResource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, startStr string, endStr *string) (time.Time, *time.Time, bool) {
 	startTime, err := time.Parse(time.RFC3339, startStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartTime)))
@@ -280,12 +280,12 @@ func (rs *Resource) parseTimeframeTimes(w http.ResponseWriter, r *http.Request, 
 }
 
 // parseOptionalEndDate parses and validates an optional end date, handling errors internally
-func (rs *Resource) parseOptionalEndDate(w http.ResponseWriter, r *http.Request, endDateStr *string) (*time.Time, bool) {
+func (rs *SchedulesResource) parseOptionalEndDate(w http.ResponseWriter, r *http.Request, endDateStr *string) (*time.Time, bool) {
 	if endDateStr == nil {
 		return nil, true
 	}
 
-	endDate, err := time.Parse(dateLayout, *endDateStr)
+	endDate, err := time.Parse(scheduleDateLayout, *endDateStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return nil, false
@@ -346,7 +346,7 @@ func newRecurrenceRuleResponse(rule *schedule.RecurrenceRule) RecurrenceRuleResp
 
 // Dateframe endpoints
 
-func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) listDateframes(w http.ResponseWriter, r *http.Request) {
 	// Create query options
 	queryOptions := base.NewQueryOptions()
 
@@ -376,7 +376,7 @@ func (rs *Resource) listDateframes(w http.ResponseWriter, r *http.Request) {
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Dateframes retrieved successfully")
 }
 
-func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -387,14 +387,14 @@ func (rs *Resource) getDateframe(w http.ResponseWriter, r *http.Request) {
 	// Get dateframe
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("dateframe not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "dateframe not found"))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newDateframeResponse(dateframe), "Dateframe retrieved successfully")
 }
 
-func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -420,14 +420,14 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.CreateDateframe(ctx, dateframe)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusCreated, newDateframeResponse(dateframe), "Dateframe created successfully")
 }
 
-func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -445,7 +445,7 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Get existing dateframe
 	dateframe, err := rs.ScheduleService.GetDateframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("dateframe not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "dateframe not found"))
 		return
 	}
 
@@ -466,14 +466,14 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.UpdateDateframe(ctx, dateframe)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newDateframeResponse(dateframe), "Dateframe updated successfully")
 }
 
-func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -486,14 +486,14 @@ func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.DeleteDateframe(ctx, id)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Dateframe deleted successfully")
 }
 
-func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getDateframesByDate(w http.ResponseWriter, r *http.Request) {
 	// Get date from query param
 	dateStr := r.URL.Query().Get("date")
 	if dateStr == "" {
@@ -502,7 +502,7 @@ func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Parse date
-	date, err := time.Parse(dateLayout, dateStr)
+	date, err := time.Parse(scheduleDateLayout, dateStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format")))
 		return
@@ -524,7 +524,7 @@ func (rs *Resource) getDateframesByDate(w http.ResponseWriter, r *http.Request) 
 	common.Respond(w, r, http.StatusOK, responses, "Dateframes retrieved successfully")
 }
 
-func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getOverlappingDateframes(w http.ResponseWriter, r *http.Request) {
 	// Get dates from query params
 	startStr := r.URL.Query().Get("start_date")
 	endStr := r.URL.Query().Get("end_date")
@@ -535,13 +535,13 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Parse dates
-	startDate, err := time.Parse(dateLayout, startStr)
+	startDate, err := time.Parse(scheduleDateLayout, startStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidStartDate)))
 		return
 	}
 
-	endDate, err := time.Parse(dateLayout, endStr)
+	endDate, err := time.Parse(scheduleDateLayout, endStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 		return
@@ -563,11 +563,11 @@ func (rs *Resource) getOverlappingDateframes(w http.ResponseWriter, r *http.Requ
 	common.Respond(w, r, http.StatusOK, responses, "Overlapping dateframes retrieved successfully")
 }
 
-func (rs *Resource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) {
 	// Get current dateframe
 	dateframe, err := rs.ScheduleService.GetCurrentDateframe(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("no current dateframe found")))
+		common.RenderError(w, r, scheduleLookupError(err, "no current dateframe found"))
 		return
 	}
 
@@ -576,7 +576,7 @@ func (rs *Resource) getCurrentDateframe(w http.ResponseWriter, r *http.Request) 
 
 // Timeframe endpoints
 
-func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 	// Create query options
 	queryOptions := base.NewQueryOptions()
 
@@ -606,7 +606,7 @@ func (rs *Resource) listTimeframes(w http.ResponseWriter, r *http.Request) {
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Timeframes retrieved successfully")
 }
 
-func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -617,14 +617,14 @@ func (rs *Resource) getTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Get timeframe
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("timeframe not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "timeframe not found"))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newTimeframeResponse(timeframe), "Timeframe retrieved successfully")
 }
 
-func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -650,14 +650,14 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.CreateTimeframe(ctx, timeframe)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusCreated, newTimeframeResponse(timeframe), "Timeframe created successfully")
 }
 
-func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -675,7 +675,7 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Get existing timeframe
 	timeframe, err := rs.ScheduleService.GetTimeframe(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("timeframe not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "timeframe not found"))
 		return
 	}
 
@@ -696,14 +696,14 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.UpdateTimeframe(ctx, timeframe)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newTimeframeResponse(timeframe), "Timeframe updated successfully")
 }
 
-func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -716,14 +716,14 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.DeleteTimeframe(ctx, id)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Timeframe deleted successfully")
 }
 
-func (rs *Resource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) {
 	// Get active timeframes
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(r.Context())
 	if err != nil {
@@ -740,7 +740,7 @@ func (rs *Resource) getActiveTimeframes(w http.ResponseWriter, r *http.Request) 
 	common.Respond(w, r, http.StatusOK, responses, "Active timeframes retrieved successfully")
 }
 
-func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getTimeframesByRange(w http.ResponseWriter, r *http.Request) {
 	// Get times from query params
 	startStr := r.URL.Query().Get("start_time")
 	endStr := r.URL.Query().Get("end_time")
@@ -781,7 +781,7 @@ func (rs *Resource) getTimeframesByRange(w http.ResponseWriter, r *http.Request)
 
 // Recurrence rule endpoints
 
-func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) {
 	// Create query options
 	queryOptions := base.NewQueryOptions()
 
@@ -811,7 +811,7 @@ func (rs *Resource) listRecurrenceRules(w http.ResponseWriter, r *http.Request) 
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, msgRecurrenceRulesRetrieved)
 }
 
-func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -822,14 +822,14 @@ func (rs *Resource) getRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Get recurrence rule
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("recurrence rule not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "recurrence rule not found"))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newRecurrenceRuleResponse(rule), "Recurrence rule retrieved successfully")
 }
 
-func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) createRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -848,7 +848,7 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 	// Parse end date if provided
 	if req.EndDate != nil {
-		endDate, err := time.Parse(dateLayout, *req.EndDate)
+		endDate, err := time.Parse(scheduleDateLayout, *req.EndDate)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidEndDate)))
 			return
@@ -860,14 +860,14 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.CreateRecurrenceRule(ctx, rule)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusCreated, newRecurrenceRuleResponse(rule), "Recurrence rule created successfully")
 }
 
-func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -885,7 +885,7 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Get existing recurrence rule
 	rule, err := rs.ScheduleService.GetRecurrenceRule(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("recurrence rule not found")))
+		common.RenderError(w, r, scheduleLookupError(err, "recurrence rule not found"))
 		return
 	}
 
@@ -908,14 +908,14 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.UpdateRecurrenceRule(ctx, rule)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, newRecurrenceRuleResponse(rule), "Recurrence rule updated successfully")
 }
 
-func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -928,14 +928,14 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ScheduleService.DeleteRecurrenceRule(ctx, id)
 	}); err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Recurrence rule deleted successfully")
 }
 
-func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http.Request) {
 	// Get frequency from query param
 	frequency := r.URL.Query().Get("frequency")
 	if frequency == "" {
@@ -959,7 +959,7 @@ func (rs *Resource) getRecurrenceRulesByFrequency(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
-func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.Request) {
 	// Get weekday from query param
 	weekday := r.URL.Query().Get("weekday")
 	if weekday == "" {
@@ -983,7 +983,7 @@ func (rs *Resource) getRecurrenceRulesByWeekday(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, responses, msgRecurrenceRulesRetrieved)
 }
 
-func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -1007,7 +1007,7 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Generate events
 	events, err := rs.ScheduleService.GenerateEvents(r.Context(), id, startDate, endDate)
 	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, SchedulesErrorRenderer(err))
 		return
 	}
 
@@ -1025,7 +1025,7 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 
 // Advanced operations
 
-func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &CheckConflictRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -1065,7 +1065,7 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	}, "Conflict check completed")
 }
 
-func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
+func (rs *SchedulesResource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &FindAvailableSlotsRequest{}
 	if err := render.Bind(r, req); err != nil {

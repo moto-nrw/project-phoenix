@@ -681,13 +681,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/schedules",
-      "owner": "inbound-schedules",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/school",
       "owner": "inbound-school",
       "role": "http",

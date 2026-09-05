@@ -2,7 +2,7 @@
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package schedules_test
+package httpintegration_test
 
 import (
 	"context"
@@ -18,22 +18,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 )
 
 // init seeds JWT viper defaults before any test (and before setupSchedulesRoute
-// constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
+// constructs a SchedulesResource via jwt.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
 	testutil.SeedTestJWTConfig()
 }
 
-// testContext holds shared test dependencies.
-type testContext struct {
+// schedulesTestContext holds shared test dependencies.
+type schedulesTestContext struct {
 	db       *bun.DB
-	resource *schedulesAPI.Resource
+	resource *schedulesAPI.SchedulesResource
 	router   chi.Router
 }
 
@@ -41,14 +41,14 @@ type testContext struct {
 // router serves the resource through the production middleware chain (Verifier →
 // Authenticator → TenantMiddleware → RequiresPermission → TenantTxMiddleware)
 // exactly as the real server does.
-func setupSchedulesRoute(t *testing.T) *testContext {
+func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupScheduleModule(t)
 
-	resource := schedulesAPI.NewResource(svc.Schedule, db)
+	resource := schedulesAPI.NewSchedulesResource(svc.Schedule, db)
 
-	return &testContext{
+	return &schedulesTestContext{
 		db:       db,
 		resource: resource,
 		router:   resource.Router(),
@@ -59,7 +59,7 @@ func setupSchedulesRoute(t *testing.T) *testContext {
 // CURRENT DATEFRAME TESTS
 // =============================================================================
 
-func TestGetCurrentDateframe_Success(t *testing.T) {
+func TestSchedulesGetCurrentDateframe_Success(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupSchedulesRoute(t)
@@ -96,7 +96,7 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 }
 
-func TestGetCurrentDateframe_NotFound(t *testing.T) {
+func TestSchedulesGetCurrentDateframe_NotFound(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	ctx := setupSchedulesRoute(t)
@@ -124,7 +124,7 @@ func TestGetCurrentDateframe_NotFound(t *testing.T) {
 // DATEFRAME DATE PARSING TESTS
 // =============================================================================
 
-func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
+func TestSchedulesCreateDateframe_InvalidDateFormat(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -156,7 +156,7 @@ func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
 	}
 }
 
-func TestCreateDateframe_EndBeforeStart(t *testing.T) {
+func TestSchedulesCreateDateframe_EndBeforeStart(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -180,7 +180,7 @@ func TestCreateDateframe_EndBeforeStart(t *testing.T) {
 // TIMEFRAME TIME PARSING TESTS
 // =============================================================================
 
-func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
+func TestSchedulesCreateTimeframe_InvalidTimeFormat(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -209,7 +209,7 @@ func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
 	}
 }
 
-func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
+func TestSchedulesCreateTimeframe_EndBeforeStart(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -234,7 +234,7 @@ func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
 // ROUTER TESTS
 // =============================================================================
 
-func TestRouter_ReturnsValidRouter(t *testing.T) {
+func TestSchedulesRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -247,7 +247,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // DATEFRAME LIST TESTS
 // =============================================================================
 
-func TestListDateframes_Success(t *testing.T) {
+func TestSchedulesListDateframes_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -263,7 +263,7 @@ func TestListDateframes_Success(t *testing.T) {
 	require.True(t, ok, "Expected data to be an array")
 }
 
-func TestListDateframes_WithNameFilter(t *testing.T) {
+func TestSchedulesListDateframes_WithNameFilter(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -279,7 +279,7 @@ func TestListDateframes_WithNameFilter(t *testing.T) {
 // DATEFRAME GET TESTS
 // =============================================================================
 
-func TestGetDateframe_NotFound(t *testing.T) {
+func TestSchedulesGetDateframe_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -291,7 +291,7 @@ func TestGetDateframe_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestGetDateframe_InvalidID(t *testing.T) {
+func TestSchedulesGetDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -307,7 +307,7 @@ func TestGetDateframe_InvalidID(t *testing.T) {
 // DATEFRAME CREATE TESTS
 // =============================================================================
 
-func TestCreateDateframe_Success(t *testing.T) {
+func TestSchedulesCreateDateframe_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -333,7 +333,7 @@ func TestCreateDateframe_Success(t *testing.T) {
 	// Cleanup
 }
 
-func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
+func TestSchedulesCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -350,7 +350,7 @@ func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
+func TestSchedulesCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -367,7 +367,7 @@ func TestCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
+func TestSchedulesCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -388,7 +388,7 @@ func TestCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
 // DATEFRAME UPDATE TESTS
 // =============================================================================
 
-func TestUpdateDateframe_NotFound(t *testing.T) {
+func TestSchedulesUpdateDateframe_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -405,7 +405,7 @@ func TestUpdateDateframe_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestUpdateDateframe_InvalidID(t *testing.T) {
+func TestSchedulesUpdateDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -426,7 +426,7 @@ func TestUpdateDateframe_InvalidID(t *testing.T) {
 // DATEFRAME DELETE TESTS
 // =============================================================================
 
-func TestDeleteDateframe_InvalidID(t *testing.T) {
+func TestSchedulesDeleteDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -442,7 +442,7 @@ func TestDeleteDateframe_InvalidID(t *testing.T) {
 // DATEFRAME SPECIAL QUERIES
 // =============================================================================
 
-func TestGetDateframesByDate_Success(t *testing.T) {
+func TestSchedulesGetDateframesByDate_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -454,7 +454,7 @@ func TestGetDateframesByDate_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
+func TestSchedulesGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -466,7 +466,7 @@ func TestGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestGetOverlappingDateframes_Success(t *testing.T) {
+func TestSchedulesGetOverlappingDateframes_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -478,7 +478,7 @@ func TestGetOverlappingDateframes_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
+func TestSchedulesGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -494,7 +494,7 @@ func TestGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
 // TIMEFRAME LIST TESTS
 // =============================================================================
 
-func TestListTimeframes_Success(t *testing.T) {
+func TestSchedulesListTimeframes_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -514,7 +514,7 @@ func TestListTimeframes_Success(t *testing.T) {
 // TIMEFRAME GET TESTS
 // =============================================================================
 
-func TestGetTimeframe_NotFound(t *testing.T) {
+func TestSchedulesGetTimeframe_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -526,7 +526,7 @@ func TestGetTimeframe_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestGetTimeframe_InvalidID(t *testing.T) {
+func TestSchedulesGetTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -542,7 +542,7 @@ func TestGetTimeframe_InvalidID(t *testing.T) {
 // TIMEFRAME CREATE TESTS
 // =============================================================================
 
-func TestCreateTimeframe_Success(t *testing.T) {
+func TestSchedulesCreateTimeframe_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -569,7 +569,7 @@ func TestCreateTimeframe_Success(t *testing.T) {
 	// Cleanup
 }
 
-func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
+func TestSchedulesCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -585,7 +585,7 @@ func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
+func TestSchedulesCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -605,7 +605,7 @@ func TestCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
 // TIMEFRAME UPDATE TESTS
 // =============================================================================
 
-func TestUpdateTimeframe_NotFound(t *testing.T) {
+func TestSchedulesUpdateTimeframe_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -621,7 +621,7 @@ func TestUpdateTimeframe_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestUpdateTimeframe_InvalidID(t *testing.T) {
+func TestSchedulesUpdateTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -641,7 +641,7 @@ func TestUpdateTimeframe_InvalidID(t *testing.T) {
 // TIMEFRAME DELETE TESTS
 // =============================================================================
 
-func TestDeleteTimeframe_InvalidID(t *testing.T) {
+func TestSchedulesDeleteTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -657,7 +657,7 @@ func TestDeleteTimeframe_InvalidID(t *testing.T) {
 // TIMEFRAME SPECIAL QUERIES
 // =============================================================================
 
-func TestGetActiveTimeframes_Success(t *testing.T) {
+func TestSchedulesGetActiveTimeframes_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -669,7 +669,7 @@ func TestGetActiveTimeframes_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetTimeframesByRange_Success(t *testing.T) {
+func TestSchedulesGetTimeframesByRange_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -681,7 +681,7 @@ func TestGetTimeframesByRange_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
+func TestSchedulesGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -697,7 +697,7 @@ func TestGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
 // RECURRENCE RULE LIST TESTS
 // =============================================================================
 
-func TestListRecurrenceRules_Success(t *testing.T) {
+func TestSchedulesListRecurrenceRules_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -713,7 +713,7 @@ func TestListRecurrenceRules_Success(t *testing.T) {
 	require.True(t, ok, "Expected data to be an array")
 }
 
-func TestListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
+func TestSchedulesListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -729,7 +729,7 @@ func TestListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
 // RECURRENCE RULE GET TESTS
 // =============================================================================
 
-func TestGetRecurrenceRule_NotFound(t *testing.T) {
+func TestSchedulesGetRecurrenceRule_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -741,7 +741,7 @@ func TestGetRecurrenceRule_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestGetRecurrenceRule_InvalidID(t *testing.T) {
+func TestSchedulesGetRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -757,7 +757,7 @@ func TestGetRecurrenceRule_InvalidID(t *testing.T) {
 // RECURRENCE RULE CREATE TESTS
 // =============================================================================
 
-func TestCreateRecurrenceRule_Success(t *testing.T) {
+func TestSchedulesCreateRecurrenceRule_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -782,7 +782,7 @@ func TestCreateRecurrenceRule_Success(t *testing.T) {
 	// Cleanup
 }
 
-func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
+func TestSchedulesCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -798,7 +798,7 @@ func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
+func TestSchedulesCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -819,7 +819,7 @@ func TestCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
 // RECURRENCE RULE UPDATE TESTS
 // =============================================================================
 
-func TestUpdateRecurrenceRule_NotFound(t *testing.T) {
+func TestSchedulesUpdateRecurrenceRule_NotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -836,7 +836,7 @@ func TestUpdateRecurrenceRule_NotFound(t *testing.T) {
 	testutil.AssertNotFound(t, rr)
 }
 
-func TestUpdateRecurrenceRule_InvalidID(t *testing.T) {
+func TestSchedulesUpdateRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -857,7 +857,7 @@ func TestUpdateRecurrenceRule_InvalidID(t *testing.T) {
 // RECURRENCE RULE DELETE TESTS
 // =============================================================================
 
-func TestDeleteRecurrenceRule_InvalidID(t *testing.T) {
+func TestSchedulesDeleteRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -873,7 +873,7 @@ func TestDeleteRecurrenceRule_InvalidID(t *testing.T) {
 // RECURRENCE RULE SPECIAL QUERIES
 // =============================================================================
 
-func TestGetRecurrenceRulesByFrequency_Success(t *testing.T) {
+func TestSchedulesGetRecurrenceRulesByFrequency_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -885,7 +885,7 @@ func TestGetRecurrenceRulesByFrequency_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T) {
+func TestSchedulesGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -897,7 +897,7 @@ func TestGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T)
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestGetRecurrenceRulesByWeekday_Success(t *testing.T) {
+func TestSchedulesGetRecurrenceRulesByWeekday_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -909,7 +909,7 @@ func TestGetRecurrenceRulesByWeekday_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
+func TestSchedulesGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -925,7 +925,7 @@ func TestGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
 // GENERATE EVENTS TESTS
 // =============================================================================
 
-func TestGenerateEvents_InvalidID(t *testing.T) {
+func TestSchedulesGenerateEvents_InvalidID(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -942,7 +942,7 @@ func TestGenerateEvents_InvalidID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestGenerateEvents_BadRequest_MissingDates(t *testing.T) {
+func TestSchedulesGenerateEvents_BadRequest_MissingDates(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -960,7 +960,7 @@ func TestGenerateEvents_BadRequest_MissingDates(t *testing.T) {
 // CHECK CONFLICT TESTS
 // =============================================================================
 
-func TestCheckConflict_Success(t *testing.T) {
+func TestSchedulesCheckConflict_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -983,7 +983,7 @@ func TestCheckConflict_Success(t *testing.T) {
 	assert.True(t, hasConflictExists, "Expected has_conflict field in response")
 }
 
-func TestCheckConflict_BadRequest_MissingTimes(t *testing.T) {
+func TestSchedulesCheckConflict_BadRequest_MissingTimes(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -997,7 +997,7 @@ func TestCheckConflict_BadRequest_MissingTimes(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCheckConflict_BadRequest_InvalidTime(t *testing.T) {
+func TestSchedulesCheckConflict_BadRequest_InvalidTime(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -1018,7 +1018,7 @@ func TestCheckConflict_BadRequest_InvalidTime(t *testing.T) {
 // FIND AVAILABLE SLOTS TESTS
 // =============================================================================
 
-func TestFindAvailableSlots_Success(t *testing.T) {
+func TestSchedulesFindAvailableSlots_Success(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -1042,7 +1042,7 @@ func TestFindAvailableSlots_Success(t *testing.T) {
 	assert.True(t, countExists, "Expected count field in response")
 }
 
-func TestFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
+func TestSchedulesFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)
@@ -1059,7 +1059,7 @@ func TestFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestFindAvailableSlots_BadRequest_InvalidDuration(t *testing.T) {
+func TestSchedulesFindAvailableSlots_BadRequest_InvalidDuration(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupSchedulesRoute(t)

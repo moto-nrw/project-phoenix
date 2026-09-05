@@ -1225,6 +1225,7 @@ func newFactory(
 
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
+		RecurrenceEvents:   timetableCapability,
 		DateframeRepo:      repos.Dateframe,
 		TimeframeRepo:      repos.Timeframe,
 		RecurrenceRuleRepo: repos.RecurrenceRule,
