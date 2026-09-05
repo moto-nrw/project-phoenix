@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import {
   CalendarClock,
   Check,

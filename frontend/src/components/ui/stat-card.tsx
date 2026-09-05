@@ -30,7 +30,7 @@
 // holds no palette values of its own and cannot go stale when the palette moves.
 
 import type { ReactNode } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import { Skeleton } from "~/components/ui/skeleton";
 

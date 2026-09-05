@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import {
   ArrowLeft,
   Check,

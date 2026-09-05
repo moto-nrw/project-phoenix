@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Mail, Check, X } from "lucide-react";
 import { Loading } from "~/components/ui/loading";

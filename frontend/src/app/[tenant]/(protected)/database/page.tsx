@@ -4,7 +4,7 @@ import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "DatabasePage" });
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { TenantPage } from "~/components/ui/tenant-page";

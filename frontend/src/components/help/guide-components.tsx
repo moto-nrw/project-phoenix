@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Info, ListChecks } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type {

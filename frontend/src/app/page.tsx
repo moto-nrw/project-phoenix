@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
   AuthShell,

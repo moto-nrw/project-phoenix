@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 

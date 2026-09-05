@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";

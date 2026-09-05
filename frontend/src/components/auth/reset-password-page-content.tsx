@@ -11,7 +11,7 @@ import {
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";

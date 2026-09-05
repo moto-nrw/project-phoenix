@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import {

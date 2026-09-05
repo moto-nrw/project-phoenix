@@ -1,6 +1,6 @@
 "use client";
 
-import NextLink, { type LinkProps } from "next/link";
+import NextLink from "next/link";
 import {
   forwardRef,
   useContext,
@@ -10,8 +10,12 @@ import {
 } from "react";
 import { NavigationProgressContext } from "~/components/ui/navigation-progress";
 
-type NavigationLinkProps = ComponentProps<typeof NextLink>;
-type NavigationEvent = Parameters<NonNullable<LinkProps["onNavigate"]>>[0];
+type NavigationLinkProps = Omit<ComponentProps<typeof NextLink>, "href"> & {
+  readonly href: string;
+};
+type NavigationEvent = Parameters<
+  NonNullable<NavigationLinkProps["onNavigate"]>
+>[0];
 
 /**
  * `next/link` mit einer frühzeitigen Fortschrittsmeldung. Der Link markiert
@@ -36,10 +40,9 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
         href={href}
         onClick={(event: MouseEvent<HTMLAnchorElement>) => {
           pendingNavigationId.current = null;
-          const target =
-            typeof href === "string" && isClientSideLinkClick(event)
-              ? navigationTarget(href)
-              : null;
+          const target = isClientSideLinkClick(event)
+            ? navigationTarget(href)
+            : null;
           if (target !== null && target !== currentUrl()) {
             pendingNavigationId.current =
               store?.startLinkNavigation(target) ?? null;

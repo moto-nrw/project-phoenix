@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";

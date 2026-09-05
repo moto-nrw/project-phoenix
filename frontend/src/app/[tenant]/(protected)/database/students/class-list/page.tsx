@@ -11,7 +11,7 @@
 // Design follows the Anmeldungen/Planung surface language: calm content
 // section, uppercase kicker, gray-50 stats, no colored dashboards.
 
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Upload } from "lucide-react";

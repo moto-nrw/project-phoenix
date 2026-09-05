@@ -7,7 +7,7 @@
 // content section, gray-50 stat blocks, no colored chips.
 
 import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";

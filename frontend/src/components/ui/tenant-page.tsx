@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import type {
   InputHTMLAttributes,
