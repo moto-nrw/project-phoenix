@@ -218,6 +218,51 @@ func (e engine) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([
 	return result, nil
 }
 
+func (e engine) ListTemplateRows(ctx context.Context, templateID *int64) ([]timetable.TemplateListRow, error) {
+	values, err := e.service.ListTemplateRows(ctx, templateID)
+	return publicTemplateRows(values), mapError(err)
+}
+
+func (e engine) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]timetable.TemplateListRow, error) {
+	values, err := e.service.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
+	return publicTemplateRows(values), mapError(err)
+}
+
+func (e engine) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]timetable.TemplateListRow, error) {
+	values, err := e.service.ListTemplateRowsForPeriod(ctx, periodID)
+	return publicTemplateRows(values), mapError(err)
+}
+
+func publicTemplateRows(values []domain.TemplateListRow) []timetable.TemplateListRow {
+	result := make([]timetable.TemplateListRow, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.TemplateListRow(value))
+	}
+	return result
+}
+
+func (e engine) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
+	values, err := e.service.ListTemplateWeekdayRoster(ctx, templateID, periodID)
+	result := make([]timetable.TemplateWeekdayRosterRow, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.TemplateWeekdayRosterRow(value))
+	}
+	return result, mapError(err)
+}
+
+func (e engine) ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64, periods []timetable.TemplateCapacityPeriod) ([]timetable.TemplateCapacityOccurrence, error) {
+	ownerPeriods := make([]domain.TemplateCapacityPeriod, 0, len(periods))
+	for _, period := range periods {
+		ownerPeriods = append(ownerPeriods, domain.TemplateCapacityPeriod(period))
+	}
+	values, err := e.service.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, ownerPeriods)
+	result := make([]timetable.TemplateCapacityOccurrence, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.TemplateCapacityOccurrence(value))
+	}
+	return result, mapError(err)
+}
+
 func (e engine) ListGroupTargets(ctx context.Context, ids []int64) (map[int64][]timetable.GroupTarget, error) {
 	values, err := e.service.ListGroupTargets(ctx, ids)
 	if err != nil {
@@ -306,7 +351,14 @@ func (e engine) ListPlannedSupervisors(ctx context.Context, filter timetable.Pla
 	return result, nil
 }
 
-func (e engine) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]timetable.PlannedSupervisionBlocker, error) {
+func (e engine) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]timetable.PlannedSupervisionBlocker, error) {
+	contextTenant, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if contextTenant.Int64() != tenantID {
+		return nil, errors.New("tenant context does not match requested tenant")
+	}
 	values, err := e.service.ListPlannedSupervisionBlockers(ctx, staffID)
 	if err != nil {
 		return nil, mapError(err)

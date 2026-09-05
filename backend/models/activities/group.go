@@ -5,10 +5,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+const (
+	minTargetGradeLevel = 1
+	maxTargetGradeLevel = 13
+)
+
+func normalizeSchoolClass(class string) string {
+	return strings.ToLower(strings.TrimSpace(class))
+}
 
 // Group type constants
 const (
@@ -68,8 +75,8 @@ func ListKindLabel(kind string) string {
 
 // Group represents an activity group
 type Group struct {
-	base.Model `bun:"schema:activities,table:groups"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:groups"`
+	TenantModel
 	Name string `bun:"name,notnull" json:"name"`
 	// MaxParticipants uses zero in Go and SQL NULL for an unlimited activity.
 	MaxParticipants int `bun:"max_participants,nullzero" json:"max_participants"`
@@ -271,7 +278,7 @@ func (g *Group) validateOfferingSource() error {
 	}
 	seen := make(map[int]bool, len(g.SourceGradeLevels))
 	for _, level := range g.SourceGradeLevels {
-		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+		if level < minTargetGradeLevel || level > maxTargetGradeLevel {
 			return errors.New("source_grade_levels entries must be between 1 and 13")
 		}
 		if seen[level] {
@@ -310,7 +317,7 @@ func NormalizeSourceSchoolClasses(classes []string) ([]string, error) {
 		if trimmed == "" {
 			return nil, errors.New("source_school_classes entries must not be empty")
 		}
-		key := schoolclass.Normalize(trimmed)
+		key := normalizeSchoolClass(trimmed)
 		if seen[key] {
 			return nil, errors.New("source_school_classes must not contain duplicates")
 		}
@@ -334,12 +341,12 @@ func SourceClassFilterMatches(classes []string, schoolClass string) bool {
 	if len(classes) == 0 {
 		return true
 	}
-	wanted := schoolclass.Normalize(schoolClass)
+	wanted := normalizeSchoolClass(schoolClass)
 	if wanted == "" {
 		return false
 	}
 	for _, class := range classes {
-		if schoolclass.Normalize(class) == wanted {
+		if normalizeSchoolClass(class) == wanted {
 			return true
 		}
 	}
@@ -370,7 +377,7 @@ func (g *Group) validateGradeTarget() error {
 	if g.TargetGradeLevel == nil {
 		return errors.New("jahrgang target group requires target_grade_level")
 	}
-	if *g.TargetGradeLevel < schoolclass.MinGradeLevel || *g.TargetGradeLevel > schoolclass.MaxGradeLevel {
+	if *g.TargetGradeLevel < minTargetGradeLevel || *g.TargetGradeLevel > maxTargetGradeLevel {
 		return errors.New("target_grade_level must be between 1 and 13")
 	}
 	if g.TargetSchoolClass != nil {

@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestCategoryValidate(t *testing.T) {
@@ -101,7 +99,7 @@ func TestCategory_GetID(t *testing.T) {
 	t.Parallel()
 
 	cat := &Category{
-		Model: base.Model{ID: 42},
+		Model: Model{ID: 42},
 		Name:  "Test",
 	}
 
@@ -115,7 +113,7 @@ func TestCategory_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{CreatedAt: now},
+		Model: Model{CreatedAt: now},
 		Name:  "Test",
 	}
 
@@ -129,7 +127,7 @@ func TestCategory_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{UpdatedAt: now},
+		Model: Model{UpdatedAt: now},
 		Name:  "Test",
 	}
 

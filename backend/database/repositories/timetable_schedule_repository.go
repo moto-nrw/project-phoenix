@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -24,7 +23,7 @@ func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedul
 	}
 	created, err := r.timetable.CreateSchedule(ctx, publicScheduleInput(schedule))
 	if err != nil {
-		return activitiesRepo.WrapDatabaseError("create", err)
+		return legacyDatabaseError("create", err)
 	}
 	*schedule = *legacySchedule(created)
 	return nil
@@ -33,7 +32,7 @@ func (r timetableActivityScheduleRepository) Create(ctx context.Context, schedul
 func (r timetableActivityScheduleRepository) FindByID(ctx context.Context, id any) (*activitiesModels.Schedule, error) {
 	scheduleID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, activitiesRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid activity schedule id %T", id))
+		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid activity schedule id %T", id))
 	}
 	value, err := r.timetable.FindSchedule(ctx, scheduleID)
 	if err != nil {
@@ -60,10 +59,10 @@ func (r timetableActivityScheduleRepository) Update(ctx context.Context, schedul
 func (r timetableActivityScheduleRepository) Delete(ctx context.Context, id any) error {
 	scheduleID, ok := legacyGroupID(id)
 	if !ok {
-		return activitiesRepo.WrapDatabaseError("delete", fmt.Errorf("invalid activity schedule id %T", id))
+		return legacyDatabaseError("delete", fmt.Errorf("invalid activity schedule id %T", id))
 	}
 	if err := r.timetable.DeleteSchedule(ctx, scheduleID); err != nil {
-		return activitiesRepo.WrapDatabaseError("delete", err)
+		return legacyDatabaseError("delete", err)
 	}
 	return nil
 }
@@ -90,7 +89,7 @@ func (r timetableActivityScheduleRepository) FindByGroupIDs(ctx context.Context,
 func (r timetableActivityScheduleRepository) FindByWeekday(ctx context.Context, weekday string) ([]*activitiesModels.Schedule, error) {
 	value, err := strconv.Atoi(weekday)
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("find by weekday", err)
+		return nil, legacyDatabaseError("find by weekday", err)
 	}
 	values, err := r.timetable.ListSchedules(ctx, timetable.ScheduleFilter{Weekday: &value})
 	if err != nil {
@@ -101,7 +100,7 @@ func (r timetableActivityScheduleRepository) FindByWeekday(ctx context.Context, 
 
 func (r timetableActivityScheduleRepository) DeleteByGroupID(ctx context.Context, groupID int64) error {
 	if err := r.timetable.DeleteSchedulesByGroup(ctx, groupID); err != nil {
-		return activitiesRepo.WrapDatabaseError("delete by group ID", err)
+		return legacyDatabaseError("delete by group ID", err)
 	}
 	return nil
 }
@@ -158,7 +157,7 @@ func publicScheduleInput(value *activitiesModels.Schedule) timetable.ScheduleInp
 
 func legacyActivityScheduleError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrScheduleNotFound) || errors.Is(err, timetable.ErrInvalidScheduleQuery) {
-		return activitiesRepo.WrapNotFoundDatabaseError(operation)
+		return legacyNotFoundError(operation)
 	}
-	return activitiesRepo.WrapDatabaseError(operation, err)
+	return legacyDatabaseError(operation, err)
 }

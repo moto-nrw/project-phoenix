@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestIsValidWeekday(t *testing.T) {
@@ -187,7 +185,7 @@ func TestSchedule_GetID(t *testing.T) {
 	t.Parallel()
 
 	schedule := &Schedule{
-		Model:           base.Model{ID: 42},
+		Model:           Model{ID: 42},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}
@@ -202,7 +200,7 @@ func TestSchedule_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	schedule := &Schedule{
-		Model:           base.Model{CreatedAt: now},
+		Model:           Model{CreatedAt: now},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}
@@ -217,7 +215,7 @@ func TestSchedule_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	schedule := &Schedule{
-		Model:           base.Model{UpdatedAt: now},
+		Model:           Model{UpdatedAt: now},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}

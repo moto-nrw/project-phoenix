@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -22,7 +21,7 @@ func (r timetableActivitySupervisorRepository) Create(ctx context.Context, super
 	}
 	created, err := r.timetable.CreatePlannedSupervisor(ctx, publicPlannedSupervisorInput(supervisor))
 	if err != nil {
-		return activitiesRepo.WrapDatabaseError("create", err)
+		return legacyDatabaseError("create", err)
 	}
 	*supervisor = *legacyPlannedSupervisor(created)
 	return nil
@@ -31,7 +30,7 @@ func (r timetableActivitySupervisorRepository) Create(ctx context.Context, super
 func (r timetableActivitySupervisorRepository) FindByID(ctx context.Context, id any) (*activitiesModels.SupervisorPlanned, error) {
 	supervisorID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, activitiesRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid planned supervisor id %T", id))
+		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid planned supervisor id %T", id))
 	}
 	value, err := r.timetable.FindPlannedSupervisor(ctx, supervisorID)
 	if err != nil {
@@ -58,17 +57,17 @@ func (r timetableActivitySupervisorRepository) Update(ctx context.Context, super
 func (r timetableActivitySupervisorRepository) Delete(ctx context.Context, id any) error {
 	supervisorID, ok := legacyGroupID(id)
 	if !ok {
-		return activitiesRepo.WrapDatabaseError("delete", fmt.Errorf("invalid planned supervisor id %T", id))
+		return legacyDatabaseError("delete", fmt.Errorf("invalid planned supervisor id %T", id))
 	}
 	if err := r.timetable.DeletePlannedSupervisor(ctx, supervisorID); err != nil {
-		return activitiesRepo.WrapDatabaseError("delete", err)
+		return legacyDatabaseError("delete", err)
 	}
 	return nil
 }
 
 func (r timetableActivitySupervisorRepository) List(ctx context.Context, options *activitiesModels.SupervisorQueryOptions) ([]*activitiesModels.SupervisorPlanned, error) {
 	if options != nil {
-		return nil, activitiesRepo.WrapDatabaseError("list", errors.New("planned supervisor filters are unsupported"))
+		return nil, legacyDatabaseError("list", errors.New("planned supervisor filters are unsupported"))
 	}
 	values, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{})
 	if err != nil {
@@ -133,7 +132,7 @@ func (r timetableActivitySupervisorRepository) SetPrimary(ctx context.Context, i
 func (r timetableActivitySupervisorRepository) DeleteByStaffID(ctx context.Context, staffID int64) (int64, error) {
 	rows, err := r.timetable.DeletePlannedSupervisorsByStaff(ctx, staffID)
 	if err != nil {
-		return 0, activitiesRepo.WrapDatabaseError("delete by staff id", err)
+		return 0, legacyDatabaseError("delete by staff id", err)
 	}
 	return rows, nil
 }
@@ -141,7 +140,7 @@ func (r timetableActivitySupervisorRepository) DeleteByStaffID(ctx context.Conte
 func (r timetableActivitySupervisorRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activitiesModels.SupervisorDate) (int64, error) {
 	rows, err := r.timetable.CapActivePlannedSupervisors(ctx, groupID, validUntil.String())
 	if err != nil {
-		return rows, activitiesRepo.WrapDatabaseError("cap active supervisors by group", err)
+		return rows, legacyDatabaseError("cap active supervisors by group", err)
 	}
 	return rows, nil
 }
@@ -155,18 +154,15 @@ func (r timetableActivitySupervisorRepository) SetValidUntilByID(ctx context.Con
 
 func (r timetableActivitySupervisorRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, periodID *int64, validFrom activitiesModels.SupervisorDate) error {
 	if err := r.timetable.CloseOpenPlannedSupervisors(ctx, groupID, periodID, validFrom.String()); err != nil {
-		return activitiesRepo.WrapDatabaseError("close open supervisors by group and period", err)
+		return legacyDatabaseError("close open supervisors by group and period", err)
 	}
 	return nil
 }
 
 func (r timetableActivitySupervisorRepository) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerActivity, error) {
-	if !activitiesRepo.ContextTenantMatches(ctx, tenantID) {
-		return nil, activitiesRepo.WrapDatabaseError("list planned supervision blockers", errors.New("tenant context does not match requested tenant"))
-	}
-	values, err := r.timetable.ListPlannedSupervisionBlockers(ctx, staffID)
+	values, err := r.timetable.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("list planned supervision blockers", err)
+		return nil, legacyDatabaseError("list planned supervision blockers", err)
 	}
 	result := make([]userModels.BlockerActivity, 0, len(values))
 	for _, value := range values {
@@ -200,7 +196,7 @@ func publicPlannedSupervisorInput(value *activitiesModels.SupervisorPlanned) tim
 
 func legacyPlannedSupervisorError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrPlannedSupervisorNotFound) || errors.Is(err, timetable.ErrInvalidPlannedSupervisorQuery) {
-		return activitiesRepo.WrapNotFoundDatabaseError(operation)
+		return legacyNotFoundError(operation)
 	}
-	return activitiesRepo.WrapDatabaseError(operation, err)
+	return legacyDatabaseError(operation, err)
 }

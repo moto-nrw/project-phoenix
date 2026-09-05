@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -26,7 +25,7 @@ func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enroll
 	}
 	created, err := r.timetable.CreateStudentEnrollment(ctx, publicStudentEnrollmentInput(enrollment))
 	if err != nil {
-		return activitiesRepo.WrapDatabaseError("create", err)
+		return legacyDatabaseError("create", err)
 	}
 	*enrollment = *legacyStudentEnrollment(created)
 	return nil
@@ -35,7 +34,7 @@ func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enroll
 func (r timetableStudentEnrollmentRepository) FindByID(ctx context.Context, id any) (*activitiesModels.StudentEnrollment, error) {
 	enrollmentID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, activitiesRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid student enrollment id %T", id))
+		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid student enrollment id %T", id))
 	}
 	value, err := r.timetable.FindStudentEnrollment(ctx, enrollmentID)
 	if err != nil {
@@ -54,7 +53,7 @@ func (r timetableStudentEnrollmentRepository) Update(ctx context.Context, enroll
 	updated, err := r.timetable.UpdateStudentEnrollment(ctx, enrollment.ID, publicStudentEnrollmentInput(enrollment))
 	if err != nil {
 		if errors.Is(err, timetable.ErrStudentEnrollmentNotFound) {
-			return activitiesRepo.WrapDatabaseError("update student_enrollment", errors.New("expected 1 rows affected, got 0"))
+			return legacyDatabaseError("update student_enrollment", errors.New("expected 1 rows affected, got 0"))
 		}
 		return legacyStudentEnrollmentError("update", err)
 	}
@@ -65,10 +64,10 @@ func (r timetableStudentEnrollmentRepository) Update(ctx context.Context, enroll
 func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id any) error {
 	enrollmentID, ok := legacyGroupID(id)
 	if !ok {
-		return activitiesRepo.WrapDatabaseError("delete", fmt.Errorf("invalid student enrollment id %T", id))
+		return legacyDatabaseError("delete", fmt.Errorf("invalid student enrollment id %T", id))
 	}
 	if err := r.timetable.DeleteStudentEnrollment(ctx, enrollmentID); err != nil {
-		return activitiesRepo.WrapDatabaseError("delete", err)
+		return legacyDatabaseError("delete", err)
 	}
 	return nil
 }
@@ -76,7 +75,7 @@ func (r timetableStudentEnrollmentRepository) Delete(ctx context.Context, id any
 func (r timetableStudentEnrollmentRepository) List(ctx context.Context, options *activitiesModels.StudentEnrollmentQueryOptions) ([]*activitiesModels.StudentEnrollment, error) {
 	filter, err := legacyStudentEnrollmentFilter(options)
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("list with options", err)
+		return nil, legacyDatabaseError("list with options", err)
 	}
 	values, err := r.timetable.ListStudentEnrollments(ctx, filter)
 	if err != nil {
@@ -104,7 +103,7 @@ func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context
 	}
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{IDs: groupIDs})
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("find active enrollment groups", err)
+		return nil, legacyDatabaseError("find active enrollment groups", err)
 	}
 	byID := make(map[int64]*activitiesModels.Group, len(groups))
 	for _, group := range groups {
@@ -237,12 +236,22 @@ func legacyStudentEnrollmentError(operation string, err error) error {
 		return nil
 	}
 	if errors.Is(err, timetable.ErrStudentEnrollmentNotFound) || errors.Is(err, timetable.ErrInvalidStudentEnrollmentQuery) {
-		return activitiesRepo.WrapNotFoundDatabaseError(operation)
+		return legacyNotFoundError(operation)
 	}
-	return activitiesRepo.WrapDatabaseError(operation, err)
+	return legacyDatabaseError(operation, err)
 }
 
 func legacyStudentEnrollmentFilter(options *activitiesModels.StudentEnrollmentQueryOptions) (timetable.StudentEnrollmentFilter, error) {
-	studentIDs, limit, offset, err := activitiesRepo.StudentEnrollmentListOptions(options)
-	return timetable.StudentEnrollmentFilter{StudentIDs: studentIDs, Limit: limit, Offset: offset}, err
+	if options == nil {
+		return timetable.StudentEnrollmentFilter{}, nil
+	}
+	if options.Limit < 0 || options.Offset < 0 {
+		return timetable.StudentEnrollmentFilter{}, errors.New("student enrollment pagination cannot be negative")
+	}
+	for _, id := range options.StudentIDs {
+		if id <= 0 {
+			return timetable.StudentEnrollmentFilter{}, errors.New("student enrollment IDs must be positive")
+		}
+	}
+	return timetable.StudentEnrollmentFilter{StudentIDs: options.StudentIDs, Limit: options.Limit, Offset: options.Offset}, nil
 }

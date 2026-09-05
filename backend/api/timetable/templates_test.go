@@ -3,7 +3,6 @@ package timetable
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +16,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -1400,7 +1398,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		class := " 3A "
-		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		targetRepo, ok := repositories.NewFactory(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
 		require.True(t, ok)
 		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, templateID, []*activitiesModel.GroupTarget{
 			{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &class},
@@ -1798,11 +1796,11 @@ func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
 	row := templateRow{
 		ScheduleID:         9,
 		Weekday:            1,
-		StartTime:          sql.NullString{String: "14:00", Valid: true},
-		EndTime:            sql.NullString{String: "15:00", Valid: true},
+		StartTime:          activitiesModel.NullString{String: "14:00", Valid: true},
+		EndTime:            activitiesModel.NullString{String: "15:00", Valid: true},
 		WeekPattern:        0,
-		ScheduleValidFrom:  sql.NullString{String: "2026-05-04", Valid: true},
-		ScheduleValidUntil: sql.NullString{String: "2026-06-01", Valid: true},
+		ScheduleValidFrom:  activitiesModel.NullString{String: "2026-05-04", Valid: true},
+		ScheduleValidUntil: activitiesModel.NullString{String: "2026-06-01", Valid: true},
 	}
 
 	response := templateScheduleResponseFromRow(row)

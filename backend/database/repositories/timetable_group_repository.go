@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -14,9 +16,11 @@ import (
 // timetableActivityGroupRepository keeps the legacy repository contract while
 // routing group lifecycle and target persistence through the Timetable owner.
 type timetableActivityGroupRepository struct {
-	activityGroupTargets
-	timetable timetable.Capability
-	groups    schoolstructure.Query
+	timetable  timetable.Capability
+	groups     schoolstructure.Query
+	rooms      facilities.Query
+	calendar   schoolcalendar.Query
+	shiftTypes scheduleModels.ShiftTypeRepository
 }
 
 func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activitiesModels.Group) error {
@@ -114,6 +118,13 @@ func (r timetableActivityGroupRepository) ListWithCategory(ctx context.Context, 
 	return legacyGroups(groups), nil
 }
 
+func (r timetableActivityGroupRepository) List(ctx context.Context, options *activitiesModels.QueryOptions) ([]*activitiesModels.Group, error) {
+	if options != nil && (len(options.StudentIDs) > 0 || options.Limit != 0 || options.Offset != 0) {
+		return nil, legacyDatabaseError("list", errors.New("activity group list options are unsupported"))
+	}
+	return r.listLegacyGroups(ctx, timetable.GroupFilter{}, "list")
+}
+
 func (r timetableActivityGroupRepository) FindOpenGroups(ctx context.Context) ([]*activitiesModels.Group, error) {
 	open, system := true, false
 	return r.listLegacyGroups(ctx, timetable.GroupFilter{IsOpen: &open, IsSystem: &system, OrderByName: true}, "find open groups")
@@ -127,7 +138,7 @@ func (r timetableActivityGroupRepository) FindAllTemplates(ctx context.Context) 
 func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activitiesModels.Group, map[int64]int, error) {
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{OrderByName: true})
 	if err != nil {
-		return nil, nil, activitiesRepo.WrapDatabaseError("find groups", err)
+		return nil, nil, legacyDatabaseError("find groups", err)
 	}
 	counts := make(map[int64]int, len(groups))
 	if len(groups) == 0 {
@@ -139,7 +150,7 @@ func (r timetableActivityGroupRepository) FindWithEnrollmentCounts(ctx context.C
 	}
 	enrollments, err := r.timetable.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: groupIDs})
 	if err != nil {
-		return nil, nil, activitiesRepo.WrapDatabaseError("count enrollments", err)
+		return nil, nil, legacyDatabaseError("count enrollments", err)
 	}
 	for _, enrollment := range enrollments {
 		counts[enrollment.ActivityGroupID]++
@@ -154,7 +165,7 @@ func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Contex
 	}
 	supervisors, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{GroupIDs: []int64{groupID}})
 	if err != nil {
-		return nil, nil, activitiesRepo.WrapDatabaseError("find supervisors", err)
+		return nil, nil, legacyDatabaseError("find supervisors", err)
 	}
 	return legacyGroup(group), legacyPlannedSupervisors(supervisors), nil
 }
@@ -162,7 +173,7 @@ func (r timetableActivityGroupRepository) FindWithSupervisors(ctx context.Contex
 func (r timetableActivityGroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activitiesModels.Group, error) {
 	supervisors, err := r.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{StaffID: &staffID})
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("find by staff supervisor", err)
+		return nil, legacyDatabaseError("find by staff supervisor", err)
 	}
 	groupIDs := uniqueSupervisorGroupIDs(supervisors)
 	if len(groupIDs) == 0 {
@@ -170,7 +181,7 @@ func (r timetableActivityGroupRepository) FindByStaffSupervisor(ctx context.Cont
 	}
 	groups, err := r.timetable.ListGroups(ctx, timetable.GroupFilter{IDs: groupIDs})
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("find by staff supervisor", err)
+		return nil, legacyDatabaseError("find by staff supervisor", err)
 	}
 	return legacyGroups(groups), nil
 }
@@ -395,7 +406,7 @@ func legacyGroupID(id any) (int64, bool) {
 
 func legacyGroupReadError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrGroupNotFound) || errors.Is(err, timetable.ErrInvalidGroupQuery) {
-		return activitiesRepo.WrapNotFoundDatabaseError(operation)
+		return legacyNotFoundError(operation)
 	}
-	return activitiesRepo.WrapDatabaseError(operation, err)
+	return legacyDatabaseError(operation, err)
 }

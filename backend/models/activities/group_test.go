@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // int64Ptr returns a pointer to the given int64 value.
@@ -210,7 +208,7 @@ func TestGroup_GetID(t *testing.T) {
 	t.Parallel()
 
 	group := &Group{
-		Model:           base.Model{ID: 42},
+		Model:           Model{ID: 42},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,
@@ -226,7 +224,7 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	group := &Group{
-		Model:           base.Model{CreatedAt: now},
+		Model:           Model{CreatedAt: now},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,
@@ -242,7 +240,7 @@ func TestGroup_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	group := &Group{
-		Model:           base.Model{UpdatedAt: now},
+		Model:           Model{UpdatedAt: now},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,

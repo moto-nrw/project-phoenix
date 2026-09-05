@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
@@ -25,11 +24,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	}
 	if repo, ok := f.ActiveVisit.(*activeRepo.VisitRepository); ok {
 		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
-	}
-	if repo, ok := f.ActivityGroup.(interface {
-		BindStudentDirectory(activitiesRepo.StudentDirectory)
-	}); ok {
-		repo.BindStudentDirectory(activitiesStudentDirectory{students})
 	}
 	if repo, ok := f.RequestChildOffering.(*enrollmentRepo.RequestChildOfferingRepository); ok {
 		repo.BindStudentDirectory(enrollmentStudentDirectory{students})
@@ -127,36 +121,6 @@ func toActiveStudent(student peopledirectory.Student) activeRepo.DirectoryStuden
 		Sick: student.Sick, SickSince: student.SickSince, Excused: student.Excused, ExcusedSince: student.ExcusedSince,
 		PhotoPath: student.PhotoPath,
 	}
-}
-
-type activitiesStudentDirectory struct{ students peopledirectory.StudentQuery }
-
-func (d activitiesStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]activitiesRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	return toActivitiesStudents(students)
-}
-
-func (d activitiesStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]activitiesRepo.DirectoryStudent, error) {
-	students, err := d.students.ListEnrolledStudents(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return toActivitiesStudents(students)
-}
-
-func toActivitiesStudents(students []peopledirectory.Student) ([]activitiesRepo.DirectoryStudent, error) {
-	result := make([]activitiesRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, activitiesRepo.DirectoryStudent{
-			ID: student.ID, CreatedAt: student.CreatedAt, UpdatedAt: student.UpdatedAt, PersonID: student.PersonID,
-			SchoolClass: student.SchoolClass, GroupID: student.GroupID, Status: student.Status,
-			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
-		})
-	}
-	return result, nil
 }
 
 type auditStudentDirectory struct{ students peopledirectory.StudentQuery }

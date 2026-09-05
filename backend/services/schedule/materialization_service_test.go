@@ -300,9 +300,9 @@ func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 	mondayWeekday := activities.WeekdayMonday
 
 	supervisors := []*activities.SupervisorPlanned{
-		{Model: modelBase.Model{ID: 1}, StaffID: 10, IsPrimary: true},
+		{Model: activities.Model{ID: 1}, StaffID: 10, IsPrimary: true},
 		{
-			Model:            modelBase.Model{ID: 2},
+			Model:            activities.Model{ID: 2},
 			StaffID:          20,
 			IsPrimary:        true,
 			CalendarPeriodID: &periodID,
@@ -831,7 +831,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
 	tfID := int64(406)
 	roomID := int64(407)
-	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: modelBase.Model{ID: 408}}
+	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: activities.Model{ID: 408}}
 	scheduleRow := &activities.Schedule{Weekday: 1, TimeframeID: &tfID}
 	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: modelBase.Model{ID: tfID}}
 
@@ -1110,10 +1110,10 @@ func newMaterializationBranchServiceForSchedule(
 			Name:          "Lernzeit",
 			PlannedRoomID: &roomID,
 			IsTemplate:    true,
-			Model:         modelBase.Model{ID: templateID},
+			Model:         activities.Model{ID: templateID},
 		}}},
 		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
-			Model:           modelBase.Model{ID: 800},
+			Model:           activities.Model{ID: 800},
 			ActivityGroupID: templateID,
 			Weekday:         weekday,
 			TimeframeID:     &timeframeID,

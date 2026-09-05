@@ -183,6 +183,11 @@ type Query interface {
 	FindGroupForUpdate(context.Context, int64) (Group, error)
 	FindGroupByName(context.Context, string) (Group, error)
 	ListGroups(context.Context, GroupFilter) ([]Group, error)
+	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
+	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
+	ListTemplateRowsForPeriod(context.Context, *int64) ([]TemplateListRow, error)
+	ListTemplateWeekdayRoster(context.Context, *int64, *int64) ([]TemplateWeekdayRosterRow, error)
+	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []TemplateCapacityPeriod) ([]TemplateCapacityOccurrence, error)
 	ListGroupTargets(context.Context, []int64) (map[int64][]GroupTarget, error)
 	ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error)
 }
@@ -320,6 +325,44 @@ func (m *Module) ListGroups(ctx context.Context, filter GroupFilter) ([]Group, e
 	return m.engine.ListGroups(ctx, filter)
 }
 
+func (m *Module) ListTemplateRows(ctx context.Context, templateID *int64) ([]TemplateListRow, error) {
+	if templateID != nil && *templateID <= 0 {
+		return nil, m.reject("list_template_rows", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListTemplateRows(ctx, templateID)
+}
+
+func (m *Module) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]TemplateListRow, error) {
+	if templateID <= 0 || periodID <= 0 {
+		return nil, m.reject("list_template_rows_for_template_period", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
+}
+
+func (m *Module) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error) {
+	if periodID != nil && *periodID <= 0 {
+		return nil, m.reject("list_template_rows_for_period", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListTemplateRowsForPeriod(ctx, periodID)
+}
+
+func (m *Module) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) ([]TemplateWeekdayRosterRow, error) {
+	if (templateID != nil && *templateID <= 0) || (periodID != nil && *periodID <= 0) {
+		return nil, m.reject("list_template_weekday_roster", ErrInvalidGroupQuery)
+	}
+	return m.engine.ListTemplateWeekdayRoster(ctx, templateID, periodID)
+}
+
+func (m *Module) ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64, periods []TemplateCapacityPeriod) ([]TemplateCapacityOccurrence, error) {
+	if (periodID != nil && *periodID <= 0) || hasInvalidID(templateIDs) {
+		return nil, m.reject("list_template_capacity_occurrences", ErrInvalidGroupQuery)
+	}
+	if len(templateIDs) == 0 {
+		return []TemplateCapacityOccurrence{}, nil
+	}
+	return m.engine.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods)
+}
+
 func (m *Module) ListGroupTargets(ctx context.Context, groupIDs []int64) (map[int64][]GroupTarget, error) {
 	if hasInvalidID(groupIDs) {
 		return nil, m.reject("list_group_targets", ErrInvalidGroupQuery)
@@ -398,11 +441,11 @@ func (m *Module) ListPlannedSupervisors(ctx context.Context, filter PlannedSuper
 	return m.engine.ListPlannedSupervisors(ctx, filter)
 }
 
-func (m *Module) ListPlannedSupervisionBlockers(ctx context.Context, staffID int64) ([]PlannedSupervisionBlocker, error) {
-	if staffID <= 0 {
+func (m *Module) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]PlannedSupervisionBlocker, error) {
+	if staffID <= 0 || tenantID <= 0 {
 		return nil, m.reject("list_planned_supervision_blockers", ErrInvalidPlannedSupervisorQuery)
 	}
-	return m.engine.ListPlannedSupervisionBlockers(ctx, staffID)
+	return m.engine.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
 }
 
 func (m *Module) CreatePlannedSupervisor(ctx context.Context, input PlannedSupervisorInput) (PlannedSupervisor, error) {

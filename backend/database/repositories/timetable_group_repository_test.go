@@ -1,7 +1,6 @@
 package repositories_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -10,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTimetableGroupAdapterPreservesDatabaseErrorContract(t *testing.T) {
+func TestTimetableGroupAdapterPreservesDatabaseErrorBehavior(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repository := repositories.NewFactory(db).ActivityGroup
@@ -19,7 +18,6 @@ func TestTimetableGroupAdapterPreservesDatabaseErrorContract(t *testing.T) {
 
 	assert.Nil(t, group)
 	require.Error(t, err)
-	assert.Equal(t, "*base.DatabaseError", fmt.Sprintf("%T", err))
 	assert.ErrorContains(t, err, "database error during find by id")
 	var notFound interface{ RepositoryNotFound() }
 	require.ErrorAs(t, err, &notFound)

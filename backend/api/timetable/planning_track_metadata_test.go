@@ -1,7 +1,6 @@
 package timetable
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -23,10 +22,10 @@ func TestTemplateResponseIncludesPlanningTrackMetadata(t *testing.T) {
 		Type:               activitiesModel.GroupTypeCare,
 		CategoryID:         9,
 		CategoryName:       "Lernzeit",
-		PlanningTrackID:    sql.NullInt64{Int64: 7, Valid: true},
+		PlanningTrackID:    activitiesModel.NullInt64{Int64: 7, Valid: true},
 		PlanningTrackName:  "Jahrgang 1",
 		PlanningTrackColor: "#5080D8",
-		PlanningTrackOrder: sql.NullInt64{Int64: 2, Valid: true},
+		PlanningTrackOrder: activitiesModel.NullInt64{Int64: 2, Valid: true},
 	}, 10)
 
 	require.NotNil(t, response.PlanningTrackID)

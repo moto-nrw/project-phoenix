@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestSupervisorPlannedValidate(t *testing.T) {
@@ -115,7 +113,7 @@ func TestSupervisorPlanned_GetID(t *testing.T) {
 	t.Parallel()
 
 	sp := &SupervisorPlanned{
-		Model:   base.Model{ID: 42},
+		Model:   Model{ID: 42},
 		StaffID: 1,
 		GroupID: 1,
 	}
@@ -130,7 +128,7 @@ func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	sp := &SupervisorPlanned{
-		Model:   base.Model{CreatedAt: now},
+		Model:   Model{CreatedAt: now},
 		StaffID: 1,
 		GroupID: 1,
 	}
@@ -145,7 +143,7 @@ func TestSupervisorPlanned_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	sp := &SupervisorPlanned{
-		Model:   base.Model{UpdatedAt: now},
+		Model:   Model{UpdatedAt: now},
 		StaffID: 1,
 		GroupID: 1,
 	}

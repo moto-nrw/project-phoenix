@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -21,8 +20,8 @@ const ()
 
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
-	base.Model `bun:"schema:activities,table:student_enrollments"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:student_enrollments"`
+	TenantModel
 	StudentID        int64          `bun:"student_id,notnull" json:"student_id"`
 	ActivityGroupID  int64          `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	ValidFrom        timezone.Date  `bun:"valid_from,notnull" json:"valid_from"`

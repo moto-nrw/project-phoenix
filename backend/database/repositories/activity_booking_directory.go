@@ -76,16 +76,15 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	}
 	repository.BindActivityBookings(activityBookingDirectory{capability: capability})
 	f.ActivityCategory = timetableActivityCategoryRepository{timetable: capability}
-	targets, ok := f.ActivityGroup.(activityGroupTargets)
-	if !ok {
-		panic("repository factory: activity group repository must serve group targets")
-	}
 	activityGroups := timetableActivityGroupRepository{
-		activityGroupTargets: targets,
-		timetable:            capability,
-		groups:               f.schoolStructure,
+		timetable: capability, groups: f.schoolStructure, rooms: f.rooms,
+		calendar: f.schoolCalendar, shiftTypes: f.ShiftType,
 	}
-	f.ActivityGroup = f.decorateActivityGroups(activityGroups)
+	var groupRepository activitiesModels.GroupRepository = activityGroups
+	if f.schoolStructure != nil {
+		groupRepository = groupActivityGroupRepository{activityGroupTargets: activityGroups, groups: f.schoolStructure}
+	}
+	f.ActivityGroup = f.decorateActivityGroups(groupRepository)
 	f.ActivitySchedule = timetableActivityScheduleRepository{timetable: capability}
 	var supervisors activitiesModels.SupervisorPlannedRepository = timetableActivitySupervisorRepository{timetable: capability}
 	if f.schoolMembership != nil {

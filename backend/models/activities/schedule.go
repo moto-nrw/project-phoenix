@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Valid weekday values following ISO 8601 (Monday = 1, Sunday = 7)
@@ -20,8 +19,8 @@ const (
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
-	base.Model `bun:"schema:activities,table:schedules"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:schedules"`
+	TenantModel
 	Weekday          int    `bun:"weekday,notnull" json:"weekday"`
 	TimeframeID      *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
 	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`

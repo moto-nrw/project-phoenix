@@ -93,6 +93,31 @@ func (e *recordingEngine) ListGroups(context.Context, timetable.GroupFilter) ([]
 	return []timetable.Group{}, nil
 }
 
+func (e *recordingEngine) ListTemplateRows(context.Context, *int64) ([]timetable.TemplateListRow, error) {
+	e.calls++
+	return []timetable.TemplateListRow{}, nil
+}
+
+func (e *recordingEngine) ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]timetable.TemplateListRow, error) {
+	e.calls++
+	return []timetable.TemplateListRow{}, nil
+}
+
+func (e *recordingEngine) ListTemplateRowsForPeriod(context.Context, *int64) ([]timetable.TemplateListRow, error) {
+	e.calls++
+	return []timetable.TemplateListRow{}, nil
+}
+
+func (e *recordingEngine) ListTemplateWeekdayRoster(context.Context, *int64, *int64) ([]timetable.TemplateWeekdayRosterRow, error) {
+	e.calls++
+	return []timetable.TemplateWeekdayRosterRow{}, nil
+}
+
+func (e *recordingEngine) ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []timetable.TemplateCapacityPeriod) ([]timetable.TemplateCapacityOccurrence, error) {
+	e.calls++
+	return []timetable.TemplateCapacityOccurrence{}, nil
+}
+
 func (e *recordingEngine) ListGroupTargets(context.Context, []int64) (map[int64][]timetable.GroupTarget, error) {
 	e.calls++
 	return map[int64][]timetable.GroupTarget{}, nil
@@ -153,7 +178,7 @@ func (e *recordingEngine) ListPlannedSupervisors(context.Context, timetable.Plan
 	return []timetable.PlannedSupervisor{}, nil
 }
 
-func (e *recordingEngine) ListPlannedSupervisionBlockers(context.Context, int64) ([]timetable.PlannedSupervisionBlocker, error) {
+func (e *recordingEngine) ListPlannedSupervisionBlockers(context.Context, int64, int64) ([]timetable.PlannedSupervisionBlocker, error) {
 	e.calls++
 	return []timetable.PlannedSupervisionBlocker{}, nil
 }

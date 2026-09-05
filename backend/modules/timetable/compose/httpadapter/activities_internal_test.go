@@ -291,7 +291,7 @@ func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
 
 	response := &ActivityResponse{}
 	sup := &activitiesModel.SupervisorPlanned{
-		Model:     base.Model{ID: 1},
+		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   1,
 		IsPrimary: false,
 	}
@@ -310,9 +310,9 @@ func TestAddSupervisorsToResponse_WithPrimarySupervisor(t *testing.T) {
 
 	response := &ActivityResponse{}
 	supervisors := []*activitiesModel.SupervisorPlanned{
-		{Model: base.Model{ID: 1}, StaffID: 1, IsPrimary: false},
-		{Model: base.Model{ID: 2}, StaffID: 2, IsPrimary: true},
-		{Model: base.Model{ID: 3}, StaffID: 3, IsPrimary: false},
+		{Model: activitiesModel.Model{ID: 1}, StaffID: 1, IsPrimary: false},
+		{Model: activitiesModel.Model{ID: 2}, StaffID: 2, IsPrimary: true},
+		{Model: activitiesModel.Model{ID: 3}, StaffID: 3, IsPrimary: false},
 	}
 	addSupervisorsToResponse(response, supervisors)
 	assert.Len(t, response.SupervisorIDs, 3)
@@ -325,8 +325,8 @@ func TestAddSupervisorsToResponse_NoPrimarySupervisor(t *testing.T) {
 
 	response := &ActivityResponse{}
 	supervisors := []*activitiesModel.SupervisorPlanned{
-		{Model: base.Model{ID: 1}, StaffID: 1, IsPrimary: false},
-		{Model: base.Model{ID: 2}, StaffID: 2, IsPrimary: false},
+		{Model: activitiesModel.Model{ID: 1}, StaffID: 1, IsPrimary: false},
+		{Model: activitiesModel.Model{ID: 2}, StaffID: 2, IsPrimary: false},
 	}
 	addSupervisorsToResponse(response, supervisors)
 	assert.Len(t, response.SupervisorIDs, 2)
@@ -358,7 +358,7 @@ func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
 
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	sch := &activitiesModel.Schedule{
-		Model:   base.Model{ID: 1},
+		Model:   activitiesModel.Model{ID: 1},
 		Weekday: 1,
 	}
 	schedules := []*activitiesModel.Schedule{
@@ -377,8 +377,8 @@ func TestAddSchedulesToResponse_WithMultipleSchedules(t *testing.T) {
 	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
 	timeframeID := int64(5)
 	schedules := []*activitiesModel.Schedule{
-		{Model: base.Model{ID: 1}, Weekday: 1, TimeframeID: &timeframeID},
-		{Model: base.Model{ID: 2}, Weekday: 3, TimeframeID: nil},
+		{Model: activitiesModel.Model{ID: 1}, Weekday: 1, TimeframeID: &timeframeID},
+		{Model: activitiesModel.Model{ID: 2}, Weekday: 3, TimeframeID: nil},
 	}
 	addSchedulesToResponse(response, schedules)
 	assert.Len(t, response.Schedules, 2)
@@ -403,7 +403,7 @@ func TestAddCategoryToResponse_WithCategory(t *testing.T) {
 	response := &ActivityResponse{}
 	group := &activitiesModel.Group{
 		Category: &activitiesModel.Category{
-			Model: base.Model{ID: 1},
+			Model: activitiesModel.Model{ID: 1},
 			Name:  "Test Category",
 		},
 	}
@@ -423,7 +423,7 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 	roomID := int64(10)
 	now := time.Now()
 	group := &activitiesModel.Group{
-		Model:           base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+		Model:           activitiesModel.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
 		Name:            "Test Activity",
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -462,7 +462,7 @@ func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {
 	t.Parallel()
 
 	group := &activitiesModel.Group{
-		Model:         base.Model{ID: 1},
+		Model:         activitiesModel.Model{ID: 1},
 		Name:          "Test Activity",
 		PlannedRoomID: nil,
 	}
@@ -522,7 +522,7 @@ func TestNewCategoryResponse_FullCategory(t *testing.T) {
 	t.Parallel()
 
 	category := &activitiesModel.Category{
-		Model:       base.Model{ID: 1},
+		Model:       activitiesModel.Model{ID: 1},
 		Name:        "Sports",
 		Description: "Sports activities",
 		Color:       "#FF0000",
@@ -540,7 +540,7 @@ func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
 	t.Parallel()
 
 	category := &activitiesModel.Category{
-		Model: base.Model{ID: 1},
+		Model: activitiesModel.Model{ID: 1},
 		Name:  "Minimal",
 	}
 
@@ -567,7 +567,7 @@ func TestNewScheduleResponse_Basic(t *testing.T) {
 	t.Parallel()
 
 	schedule := &activitiesModel.Schedule{
-		Model:   base.Model{ID: 1},
+		Model:   activitiesModel.Model{ID: 1},
 		Weekday: 1,
 	}
 
@@ -582,7 +582,7 @@ func TestNewScheduleResponse_WithTimeframeID(t *testing.T) {
 
 	timeframeID := int64(5)
 	schedule := &activitiesModel.Schedule{
-		Model:       base.Model{ID: 1},
+		Model:       activitiesModel.Model{ID: 1},
 		Weekday:     1,
 		TimeframeID: &timeframeID,
 	}
@@ -609,7 +609,7 @@ func TestNewSupervisorResponse_Complete(t *testing.T) {
 	t.Parallel()
 
 	supervisor := &activitiesModel.SupervisorPlanned{
-		Model:     base.Model{ID: 1},
+		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: true,
 		Staff: &users.Staff{
@@ -635,7 +635,7 @@ func TestNewSupervisorResponse_NilStaff(t *testing.T) {
 	t.Parallel()
 
 	supervisor := &activitiesModel.SupervisorPlanned{
-		Model:     base.Model{ID: 1},
+		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: false,
 		Staff:     nil,
@@ -654,7 +654,7 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 	t.Parallel()
 
 	supervisor := &activitiesModel.SupervisorPlanned{
-		Model:     base.Model{ID: 1},
+		Model:     activitiesModel.Model{ID: 1},
 		StaffID:   10,
 		IsPrimary: false,
 		Staff: &users.Staff{

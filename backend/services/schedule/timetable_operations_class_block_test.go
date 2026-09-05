@@ -43,11 +43,11 @@ func TestEarliestPlannedBlockStartForClassPicksTheFirstBlockThatAddressesTheClas
 	// " 4a " are the same class, "Klasse 4a" is not.
 	klasse4a := "4A"
 	klasse3b := "3b"
-	deps.activityGroups.byID[1] = &activitiesModel.Group{Model: modelBase.Model{ID: 1}, TargetSchoolClass: &klasse4a}
-	deps.activityGroups.byID[2] = &activitiesModel.Group{Model: modelBase.Model{ID: 2}, TargetSchoolClass: &klasse3b}
-	deps.activityGroups.byID[3] = &activitiesModel.Group{Model: modelBase.Model{ID: 3}}
+	deps.activityGroups.byID[1] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 1}, TargetSchoolClass: &klasse4a}
+	deps.activityGroups.byID[2] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 2}, TargetSchoolClass: &klasse3b}
+	deps.activityGroups.byID[3] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 3}}
 	deps.activityGroups.targetsByGroup[3] = []*activitiesModel.GroupTarget{{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &klasse4a}}
-	deps.activityGroups.byID[4] = &activitiesModel.Group{Model: modelBase.Model{ID: 4}, SourceSchoolClasses: []string{"4a"}}
+	deps.activityGroups.byID[4] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 4}, SourceSchoolClasses: []string{"4a"}}
 
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		// Another class's earlier block must not win.

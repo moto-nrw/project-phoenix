@@ -208,6 +208,60 @@ func (s *Service) ListGroups(ctx context.Context, filter domain.GroupFilter) (re
 	return result, err
 }
 
+func (s *Service) ListTemplateRows(ctx context.Context, templateID *int64) (result []domain.TemplateListRow, err error) {
+	err = s.run("list_template_rows", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListTemplateRows(ctx, templateID, s.today())
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) (result []domain.TemplateListRow, err error) {
+	err = s.run("list_template_rows_for_template_period", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID, s.today())
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) (result []domain.TemplateListRow, err error) {
+	err = s.run("list_template_rows_for_period", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today())
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64) (result []domain.TemplateWeekdayRosterRow, err error) {
+	err = s.run("list_template_weekday_roster", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListTemplateWeekdayRoster(ctx, templateID, periodID, s.today())
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
+func (s *Service) ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64, periods []domain.TemplateCapacityPeriod) (result []domain.TemplateCapacityOccurrence, err error) {
+	dynamicStudents, err := s.ListTargetStudentIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	err = s.run("list_template_capacity_occurrences", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods, dynamicStudents)
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
 func (s *Service) ListGroupTargets(ctx context.Context, ids []int64) (result map[int64][]domain.GroupTarget, err error) {
 	err = s.run("list_group_targets", func(stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListGroupTargets(ctx, ids)

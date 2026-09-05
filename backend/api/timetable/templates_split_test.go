@@ -20,7 +20,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -46,8 +46,8 @@ func attachSplitServiceWithValidator(
 	validate func(context.Context, int64) error,
 ) {
 	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
-		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
-		CategoryRepo:               activitiesRepo.NewCategoryRepository(s.db),
+		GroupRepo:                  repositories.NewFactory(s.db).ActivityGroup,
+		CategoryRepo:               repositories.NewFactory(s.db).ActivityCategory,
 		ScheduleRepo:               s.schedules,
 		EnrollmentRepo:             s.enrollments,
 		SupervisorRepo:             s.supervisors,
@@ -245,7 +245,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Update-Source", 5)
 	gradeFive := int16(5)
 	gradeSix := int16(6)
-	targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+	targetRepo, ok := repositories.NewFactory(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
 		{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
@@ -314,7 +314,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Legacy", 5)
 		gradeFive := int16(5)
 		gradeSix := int16(6)
-		targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModel.GroupTargetRepository)
+		targetRepo, ok := repositories.NewFactory(s.db).ActivityGroup.(activitiesModel.GroupTargetRepository)
 		require.True(t, ok)
 		require.NoError(t, targetRepo.ReplaceTargets(s.ctx, created.TemplateID, []*activitiesModel.GroupTarget{
 			{TargetGroupType: activitiesModel.TargetGroupTypeJahrgang, TargetGradeLevel: &gradeFive},
@@ -360,7 +360,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		for _, row := range templateSchedules(t, s, created.TemplateID) {
 			assert.Nil(t, row.ValidUntil)
 		}
-		series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+		series, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
 		require.NoError(t, err)
 		assert.Len(t, series, 1)
 	})
@@ -384,7 +384,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 		for _, row := range templateSchedules(t, s, created.TemplateID) {
 			assert.Nil(t, row.ValidUntil)
 		}
-		series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+		series, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
 		require.NoError(t, err)
 		assert.Len(t, series, 1)
 	})
@@ -416,7 +416,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 		assert.Nil(t, schedule.ValidUntil,
 			"the ambient TenantTxMiddleware must roll back the provisional source cap")
 	}
-	series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+	series, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	require.Len(t, series, 1, "the rejected successor must not commit on a 400 response")
 	assert.Equal(t, created.TemplateID, series[0].ID)
@@ -462,7 +462,7 @@ func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric50
 	for _, schedule := range schedules {
 		assert.Nil(t, schedule.ValidUntil)
 	}
-	series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+	series, err := repositories.NewFactory(s.db).ActivityGroup.FindTemplateSeries(s.ctx, created.TemplateID)
 	require.NoError(t, err)
 	require.Len(t, series, 1)
 	assert.Equal(t, created.TemplateID, series[0].ID)
@@ -502,7 +502,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 		if len(provisionalTimeframes) != 1 {
 			return fmt.Errorf("expected one provisional timeframe, got %d", len(provisionalTimeframes))
 		}
-		provisionalGroup, lookupErr := activitiesRepo.NewGroupRepository(s.db).FindByID(ctx, templateID)
+		provisionalGroup, lookupErr := repositories.NewFactory(s.db).ActivityGroup.FindByID(ctx, templateID)
 		if lookupErr != nil {
 			return lookupErr
 		}

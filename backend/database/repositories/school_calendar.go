@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -53,11 +52,6 @@ func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capabilit
 	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, scheduleRepo.NewCalendarPeriodUsageRepository(f.db))
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
-	if repo, ok := f.ActivityGroup.(interface {
-		BindCalendarPeriods(activitiesRepo.CalendarPeriodSource)
-	}); ok {
-		repo.BindCalendarPeriods(capacityCalendarPeriods{calendar: capability})
-	}
 	if repo, ok := f.CareExitCleanup.(interface {
 		BindCalendarPeriods(usersRepo.CalendarPeriodDirectory)
 	}); ok {
@@ -569,28 +563,6 @@ func dateframeMidnight(value time.Time) time.Time {
 }
 
 // --- owner queries for the raw repositories ---
-
-// capacityCalendarPeriods projects the owner's active periods onto the shape
-// the capacity query unnests.
-type capacityCalendarPeriods struct {
-	calendar schoolcalendar.Query
-}
-
-func (p capacityCalendarPeriods) ListActiveCalendarPeriods(ctx context.Context) ([]activitiesRepo.CapacityCalendarPeriod, error) {
-	values, err := p.calendar.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{ActiveOnly: true})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]activitiesRepo.CapacityCalendarPeriod, 0, len(values))
-	for _, value := range values {
-		period := activitiesRepo.CapacityCalendarPeriod{ID: value.ID, TenantID: value.TenantID, WeekCycleLength: value.WeekCycleLength}
-		setDate(&period.StartDate, value.StartDate)
-		setDate(&period.EndDate, value.EndDate)
-		setOptionalDate(&period.WeekCycleAnchor, value.WeekCycleAnchor)
-		result = append(result, period)
-	}
-	return result, nil
-}
 
 // careExitCalendarPeriods answers the booking restore with the ids of every
 // period the tenant still has.

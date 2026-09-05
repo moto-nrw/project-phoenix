@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -32,7 +31,7 @@ func (r timetableActivityCategoryRepository) Create(ctx context.Context, value *
 func (r timetableActivityCategoryRepository) FindByID(ctx context.Context, id any) (*activitiesModels.Category, error) {
 	categoryID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, activitiesRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid category id %T", id))
+		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid category id %T", id))
 	}
 	value, err := r.timetable.FindCategory(ctx, categoryID)
 	if err != nil {
@@ -65,9 +64,9 @@ func (r timetableActivityCategoryRepository) FindByIDForShare(ctx context.Contex
 	return legacyCategory(value), nil
 }
 
-func (r timetableActivityCategoryRepository) List(ctx context.Context, options *activitiesRepo.CategoryQueryOptions) ([]*activitiesModels.Category, error) {
-	if err := activitiesRepo.ValidateCategoryListOptions(options); err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("list", err)
+func (r timetableActivityCategoryRepository) List(ctx context.Context, options *activitiesModels.QueryOptions) ([]*activitiesModels.Category, error) {
+	if options != nil && (len(options.StudentIDs) > 0 || options.Limit != 0 || options.Offset != 0) {
+		return nil, legacyDatabaseError("list", errors.New("category list options are unsupported"))
 	}
 	return r.ListAll(ctx)
 }
@@ -75,7 +74,7 @@ func (r timetableActivityCategoryRepository) List(ctx context.Context, options *
 func (r timetableActivityCategoryRepository) ListAll(ctx context.Context) ([]*activitiesModels.Category, error) {
 	values, err := r.timetable.ListCategories(ctx)
 	if err != nil {
-		return nil, activitiesRepo.WrapDatabaseError("list all", err)
+		return nil, legacyDatabaseError("list all", err)
 	}
 	result := make([]*activitiesModels.Category, 0, len(values))
 	for _, value := range values {
@@ -114,7 +113,7 @@ func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, 
 		return 0, errors.New("category cannot be nil or zero value")
 	}
 	if len(columns) != 1 {
-		return 0, activitiesRepo.WrapDatabaseError("update columns", errors.New("category update requires one supported column"))
+		return 0, legacyDatabaseError("update columns", errors.New("category update requires one supported column"))
 	}
 	var err error
 	switch columns[0] {
@@ -127,7 +126,7 @@ func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, 
 	case "shift_type_id":
 		err = r.timetable.SetCategoryShiftTypeID(ctx, value.ID, value.ShiftTypeID)
 	default:
-		return 0, activitiesRepo.WrapDatabaseError("update columns", fmt.Errorf("unsupported category column %q", columns[0]))
+		return 0, legacyDatabaseError("update columns", fmt.Errorf("unsupported category column %q", columns[0]))
 	}
 	if err != nil {
 		return 0, legacyCategoryError("update columns", err)
@@ -138,7 +137,7 @@ func (r timetableActivityCategoryRepository) UpdateColumns(ctx context.Context, 
 func (r timetableActivityCategoryRepository) Delete(ctx context.Context, id any) error {
 	categoryID, ok := legacyGroupID(id)
 	if !ok {
-		return activitiesRepo.WrapDatabaseError("delete", fmt.Errorf("invalid category id %T", id))
+		return legacyDatabaseError("delete", fmt.Errorf("invalid category id %T", id))
 	}
 	if err := r.timetable.DeleteCategory(ctx, categoryID); err != nil {
 		return legacyCategoryError("delete", err)
@@ -152,7 +151,7 @@ func replaceLegacyCategory(result *activitiesModels.Category, value timetable.Ca
 
 func legacyCategoryError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrCategoryNotFound) || errors.Is(err, timetable.ErrInvalidCategory) {
-		return activitiesRepo.WrapNotFoundDatabaseError(operation)
+		return legacyNotFoundError(operation)
 	}
-	return activitiesRepo.WrapDatabaseError(operation, err)
+	return legacyDatabaseError(operation, err)
 }

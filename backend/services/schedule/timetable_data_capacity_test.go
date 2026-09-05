@@ -1,7 +1,6 @@
 package schedule
 
 import (
-	"database/sql"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -130,7 +129,7 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 	// fully-staffed 3/3 day and an empty 0/3 day. The override must steer the
 	// worst-occurrence pick to the 0/3 day so the list shows the true shortfall.
 	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
 		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 1), EnrollmentCount: 30, SupervisorCount: 3},
@@ -170,8 +169,8 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 	// handler suppress the manual required_staff override for template 2 so a
 	// never-occurring block cannot show a false 0/N understaffing indicator.
 	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
-		{TemplateID: 2, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 2, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
 		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 5), EnrollmentCount: 4, SupervisorCount: 1},

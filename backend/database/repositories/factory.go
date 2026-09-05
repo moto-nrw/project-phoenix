@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
@@ -66,6 +65,7 @@ type Factory struct {
 	schoolStructure          schoolstructure.Query
 	schoolMembershipBound    bool
 	facilitiesBound          bool
+	rooms                    facilitiesModule.Query
 	appointmentsBound        bool
 	// roomBinders hand a room owner to the raw repositories that used to
 	// join facilities.rooms; kept so BindFacilities reaches them after the
@@ -667,8 +667,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
 
 		// Activities repositories
-		ActivityGroup:      activities.NewGroupRepository(db),
-		ActivityCategory:   activities.NewCategoryRepository(db),
+		ActivityGroup:      nil, // bound to Timetable below
+		ActivityCategory:   nil, // bound to Timetable below
 		ActivitySchedule:   nil, // bound to Timetable below
 		ActivitySupervisor: nil, // bound to Timetable below
 		StudentEnrollment:  nil, // bound to Timetable below
@@ -828,7 +828,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 	})
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents)
 	factory.bindAppointments(appointmentsModule)
-	factory.bindActivityTemplateShiftTypes()
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)

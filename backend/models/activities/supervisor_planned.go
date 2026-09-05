@@ -4,19 +4,17 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // SupervisorQueryOptions and SupervisorDate keep the temporary compatibility
 // repository contract self-contained while callers migrate to Timetable.
-type SupervisorQueryOptions = base.QueryOptions
 type SupervisorDate = timezone.Date
 
 // SupervisorPlanned represents a staff member assigned to supervise an activity group
 type SupervisorPlanned struct {
-	base.Model `bun:"schema:activities,table:supervisors"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:supervisors"`
+	TenantModel
 	StaffID          int64          `bun:"staff_id,notnull" json:"staff_id"`
 	GroupID          int64          `bun:"group_id,notnull" json:"group_id"`
 	IsPrimary        bool           `bun:"is_primary,notnull,default:false" json:"is_primary"`

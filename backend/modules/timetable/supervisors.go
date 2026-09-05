@@ -46,7 +46,7 @@ type PlannedSupervisionBlocker struct {
 type PlannedSupervisorQuery interface {
 	FindPlannedSupervisor(context.Context, int64) (PlannedSupervisor, error)
 	ListPlannedSupervisors(context.Context, PlannedSupervisorFilter) ([]PlannedSupervisor, error)
-	ListPlannedSupervisionBlockers(context.Context, int64) ([]PlannedSupervisionBlocker, error)
+	ListPlannedSupervisionBlockers(context.Context, int64, int64) ([]PlannedSupervisionBlocker, error)
 }
 
 type PlannedSupervisorCommand interface {

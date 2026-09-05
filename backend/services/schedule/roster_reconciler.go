@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -246,8 +245,7 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	for _, row := range existingRows {
 		existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StudentID}] = struct{}{}
 	}
-	enrollmentOptions := modelBase.NewQueryOptions()
-	enrollmentOptions.Filter = modelBase.NewFilter().In("student_id", int64FilterArgs(studentIDs)...)
+	enrollmentOptions := &activities.StudentEnrollmentQueryOptions{StudentIDs: studentIDs}
 	enrollments, err := s.enrollmentRepo.List(ctx, enrollmentOptions)
 	if err != nil {
 		return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}

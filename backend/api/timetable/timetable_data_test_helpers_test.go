@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -110,7 +109,7 @@ func testTimetableDataWithOfferingCallbacks(
 		PickupExceptionRepo:        boundRepos.StudentPickupException,
 		VisitRepo:                  activeRepo.NewVisitRepository(db),
 		RoomRepo:                   boundRepos.Room,
-		ActivityCategoryRepo:       activitiesRepo.NewCategoryRepository(db),
+		ActivityCategoryRepo:       repositories.NewFactory(db).ActivityCategory,
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
 		ActivitySupervisorRepo:     boundRepos.ActivitySupervisor,
 		StudentEnrollmentRepo:      boundRepos.StudentEnrollment,

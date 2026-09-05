@@ -2,19 +2,17 @@ package activities
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CategoryRepository defines operations for managing activity categories
 type CategoryRepository interface {
-	base.Repository[*Category]
+	Repository[*Category]
 
 	// FindByName finds a category by its name
 	FindByName(ctx context.Context, name string) (*Category, error)
@@ -48,7 +46,7 @@ type CategoryRepository interface {
 
 // GroupRepository defines operations for managing activity groups
 type GroupRepository interface {
-	base.Repository[*Group]
+	Repository[*Group]
 	// ListWithCategory returns groups and their category from one LEFT JOIN.
 	ListWithCategory(ctx context.Context, query *GroupListQuery) ([]*Group, error)
 
@@ -256,7 +254,7 @@ type SupervisorPlannedRepository interface {
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
 type StudentEnrollmentRepository interface {
-	base.Repository[*StudentEnrollment]
+	Repository[*StudentEnrollment]
 
 	// CloseOpenByGroupAndPeriod closes the open enrollments of a group for
 	// the given calendar period (NULL period matches rows without one) by
@@ -294,9 +292,8 @@ type StudentEnrollmentRepository interface {
 	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
 }
 
-// StudentEnrollmentQueryOptions and StudentEnrollmentDate keep legacy
-// compatibility adapters from importing lower-layer query/date packages.
-type StudentEnrollmentQueryOptions = base.QueryOptions
+// StudentEnrollmentDate keeps legacy compatibility adapters from importing
+// the lower-layer calendar-date package.
 type StudentEnrollmentDate = timezone.Date
 
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
@@ -338,32 +335,32 @@ type TemplateFieldsUpdate struct {
 // row and the aggregated people counts. Issue #584: moved verbatim from
 // api/timetable.
 type TemplateListRow struct {
-	TemplateID         int64          `bun:"template_id"`
-	Name               string         `bun:"name"`
-	Type               string         `bun:"type"`
-	CategoryID         int64          `bun:"category_id"`
-	CategoryName       string         `bun:"category_name"`
-	PlanningTrackID    sql.NullInt64  `bun:"planning_track_id"`
-	PlanningTrackName  string         `bun:"planning_track_name"`
-	PlanningTrackColor string         `bun:"planning_track_color"`
-	PlanningTrackOrder sql.NullInt64  `bun:"planning_track_sort_order"`
-	RoomID             sql.NullInt64  `bun:"room_id"`
-	RoomName           sql.NullString `bun:"room_name"`
-	EducationGroupID   sql.NullInt64  `bun:"education_group_id"`
-	EducationGroupName sql.NullString `bun:"education_group_name"`
-	IsOpen             bool           `bun:"is_open"`
-	MaxParticipants    int            `bun:"max_participants"`
+	TemplateID         int64      `bun:"template_id"`
+	Name               string     `bun:"name"`
+	Type               string     `bun:"type"`
+	CategoryID         int64      `bun:"category_id"`
+	CategoryName       string     `bun:"category_name"`
+	PlanningTrackID    NullInt64  `bun:"planning_track_id"`
+	PlanningTrackName  string     `bun:"planning_track_name"`
+	PlanningTrackColor string     `bun:"planning_track_color"`
+	PlanningTrackOrder NullInt64  `bun:"planning_track_sort_order"`
+	RoomID             NullInt64  `bun:"room_id"`
+	RoomName           NullString `bun:"room_name"`
+	EducationGroupID   NullInt64  `bun:"education_group_id"`
+	EducationGroupName NullString `bun:"education_group_name"`
+	IsOpen             bool       `bun:"is_open"`
+	MaxParticipants    int        `bun:"max_participants"`
 	// RequiredStaff is the template's manual Personalbedarf override (#1839);
 	// NULL = derive from the Betreuungsschlüssel.
-	RequiredStaff sql.NullInt64 `bun:"required_staff"`
+	RequiredStaff NullInt64 `bun:"required_staff"`
 	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
 	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
 	// per-schedule-row pin. See materialization_service.go's
 	// schedulePinnedPeriodID for the precedence between the two.
-	TemplateCalendarPeriodID sql.NullInt64  `bun:"template_calendar_period_id"`
-	TargetGroupType          string         `bun:"target_group_type"`
-	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
-	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
+	TemplateCalendarPeriodID NullInt64  `bun:"template_calendar_period_id"`
+	TargetGroupType          string     `bun:"target_group_type"`
+	TargetGradeLevel         NullInt16  `bun:"target_grade_level"`
+	TargetSchoolClass        NullString `bun:"target_school_class"`
 	// SourceCareOfferingIDsJSON carries the jsonb source-offering id array as
 	// its text form ('' = NULL); parse with ParseSourceCareOfferingIDs.
 	SourceCareOfferingIDsJSON string `bun:"source_care_offering_ids_json"`
@@ -374,16 +371,16 @@ type TemplateListRow struct {
 	// ('' = NULL); parse with ParseSourceSchoolClasses (#2482).
 	SourceSchoolClassesJSON string `bun:"source_school_classes_json"`
 	// ListKind classifies the template for printable daily lists (#1565).
-	ListKind sql.NullString `bun:"list_kind"`
+	ListKind NullString `bun:"list_kind"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
-	Notes sql.NullString `bun:"notes"`
+	Notes NullString `bun:"notes"`
 	// ShiftTypeName/ShiftTypeColor come from the category's optional
 	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
-	ShiftTypeID     sql.NullInt64 `bun:"shift_type_id"`
-	ShiftTypeName   string        `bun:"shift_type_name"`
-	ShiftTypeColor  string        `bun:"shift_type_color"`
-	EnrollmentCount int           `bun:"enrollment_count"`
-	SupervisorCount int           `bun:"supervisor_count"`
+	ShiftTypeID     NullInt64 `bun:"shift_type_id"`
+	ShiftTypeName   string    `bun:"shift_type_name"`
+	ShiftTypeColor  string    `bun:"shift_type_color"`
+	EnrollmentCount int       `bun:"enrollment_count"`
+	SupervisorCount int       `bun:"supervisor_count"`
 	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
 	// the actual recurrence date selected as worst for the template. They
 	// intentionally differ from the period-tolerant display roster below.
@@ -397,15 +394,15 @@ type TemplateListRow struct {
 	CapacityOccurrenceFound bool           `bun:"-"`
 	StudentIDs              []int64        `bun:"student_ids,array"`
 	StaffIDs                []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID          sql.NullInt64  `bun:"primary_staff_id"`
+	PrimaryStaffID          NullInt64      `bun:"primary_staff_id"`
 	ScheduleID              int64          `bun:"schedule_id"`
 	Weekday                 int            `bun:"weekday"`
-	StartTime               sql.NullString `bun:"start_time"`
-	EndTime                 sql.NullString `bun:"end_time"`
+	StartTime               NullString     `bun:"start_time"`
+	EndTime                 NullString     `bun:"end_time"`
 	WeekPattern             int            `bun:"week_pattern"`
-	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
-	ScheduleValidFrom       sql.NullString `bun:"schedule_valid_from"`
-	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
+	CalendarPeriodID        NullInt64      `bun:"calendar_period_id"`
+	ScheduleValidFrom       NullString     `bun:"schedule_valid_from"`
+	ScheduleValidUntil      NullString     `bun:"schedule_valid_until"`
 	Targets                 []*GroupTarget `bun:"-"`
 }
 

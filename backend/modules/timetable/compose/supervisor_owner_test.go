@@ -35,7 +35,7 @@ func TestModuleOwnsPlannedSupervisorLifecycleAndBlockers(t *testing.T) {
 	assert.True(t, updated.IsPrimary)
 	assert.Equal(t, &weekday, updated.Weekday)
 
-	blockers, err := module.ListPlannedSupervisionBlockers(ctx, staff.ID)
+	blockers, err := module.ListPlannedSupervisionBlockers(ctx, staff.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.Len(t, blockers, 1)
 	assert.Equal(t, group.Name, blockers[0].ActivityName)
@@ -109,7 +109,7 @@ func TestModulePlannedSupervisorReadFailuresAreNotSwallowed(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = module.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{})
 	require.ErrorIs(t, err, context.Canceled)
-	_, err = module.ListPlannedSupervisionBlockers(ctx, 1)
+	_, err = module.ListPlannedSupervisionBlockers(ctx, 1, testpkg.Tenant(t))
 	require.ErrorIs(t, err, context.Canceled)
 }
 
