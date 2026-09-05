@@ -36,23 +36,22 @@ type SeedState struct {
 	Profiles       map[string]*SeedProfile     `json:"profiles"`
 	Topology       SeedStateTopology           `json:"topology"`
 
-	DevicePIN       string                  `json:"-"`
-	Bootstrap       SeedStateBootstrap      `json:"-"`
-	Accounts        SeedStateAccounts       `json:"-"`
-	Parents         []ParentCredentials     `json:"-"`
-	Devices         map[string]SeedDevice   `json:"-"`
-	Students        []SeedStudent           `json:"-"`
-	Rooms           map[string]int64        `json:"-"`
-	Activities      map[string]int64        `json:"-"`
-	Groups          map[string]int64        `json:"-"`
-	Enrollment      SeedEnrollmentState     `json:"-"`
-	CareWithdrawals *SeedCareWithdrawalDemo `json:"-"`
-	Credentials     SeedStateCredentials    `json:"-"`
-	Entities        SeedStateEntities       `json:"-"`
-	Lookups         SeedStateLookups        `json:"-"`
-	Scenarios       SeedStateScenarios      `json:"-"`
-	Settings        map[string]SeedSetting  `json:"-"`
-	Expected        SeedExpectedState       `json:"-"`
+	DevicePIN   string                 `json:"-"`
+	Bootstrap   SeedStateBootstrap     `json:"-"`
+	Accounts    SeedStateAccounts      `json:"-"`
+	Parents     []ParentCredentials    `json:"-"`
+	Devices     map[string]SeedDevice  `json:"-"`
+	Students    []SeedStudent          `json:"-"`
+	Rooms       map[string]int64       `json:"-"`
+	Activities  map[string]int64       `json:"-"`
+	Groups      map[string]int64       `json:"-"`
+	Enrollment  SeedEnrollmentState    `json:"-"`
+	Credentials SeedStateCredentials   `json:"-"`
+	Entities    SeedStateEntities      `json:"-"`
+	Lookups     SeedStateLookups       `json:"-"`
+	Scenarios   SeedStateScenarios     `json:"-"`
+	Settings    map[string]SeedSetting `json:"-"`
+	Expected    SeedExpectedState      `json:"-"`
 }
 
 type SeedOrganization struct {
@@ -63,17 +62,16 @@ type SeedOrganization struct {
 }
 
 type SeedProfile struct {
-	Key             string                  `json:"key"`
-	Name            string                  `json:"name"`
-	Organization    SeedOrganizationRef     `json:"organization"`
-	School          SeedSchoolRef           `json:"school"`
-	Settings        map[string]SeedSetting  `json:"settings"`
-	Credentials     SeedStateCredentials    `json:"credentials"`
-	Devices         map[string]SeedDevice   `json:"devices"`
-	Entities        SeedProfileEntities     `json:"entities"`
-	Expected        SeedExpectedState       `json:"expected"`
-	Scenarios       SeedStateScenarios      `json:"scenarios"`
-	CareWithdrawals *SeedCareWithdrawalDemo `json:"care_withdrawals,omitempty"`
+	Key          string                 `json:"key"`
+	Name         string                 `json:"name"`
+	Organization SeedOrganizationRef    `json:"organization"`
+	School       SeedSchoolRef          `json:"school"`
+	Settings     map[string]SeedSetting `json:"settings"`
+	Credentials  SeedStateCredentials   `json:"credentials"`
+	Devices      map[string]SeedDevice  `json:"devices"`
+	Entities     SeedProfileEntities    `json:"entities"`
+	Expected     SeedExpectedState      `json:"expected"`
+	Scenarios    SeedStateScenarios     `json:"scenarios"`
 }
 
 type SeedOrganizationRef struct {
@@ -149,13 +147,6 @@ type SeedStateTopology struct {
 	Organizations int    `json:"organizations"`
 	Schools       int    `json:"schools"`
 	Mode          string `json:"mode,omitempty"`
-}
-
-type SeedCareWithdrawalDemo struct {
-	SchoolID    int64                     `json:"school_id"`
-	SchoolName  string                    `json:"school_name"`
-	TenantSlug  string                    `json:"tenant_slug"`
-	SchoolAdmin BootstrapAdminCredentials `json:"school_admin"`
 }
 
 // SeedStateEntities and SeedStateLookups remain as the seeder's in-memory
@@ -467,13 +458,12 @@ func (s *SeedState) syncProfile(key string) {
 		School: SeedSchoolRef{
 			ID: s.Bootstrap.SchoolID, Name: s.Bootstrap.SchoolName, Slug: s.Bootstrap.SchoolSlug, TenantSlug: s.Bootstrap.TenantSlug,
 		},
-		Settings:        cloneSeedSettings(s.Settings),
-		Credentials:     s.Credentials,
-		Devices:         cloneSeedDevices(s.Devices),
-		Entities:        profileEntities(s),
-		Expected:        s.Expected,
-		Scenarios:       s.Scenarios,
-		CareWithdrawals: s.CareWithdrawals,
+		Settings:    cloneSeedSettings(s.Settings),
+		Credentials: s.Credentials,
+		Devices:     cloneSeedDevices(s.Devices),
+		Entities:    profileEntities(s),
+		Expected:    s.Expected,
+		Scenarios:   s.Scenarios,
 	}
 	profile.Credentials.DevicePIN = s.DevicePIN
 	profile.Credentials.SchoolAdmin = s.Bootstrap.SchoolAdmin
@@ -544,7 +534,6 @@ func (s *SeedState) hydrateProfile(key string) {
 	s.Activities = flattenSeedEntityRefs(profile.Entities.Activities)
 	s.Groups = flattenSeedEntityRefs(profile.Entities.Groups)
 	s.Enrollment = CloneEnrollmentState(profile.Entities.Enrollment)
-	s.CareWithdrawals = profile.CareWithdrawals
 	s.Scenarios = profile.Scenarios
 	s.Expected = profile.Expected
 }
@@ -626,25 +615,24 @@ func SemanticKey(value string) string {
 }
 
 type legacySeedStateV2 struct {
-	Version         string                  `json:"version"`
-	CreatedAt       time.Time               `json:"created_at"`
-	BaseURL         string                  `json:"base_url"`
-	DevicePIN       string                  `json:"device_pin"`
-	Bootstrap       SeedStateBootstrap      `json:"bootstrap"`
-	Accounts        SeedStateAccounts       `json:"accounts"`
-	Parents         []ParentCredentials     `json:"parents,omitempty"`
-	Devices         map[string]SeedDevice   `json:"devices"`
-	Students        []SeedStudent           `json:"students"`
-	Rooms           map[string]int64        `json:"rooms"`
-	Activities      map[string]int64        `json:"activities"`
-	Groups          map[string]int64        `json:"groups"`
-	Enrollment      SeedEnrollmentState     `json:"enrollment,omitempty"`
-	CareWithdrawals *SeedCareWithdrawalDemo `json:"care_withdrawals,omitempty"`
-	Credentials     SeedStateCredentials    `json:"credentials"`
-	Topology        SeedStateTopology       `json:"topology"`
-	Entities        SeedStateEntities       `json:"entities"`
-	Lookups         SeedStateLookups        `json:"lookups"`
-	Scenarios       SeedStateScenarios      `json:"scenarios"`
+	Version     string                `json:"version"`
+	CreatedAt   time.Time             `json:"created_at"`
+	BaseURL     string                `json:"base_url"`
+	DevicePIN   string                `json:"device_pin"`
+	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
+	Accounts    SeedStateAccounts     `json:"accounts"`
+	Parents     []ParentCredentials   `json:"parents,omitempty"`
+	Devices     map[string]SeedDevice `json:"devices"`
+	Students    []SeedStudent         `json:"students"`
+	Rooms       map[string]int64      `json:"rooms"`
+	Activities  map[string]int64      `json:"activities"`
+	Groups      map[string]int64      `json:"groups"`
+	Enrollment  SeedEnrollmentState   `json:"enrollment,omitempty"`
+	Credentials SeedStateCredentials  `json:"credentials"`
+	Topology    SeedStateTopology     `json:"topology"`
+	Entities    SeedStateEntities     `json:"entities"`
+	Lookups     SeedStateLookups      `json:"lookups"`
+	Scenarios   SeedStateScenarios    `json:"scenarios"`
 }
 
 func loadLegacySeedState(data []byte) (*SeedState, error) {
@@ -667,8 +655,7 @@ func seedStateFromLegacy(legacy legacySeedStateV2) *SeedState {
 		DefaultProfile: DefaultProfileKey, DevicePIN: legacy.DevicePIN, Bootstrap: legacy.Bootstrap,
 		Accounts: legacy.Accounts, Parents: legacy.Parents, Devices: legacy.Devices, Students: legacy.Students,
 		Rooms: legacy.Rooms, Activities: legacy.Activities, Groups: legacy.Groups,
-		Enrollment: legacy.Enrollment, CareWithdrawals: legacy.CareWithdrawals,
-		Credentials: legacy.Credentials, Topology: legacy.Topology, Entities: legacy.Entities,
+		Enrollment: legacy.Enrollment, Credentials: legacy.Credentials, Topology: legacy.Topology, Entities: legacy.Entities,
 		Lookups: legacy.Lookups, Scenarios: legacy.Scenarios,
 	}
 }
