@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Lückenzähler plus Sprungliste des Betreuungsplan-Kopfzeilen-Kontexts
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 5.2). Der Chip
+ * Lückenzähler plus Sprungliste des Betreuungsplan-Kopfzeilen-Kontexts. Der Chip
  * zeigt die Zahl der offenen Personal-Lücken; ein Klick öffnet eine schmale
  * Sprungliste. Jede Zeile trägt Startzeit, Titel und das Soll/Ist-Paar; ein
  * Klick springt zum Block (der Aufrufer setzt `d` und `block`).

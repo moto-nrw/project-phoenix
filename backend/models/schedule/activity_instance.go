@@ -31,7 +31,7 @@ const (
 // ActivityInstance is the concrete materialized occurrence of a template on a
 // given date (or a spontaneous instance created without a template). It lives
 // in the "instance layer" between the template layer (activities.*) and the
-// live layer (active.*) — see docs/timetable-system-plan.md §5.1.
+// live layer (active.*).
 type ActivityInstance struct {
 	base.Model `bun:"schema:schedule,table:activity_instances"`
 	base.TenantModel
