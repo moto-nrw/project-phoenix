@@ -204,7 +204,7 @@ func calDAVPrincipalResponse() string {
 		`<d:resourcetype><d:collection/><d:principal/></d:resourcetype>` +
 		`<d:current-user-principal><d:href>` + xmlText(calDAVPrincipalPath) + `</d:href></d:current-user-principal>` +
 		`<d:principal-URL><d:href>` + xmlText(calDAVPrincipalPath) + `</d:href></d:principal-URL>` +
-		`<c:calendar-home-set><d:href>` + xmlText(calDAVPrincipalPath) + `</d:href></c:calendar-home-set>` +
+		`<c:calendar-home-set><d:href>` + xmlText(calDAVCalendarPath) + `</d:href></c:calendar-home-set>` +
 		calDAVSupportedReports() +
 		`</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`
 }

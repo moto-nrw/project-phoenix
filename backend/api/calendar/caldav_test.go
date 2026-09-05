@@ -87,7 +87,7 @@ func TestStaffCalDAVDiscoveryAndReadOnlyMethods(t *testing.T) {
 	root := performCalDAVRequest(t, resource, "PROPFIND", calDAVPrincipalPath, "", true)
 	assert.Equal(t, http.StatusMultiStatus, root.Code)
 	assert.Contains(t, root.Body.String(), "calendar-home-set")
-	assert.Contains(t, root.Body.String(), calDAVPrincipalPath)
+	assert.Contains(t, root.Body.String(), `<c:calendar-home-set><d:href>`+calDAVCalendarPath+`</d:href></c:calendar-home-set>`)
 
 	principalDepthOneRequest := httptest.NewRequest("PROPFIND", calDAVPrincipalPath, nil)
 	principalDepthOneRequest.SetBasicAuth("staff@example.org", "app-password")

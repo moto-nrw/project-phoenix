@@ -64,3 +64,21 @@ func TestCalDAVExtensionMethodReachesSlashlessRoot(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, response.Code)
 	assert.Equal(t, "PROPFIND", received)
 }
+
+func TestCalDAVExtensionMethodReachesWellKnownDiscovery(t *testing.T) {
+	t.Parallel()
+
+	var received string
+	router := chi.NewRouter()
+	router.Handle("/.well-known/caldav", restoreCalDAVMethod(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = r.Method
+		w.WriteHeader(http.StatusNoContent)
+	})))
+	api := &API{Router: router}
+
+	response := httptest.NewRecorder()
+	api.ServeHTTP(response, httptest.NewRequest("PROPFIND", "/.well-known/caldav", nil))
+
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Equal(t, "PROPFIND", received)
+}

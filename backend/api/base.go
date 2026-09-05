@@ -1327,7 +1327,8 @@ var calDAVExtensionMethods = map[string]struct{}{
 }
 
 func normalizeCalDAVMethodForRouting(r *http.Request) *http.Request {
-	if _, ok := calDAVExtensionMethods[r.Method]; !ok || (r.URL.Path != "/api/caldav" && !strings.HasPrefix(r.URL.Path, "/api/caldav/")) {
+	isCalDAVPath := r.URL.Path == "/.well-known/caldav" || r.URL.Path == "/api/caldav" || strings.HasPrefix(r.URL.Path, "/api/caldav/")
+	if _, ok := calDAVExtensionMethods[r.Method]; !ok || !isCalDAVPath {
 		return r
 	}
 	ctx := context.WithValue(r.Context(), calDAVOriginalMethodKey{}, r.Method)
@@ -1442,7 +1443,7 @@ func (a *API) registerPublicRoutes() {
 	// handler with the tenant-bound calendar app password, before a tenant is
 	// known, so these routes intentionally sit outside the JWT tenant group.
 	calDAVHandler := restoreCalDAVMethod(http.HandlerFunc(a.Calendar.ServeCalDAV))
-	a.Router.Get("/.well-known/caldav", calDAVHandler.ServeHTTP)
+	a.Router.Handle("/.well-known/caldav", calDAVHandler)
 	a.Router.Handle("/api/caldav", calDAVHandler)
 	a.Router.Handle("/api/caldav/*", calDAVHandler)
 
