@@ -50,7 +50,7 @@
     "framer-motion": "^12.43.0",
     "fuse.js": "^7.5.0",
     "lucide-react": "^1.31.0",
-    "next": "^16.3.0",
+    "next": "^16.3.3",
     "next-auth": "5.0.0-beta.32",
     "next-intl": "^4.13.6",
     "posthog-js": "^1.415.2",
@@ -61,7 +61,7 @@
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "swr": "^2.5.0",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",
@@ -82,7 +82,6 @@
     "@vitest/coverage-v8": "^4.1.10",
     "dependency-cruiser": "^18.2.0",
     "happy-dom": "^20.11.2",
-    "jsdom": "^29.1.1",
     "knip": "^6.32.1",
     "lint-staged": "^17.3.0",
     "oxlint": "^1.78.0",
@@ -110,16 +109,14 @@
   },
   "knip": {
     "includeEntryExports": true,
-    "playwright": {
-      "config": [],
-      "entry": [
-        "**/*.@(spec|test).?(c|m)[jt]s?(x)",
-        "scripts/perf/*.perf.ts",
-        "playwright.config.ts",
-        "playwright.guides.config.ts",
-        "e2e/**/*.ts"
-      ]
-    },
+    "playwright": false,
+    "entry": [
+      "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+      "scripts/perf/*.perf.ts",
+      "scripts/generate-guides.ts",
+      "playwright*.config.ts",
+      "e2e/**/*.ts"
+    ],
     "project": [
       "src/**/*.{js,jsx,ts,tsx}!",
       "src/**/*.css!",

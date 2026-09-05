@@ -267,6 +267,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  * sees /login → internally rewritten to /parents/login.
  */
 const PARENTS_PUBLIC_PATHS = [
+  "/invite",
   "/login",
   "/reset-password",
   "/email-confirm",

@@ -126,6 +126,7 @@
     "/parents/enroll/status/[token]": 789502,
     "/parents/enroll/status/[token]/adjust": 927981,
     "/parents/enroll/status/[token]/edit": 927981,
+    "/parents/invite": 790677,
     "/parents/login": 788643,
     "/parents/meal-plan": 783282,
     "/parents/messages": 846761,
