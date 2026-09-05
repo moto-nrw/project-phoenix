@@ -276,17 +276,6 @@ func (r *CareExitCleanupRepository) careExitSourceRemovalProjection(ctx context.
 	return string(encoded), nil
 }
 
-const careExitRemovalRecordset = `jsonb_to_recordset(?::jsonb) AS rm(
-	tenant_id bigint, student_id bigint, kind text, instance_id bigint,
-	room_id bigint, status text, substatus text, note text,
-	is_unplanned boolean, not_scheduled boolean, manual_status_at timestamptz,
-	student_status_day_id bigint, pickup_exception_id bigint,
-	enrollment_id bigint, was_deleted boolean, previous_valid_until date,
-	activity_group_id bigint, valid_from date, calendar_period_id bigint,
-	enrollment_request_child_id bigint, selected_weekdays jsonb,
-	attendance_status text, weekday smallint
-)`
-
 const careExitSourceRemovalRecordset = `jsonb_to_recordset(?::jsonb) AS rm(
 	tenant_id bigint, student_id bigint, kind text, source_row_id bigint,
 	was_deleted boolean, snapshot jsonb
