@@ -609,6 +609,56 @@ func (e engine) DeleteActivityInstancesBefore(ctx context.Context, before string
 	return rows, mapError(err)
 }
 
+func (e engine) FindInstanceStaff(ctx context.Context, id int64) (timetable.InstanceStaff, error) {
+	value, err := e.service.FindInstanceStaff(ctx, id)
+	return instanceStaffToPublic(value), mapError(err)
+}
+
+func (e engine) ListInstanceStaff(ctx context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
+	values, err := e.service.ListInstanceStaff(ctx, domain.InstanceStaffFilter(filter))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.InstanceStaff, 0, len(values))
+	for _, value := range values {
+		result = append(result, instanceStaffToPublic(value))
+	}
+	return result, nil
+}
+
+func (e engine) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	result, err := e.service.CountNonAbsentInstanceStaff(ctx, instanceIDs)
+	return result, mapError(err)
+}
+
+func (e engine) CreateInstanceStaff(ctx context.Context, input timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
+	value, err := e.service.CreateInstanceStaff(ctx, domain.InstanceStaffFields(input))
+	return instanceStaffToPublic(value), mapError(err)
+}
+
+func (e engine) UpdateInstanceStaff(ctx context.Context, id int64, input timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
+	value, err := e.service.UpdateInstanceStaff(ctx, id, domain.InstanceStaffFields(input))
+	return instanceStaffToPublic(value), mapError(err)
+}
+
+func (e engine) PatchInstanceStaff(ctx context.Context, id int64, input timetable.InstanceStaffInput, columns []string) (int64, error) {
+	rows, err := e.service.PatchInstanceStaff(ctx, id, domain.InstanceStaffFields(input), columns)
+	return rows, mapError(err)
+}
+
+func (e engine) DeleteInstanceStaff(ctx context.Context, id int64) error {
+	return mapError(e.service.DeleteInstanceStaff(ctx, id))
+}
+
+func (e engine) DeleteInstanceStaffByInstance(ctx context.Context, instanceID int64) error {
+	return mapError(e.service.DeleteInstanceStaffByInstance(ctx, instanceID))
+}
+
+func (e engine) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (int64, error) {
+	rows, err := e.service.DeleteUpcomingInstanceStaff(ctx, staffID, after)
+	return rows, mapError(err)
+}
+
 func (e engine) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []timetable.GroupTargetInput) error {
 	values := make([]domain.GroupTargetFields, 0, len(targets))
 	for _, target := range targets {
@@ -899,6 +949,15 @@ func activityInstanceToPublic(value domain.ActivityInstance) timetable.ActivityI
 	}
 }
 
+func instanceStaffToPublic(value domain.InstanceStaff) timetable.InstanceStaff {
+	return timetable.InstanceStaff{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		InstanceID: value.InstanceID, StaffID: value.StaffID, RoomID: value.RoomID, IsPrimary: value.IsPrimary,
+		IsSubstitute: value.IsSubstitute, IsAbsent: value.IsAbsent, AbsenceReason: value.AbsenceReason,
+		SickAbsenceID: value.SickAbsenceID,
+	}
+}
+
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrCategoryNotFound):
@@ -933,6 +992,8 @@ func mapError(err error) error {
 		return timetable.ErrActivityExceptionNotFound
 	case errors.Is(err, domain.ErrActivityInstanceNotFound):
 		return timetable.ErrActivityInstanceNotFound
+	case errors.Is(err, domain.ErrInstanceStaffNotFound):
+		return timetable.ErrInstanceStaffNotFound
 	default:
 		return err
 	}

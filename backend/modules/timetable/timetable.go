@@ -59,6 +59,9 @@ var (
 	ErrActivityInstanceNotFound      = errors.New("activity instance not found")
 	ErrInvalidActivityInstance       = errors.New("invalid activity instance")
 	ErrInvalidActivityInstanceQuery  = errors.New("invalid activity instance query")
+	ErrInstanceStaffNotFound         = errors.New("instance staff assignment not found")
+	ErrInvalidInstanceStaff          = errors.New("invalid instance staff assignment")
+	ErrInvalidInstanceStaffQuery     = errors.New("invalid instance staff query")
 )
 
 var categoryColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
@@ -164,6 +167,7 @@ type Query interface {
 	RecurrenceRuleQuery
 	ActivityExceptionQuery
 	ActivityInstanceQuery
+	InstanceStaffQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryByName(context.Context, string) (Category, error)
@@ -186,6 +190,7 @@ type Command interface {
 	RecurrenceRuleCommand
 	ActivityExceptionCommand
 	ActivityInstanceCommand
+	InstanceStaffCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)
@@ -827,6 +832,69 @@ func (m *Module) DeleteActivityInstancesBefore(ctx context.Context, before strin
 	return m.engine.DeleteActivityInstancesBefore(ctx, before)
 }
 
+func (m *Module) FindInstanceStaff(ctx context.Context, id int64) (InstanceStaff, error) {
+	if id <= 0 {
+		return InstanceStaff{}, m.reject("find_instance_staff", ErrInvalidInstanceStaffQuery)
+	}
+	return m.engine.FindInstanceStaff(ctx, id)
+}
+
+func (m *Module) ListInstanceStaff(ctx context.Context, filter InstanceStaffFilter) ([]InstanceStaff, error) {
+	if !validInstanceStaffFilter(filter) {
+		return nil, m.reject("list_instance_staff", ErrInvalidInstanceStaffQuery)
+	}
+	return m.engine.ListInstanceStaff(ctx, filter)
+}
+
+func (m *Module) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	if hasInvalidID(instanceIDs) {
+		return nil, m.reject("count_non_absent_instance_staff", ErrInvalidInstanceStaffQuery)
+	}
+	return m.engine.CountNonAbsentInstanceStaff(ctx, instanceIDs)
+}
+
+func (m *Module) CreateInstanceStaff(ctx context.Context, input InstanceStaffInput) (InstanceStaff, error) {
+	if !validInstanceStaff(input) {
+		return InstanceStaff{}, m.reject("create_instance_staff", ErrInvalidInstanceStaff)
+	}
+	return m.engine.CreateInstanceStaff(ctx, input)
+}
+
+func (m *Module) UpdateInstanceStaff(ctx context.Context, id int64, input InstanceStaffInput) (InstanceStaff, error) {
+	if id <= 0 || !validInstanceStaff(input) {
+		return InstanceStaff{}, m.reject("update_instance_staff", ErrInvalidInstanceStaff)
+	}
+	return m.engine.UpdateInstanceStaff(ctx, id, input)
+}
+
+func (m *Module) PatchInstanceStaff(ctx context.Context, id int64, input InstanceStaffInput, columns []string) (int64, error) {
+	if id <= 0 || !validInstanceStaffColumns(columns) {
+		return 0, m.reject("patch_instance_staff", ErrInvalidInstanceStaff)
+	}
+	return m.engine.PatchInstanceStaff(ctx, id, input, columns)
+}
+
+func (m *Module) DeleteInstanceStaff(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return m.reject("delete_instance_staff", ErrInvalidInstanceStaff)
+	}
+	return m.engine.DeleteInstanceStaff(ctx, id)
+}
+
+func (m *Module) DeleteInstanceStaffByInstance(ctx context.Context, instanceID int64) error {
+	if instanceID <= 0 {
+		return m.reject("delete_instance_staff_by_instance", ErrInvalidInstanceStaff)
+	}
+	return m.engine.DeleteInstanceStaffByInstance(ctx, instanceID)
+}
+
+func (m *Module) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64, after string) (int64, error) {
+	if staffID <= 0 || !validDate(after) {
+		return 0, m.reject("delete_upcoming_instance_staff", ErrInvalidInstanceStaff)
+	}
+	return m.engine.DeleteUpcomingInstanceStaff(ctx, staffID, after)
+}
+
 func invalidActivityInstanceWeekdays(weekdays []int) bool {
 	for _, weekday := range weekdays {
 		if !validWeekday(weekday) {
@@ -834,6 +902,36 @@ func invalidActivityInstanceWeekdays(weekdays []int) bool {
 		}
 	}
 	return false
+}
+
+func validInstanceStaff(input InstanceStaffInput) bool {
+	return input.InstanceID > 0 && input.StaffID > 0 &&
+		(input.RoomID == nil || *input.RoomID > 0) && (input.SickAbsenceID == nil || *input.SickAbsenceID > 0)
+}
+
+func validInstanceStaffFilter(filter InstanceStaffFilter) bool {
+	orders := 0
+	for _, ordered := range []bool{filter.OrderByCreated, filter.OrderByInstanceAndCreated, filter.OrderByActivityTime, filter.OrderByActivityDateTime} {
+		if ordered {
+			orders++
+		}
+	}
+	return filter.Limit >= 0 && filter.Offset >= 0 && orders <= 1 &&
+		!hasInvalidID(filter.IDs) && !hasInvalidID(filter.InstanceIDs) && !hasInvalidID(filter.StaffIDs) &&
+		(filter.SickAbsenceID == nil || *filter.SickAbsenceID > 0) &&
+		validOptionalDate(filter.Date) && validOptionalDate(filter.FromDate) && validOptionalDate(filter.ToDate)
+}
+
+func validInstanceStaffColumns(columns []string) bool {
+	if len(columns) == 0 || hasDuplicateString(columns) {
+		return false
+	}
+	for _, column := range columns {
+		if column != "is_primary" && column != "sick_absence_id" {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *Module) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []GroupTargetInput) error {

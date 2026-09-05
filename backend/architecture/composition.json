@@ -5735,6 +5735,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/schedule/instance_staff_repo_test.go",
+      "declaration": "instanceStaffRepository",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        23
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/schedule/instance_student_repo_test.go",
       "declaration": "TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInstance",
       "target": "database/repositories.NewFactory",

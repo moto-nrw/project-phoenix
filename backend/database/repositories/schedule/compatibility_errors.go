@@ -13,8 +13,10 @@ import (
 type RecurrenceRuleQueryOptions = modelBase.QueryOptions
 type ActivityExceptionQueryOptions = modelBase.QueryOptions
 type ActivityInstanceQueryOptions = modelBase.QueryOptions
+type InstanceStaffQueryOptions = modelBase.QueryOptions
 type ActivityExceptionDate = timezone.Date
 type ActivityInstanceDate = timezone.Date
+type InstanceStaffDate = timezone.Date
 
 func ParseActivityExceptionDate(value string) (ActivityExceptionDate, error) {
 	return timezone.ParseDate(value)
@@ -35,6 +37,15 @@ type ActivityInstanceListFilter struct {
 	IdempotencyKey   string
 	Limit            int
 	Offset           int
+}
+
+type InstanceStaffListFilter struct {
+	IDs           []int64
+	InstanceIDs   []int64
+	StaffIDs      []int64
+	SickAbsenceID *int64
+	Limit         int
+	Offset        int
 }
 
 func WrapDatabaseError(operation string, err error) error {
@@ -331,4 +342,72 @@ func ActivityInstanceBefore(options *ActivityInstanceQueryOptions) (*string, err
 	}
 	date := value.String()
 	return &date, nil
+}
+
+func InstanceStaffListOptions(options *InstanceStaffQueryOptions) (InstanceStaffListFilter, error) {
+	result := InstanceStaffListFilter{}
+	if options == nil {
+		return result, nil
+	}
+	if options.Pagination != nil {
+		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
+	}
+	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
+		return InstanceStaffListFilter{}, errors.New("instance staff sorting is unsupported")
+	}
+	if options.Filter == nil {
+		return result, nil
+	}
+	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
+		return InstanceStaffListFilter{}, errors.New("compound instance staff filters are unsupported")
+	}
+	for _, condition := range options.Filter.Conditions() {
+		if err := applyInstanceStaffCondition(&result, condition); err != nil {
+			return InstanceStaffListFilter{}, err
+		}
+	}
+	return result, nil
+}
+
+func applyInstanceStaffCondition(result *InstanceStaffListFilter, condition modelBase.FilterCondition) error {
+	if condition.Operator == modelBase.OpEqual {
+		id, ok := condition.Value.(int64)
+		if !ok {
+			return errors.New("instance staff filter is unsupported")
+		}
+		return assignInstanceStaffID(result, condition.Field, id)
+	}
+	if condition.Operator != modelBase.OpIn {
+		return errors.New("instance staff filter is unsupported")
+	}
+	values, ok := condition.Value.([]interface{})
+	if !ok || condition.Field == "sick_absence_id" {
+		return errors.New("instance staff filter is unsupported")
+	}
+	for _, value := range values {
+		id, idOK := value.(int64)
+		if !idOK {
+			return errors.New("instance staff filter is unsupported")
+		}
+		if err := assignInstanceStaffID(result, condition.Field, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func assignInstanceStaffID(result *InstanceStaffListFilter, field string, id int64) error {
+	switch field {
+	case "id":
+		result.IDs = append(result.IDs, id)
+	case "instance_id":
+		result.InstanceIDs = append(result.InstanceIDs, id)
+	case "staff_id":
+		result.StaffIDs = append(result.StaffIDs, id)
+	case "sick_absence_id":
+		result.SickAbsenceID = &id
+	default:
+		return errors.New("instance staff filter is unsupported")
+	}
+	return nil
 }

@@ -105,6 +105,7 @@ func (f *Factory) BindTimetable(capability timetable.Capability) {
 	instances := timetableActivityInstanceRepository{timetable: capability}
 	f.ActivityInstance = instances
 	f.InstanceIdempotency = instances
+	f.InstanceStaff = timetableInstanceStaffRepository{timetable: capability}
 }
 
 func (f *Factory) decorateActivityGroups(groups activitiesModels.GroupRepository) activitiesModels.GroupRepository {

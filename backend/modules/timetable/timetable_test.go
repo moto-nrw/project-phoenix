@@ -455,6 +455,51 @@ func (e *recordingEngine) DeleteActivityInstancesBefore(context.Context, string)
 	return 0, nil
 }
 
+func (e *recordingEngine) FindInstanceStaff(context.Context, int64) (timetable.InstanceStaff, error) {
+	e.calls++
+	return timetable.InstanceStaff{}, nil
+}
+
+func (e *recordingEngine) ListInstanceStaff(context.Context, timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
+	e.calls++
+	return []timetable.InstanceStaff{}, nil
+}
+
+func (e *recordingEngine) CountNonAbsentInstanceStaff(context.Context, []int64) (map[int64]int, error) {
+	e.calls++
+	return map[int64]int{}, nil
+}
+
+func (e *recordingEngine) CreateInstanceStaff(context.Context, timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
+	e.calls++
+	return timetable.InstanceStaff{}, nil
+}
+
+func (e *recordingEngine) UpdateInstanceStaff(context.Context, int64, timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
+	e.calls++
+	return timetable.InstanceStaff{}, nil
+}
+
+func (e *recordingEngine) PatchInstanceStaff(context.Context, int64, timetable.InstanceStaffInput, []string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteInstanceStaff(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteInstanceStaffByInstance(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
 func (e *recordingEngine) ReplaceGroupTargets(_ context.Context, _ int64, targets []timetable.GroupTargetInput) error {
 	e.calls++
 	e.targets = targets

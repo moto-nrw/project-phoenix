@@ -551,6 +551,8 @@ func classifyWriteError(operation string, err error, stats *domain.OperationStat
 			return fmt.Errorf("%w: %w", domain.ErrPlanningTrackNameConflict, err)
 		case domain.ActivityExceptionUniqueConstraint:
 			stats.DuplicatePreventionConflicts++
+		case domain.InstanceStaffUniqueConstraint:
+			stats.DuplicatePreventionConflicts++
 		}
 	}
 	return fmt.Errorf("timetable postgres: %s: %w", operation, err)

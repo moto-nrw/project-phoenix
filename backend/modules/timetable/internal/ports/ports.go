@@ -102,6 +102,15 @@ type Store interface {
 	DeleteRemovedWeekendActivityInstances(context.Context, int64, []int, string) (int64, domain.OperationStats, error)
 	PropagateActivityInstanceListKind(context.Context, int64, *string, *string, string, time.Time) (int64, domain.OperationStats, error)
 	DeleteActivityInstancesBefore(context.Context, string) (int64, domain.OperationStats, error)
+	FindInstanceStaff(context.Context, int64) (domain.InstanceStaff, bool, domain.OperationStats, error)
+	ListInstanceStaff(context.Context, domain.InstanceStaffFilter) ([]domain.InstanceStaff, domain.OperationStats, error)
+	CountNonAbsentInstanceStaff(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
+	CreateInstanceStaff(context.Context, domain.InstanceStaffFields) (domain.InstanceStaff, domain.OperationStats, error)
+	UpdateInstanceStaff(context.Context, int64, domain.InstanceStaffFields) (domain.InstanceStaff, bool, domain.OperationStats, error)
+	PatchInstanceStaff(context.Context, int64, domain.InstanceStaffFields, []string) (int64, domain.OperationStats, error)
+	DeleteInstanceStaff(context.Context, int64) (domain.OperationStats, error)
+	DeleteInstanceStaffByInstance(context.Context, int64) (domain.OperationStats, error)
+	DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, domain.OperationStats, error)
 }
 
 type Transaction interface {

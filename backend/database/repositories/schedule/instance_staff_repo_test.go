@@ -6,15 +6,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func instanceStaffRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStaffRepository {
+	t.Helper()
+	factory := repositories.NewFactory(db)
+	factory.BindTimetable(timetabletest.New(t, db))
+	return factory.InstanceStaff
+}
 
 func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezone.Date) (*scheduleModels.ActivityInstance, func()) {
 	t.Helper()
@@ -44,7 +53,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stf", timezone.NewDate(2026, 9, 15))
 	defer cleanupInst()
@@ -125,7 +134,7 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	date := timezone.NewDate(2026, 9, 16)
 	inst, cleanupInst := createInstanceFixture(t, db, "stf-date", date)
@@ -157,7 +166,7 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "del", timezone.NewDate(2026, 9, 18))
 	defer cleanupInst()
@@ -181,7 +190,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	cutoff := timezone.NewDate(2026, 10, 1)
 	pastInst, cleanupPast := createInstanceFixture(t, db, "offb-past", cutoff.AddDays(-7))
@@ -240,7 +249,7 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "upd", timezone.NewDate(2026, 9, 21))
 	defer cleanupInst()
@@ -290,7 +299,7 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "fid", timezone.NewDate(2026, 9, 22))
 	defer cleanupInst()
@@ -337,7 +346,7 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "lst", timezone.NewDate(2026, 9, 23))
 	defer cleanupInst()
@@ -386,7 +395,7 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()
@@ -424,7 +433,7 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
 		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{})
@@ -478,7 +487,7 @@ func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := instanceStaffRepository(t, db)
 
 	instEarly, cleanupEarly := createInstanceFixture(t, db, "range-early", timezone.NewDate(2026, 9, 18))
 	defer cleanupEarly()
