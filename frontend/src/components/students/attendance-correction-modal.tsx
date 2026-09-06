@@ -157,18 +157,23 @@ export function AttendanceCorrectionModal({
 
     setSaving(true);
     try {
+      const correction = {
+        reason: trimmedReason,
+        ...(status !== slot.status ? { status } : {}),
+        ...(substatus !== (slot.substatus ?? "")
+          ? { substatus: substatus === "" ? null : substatus }
+          : {}),
+        ...(note !== (slot.note ?? "")
+          ? { note: note.trim() === "" ? null : note.trim() }
+          : {}),
+      };
       const response = await fetch(
         `/api/timetable/instances/${slot.instanceId}/students/${studentId}/correction`,
         {
           method: "POST",
           credentials: "include",
           headers: await authorizedHeaders(),
-          body: JSON.stringify({
-            status,
-            substatus: substatus === "" ? null : substatus,
-            note: note.trim() === "" ? null : note.trim(),
-            reason: trimmedReason,
-          }),
+          body: JSON.stringify(correction),
         },
       );
       if (!response.ok) {

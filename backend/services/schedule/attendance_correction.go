@@ -137,6 +137,7 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 		return nil, &TimetableAttendanceValidationError{Fields: verrs}
 	}
 
+	patch = changedAttendancePatch(patch, current)
 	corrections := s.buildAttendanceCorrections(ctx, instanceID, studentID, patch, current, reason, actorAccountID)
 	if len(corrections) == 0 {
 		// Every requested field already holds the requested value. Return the
@@ -168,6 +169,32 @@ func (s *TimetableDataService) CorrectInstanceStudentAttendance(
 		slog.Int("changed_fields", len(corrections)),
 	)
 	return updated, nil
+}
+
+// changedAttendancePatch drops submitted values that already match the locked
+// row. The status adapter treats every supplied status field as a manual
+// decision, so a note-only correction must not carry unchanged fields through.
+func changedAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *scheduleModel.InstanceStudent) scheduleModel.AttendanceFieldPatch {
+	if patch.Status != nil && *patch.Status == current.Status {
+		patch.Status = nil
+	}
+	if patch.SubstatusClear {
+		patch.Substatus = nil
+		if current.Substatus == nil {
+			patch.SubstatusClear = false
+		}
+	} else if patch.Substatus != nil && equalStringPtr(patch.Substatus, current.Substatus) {
+		patch.Substatus = nil
+	}
+	if patch.NoteClear {
+		patch.Note = nil
+		if current.Note == nil {
+			patch.NoteClear = false
+		}
+	} else if patch.Note != nil && equalStringPtr(patch.Note, current.Note) {
+		patch.Note = nil
+	}
+	return patch
 }
 
 // buildAttendanceCorrections turns a patch into one audit row per field that

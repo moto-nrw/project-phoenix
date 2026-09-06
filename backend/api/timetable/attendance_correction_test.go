@@ -142,6 +142,43 @@ func TestCorrectAttendance_CompletedInstance_WritesRowAndTrail(t *testing.T) {
 	assert.Equal(t, "war doch nicht da", *noteEntry.NewValue)
 }
 
+// A correction request may carry unchanged fields. Only fields that actually
+// change may reach the write path: status writes clear the frozen care-day
+// classification and stamp the row as a manual decision.
+func TestCorrectAttendance_NoteOnlyPreservesAttendanceProvenance(t *testing.T) {
+	t.Parallel()
+
+	s := buildPatchSetup(t)
+	db := testpkg.SetupTestDB(t)
+	_, err := db.NewUpdate().
+		TableExpr("schedule.instance_students").
+		Set("status = ?", schedule.AttendanceStatusExpected).
+		Set("not_scheduled = TRUE").
+		Set("manual_status_at = NULL").
+		Where("id = ?", s.row.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	completeInstance(t, s, schedule.InstanceStatusCompleted)
+	router := correctionRouter(testpkg.Ctx(t), s.res)
+
+	w := doJSON(t, router, http.MethodPost, correctionPath(s), map[string]any{
+		"status":    schedule.AttendanceStatusExpected,
+		"substatus": nil,
+		"note":      "nachgetragen",
+		"reason":    "Nachtrag aus dem Papierprotokoll",
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+
+	row := loadRow(t, s)
+	assert.True(t, row.NotScheduled, "a note correction must not change the completed care-day classification")
+	assert.Nil(t, row.ManualStatusAt, "unchanged status fields must not become a manual decision")
+	require.NotNil(t, row.Note)
+	assert.Equal(t, "nachgetragen", *row.Note)
+	trail := loadTrail(t, s)
+	require.Len(t, trail, 1)
+	assert.Equal(t, auditModel.AttendanceFieldNote, trail[0].FieldName)
+}
+
 // The completion snapshot is the evidence of what the day meant when it was
 // closed. A correction changes the live row beside it and must never rewrite
 // it.
