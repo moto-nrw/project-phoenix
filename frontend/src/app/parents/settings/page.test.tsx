@@ -17,6 +17,7 @@ vi.mock("~/lib/notification-preferences-api", () => ({
 vi.mock("~/lib/push-api", () => ({
   isPushConfigurationMissing: vi.fn().mockReturnValue(false),
   isPushSupported: vi.fn().mockReturnValue(false),
+  isStandaloneApp: vi.fn().mockReturnValue(false),
   needsIOSInstall: vi.fn().mockReturnValue(false),
   syncExistingPushSubscription: vi.fn().mockResolvedValue(undefined),
   subscribePush: vi.fn().mockResolvedValue(undefined),

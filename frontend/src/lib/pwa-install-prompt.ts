@@ -12,6 +12,7 @@
  */
 
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { isValidTenantSlug } from "~/lib/tenant-slug";
 
 /** The non-standard Chrome event; not in lib.dom.d.ts. Module-internal. */
 interface BeforeInstallPromptEvent extends Event {
@@ -38,6 +39,27 @@ export function isAndroidDevice(nav: Navigator): boolean {
     /android/i.test(nav.userAgent) &&
     !/(?:;\s*wv\b|version\/4\.0)/i.test(nav.userAgent)
   );
+}
+
+/**
+ * True on iPhone/iPad, in ANY browser. Since iOS 16.4 the home-screen action
+ * exists in Safari, Chrome, Edge, Firefox and Orion alike, so the manual
+ * instruction is right for all of them; `beforeinstallprompt` exists in none.
+ * iPadOS reports itself as MacIntel with touch points.
+ */
+export function isIosDevice(nav: Navigator): boolean {
+  if (/iphone|ipad|ipod/i.test(nav.userAgent)) return true;
+  return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
+}
+
+/**
+ * True on a desktop browser that can install web apps. Desktop Chromium fires
+ * `beforeinstallprompt` just like Android does, so the same one-tap install
+ * works there — it was previously thrown away, leaving office computers with
+ * no install path at all.
+ */
+export function isDesktopDevice(nav: Navigator): boolean {
+  return !isAndroidDevice(nav) && !isIosDevice(nav);
 }
 
 /** True for Samsung Internet, whose install prompt currently creates an old WebAPK. */
@@ -91,6 +113,10 @@ const PUBLIC_PARENT_PATHS = [
   "/enroll/status",
 ] as const;
 
+// Das Schul-Portal hat dieselbe Vorbedingung wie die anderen: ohne
+// Home-Bildschirm keine Benachrichtigungen auf iPhone und iPad (#2831).
+const PUBLIC_SCHOOL_PATHS = ["/login", "/invite", "/reset-password"] as const;
+
 function notify(): void {
   for (const subscriber of subscribers) subscriber();
 }
@@ -141,32 +167,117 @@ function isCurrentProtectedParentPath(): boolean {
   );
 }
 
+function isCurrentSchoolInstallHost(): boolean {
+  const configuredHost = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
+  if (!configuredHost) {
+    throw new Error("NEXT_PUBLIC_SCHOOL_HOSTNAME is not set.");
+  }
+  const hostname = new URL(`http://${configuredHost}`).hostname;
+  return window.location.hostname.toLowerCase() === hostname.toLowerCase();
+}
+
+function isCurrentProtectedSchoolPath(): boolean {
+  const pathname = window.location.pathname.replace(/^\/school(?=\/|$)/, "");
+  return !PUBLIC_SCHOOL_PATHS.some(
+    (publicPath) =>
+      pathname === publicPath || pathname.startsWith(`${publicPath}/`),
+  );
+}
+
 function isCurrentParentSettingsPath(): boolean {
   return (
     window.location.pathname.replace(/^\/parents(?=\/|$)/, "") === "/settings"
   );
 }
 
+/**
+ * Die Seiten, auf denen die Karte "Benachrichtigungen auf diesem Gerät" steht.
+ * Auf dem Rechner ist das der einzige Ort mit einem Ersatz für Chromes eigene
+ * Installationswerbung; überall sonst bleibt sie unangetastet (#2831).
+ */
+function isCurrentDeviceSettingsPath(): boolean {
+  if (isCurrentTenantInstallHost()) {
+    return window.location.pathname === "/profile";
+  }
+  if (isCurrentParentInstallHost()) return isCurrentParentSettingsPath();
+  if (isCurrentSchoolInstallHost()) {
+    return (
+      window.location.pathname.replace(/^\/school(?=\/|$)/, "") ===
+      "/einstellungen"
+    );
+  }
+  return false;
+}
+
+function isCurrentPathTenantDeviceSettingsPath(): boolean {
+  const tenantSlug = currentPathTenantSlug();
+  return (
+    tenantSlug !== null && window.location.pathname === `/${tenantSlug}/profile`
+  );
+}
+
+/** Returns the active path-routed tenant slug, if the URL identifies one. */
+function currentPathTenantSlug(): string | null {
+  const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+  if (!tenantDomain) {
+    throw new Error("NEXT_PUBLIC_TENANT_DOMAIN is not set.");
+  }
+  if (
+    window.location.hostname.toLowerCase() !==
+    tenantDomain.toLowerCase().replace(/\.$/, "")
+  ) {
+    return null;
+  }
+
+  const match = /^\/([^/]+)(\/.*)?$/.exec(window.location.pathname);
+  const tenantSlug = match?.[1];
+  if (
+    !tenantSlug ||
+    !isValidTenantSlug(tenantSlug) ||
+    RESERVED_SLUGS.has(tenantSlug)
+  ) {
+    return null;
+  }
+  return tenantSlug;
+}
+
 // Never suppress Chrome unless the replacement card can actually render, or the
 // visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
+  // Auf dem Rechner gibt es keinen schwebenden Hinweis, sondern nur das
+  // Angebot in der Gerätekarte. Überall sonst behält Chrome sein eigenes
+  // Installationssymbol, so wie bisher.
+  if (isDesktopDevice(window.navigator)) {
+    return (
+      (isCurrentInstallHost() && isCurrentDeviceSettingsPath()) ||
+      isCurrentPathTenantDeviceSettingsPath()
+    );
+  }
   if (isCurrentTenantInstallHost()) {
     return isCurrentProtectedTenantPath() && isInstallHintEligible(window);
   }
   if (isCurrentParentInstallHost()) {
     return isCurrentProtectedParentPath() && isInstallHintEligible(window);
   }
+  if (isCurrentSchoolInstallHost()) {
+    return isCurrentProtectedSchoolPath() && isInstallHintEligible(window);
+  }
   return false;
 }
 
 function isCurrentInstallHost(): boolean {
-  return isCurrentTenantInstallHost() || isCurrentParentInstallHost();
+  return (
+    isCurrentTenantInstallHost() ||
+    isCurrentParentInstallHost() ||
+    isCurrentSchoolInstallHost()
+  );
 }
 
 // Samsung Internet has a replacement only in the tenant-wide hint and the
 // parent settings section. On every other route leave its native prompt alone.
 function canSuppressSamsungInstallPrompt(): boolean {
   if (isCurrentTenantInstallHost()) return canCaptureInstallPrompt();
+  if (isCurrentSchoolInstallHost()) return canCaptureInstallPrompt();
   return isCurrentParentInstallHost() && isCurrentParentSettingsPath();
 }
 
@@ -214,11 +325,22 @@ export function dismissInstallHint(win: Window): void {
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
-    if (!isAndroidDevice(window.navigator)) {
+    if (isIosDevice(window.navigator)) {
+      // Safari never fires this event; nothing to capture, nothing to suppress.
       return;
     }
     if (isSamsungInternet(window.navigator)) {
       if (canSuppressSamsungInstallPrompt()) event.preventDefault();
+      return;
+    }
+    if (isDesktopDevice(window.navigator)) {
+      // Chrome delivers this event only once. Keep it while the person moves
+      // from any portal page to the device settings, but leave Chrome's native
+      // affordance untouched until the replacement card is present.
+      if (!isCurrentInstallHost() && currentPathTenantSlug() === null) return;
+      if (canCaptureInstallPrompt()) event.preventDefault();
+      deferredPrompt = event as BeforeInstallPromptEvent;
+      notify();
       return;
     }
     if (!canCaptureInstallPrompt()) return;
@@ -228,7 +350,10 @@ if (typeof window !== "undefined") {
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    if (!isCurrentInstallHost() || !isAndroidDevice(window.navigator)) {
+    if (
+      (!isCurrentInstallHost() && currentPathTenantSlug() === null) ||
+      isIosDevice(window.navigator)
+    ) {
       return;
     }
     deferredPrompt = null;

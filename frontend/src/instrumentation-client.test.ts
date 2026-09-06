@@ -13,6 +13,9 @@ describe("instrumentation-client", () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+    // Seit #2831 fängt auch der Schul-Host den Installationsdialog; der
+    // Hostname wird auf jedem Host geprüft und ist wie die anderen Pflicht.
+    vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
     vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
     localStorage.clear();
@@ -87,7 +90,7 @@ describe("instrumentation-client", () => {
     },
   );
 
-  it("leaves Chrome's native install prompt enabled on desktop tenant hosts", async () => {
+  it("retains Chrome's desktop prompt while leaving its native offer enabled", async () => {
     vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
     await import("./instrumentation-client");
     const { canPromptInstall } = await import("./lib/pwa-install-prompt");
@@ -102,7 +105,66 @@ describe("instrumentation-client", () => {
     window.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+
+    window.location.href = "https://school-a.moto-app.de/profile";
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("retains Chrome's desktop prompt from a public portal page", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://eltern.moto-app.de/login";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("leaves Chrome's native prompt enabled on unrelated settings pages", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://school-a.moto-app.de/settings";
+    await import("./instrumentation-client");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("captures Chrome's install prompt on the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("recognizes an installation from the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall, isInstallationCompleted } =
+      await import("./lib/pwa-install-prompt");
+
+    window.dispatchEvent(new Event("appinstalled"));
+
     expect(canPromptInstall()).toBe(false);
+    expect(isInstallationCompleted()).toBe(true);
   });
 
   it.each([
