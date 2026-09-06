@@ -9,6 +9,7 @@ import { useContext, type MouseEvent, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
+const linkNavigation = vi.hoisted(() => ({ current: null as object | null }));
 type RouterMock = Pick<
   AppRouterInstance,
   "back" | "forward" | "prefetch" | "push" | "refresh" | "replace"
@@ -45,12 +46,22 @@ vi.mock("next/link", () => ({
         onClick?.(event);
         if (event.defaultPrevented) return;
         event.preventDefault();
-        onNavigate?.({ preventDefault: () => undefined });
+        let cancelled = false;
+        onNavigate?.({
+          preventDefault: () => {
+            cancelled = true;
+          },
+        });
+        if (!cancelled) linkNavigation.current = {};
       }}
     >
       {children}
     </a>
   ),
+}));
+
+vi.mock("next/dist/client/components/links", () => ({
+  getLinkForCurrentNavigation: () => linkNavigation.current,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -91,6 +102,7 @@ function navigateTo(url: string) {
 describe("NavigationProgress", () => {
   beforeEach(() => {
     navigateTo("/dienstplan");
+    linkNavigation.current = null;
     router.push.mockClear();
     router.replace.mockClear();
     router.back.mockClear();
@@ -448,6 +460,43 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
     document.removeEventListener("click", guard, true);
+  });
+
+  it("cancels progress when a native Link handler blocks navigation", async () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <NextLink
+          href="/calendar-periods"
+          onNavigate={(event) => event.preventDefault()}
+        >
+          Planungszeiträume
+        </NextLink>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+    await act(async () => {});
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
+  });
+
+  it("cancels progress when a later capture guard blocks a native Link", async () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <div onClickCapture={(event) => event.preventDefault()}>
+          <NextLink href="/calendar-periods">Planungszeiträume</NextLink>
+        </div>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+    await act(async () => {});
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("does not show progress when router.back cannot traverse history", () => {
