@@ -400,46 +400,16 @@ describe("NavigationProgress", () => {
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("tracks a native content link before its loading boundary renders", () => {
+  it("does not suppress the fallback when a native Link click is cancelled", () => {
     renderShell(
       <>
         <ProtectedLoading />
-        <NextLink href="/calendar-periods">Planungszeiträume</NextLink>
-      </>,
-    );
-
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
-    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
-
-    expect(router.push).not.toHaveBeenCalled();
-    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Lädt...")).toBeNull();
-  });
-
-  it("tracks a native query link before its loading boundary renders", () => {
-    navigateTo("/calendar-periods?view=week");
-    renderShell(
-      <>
-        <ProtectedLoading />
-        <NextLink href="/calendar-periods?view=month">Monatsansicht</NextLink>
-      </>,
-    );
-
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
-    fireEvent.click(screen.getByRole("link", { name: "Monatsansicht" }));
-
-    expect(router.push).not.toHaveBeenCalled();
-    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Lädt...")).toBeNull();
-  });
-
-  it("does not start progress when a document navigation guard cancels a native link", () => {
-    const guard = (event: Event) => event.preventDefault();
-    document.addEventListener("click", guard, true);
-    renderShell(
-      <>
-        <ProtectedLoading />
-        <NextLink href="/calendar-periods">Planungszeiträume</NextLink>
+        <NextLink
+          href="/calendar-periods"
+          onClick={(event) => event.preventDefault()}
+        >
+          Planungszeiträume
+        </NextLink>
       </>,
     );
 
@@ -447,7 +417,6 @@ describe("NavigationProgress", () => {
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
-    document.removeEventListener("click", guard, true);
   });
 
   it("does not show progress when router.back cannot traverse history", () => {

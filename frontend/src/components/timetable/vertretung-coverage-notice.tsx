@@ -25,7 +25,7 @@
  * Komponente rendert nur.
  */
 
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 
 import { Alert } from "~/components/ui/alert";
 

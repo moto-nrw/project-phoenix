@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import {
   Check,
   CheckCircle2,

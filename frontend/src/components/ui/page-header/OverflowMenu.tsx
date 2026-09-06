@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {

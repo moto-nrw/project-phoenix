@@ -10,7 +10,7 @@
 // gray-50 stat blocks, plain tables, quiet white export buttons.
 
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import {
   type ReactNode,
   useCallback,

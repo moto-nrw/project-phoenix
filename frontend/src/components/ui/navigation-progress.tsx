@@ -259,21 +259,6 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
-  useEffect(() => {
-    // Next 16 löst native `next/link`-Wechsel direkt über seine interne
-    // Router-Aktion aus. Das Dokumentelement liegt in der Capture-Phase nach
-    // `document`: Navigation Guards können den Klick dort zuerst abbrechen;
-    // erfolgreiche Links werden noch vor Nexts Router-Dispatch gemeldet.
-    const handleLinkClick = (event: MouseEvent) => {
-      const target = linkNavigationTarget(event);
-      if (target !== null && target !== currentUrl()) {
-        store.startLinkNavigation(target);
-      }
-    };
-    const root = document.documentElement;
-    root.addEventListener("click", handleLinkClick, true);
-    return () => root.removeEventListener("click", handleLinkClick, true);
-  }, [store]);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
@@ -338,30 +323,6 @@ function navigationTarget(href: string): string | null {
   } catch {
     return null;
   }
-}
-
-function linkNavigationTarget(event: MouseEvent): string | null {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey ||
-    !(event.target instanceof Element)
-  ) {
-    return null;
-  }
-
-  const link = event.target.closest<HTMLAnchorElement>("a[href]");
-  if (
-    link === null ||
-    (link.target !== "" && link.target !== "_self") ||
-    link.hasAttribute("download")
-  ) {
-    return null;
-  }
-  return navigationTarget(link.href);
 }
 
 function currentUrl() {

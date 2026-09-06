@@ -24,7 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import { Printer } from "lucide-react";
 
