@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -18,6 +19,35 @@ type courseSettingsStub struct {
 	values map[string]bool
 	errKey string
 	err    error
+}
+
+type courseOfferingRepoStub struct {
+	enrollmentModels.CareOfferingRepository
+	offerings []*enrollmentModels.CareOffering
+}
+
+func (r courseOfferingRepoStub) ListByIDs(context.Context, []int64) ([]*enrollmentModels.CareOffering, error) {
+	return r.offerings, nil
+}
+
+type courseProjectionStub struct {
+	groups map[int64][]enrollmentModels.CourseGroup
+}
+
+func (r courseProjectionStub) ListManualPlanningOccurrences(context.Context, int64, string, string) ([]ManualPlanningOccurrence, error) {
+	return nil, nil
+}
+
+func (r courseProjectionStub) CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error) {
+	return r.groups, nil
+}
+
+func (courseProjectionStub) LockCourseGroups(context.Context, []int64) ([]enrollmentModels.CourseGroup, error) {
+	return nil, nil
+}
+
+func (courseProjectionStub) CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, int64) (map[int64]int, error) {
+	return nil, nil
 }
 
 func TestCourseRequestsEnabledReturnsSettingsFailure(t *testing.T) {
@@ -430,4 +460,30 @@ func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, position, "the earlier request through another offering reaches the same course group")
+}
+
+func TestCourseGroupsForCompetingRequestsLoadsUnavailableOffering(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(70)
+	rows := []*enrollmentModels.OfferingChangeRequest{
+		{ID: 11, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 8}})},
+		{ID: 12, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+	}
+	service := &offeringChangeRequestService{OfferingChangeRequestServiceConfig: OfferingChangeRequestServiceConfig{
+		CareOfferingRepo: courseOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{{
+			ID: 8, ActivityGroupID: &groupID,
+		}}},
+		ImpactRepo: courseProjectionStub{groups: map[int64][]enrollmentModels.CourseGroup{
+			8: {{ID: groupID, Active: true}},
+		}},
+	}}
+
+	groups, err := service.courseGroupsForCompetingRequests(
+		context.Background(), rows, rows[1], &OfferingChangeCatalog{Items: []OfferingChangeCatalogItem{{OfferingID: 7}}},
+		map[int64][]enrollmentModels.CourseGroup{7: {{ID: groupID, Active: true}}},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []enrollmentModels.CourseGroup{{ID: groupID, Active: true}}, groups[8])
 }

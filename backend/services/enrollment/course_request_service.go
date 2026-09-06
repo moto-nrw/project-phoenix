@@ -600,7 +600,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 			continue
 		}
 		position, posErr := s.courseWaitlistPosition(
-			ctx, groupsByOffering[course.OfferingID], groupsByOffering, pending,
+			ctx, catalog, groupsByOffering[course.OfferingID], groupsByOffering, pending,
 		)
 		if posErr != nil {
 			return posErr
@@ -659,6 +659,7 @@ func (s *offeringChangeRequestService) courseOccupancy(
 // "Platz 1".
 func (s *offeringChangeRequestService) courseWaitlistPosition(
 	ctx context.Context,
+	catalog *OfferingChangeCatalog,
 	targetGroups []enrollmentModels.CourseGroup,
 	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
@@ -714,7 +715,84 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 		}
 		bookedByChild[link.RequestChildID][link.CareOfferingID] = true
 	}
-	return courseWaitlistPositionFromRows(rows, targetGroups, groupsByOffering, pending, childrenByID, bookedByChild), nil
+	competingGroupsByOffering, groupsErr := s.courseGroupsForCompetingRequests(
+		ctx, rows, pending, catalog, groupsByOffering,
+	)
+	if groupsErr != nil {
+		return 0, groupsErr
+	}
+	return courseWaitlistPositionFromRows(rows, targetGroups, competingGroupsByOffering, pending, childrenByID, bookedByChild), nil
+}
+
+// courseGroupsForCompetingRequests fills the gaps left by the current child's
+// catalog. A previous request can name an offering that has since become
+// unavailable or is filtered for this child, while still feeding the same AG.
+func (s *offeringChangeRequestService) courseGroupsForCompetingRequests(
+	ctx context.Context,
+	rows []*enrollmentModels.OfferingChangeRequest,
+	pending *enrollmentModels.OfferingChangeRequest,
+	catalog *OfferingChangeCatalog,
+	knownGroups map[int64][]enrollmentModels.CourseGroup,
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	groupsByOffering := make(map[int64][]enrollmentModels.CourseGroup, len(knownGroups))
+	for offeringID, groups := range knownGroups {
+		groupsByOffering[offeringID] = groups
+	}
+	if catalog != nil {
+		for _, item := range catalog.Items {
+			if _, known := groupsByOffering[item.OfferingID]; !known {
+				// The catalog query already established that this active offering
+				// does not reach a course of the current child's target.
+				groupsByOffering[item.OfferingID] = nil
+			}
+		}
+	}
+	missingOfferingIDs := make([]int64, 0)
+	for _, row := range rows {
+		if row == nil || courseRequestAfter(row, pending) {
+			continue
+		}
+		selections, err := selectionsFromPayload(row.Payload)
+		if err != nil {
+			// The review queue surfaces a malformed payload; it cannot establish
+			// a waitlist position here.
+			continue
+		}
+		for _, selection := range selections {
+			if _, known := groupsByOffering[selection.OfferingID]; !known {
+				missingOfferingIDs = append(missingOfferingIDs, selection.OfferingID)
+			}
+		}
+	}
+	slices.Sort(missingOfferingIDs)
+	missingOfferingIDs = slices.Compact(missingOfferingIDs)
+	if len(missingOfferingIDs) == 0 {
+		return groupsByOffering, nil
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, missingOfferingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("course request: load competing waitlist offerings: %w", err)
+	}
+	references := make([]enrollmentModels.CourseOfferingReference, 0, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			references = append(references, enrollmentModels.CourseOfferingReference{
+				OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
+			})
+		}
+	}
+	projection, err := s.courseProjection()
+	if err != nil {
+		return nil, err
+	}
+	additionalGroups, err := projection.CourseGroupsForOfferings(ctx, references)
+	if err != nil {
+		return nil, fmt.Errorf("course request: load competing waitlist course groups: %w", err)
+	}
+	for offeringID, groups := range additionalGroups {
+		groupsByOffering[offeringID] = groups
+	}
+	return groupsByOffering, nil
 }
 
 func courseWaitlistPositionFromRows(
