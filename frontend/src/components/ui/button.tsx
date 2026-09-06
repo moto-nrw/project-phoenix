@@ -40,6 +40,9 @@ interface ButtonLinkProps extends Omit<
   readonly size?: ButtonSize;
   readonly className?: string;
 }
+type ButtonLinkNavigationEvent = Parameters<
+  NonNullable<ButtonLinkProps["onNavigate"]>
+>[0];
 
 function buttonClassName({
   variant,
@@ -145,7 +148,7 @@ export function ButtonLink({
     <Link
       className={buttonClassName({ variant, size, className })}
       {...props}
-      onNavigate={(event) => {
+      onNavigate={(event: ButtonLinkNavigationEvent) => {
         let cancelled: boolean | undefined;
         props.onNavigate?.({
           preventDefault() {

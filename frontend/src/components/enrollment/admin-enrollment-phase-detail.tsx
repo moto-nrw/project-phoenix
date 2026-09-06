@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   Check,
@@ -59,6 +58,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -1408,7 +1408,7 @@ function PhaseChildActions({
           </Button>
         </>
       ) : null}
-      <Link
+      <NavigationLink
         href={href}
         className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         onClick={(event: React.MouseEvent<HTMLAnchorElement>) =>
@@ -1417,7 +1417,7 @@ function PhaseChildActions({
       >
         Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </Link>
+      </NavigationLink>
     </div>
   );
 }

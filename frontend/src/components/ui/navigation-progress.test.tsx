@@ -6,7 +6,12 @@ import {
 import NextLink from "next/link";
 import Link from "./navigation-link";
 import { ButtonLink } from "./button";
-import { useContext, type MouseEvent, type ReactNode } from "react";
+import {
+  useContext,
+  type ComponentProps,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const route = vi.hoisted(() => ({ pathname: "/dienstplan", search: "" }));
@@ -66,6 +71,9 @@ import {
 import ProtectedLoading from "~/app/[tenant]/(protected)/loading";
 
 const appRouter = router as unknown as AppRouterInstance;
+type NextLinkNavigationEvent = Parameters<
+  NonNullable<ComponentProps<typeof NextLink>["onNavigate"]>
+>[0];
 
 function useProgressRouter(): AppRouterInstance | null {
   return useContext(AppRouterContext) as AppRouterInstance | null;
@@ -162,7 +170,9 @@ describe("NavigationProgress", () => {
         <ProtectedLoading />
         <ButtonLink
           href="/calendar-periods"
-          onNavigate={(event) => event.preventDefault()}
+          onNavigate={(event: NextLinkNavigationEvent) =>
+            event.preventDefault()
+          }
         >
           Planungszeiträume
         </ButtonLink>

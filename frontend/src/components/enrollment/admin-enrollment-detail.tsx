@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   CalendarClock,
   Check,
@@ -66,6 +65,7 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -557,13 +557,13 @@ function ChildInformationCard({
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {child.status === "approved" && child.created_student_id ? (
             <>
-              <Link
+              <NavigationLink
                 href={studentHref}
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 Kind &amp; Einladung verwalten
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </Link>
+              </NavigationLink>
               <AdminChildDataCorrection
                 requestId={requestId}
                 child={child}
