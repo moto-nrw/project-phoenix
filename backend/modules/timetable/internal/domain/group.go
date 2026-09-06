@@ -53,6 +53,21 @@ type GroupFilter struct {
 	OrderByID         bool
 }
 
+type CourseGroupFilter struct {
+	LegacyGroupIDs    []int64
+	SourceOfferingIDs []int64
+}
+
+type CourseGroup struct {
+	ID                    int64
+	Active                bool
+	MaxParticipants       int
+	SourceCareOfferingIDs []int64
+	SourceGradeLevels     []int
+	SourceSchoolClasses   []string
+	ScheduledWeekdays     []int
+}
+
 type GroupFields struct {
 	Name                  string
 	MaxParticipants       int

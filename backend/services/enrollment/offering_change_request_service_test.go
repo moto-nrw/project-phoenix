@@ -1511,6 +1511,6 @@ func (r manualPlanningFixture) LockCourseGroups(ctx context.Context, groupIDs []
 	return repositories.NewManualPlanningQuery(r.db).LockCourseGroups(ctx, groupIDs)
 }
 
-func (r manualPlanningFixture) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, onDate timezone.Date, excludeStudentID int64) (map[int64]int, error) {
-	return repositories.NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, onDate, excludeStudentID)
+func (r manualPlanningFixture) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until timezone.Date, excludeStudentID int64) (map[int64]int, error) {
+	return repositories.NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 }

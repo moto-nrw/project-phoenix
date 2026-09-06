@@ -26,6 +26,20 @@ type courseOfferingRepoStub struct {
 	offerings []*enrollmentModels.CareOffering
 }
 
+type courseChangeRepoStub struct {
+	enrollmentModels.OfferingChangeRequestRepository
+	snapshot *enrollmentModels.OfferingChangeDecisionSnapshot
+}
+
+func (r *courseChangeRepoStub) UpdateDecisionSnapshot(
+	_ context.Context,
+	_ int64,
+	snapshot *enrollmentModels.OfferingChangeDecisionSnapshot,
+) error {
+	r.snapshot = snapshot
+	return nil
+}
+
 func (r courseOfferingRepoStub) ListByIDs(context.Context, []int64) ([]*enrollmentModels.CareOffering, error) {
 	return r.offerings, nil
 }
@@ -46,7 +60,7 @@ func (courseProjectionStub) LockCourseGroups(context.Context, []int64) ([]enroll
 	return nil, nil
 }
 
-func (courseProjectionStub) CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, int64) (map[int64]int, error) {
+func (courseProjectionStub) CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, timezone.Date, int64) (map[int64]int, error) {
 	return nil, nil
 }
 
@@ -84,6 +98,39 @@ func TestCourseRequestsDisabledWhenCareOfferingsDisabled(t *testing.T) {
 	enabled, err := svc.courseRequestsEnabled(context.Background())
 	require.NoError(t, err)
 	assert.False(t, enabled)
+}
+
+func TestWithdrawCourseRequestRejectsDisabledFeature(t *testing.T) {
+	t.Parallel()
+
+	svc := &offeringChangeRequestService{OfferingChangeRequestServiceConfig: OfferingChangeRequestServiceConfig{
+		Settings: courseSettingsStub{values: map[string]bool{
+			configModel.KeyEnrollmentOfferingChangesEnabled:      true,
+			configModel.KeyEnrollmentCareOfferingsEnabled:        true,
+			configModel.KeyEnrollmentParentCourseRequestsEnabled: false,
+		}},
+		Logger: slog.Default(),
+	}}
+
+	err := svc.WithdrawCourseRequest(context.Background(), 1, 2, 3)
+	require.ErrorIs(t, err, ErrCourseRequestsDisabled)
+}
+
+func TestDecisionSnapshotKeepsCourseMarker(t *testing.T) {
+	t.Parallel()
+
+	repo := &courseChangeRepoStub{}
+	svc := &offeringChangeRequestService{OfferingChangeRequestServiceConfig{ChangeRepo: repo}}
+	err := svc.storeDecisionSnapshot(context.Background(), 1, &offeringDecisionDiff{entries: []OfferingChangeDiffEntry{{
+		OfferingID: 2, Label: "Fußball", OldState: "not_booked", NewState: "booked", IsCourse: true,
+	}}})
+	require.NoError(t, err)
+	require.Len(t, repo.snapshot.Diff, 1)
+	assert.True(t, repo.snapshot.Diff[0].IsCourse)
+
+	entries := diffEntriesFromSnapshot(repo.snapshot.Diff)
+	require.Len(t, entries, 1)
+	assert.True(t, entries[0].IsCourse)
 }
 
 func (s courseSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -180,11 +227,11 @@ func TestCourseItemsFromGroupsKeepsOnlyCourses(t *testing.T) {
 		{OfferingID: 4, Name: "Elternwahl", IsActive: true, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
 		{OfferingID: 5, Name: "Ballett", IsActive: true},
 	}}
-	groups := map[int64][]int64{
-		2: {70},     // legacy link on the offering
-		3: {71},     // linked, but the offering is inactive
-		4: {74},     // course days would require a picker the course view has not
-		5: {72, 73}, // one offering split across two Regeltermine (#2137)
+	groups := map[int64][]enrollmentModels.CourseGroup{
+		2: {{ID: 70, ScheduledWeekdays: []int{3}}},                                           // legacy link on the offering
+		3: {{ID: 71, ScheduledWeekdays: []int{1}}},                                           // linked, but the offering is inactive
+		4: {{ID: 74, ScheduledWeekdays: []int{2}}},                                           // course days would require a picker the course view has not
+		5: {{ID: 72, ScheduledWeekdays: []int{1, 3}}, {ID: 73, ScheduledWeekdays: []int{5}}}, // one offering split across two Regeltermine (#2137)
 	}
 
 	items := courseItemsFromGroups(catalog, groups)
@@ -192,9 +239,11 @@ func TestCourseItemsFromGroupsKeepsOnlyCourses(t *testing.T) {
 	require.Len(t, items, 2)
 	assert.Equal(t, "Ballett", items[0].Name, "sorted by name")
 	assert.Equal(t, int64(72), items[0].ActivityGroupID, "the first AG identifies the course")
+	assert.Equal(t, []string{"mon", "wed", "fri"}, items[0].AvailableDays)
 	assert.Equal(t, "Fußball", items[1].Name)
 	assert.True(t, items[1].Booked, "a held course is marked as attended")
 	assert.Equal(t, int64(70), items[1].ActivityGroupID)
+	assert.Equal(t, []string{"wed"}, items[1].AvailableDays, "the course schedule, not the offering, defines displayed days")
 }
 
 func TestCourseGroupMatchesTarget(t *testing.T) {

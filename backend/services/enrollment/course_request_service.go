@@ -40,7 +40,7 @@ import (
 type CourseProjectionReader interface {
 	CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error)
 	LockCourseGroups(context.Context, []int64) ([]enrollmentModels.CourseGroup, error)
-	CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, int64) (map[int64]int, error)
+	CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, timezone.Date, int64) (map[int64]int, error)
 }
 
 // CourseOfferingReference and CourseGroup keep the timetable projection's
@@ -241,35 +241,57 @@ func (s *offeringChangeRequestService) courseItems(
 	if err != nil {
 		return nil, nil, err
 	}
-	return courseItemsFromGroups(catalog, courseGroupIDs(groups)), groups, nil
+	return courseItemsFromGroups(catalog, groups), groups, nil
 }
 
 // courseItemsFromGroups is the mapping step on its own: an active offering
 // that feeds at least one AG becomes a course, sorted by name.
 func courseItemsFromGroups(
 	catalog *OfferingChangeCatalog,
-	groupsByOffering map[int64][]int64,
+	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 ) []CourseCatalogItem {
 	items := make([]CourseCatalogItem, 0, len(catalog.Items))
 	for _, item := range catalog.Items {
-		groupIDs := groupsByOffering[item.OfferingID]
+		groups := groupsByOffering[item.OfferingID]
 		// The course view has no weekday picker. A parent-choice offering must
 		// therefore stay on the ordinary offering-change path, where the
 		// family explicitly selects its days.
-		if !item.IsActive || len(groupIDs) == 0 || item.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
+		if !item.IsActive || len(groups) == 0 || item.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
 			continue
 		}
 		items = append(items, CourseCatalogItem{
 			OfferingID:      item.OfferingID,
-			ActivityGroupID: groupIDs[0],
+			ActivityGroupID: groups[0].ID,
 			Name:            item.Name,
 			Description:     item.Description,
-			AvailableDays:   append([]string(nil), item.AvailableDays...),
+			AvailableDays:   courseScheduledDays(groups),
 			Booked:          item.Selected,
 		})
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	return items
+}
+
+// courseScheduledDays derives the displayed weekdays from the actual course
+// templates. One offering can feed multiple, target-filtered templates, so
+// every matched weekday is relevant to the family.
+func courseScheduledDays(groups []enrollmentModels.CourseGroup) []string {
+	dayByWeekday := [...]string{"", "mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+	seen := make(map[int]bool)
+	for _, group := range groups {
+		for _, weekday := range group.ScheduledWeekdays {
+			if weekday > 0 && weekday < len(dayByWeekday) {
+				seen[weekday] = true
+			}
+		}
+	}
+	days := make([]string, 0, len(seen))
+	for weekday := 1; weekday < len(dayByWeekday); weekday++ {
+		if seen[weekday] {
+			days = append(days, dayByWeekday[weekday])
+		}
+	}
+	return days
 }
 
 // courseGroups maps each offering to the AGs it feeds, in a stable order.
@@ -429,18 +451,6 @@ func markCourseDiffEntriesForGroups(
 	}
 }
 
-// courseGroupIDs is the id-only projection the catalog and the create path
-// pass around.
-func courseGroupIDs(groups map[int64][]enrollmentModels.CourseGroup) map[int64][]int64 {
-	ids := make(map[int64][]int64, len(groups))
-	for offeringID, list := range groups {
-		for _, group := range list {
-			ids[offeringID] = append(ids[offeringID], group.ID)
-		}
-	}
-	return ids
-}
-
 // pendingCourseRequest returns the courses the child's open request asks for.
 // A pending request that changes only care offerings is not a course request:
 // it blocks a new one (one open request per child), but it is not withdrawable
@@ -569,7 +579,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 			groupIDs = append(groupIDs, group.ID)
 		}
 	}
-	taken, err := s.courseOccupancy(ctx, groupIDs, catalog.EarliestEffectiveFrom, 0)
+	taken, err := s.courseOccupancy(ctx, groupIDs, catalog.EarliestEffectiveFrom, catalog.courseCapacityUntil, 0)
 	if err != nil {
 		return err
 	}
@@ -639,14 +649,17 @@ func effectiveCourseCapacity(
 func (s *offeringChangeRequestService) courseOccupancy(
 	ctx context.Context,
 	groupIDs []int64,
-	onDate timezone.Date,
+	from, until timezone.Date,
 	excludeStudentID int64,
 ) (map[int64]int, error) {
+	if !from.Before(until) {
+		until = from.AddDays(1)
+	}
 	projection, err := s.courseProjection()
 	if err != nil {
 		return nil, err
 	}
-	counts, err := projection.CountActiveCourseEnrollments(ctx, groupIDs, onDate, excludeStudentID)
+	counts, err := projection.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 	if err != nil {
 		return nil, fmt.Errorf("course request: count course rosters: %w", err)
 	}
@@ -893,7 +906,7 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 	studentID int64,
 	requestChildID int64,
 	offerings []*enrollmentModels.CareOffering,
-	effectiveFrom timezone.Date,
+	from, until timezone.Date,
 ) error {
 	if len(offerings) == 0 {
 		return nil
@@ -951,7 +964,7 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 		lockedByID[group.ID] = group
 		groupIDs = append(groupIDs, group.ID)
 	}
-	taken, err := s.courseOccupancy(ctx, groupIDs, effectiveFrom, studentID)
+	taken, err := s.courseOccupancy(ctx, groupIDs, from, until, studentID)
 	if err != nil {
 		return err
 	}
@@ -1102,6 +1115,13 @@ func (s *offeringChangeRequestService) WithdrawCourseRequest(
 	ctx context.Context,
 	requestID, accountID, studentID int64,
 ) error {
+	enabled, err := s.courseRequestsEnabled(ctx)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return ErrCourseRequestsDisabled
+	}
 	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
 		return err

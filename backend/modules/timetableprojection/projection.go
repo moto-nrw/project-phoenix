@@ -170,10 +170,11 @@ func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs 
 	return locked, nil
 }
 
-// CountActiveCourseEnrollments returns the roster occupancy at a date. A seat
-// is held for the full enrollment window, independently of individual days.
-// excludeStudentID omits an existing seat of the child currently being checked.
-func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, onDate timezone.Date, excludeStudentID int64) (map[int64]int, error) {
+// CountActiveCourseEnrollments returns each course's peak roster occupancy in
+// [from, until). A seat is held for the full enrollment window, independently
+// of individual days. excludeStudentID omits an existing seat of the child
+// currently being checked.
+func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until timezone.Date, excludeStudentID int64) (map[int64]int, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -181,16 +182,37 @@ func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int6
 	if len(groupIDs) == 0 {
 		return counts, nil
 	}
+	if !from.Before(until) {
+		return nil, fmt.Errorf("timetable projection: course occupancy range must not be empty")
+	}
 	var rows []struct {
 		GroupID int64 `bun:"activity_group_id"`
 		Count   int   `bun:"count"`
 	}
-	err := db.NewRaw(`SELECT activity_group_id, COUNT(DISTINCT student_id)::int AS count
+	err := db.NewRaw(`WITH intervals AS (
+		SELECT activity_group_id, student_id,
+		       GREATEST(valid_from, ?) AS starts_at,
+		       LEAST(COALESCE(valid_until, ?), ?) AS ends_at
 		FROM activities.student_enrollments
 		WHERE tenant_id = ? AND activity_group_id IN (?)
-		  AND valid_from <= ? AND (valid_until IS NULL OR valid_until > ?)
+		  AND valid_from < ? AND (valid_until IS NULL OR valid_until > ?)
 		  AND (? = 0 OR student_id <> ?)
-		GROUP BY activity_group_id`, tenantID, bun.List(groupIDs), onDate, onDate, excludeStudentID, excludeStudentID).Scan(ctx, &rows)
+	), boundaries AS (
+		SELECT activity_group_id, starts_at AS boundary FROM intervals
+		UNION
+		SELECT activity_group_id, ends_at AS boundary FROM intervals
+	)
+	SELECT boundaries.activity_group_id, COALESCE(MAX((
+		SELECT COUNT(DISTINCT interval_row.student_id)
+		FROM intervals AS interval_row
+		WHERE interval_row.activity_group_id = boundaries.activity_group_id
+		  AND interval_row.starts_at <= boundaries.boundary
+		  AND interval_row.ends_at > boundaries.boundary
+	)), 0)::int AS count
+	FROM boundaries
+	GROUP BY boundaries.activity_group_id`,
+		from, until, until, tenantID, bun.List(groupIDs), until, from, excludeStudentID, excludeStudentID,
+	).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: count active course enrollments: %w", err)
 	}

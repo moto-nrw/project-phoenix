@@ -13,6 +13,7 @@ type CourseGroup struct {
 	ID                  int64
 	Active              bool
 	ParticipantLimit    *int
+	ScheduledWeekdays   []int
 	SourceGradeLevels   []int
 	SourceSchoolClasses []string
 }

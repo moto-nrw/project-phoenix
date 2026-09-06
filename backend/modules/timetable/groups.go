@@ -69,6 +69,25 @@ type GroupFilter struct {
 	OrderByID         bool
 }
 
+// CourseGroupFilter selects activity templates that are reached through a
+// legacy group link or an offering-source declaration.
+type CourseGroupFilter struct {
+	LegacyGroupIDs    []int64
+	SourceOfferingIDs []int64
+}
+
+// CourseGroup is the timetable-owned projection needed to present and enforce
+// courses through care offerings.
+type CourseGroup struct {
+	ID                    int64
+	Active                bool
+	MaxParticipants       int
+	SourceCareOfferingIDs []int64
+	SourceGradeLevels     []int
+	SourceSchoolClasses   []string
+	ScheduledWeekdays     []int
+}
+
 // GroupInput contains the writable scalar fields of an activities.groups row.
 // Tenant identity and persistence metadata always come from the owner runtime.
 type GroupInput struct {

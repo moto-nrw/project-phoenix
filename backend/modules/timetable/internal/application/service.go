@@ -195,6 +195,16 @@ func (s *Service) ListGroups(ctx context.Context, filter domain.GroupFilter) (re
 	return result, err
 }
 
+func (s *Service) ListCourseGroups(ctx context.Context, filter domain.CourseGroupFilter) (result []domain.CourseGroup, err error) {
+	err = s.run("list_course_groups", func(stats *domain.OperationStats) error {
+		values, queryStats, listErr := s.store.ListCourseGroups(ctx, filter)
+		stats.Add(queryStats)
+		result = values
+		return listErr
+	})
+	return result, err
+}
+
 func (s *Service) ListTemplateRows(ctx context.Context, templateID *int64) (result []domain.TemplateListRow, err error) {
 	err = s.run("list_template_rows", func(stats *domain.OperationStats) error {
 		values, queryStats, listErr := s.store.ListTemplateRows(ctx, templateID, s.today())

@@ -2484,7 +2484,7 @@ func newFactory(
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
 		CareOfferingRepo:       repos.CareOffering,
-		ImpactRepo:             manualPlanningReader{db: db},
+		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
 		CareWithdrawalRepo:     repos.CareWithdrawal,

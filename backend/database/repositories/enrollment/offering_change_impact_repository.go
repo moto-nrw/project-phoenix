@@ -66,10 +66,10 @@ func (r *OfferingChangeImpactRepository) LockCourseGroups(
 func (r *OfferingChangeImpactRepository) CountActiveCourseEnrollments(
 	ctx context.Context,
 	groupIDs []int64,
-	onDate timezone.Date,
+	from, until timezone.Date,
 	excludeStudentID int64,
 ) (map[int64]int, error) {
 	return timetableprojection.CountActiveCourseEnrollments(
-		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, onDate, excludeStudentID,
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID,
 	)
 }

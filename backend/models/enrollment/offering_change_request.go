@@ -115,6 +115,8 @@ type OfferingChangeSnapshotEntry struct {
 	// AutoTriggerNames names the selected offerings that triggered the
 	// automatic share; empty for the required-lunch derivation.
 	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
+	// IsCourse preserves the staff-visible course marker on a decided request.
+	IsCourse bool `json:"is_course,omitempty"`
 }
 
 // OfferingChangeSnapshotOffering names one overridden rule target.

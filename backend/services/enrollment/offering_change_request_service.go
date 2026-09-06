@@ -145,7 +145,10 @@ type OfferingChangeCatalog struct {
 	// sourced course may narrow its offering to a grade or a concrete class.
 	TargetGradeLevel  *int16
 	TargetSchoolClass string
-	Items             []OfferingChangeCatalogItem
+	// courseCapacityUntil is the exclusive end of the phase window used for
+	// course capacity. Course requests have no date picker, so it stays internal.
+	courseCapacityUntil timezone.Date
+	Items               []OfferingChangeCatalogItem
 }
 
 // OfferingChangeDiffEntry is one "current → requested" line, shared by the
@@ -790,6 +793,7 @@ func (s *offeringChangeRequestService) catalogAt(
 		SelectionMode:         phase.CareOfferingSelectionMode,
 		EarliestEffectiveFrom: earliest,
 		LatestEffectiveFrom:   latest,
+		courseCapacityUntil:   timezone.Date(phase.ServiceEndDate).AddDays(1),
 		TargetGradeLevel:      period.TargetGradeLevel,
 		Items:                 make([]OfferingChangeCatalogItem, 0, len(allowed)),
 	}
@@ -2178,6 +2182,7 @@ func (s *offeringChangeRequestService) storeDecisionSnapshot(
 			NewAutomaticDays: entry.NewAutomaticDays,
 			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
+			IsCourse:         entry.IsCourse,
 		})
 	}
 	if err := s.ChangeRepo.UpdateDecisionSnapshot(ctx, requestID, snapshot); err != nil {
@@ -2201,6 +2206,7 @@ func diffEntriesFromSnapshot(entries []enrollmentModels.OfferingChangeSnapshotEn
 			NewAutomaticDays: entry.NewAutomaticDays,
 			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
+			IsCourse:         entry.IsCourse,
 		})
 	}
 	return out
@@ -2466,7 +2472,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	// Resolve every course group before acquiring any course lock. Each batch is
 	// ordered by group id, so approvals touching overlapping offerings cannot
 	// deadlock while each waits for the other's later group lock.
-	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom); err != nil {
+	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom, phaseEndExclusive); err != nil {
 		return err
 	}
 	for _, offeringID := range replacementOfferingIDs {
