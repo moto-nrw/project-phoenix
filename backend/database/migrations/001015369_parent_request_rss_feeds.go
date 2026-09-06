@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentRequestRSSFeedsVersion     = "1.15.368"
+	parentRequestRSSFeedsVersion     = "1.15.369"
 	parentRequestRSSFeedsDescription = "Add personal RSS subscriptions for new parent requests (#3049)"
 )
 
