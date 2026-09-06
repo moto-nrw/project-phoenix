@@ -110,6 +110,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		ParentMessagingEnabled:     resolved.parentMessagingEnabled,
 		StaffMessagingEnabled:      resolved.staffMessagingEnabled,
 		DisplayEnabled:             resolved.displayEnabled,
+		CalDAVEnabled:              resolved.calDAVEnabled,
 		GradeLevelMax:              gradeLevelMax,
 		CareOfferingsEnabled:       resolved.careOfferingsEnabled,
 		AttendanceWebEnabled:       resolved.attendanceWebEnabled,
@@ -148,6 +149,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyAttendanceNFCEnabled,
 		configModel.KeyDisplayEnabled,
+		configModel.KeyCalendarCalDAVEnabled,
 		configModel.KeyEnrollmentCareOfferingsEnabled,
 		configModel.KeyAttendanceWebEnabled,
 		configModel.KeyAttendanceLogEnabled,
@@ -188,6 +190,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, configModel.KeyDisplayEnabled); err == nil {
 		resolved.displayEnabled = value
 	}
+	resolved.calDAVEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyCalendarCalDAVEnabled, false, slog.LevelError)
 	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
@@ -238,6 +241,7 @@ func resolveTenantShellSnapshot(
 	resolved.studentPhotosEnabled = resolveString(configModel.KeyStudentPhotosEnabled, "false", slog.LevelError) == "true"
 	resolved.nfcEnabled = resolveBool(configModel.KeyAttendanceNFCEnabled, false, slog.LevelError)
 	resolved.displayEnabled = resolveBool(configModel.KeyDisplayEnabled, false, slog.LevelError)
+	resolved.calDAVEnabled = resolveBool(configModel.KeyCalendarCalDAVEnabled, false, slog.LevelError)
 	resolved.careOfferingsEnabled = resolveBool(configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
 	resolved.attendanceWebEnabled = resolveBool(configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.attendanceLogEnabled = resolveBool(configModel.KeyAttendanceLogEnabled, false, slog.LevelError)

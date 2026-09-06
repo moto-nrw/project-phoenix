@@ -100,6 +100,10 @@ func (e *recordingEngine) RenderCalendar(context.Context, string, []CalendarEven
 	e.calls++
 	return "calendar", nil
 }
+func (e *recordingEngine) RenderCalendarObject(context.Context, CalendarEvent) (string, error) {
+	e.calls++
+	return "calendar-object", nil
+}
 
 func validPeriod() CalendarPeriodFields {
 	return CalendarPeriodFields{

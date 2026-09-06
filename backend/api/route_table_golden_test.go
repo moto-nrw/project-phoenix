@@ -278,7 +278,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
 	called := false
-	err := WithRuntime(context.Background(), ServeConfig{Port: "127.0.0.1:0", Logger: slog.Default()}, func(runtime *Runtime) error {
+	err := WithRuntime(context.Background(), ServeConfig{Port: "127.0.0.1:0", PublicAPIURL: "http://api.invalid", Logger: slog.Default()}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
 		api, ok := runtime.Handler().(*API)

@@ -6,6 +6,7 @@
 // The settings page also calls `router.refresh()` so the RSC tree pulls the
 // fresh layout data.
 export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
+  "calendar.caldav_enabled",
   "operations.student_photos_enabled",
   // presence_mode is served via /auth/tenant/resolve and drives the
   // binary-vs-detailed kiosk + UI branch. Without revalidation, an

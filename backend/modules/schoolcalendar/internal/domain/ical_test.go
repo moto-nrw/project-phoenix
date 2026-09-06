@@ -336,5 +336,32 @@ func TestRenderSequenceAndLastModified(t *testing.T) {
 	}
 }
 
+func TestRenderCalendarObjectOmitsPublishMethod(t *testing.T) {
+	t.Parallel()
+
+	out := RenderCalendarObject(CalendarEvent{
+		UID:          "staff-shift-42@moto-app.de",
+		Summary:      "Dienst",
+		StartDate:    date(2026, 9, 7),
+		EndDate:      date(2026, 9, 7),
+		StartClock:   testpkg.WallClock(8, 0),
+		EndClock:     testpkg.WallClock(12, 0),
+		Stamp:        stamp(),
+		LastModified: stamp(),
+	})
+
+	for _, want := range []string{"BEGIN:VCALENDAR\r\n", "BEGIN:VEVENT\r\n", "UID:staff-shift-42@moto-app.de\r\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "METHOD:") {
+		t.Errorf("calendar object must not contain METHOD\n%s", out)
+	}
+	if count := strings.Count(out, "BEGIN:VEVENT"); count != 1 {
+		t.Errorf("VEVENT count = %d, want 1\n%s", count, out)
+	}
+}
+
 // listOf builds a typed slice from the helper's return type without naming it.
 func listOf[T any](items ...T) []T { return items }

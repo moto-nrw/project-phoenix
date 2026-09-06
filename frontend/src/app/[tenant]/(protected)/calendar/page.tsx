@@ -62,6 +62,7 @@ import {
   type CalendarTargetType,
 } from "~/lib/personal-calendar-api";
 import { useSWRAuth } from "~/lib/swr";
+import { useCalDAVEnabled } from "~/lib/tenant-context";
 import { getWeekRange } from "~/lib/timetable-helpers";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
@@ -324,6 +325,7 @@ function StaffCalendarPageInner() {
   const searchParams = useSearchParams();
   const toast = useToast();
   const { data: session } = useSession();
+  const calDAVEnabled = useCalDAVEnabled();
   const canManageCalendar = hasPermission(session, "calendar:manage");
   // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read sehen den
   // Betreuungsplan (Leseansicht) als zweiten Tab statt als eigene Seite.
@@ -798,7 +800,7 @@ function StaffCalendarPageInner() {
       ) : (
         personalCalendar
       )}
-      <CalendarSubscribePanel audience="staff" />
+      <CalendarSubscribePanel audience="staff" calDAVEnabled={calDAVEnabled} />
     </>
   );
 

@@ -228,6 +228,12 @@ export function useDisplayEnabled(): boolean {
   return ctx?.tenant?.displayEnabled === true;
 }
 
+/** Whether staff may connect their personal calendar through CalDAV. */
+export function useCalDAVEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.caldavEnabled === true;
+}
+
 /**
  * Returns whether approved-child care offerings may be corrected.
  *

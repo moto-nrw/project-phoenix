@@ -63,6 +63,9 @@ type TenantResolveResponse struct {
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
 	DisplayEnabled bool `json:"display_enabled"`
+	// CalDAVEnabled controls whether staff may connect their personal calendar
+	// to a CalDAV client. It is opt-in and fails closed.
+	CalDAVEnabled bool `json:"caldav_enabled"`
 	// GradeLevelMax is the tenant's enrollment.grade_level_max setting.
 	// Timetable users need it even without config:read, so it belongs to the
 	// same public tenant-shell metadata contract as the feature flags above.
@@ -122,6 +125,7 @@ type tenantShellSettings struct {
 	parentMessagingEnabled bool
 	staffMessagingEnabled  bool
 	displayEnabled         bool
+	calDAVEnabled          bool
 	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool
 	attendanceLogEnabled   bool

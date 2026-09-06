@@ -2,10 +2,16 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarDays, Check, Copy, Link, RefreshCw } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  Copy,
+  KeyRound,
+  Link,
+  RefreshCw,
+} from "lucide-react";
 
 import { Button, ButtonLink } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -43,6 +49,72 @@ interface CalendarSubscribeCopy {
 
 interface CalendarSubscribePanelProps {
   readonly audience?: "parent" | "staff";
+  readonly calDAVEnabled?: boolean;
+}
+
+interface CopyValueRowProps {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly copyLabel: string;
+  readonly copiedLabel: string;
+  readonly copiedMessage: string;
+  readonly copyFailedMessage: string;
+  readonly secret?: boolean;
+}
+
+function CopyValueRow({
+  id,
+  label,
+  value,
+  copyLabel,
+  copiedLabel,
+  copiedMessage,
+  copyFailedMessage,
+  secret = false,
+}: CopyValueRowProps) {
+  const toast = useToast();
+  const { copied, copy } = useClipboardCopy(
+    `CalendarSubscribePanel-${id}`,
+    2000,
+  );
+
+  const copyValue = async () => {
+    if (await copy(value)) {
+      toast.success(copiedMessage);
+    } else {
+      toast.error(copyFailedMessage);
+    }
+  };
+
+  return (
+    <div className="rounded-xl bg-gray-50 p-3">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p
+          id={id}
+          className={`min-w-0 text-sm break-all text-gray-800 ${secret ? "font-mono" : ""}`}
+        >
+          {value}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant={copied ? "success" : "outline"}
+          className="shrink-0 sm:min-w-28"
+          aria-describedby={id}
+          onClick={copyValue}
+        >
+          {copied ? (
+            <Check className="mr-2 size-4" aria-hidden />
+          ) : (
+            <Copy className="mr-2 size-4" aria-hidden />
+          )}
+          {copied ? copiedLabel : copyLabel}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -51,6 +123,7 @@ interface CalendarSubscribePanelProps {
  */
 export function CalendarSubscribePanel({
   audience = "parent",
+  calDAVEnabled = false,
 }: CalendarSubscribePanelProps) {
   const t = useTranslations("parentCalendarSubscribe");
   const staffT = useTranslations("staffCalendarSubscribe");
@@ -59,9 +132,9 @@ export function CalendarSubscribePanel({
     title: t("title"),
     description: isStaff ? staffT("description") : t("description"),
     showLink: t("showLink"),
-    createNew: t("createNew"),
+    createNew: isStaff ? staffT("createNew") : t("createNew"),
     subscribe: t("subscribe"),
-    regenerate: t("regenerate"),
+    regenerate: isStaff ? staffT("regenerate") : t("regenerate"),
     linkLabel: t("linkLabel"),
     copy: t("copy"),
     copiedButton: t("copiedButton"),
@@ -70,16 +143,13 @@ export function CalendarSubscribePanel({
     howToMac: t("howToMac"),
     howToApple: t("howToApple"),
     howToAndroid: t("howToAndroid"),
-    alreadyActive: t("alreadyActive"),
+    alreadyActive: isStaff ? staffT("alreadyActive") : t("alreadyActive"),
     loadError: t("loadError"),
     rotateError: t("rotateError"),
-    regenerated: t("regenerated"),
+    regenerated: isStaff ? staffT("regenerated") : t("regenerated"),
     copied: t("copied"),
     copyFailed: t("copyFailed"),
   };
-  const inputId = isStaff
-    ? "staff-calendar-feed-url"
-    : "parent-calendar-feed-url";
   const loadFeed = isStaff ? getStaffCalendarFeed : getParentCalendarFeed;
   const rotateFeed = isStaff
     ? rotateStaffCalendarFeed
@@ -88,10 +158,6 @@ export function CalendarSubscribePanel({
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { copied, copy: copyToClipboard } = useClipboardCopy(
-    "CalendarSubscribePanel",
-    2000,
-  );
 
   const load = async () => {
     setLoading(true);
@@ -123,14 +189,6 @@ export function CalendarSubscribePanel({
       toast.error(copy.rotateError);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const copyLink = async (text: string) => {
-    if (await copyToClipboard(text)) {
-      toast.success(copy.copied);
-    } else {
-      toast.error(copy.copyFailed);
     }
   };
 
@@ -177,33 +235,19 @@ export function CalendarSubscribePanel({
         {open && feed && feed.url ? (
           <div className="mt-4 space-y-4">
             <div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <div className="min-w-0 flex-1">
-                  <Input
-                    id={inputId}
-                    label={copy.linkLabel}
-                    readOnly
-                    value={feed.url}
-                    controlSize="compact"
-                    onFocus={(event) => event.target.select()}
-                    className="bg-gray-50 text-gray-700"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  size="md"
-                  variant={copied ? "success" : "outline"}
-                  className="min-w-36 shrink-0"
-                  onClick={() => copyLink(feed.url)}
-                >
-                  {copied ? (
-                    <Check className="mr-2 size-4" aria-hidden />
-                  ) : (
-                    <Copy className="mr-2 size-4" aria-hidden />
-                  )}
-                  {copied ? copy.copiedButton : copy.copy}
-                </Button>
-              </div>
+              <CopyValueRow
+                id={
+                  isStaff
+                    ? "staff-calendar-feed-url"
+                    : "parent-calendar-feed-url"
+                }
+                label={copy.linkLabel}
+                value={feed.url}
+                copyLabel={copy.copy}
+                copiedLabel={copy.copiedButton}
+                copiedMessage={copy.copied}
+                copyFailedMessage={copy.copyFailed}
+              />
               <p className="mt-1 text-xs leading-5 text-gray-500">
                 {copy.linkOnce}
               </p>
@@ -223,6 +267,73 @@ export function CalendarSubscribePanel({
             <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
               {copy.alreadyActive}
             </div>
+          </div>
+        ) : null}
+
+        {open && isStaff && calDAVEnabled ? (
+          <div className="mt-6 border-t border-gray-200 pt-5">
+            <div className="flex items-start gap-3">
+              <KeyRound
+                className="text-moto-blue mt-0.5 size-5 shrink-0"
+                aria-hidden
+              />
+              <div>
+                <h3 className="font-semibold text-gray-900">
+                  {staffT("caldavTitle")}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {staffT("caldavDescription")}
+                </p>
+              </div>
+            </div>
+
+            {feed?.caldav ? (
+              <div className="mt-4 space-y-3">
+                <CopyValueRow
+                  id="staff-caldav-server-url"
+                  label={staffT("caldavAddress")}
+                  value={feed.caldav.server_url}
+                  copyLabel={copy.copy}
+                  copiedLabel={copy.copiedButton}
+                  copiedMessage={staffT("addressCopied")}
+                  copyFailedMessage={copy.copyFailed}
+                />
+                <CopyValueRow
+                  id="staff-caldav-username"
+                  label={staffT("caldavUsername")}
+                  value={feed.caldav.username}
+                  copyLabel={copy.copy}
+                  copiedLabel={copy.copiedButton}
+                  copiedMessage={staffT("usernameCopied")}
+                  copyFailedMessage={copy.copyFailed}
+                />
+                {feed.caldav.app_password ? (
+                  <>
+                    <CopyValueRow
+                      id="staff-caldav-app-password"
+                      label={staffT("caldavPassword")}
+                      value={feed.caldav.app_password}
+                      copyLabel={copy.copy}
+                      copiedLabel={copy.copiedButton}
+                      copiedMessage={staffT("passwordCopied")}
+                      copyFailedMessage={copy.copyFailed}
+                      secret
+                    />
+                    <p className="text-xs leading-5 text-gray-500">
+                      {staffT("passwordOnce")}
+                    </p>
+                  </>
+                ) : (
+                  <p className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+                    {staffT("passwordHidden")}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+                {staffT("caldavUnavailable")}
+              </p>
+            )}
           </div>
         ) : null}
       </div>

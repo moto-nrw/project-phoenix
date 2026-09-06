@@ -439,6 +439,11 @@ const (
 // (for guardians who asked for it) a push. Definitions live in
 // defaults/appointment_reminders.go.
 const (
+	// KeyCalendarCalDAVEnabled controls the read-only personal CalDAV endpoint
+	// for staff. The ordinary iCalendar subscription remains available when it
+	// is false.
+	KeyCalendarCalDAVEnabled = "calendar.caldav_enabled"
+
 	KeyCalendarAppointmentReminderEnabled   = "calendar.appointment_reminder_enabled"
 	KeyCalendarAppointmentReminderLeadHours = "calendar.appointment_reminder_lead_hours"
 )

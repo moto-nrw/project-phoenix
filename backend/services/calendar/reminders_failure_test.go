@@ -113,7 +113,7 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 	})
 	require.NoError(t, err)
 
-	effects := module.Calendar.(calendarSvc.FullService).ReminderEffects()
+	effects := module.Calendar.ReminderEffects()
 	store := &failingAfterReminderClaim{Capability: effects.Appointments, fail: true}
 	effects.Appointments = store
 	effects.ParentsURL = "https://parents.test"

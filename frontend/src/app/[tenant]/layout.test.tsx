@@ -222,4 +222,40 @@ describe("TenantLayout", () => {
       expect(element.props.tenant.timetableEnabled).toBe(expected);
     },
   );
+
+  it.each([
+    { caldav_enabled: false, expected: false },
+    { caldav_enabled: true, expected: true },
+    { caldav_enabled: undefined, expected: false },
+  ])(
+    "maps caldav_enabled=$caldav_enabled into the server tenant context",
+    async ({ caldav_enabled, expected }) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 1,
+              slug: "school-a",
+              name: "School A",
+              subdomain: "school-a",
+              organization_id: 2,
+              organization_name: "Organization",
+              settings: {},
+              grade_level_max: 4,
+              caldav_enabled,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const element = (await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      })) as ReactElement<{ tenant: { caldavEnabled?: boolean } }>;
+
+      expect(element.props.tenant.caldavEnabled).toBe(expected);
+    },
+  );
 });

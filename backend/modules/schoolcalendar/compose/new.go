@@ -224,22 +224,30 @@ func (e engine) HolidayDates(ctx context.Context, region, from, to string) (map[
 func (e engine) RenderCalendar(ctx context.Context, name string, events []schoolcalendar.CalendarEvent) (string, error) {
 	values := make([]domain.CalendarEvent, 0, len(events))
 	for _, event := range events {
-		var recurrence *domain.CalendarRecurrence
-		if event.Recurrence != nil {
-			recurrence = &domain.CalendarRecurrence{
-				Frequency: event.Recurrence.Frequency, Interval: event.Recurrence.Interval,
-				Weekdays: event.Recurrence.Weekdays, MonthDays: event.Recurrence.MonthDays,
-				Until: event.Recurrence.Until, Count: event.Recurrence.Count,
-			}
-		}
-		values = append(values, domain.CalendarEvent{
-			UID: event.UID, Summary: event.Summary, Description: event.Description, Location: event.Location,
-			StartDate: event.StartDate, EndDate: event.EndDate, StartClock: event.StartClock, EndClock: event.EndClock,
-			AllDay: event.AllDay, Cancelled: event.Cancelled, Sequence: event.Sequence, Stamp: event.Stamp,
-			LastModified: event.LastModified, Recurrence: recurrence, ExDates: event.ExDates,
-		})
+		values = append(values, calendarEventToDomain(event))
 	}
 	return e.service.RenderCalendar(ctx, name, values)
+}
+
+func (e engine) RenderCalendarObject(ctx context.Context, event schoolcalendar.CalendarEvent) (string, error) {
+	return e.service.RenderCalendarObject(ctx, calendarEventToDomain(event))
+}
+
+func calendarEventToDomain(event schoolcalendar.CalendarEvent) domain.CalendarEvent {
+	var recurrence *domain.CalendarRecurrence
+	if event.Recurrence != nil {
+		recurrence = &domain.CalendarRecurrence{
+			Frequency: event.Recurrence.Frequency, Interval: event.Recurrence.Interval,
+			Weekdays: event.Recurrence.Weekdays, MonthDays: event.Recurrence.MonthDays,
+			Until: event.Recurrence.Until, Count: event.Recurrence.Count,
+		}
+	}
+	return domain.CalendarEvent{
+		UID: event.UID, Summary: event.Summary, Description: event.Description, Location: event.Location,
+		StartDate: event.StartDate, EndDate: event.EndDate, StartClock: event.StartClock, EndClock: event.EndClock,
+		AllDay: event.AllDay, Cancelled: event.Cancelled, Sequence: event.Sequence, Stamp: event.Stamp,
+		LastModified: event.LastModified, Recurrence: recurrence, ExDates: event.ExDates,
+	}
 }
 
 func dateframeFieldsToDomain(fields schoolcalendar.DateframeFields) domain.DateframeFields {
