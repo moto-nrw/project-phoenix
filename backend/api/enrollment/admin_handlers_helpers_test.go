@@ -23,8 +23,8 @@ func mkRequest(id int64, phaseID int64) *enrollmentModels.Request {
 }
 
 // mkChild does the same for RequestChild.
-func mkChild(id int64) *enrollmentModels.RequestChild {
-	return &enrollmentModels.RequestChild{
+func mkChild(id int64) *enrollmentService.RequestChild {
+	return &enrollmentService.RequestChild{
 		ID: id,
 	}
 }
@@ -62,7 +62,7 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 			Name:                      "Schuljahr 2026/27",
 			CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 		},
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
@@ -89,7 +89,7 @@ func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
 
 	out := toAdminRequestSummary(&enrollmentService.RequestSummary{
 		Request:  req,
-		Children: []*enrollmentModels.RequestChild{},
+		Children: []*enrollmentService.RequestChild{},
 	})
 	raw, err := json.Marshal(out)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
 		Phase:    nil,
-		Children: []*enrollmentModels.RequestChild{},
+		Children: []*enrollmentService.RequestChild{},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "", out.PhaseName, "nil phase → empty PhaseName (no panic)")
@@ -144,7 +144,7 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 
 	in := &enrollmentService.RequestSummary{
 		Request:  req,
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Nil(t, out.GuardianPhone)
@@ -174,7 +174,7 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.NotNil(t, out.Children[0].TargetGradeLevel)
@@ -196,7 +196,7 @@ func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
 
 	in := &enrollmentService.RequestSummary{
 		Request:  mkRequest(1234, 5678),
-		Children: []*enrollmentModels.RequestChild{child},
+		Children: []*enrollmentService.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	require.Len(t, out.Children, 1)

@@ -163,7 +163,7 @@ type SyncApprovedChildDataInput struct {
 //   - the handler can apply best-effort error handling without rolling
 //     back the approval
 type DecideOutcome struct {
-	Child         *enrollmentModels.RequestChild
+	Child         *RequestChild
 	PendingInvite *PendingGuardianInvite
 }
 
@@ -182,7 +182,7 @@ type PendingGuardianInvite struct {
 type RequestSummary struct {
 	Request    *enrollmentModels.Request
 	Phase      *capability.Phase
-	Children   []*enrollmentModels.RequestChild
+	Children   []*RequestChild
 	Guardians  []*capability.RequestGuardian
 	LateInvite *capability.LateInvite
 }
@@ -214,7 +214,7 @@ type DecisionService interface {
 	// re-run under the submit advisory locks. Must run inside the
 	// handler-provided tenant transaction, like Decide.
 	RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error)
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
 	// ListChildOfferings returns the request_child_offerings rows for
@@ -303,7 +303,7 @@ type ExportRequestRow struct {
 // ExportChildRow is one child plus its care-offering selections,
 // resolved to offering names/days via the phase's offering catalog.
 type ExportChildRow struct {
-	Child     *enrollmentModels.RequestChild
+	Child     *RequestChild
 	Offerings []ChildOfferingRow
 }
 
@@ -670,8 +670,8 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	return out, nil
 }
 
-func requestChildOfferingsByChild(links []*enrollmentModels.RequestChildOffering) map[int64][]*enrollmentModels.RequestChildOffering {
-	result := make(map[int64][]*enrollmentModels.RequestChildOffering)
+func requestChildOfferingsByChild(links []*RequestChildOffering) map[int64][]*RequestChildOffering {
+	result := make(map[int64][]*RequestChildOffering)
 	for _, link := range links {
 		if link != nil {
 			result[link.RequestChildID] = append(result[link.RequestChildID], link)
@@ -680,7 +680,7 @@ func requestChildOfferingsByChild(links []*enrollmentModels.RequestChildOffering
 	return result
 }
 
-func requestChildOfferingIDSet(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+func requestChildOfferingIDSet(links []*RequestChildOffering) map[int64]bool {
 	result := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil {
@@ -703,7 +703,7 @@ func requestChildOfferingIDSet(links []*enrollmentModels.RequestChildOffering) m
 // list is not.
 func (s *decisionService) careOfferingsByID(
 	ctx context.Context,
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 ) map[int64]*enrollmentModels.CareOffering {
 	byID := make(map[int64]*enrollmentModels.CareOffering, len(links))
 	if s.CareOfferingRepo == nil || len(links) == 0 {
@@ -739,7 +739,7 @@ func (s *decisionService) careOfferingsByID(
 // entry — deleted offering — still yields a row so the admin sees the
 // booking exists, unlike the parent view which skips it.
 func childOfferingRow(
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	offering *enrollmentModels.CareOffering,
 	onDate timezone.Date,
 ) ChildOfferingRow {
@@ -940,7 +940,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load children: %w", err)
 	}
-	filteredChildren := make([]*enrollmentModels.RequestChild, 0, len(children))
+	filteredChildren := make([]*RequestChild, 0, len(children))
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		if child.CreatedStudentID == nil || *child.CreatedStudentID != studentID {
@@ -973,7 +973,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 			return nil, fmt.Errorf("decision: export student load phase %d: missing", phaseID)
 		}
 	}
-	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(filteredChildren))
+	childrenByID := make(map[int64]*RequestChild, len(filteredChildren))
 	for _, child := range filteredChildren {
 		childrenByID[child.ID] = child
 	}
@@ -1019,12 +1019,12 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // one.
 
 func filterOfferingsAtPhaseDate(
-	links []*enrollmentModels.RequestChildOffering,
-	childrenByID map[int64]*enrollmentModels.RequestChild,
+	links []*RequestChildOffering,
+	childrenByID map[int64]*RequestChild,
 	requestsByID map[int64]*enrollmentModels.Request,
 	phases map[int64]*capability.Phase,
-) []*enrollmentModels.RequestChildOffering {
-	filtered := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+) []*RequestChildOffering {
+	filtered := make([]*RequestChildOffering, 0, len(links))
 	for _, link := range links {
 		if link == nil {
 			continue
@@ -1053,7 +1053,7 @@ func filterOfferingsAtPhaseDate(
 // groupOfferingsByChild resolves each child->offering link against the
 // offering catalog and groups the rows per request child. Shared by the
 // phase export and the per-student export.
-func groupOfferingsByChild(links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, childCount int) map[int64][]ChildOfferingRow {
+func groupOfferingsByChild(links []*RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, childCount int) map[int64][]ChildOfferingRow {
 	offeringsByChild := make(map[int64][]ChildOfferingRow, childCount)
 	for _, link := range links {
 		row := ChildOfferingRow{
@@ -1073,8 +1073,8 @@ func groupOfferingsByChild(links []*enrollmentModels.RequestChildOffering, offer
 }
 
 // groupChildrenByRequest groups request children per request id.
-func groupChildrenByRequest(children []*enrollmentModels.RequestChild, requestCount int) map[int64][]*enrollmentModels.RequestChild {
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, requestCount)
+func groupChildrenByRequest(children []*RequestChild, requestCount int) map[int64][]*RequestChild {
+	childrenByRequest := make(map[int64][]*RequestChild, requestCount)
 	for _, c := range children {
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
 	}
@@ -1185,7 +1185,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, fmt.Errorf("decision: load children: %w", err)
 	}
 
-	var target *enrollmentModels.RequestChild
+	var target *RequestChild
 	for _, c := range children {
 		if c.ID == input.ChildID {
 			target = c
@@ -1331,7 +1331,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 
 func (s *decisionService) validateApprovalOfferingSelection(
 	ctx context.Context,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	phase *capability.Phase,
 ) error {
 	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
@@ -1459,7 +1459,7 @@ func (s *decisionService) stampActivationPlan(ctx context.Context, requestChildI
 func (s *decisionService) applyApproval(
 	ctx context.Context,
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	phase *capability.Phase,
 	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
@@ -1766,7 +1766,7 @@ func (s *decisionService) pendingGuardianInvite(
 func (s *decisionService) applyApprovalRollover(
 	ctx context.Context,
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	phase *capability.Phase,
 	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
@@ -1817,7 +1817,7 @@ func (s *decisionService) applyApprovalRollover(
 func (s *decisionService) attachApprovalToExistingStudent(
 	ctx context.Context,
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	phase *capability.Phase,
 	studentID int64,
 	reviewedBy int64,
@@ -2585,7 +2585,7 @@ func mergeGuardianProfileKeepSets(sets ...map[int64]bool) map[int64]bool {
 func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	ctx context.Context,
 	snapshot map[string]any,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	studentID int64,
 	fieldKey string,
 ) (map[int64]bool, error) {
@@ -2769,7 +2769,7 @@ func isBareGradePlaceholderClass(class string) bool {
 // concreteSchoolClass returns the trimmed concrete class the parent
 // chose at enrollment (e.g. "2a"), or "" when none was collected
 // ("Klasse offen"). Issue #1833.
-func (s *decisionService) concreteSchoolClass(child *enrollmentModels.RequestChild) string {
+func (s *decisionService) concreteSchoolClass(child *RequestChild) string {
 	if child.TargetSchoolClass == nil {
 		return ""
 	}
@@ -2782,7 +2782,7 @@ func (s *decisionService) concreteSchoolClass(child *enrollmentModels.RequestChi
 // only for brand-new student rows — never to overwrite an existing
 // student, where clobbering a concrete "2a" with a bare grade number
 // would lose information (see the rollover/adjustment paths). Issue #1833.
-func (s *decisionService) resolveSchoolClass(child *enrollmentModels.RequestChild) string {
+func (s *decisionService) resolveSchoolClass(child *RequestChild) string {
 	if concrete := s.concreteSchoolClass(child); concrete != "" {
 		return concrete
 	}
@@ -2817,7 +2817,7 @@ func (s *decisionService) resolveSchoolClass(child *enrollmentModels.RequestChil
 //     carry no derivable grade and are left untouched.
 //
 // Mirrors the bare-placeholder check in SyncApprovedChildData (#1833).
-func (s *decisionService) resolveRolloverSchoolClass(child *enrollmentModels.RequestChild, existingClass string) string {
+func (s *decisionService) resolveRolloverSchoolClass(child *RequestChild, existingClass string) string {
 	if concrete := s.concreteSchoolClass(child); concrete != "" {
 		return concrete
 	}
@@ -3003,7 +3003,7 @@ func (s *decisionService) careEnrollmentDraftsForChild(
 func (s *decisionService) careEnrollmentDraftsForLinks(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	phase *capability.Phase,
 ) (map[int64]*careEnrollmentDraft, map[int64]*activities.Group, error) {
 	if len(links) == 0 {
@@ -3242,7 +3242,7 @@ type careEnrollmentDraft struct {
 	studentValidUntil *timezone.Date
 }
 
-func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
+func uniqueCareOfferingIDs(links []*RequestChildOffering) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -3258,7 +3258,7 @@ func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int
 func (s *decisionService) buildCareEnrollmentDrafts(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	offerings []*enrollmentModels.CareOffering,
 	phase *capability.Phase,
 ) (map[int64]*careEnrollmentDraft, map[int64]*activities.Group, error) {
@@ -3347,7 +3347,7 @@ func (s *decisionService) addCareOfferingDrafts(
 	drafts map[int64]*careEnrollmentDraft,
 	multiSource map[int64]*activities.Group,
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	phase *capability.Phase,
 	gradeLevel *int16,
 	templates []*activities.Group,
@@ -3365,7 +3365,7 @@ func (s *decisionService) addLegacyLinkedGroupDrafts(
 	ctx context.Context,
 	drafts map[int64]*careEnrollmentDraft,
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	phase *capability.Phase,
 ) error {
 	if offering.ActivityGroupID == nil || *offering.ActivityGroupID == 0 {
@@ -3443,7 +3443,7 @@ func (s *decisionService) addSourcedTemplateDrafts(
 	drafts map[int64]*careEnrollmentDraft,
 	multiSource map[int64]*activities.Group,
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	phase *capability.Phase,
 	gradeLevel *int16,
 	templates []*activities.Group,
@@ -3566,7 +3566,7 @@ func sameOptionalInt64(left, right *int64) bool {
 
 func effectiveOfferingDaysForEnrollment(
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 ) ([]string, error) {
 	if len(link.SelectedDays) > 0 {
 		return link.SelectedDays, nil
@@ -3831,7 +3831,7 @@ type targetedFieldSyncOptions struct {
 func (s *decisionService) applyTargetedFields(
 	ctx context.Context,
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	student *users.Student,
 	guardian *users.GuardianProfile,
 	reviewedBy int64,
@@ -4360,7 +4360,7 @@ func pickupDaysFromLegacyPickupAnswer(answer string) users.PickupDays {
 // request_children.custom_data.
 func (s *decisionService) readFieldValue(
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	field *capability.FormField,
 ) any {
 	if field.AppliesToCh {

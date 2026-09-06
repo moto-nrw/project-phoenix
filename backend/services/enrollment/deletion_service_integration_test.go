@@ -72,10 +72,10 @@ func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *e
 	return request
 }
 
-func (f *deletionTestFixture) child(requestID int64, label, status string, createdStudentID *int64) *enrollmentModels.RequestChild {
+func (f *deletionTestFixture) child(requestID int64, label, status string, createdStudentID *int64) *enrollmentService.RequestChild {
 	f.t.Helper()
 	now := time.Now()
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		RequestID:        requestID,
 		FirstName:        label,
 		LastName:         "Child",

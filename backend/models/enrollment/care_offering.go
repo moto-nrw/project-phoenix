@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	"slices"
 	"strings"
+	"time"
 )
 
 // Days-of-week mode values matching the column CHECK constraint.
@@ -358,8 +354,8 @@ func normalizeGradeLevels(levels []int) ([]int, error) {
 	return normalizeGradeLevelList("auto_add_grade_levels", levels)
 }
 
-// normalizeGradeLevelList validates a grade-level list against the shared
-// grade bounds, drops duplicates, and preserves the admin-entered order.
+// normalizeGradeLevelList validates a grade-level list against the supported
+// school grades, drops duplicates, and preserves the admin-entered order.
 // Returns a non-nil empty slice so a jsonb column stores '[]' rather than
 // null. field names the column in the error so the caller's message stays
 // specific (auto_add_grade_levels vs eligible_grade_levels).
@@ -370,7 +366,7 @@ func normalizeGradeLevelList(field string, levels []int) ([]int, error) {
 	seen := make(map[int]bool, len(levels))
 	out := make([]int, 0, len(levels))
 	for _, level := range levels {
-		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+		if level < 1 || level > 13 {
 			return nil, fmt.Errorf("%s contains invalid grade %d", field, level)
 		}
 		if seen[level] {
@@ -428,34 +424,4 @@ type CareOfferingRepository interface {
 	// CountByPhaseID returns how many care offerings belong to the phase.
 	// Powers the phase-delete confirmation modal.
 	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
-}
-
-// RequestChildOffering is a row in enrollment.request_child_offerings -
-// the join table linking a request_child to a care_offering. PR 6
-// ships the schema; PR 7 fills it on submission.
-type RequestChildOffering struct {
-	ID                    int64     `json:"id"`
-	TenantID              int64     `json:"tenant_id"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
-	RequestChildID        int64     `json:"request_child_id"`
-	CareOfferingID        int64     `json:"care_offering_id"`
-	SelectedDays          []string  `json:"selected_days,omitempty"`
-	ManualSelectedDays    []string  `json:"manual_selected_days,omitempty"`
-	AutomaticSelectedDays []string  `json:"automatic_selected_days,omitempty"`
-	Notes                 *string   `json:"notes,omitempty"`
-	// ValidFrom / ValidUntil make an approved offering switch effective on its
-	// requested date. ValidUntil is exclusive, matching student enrollments.
-	ValidFrom  *timezone.Date `json:"valid_from,omitempty"`
-	ValidUntil *timezone.Date `json:"valid_until,omitempty"`
-}
-
-// ApprovedOfferingChild is one approved, still-relevant offering selection
-// with the enrollment-to-student resolution the offering-source flows need
-// (#2137): roster resync of sourced Regeltermine and the editor's per-grade
-// count preview.
-type ApprovedOfferingChild struct {
-	Link        *RequestChildOffering
-	StudentID   int64
-	SchoolClass string
 }

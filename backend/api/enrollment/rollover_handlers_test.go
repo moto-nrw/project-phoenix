@@ -249,13 +249,13 @@ func TestCreateRolloverHandler_NilServiceReturns500(t *testing.T) {
 func TestListRolloverReviewHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	source := &enrollmentModels.RequestChild{FirstName: "Lina", LastName: "Beispiel"}
+	source := &enrollmentService.RequestChild{FirstName: "Lina", LastName: "Beispiel"}
 	source.ID = 100
 	four := int16(4)
 	source.TargetGradeLevel = &four
 	five := int16(5)
 
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Beispiel",
 		Status:           enrollmentModels.ChildStatusPendingAdminReview,

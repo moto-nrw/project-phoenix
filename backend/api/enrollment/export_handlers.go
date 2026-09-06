@@ -746,7 +746,7 @@ const departureCompanionLabelDE = "Mit welchem Kind?"
 // allowed_departure_modes (not a schema field), so the field-iterating export
 // loops never emit it — it must be pulled out explicitly. Returns "" when
 // absent or blank.
-func childCompanionNote(c *enrollmentModels.RequestChild) string {
+func childCompanionNote(c *enrollmentService.RequestChild) string {
 	if c == nil || c.CustomData == nil {
 		return ""
 	}
@@ -754,7 +754,7 @@ func childCompanionNote(c *enrollmentModels.RequestChild) string {
 }
 
 // childFullName is the child's display heading for its block.
-func childFullName(c *enrollmentModels.RequestChild) string {
+func childFullName(c *enrollmentService.RequestChild) string {
 	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
 	if name == "" {
 		return "Kind"

@@ -85,8 +85,8 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	}
 }
 
-func matchedStudentChild(id int64, pin *int64) *enrollmentModels.RequestChild {
-	child := &enrollmentModels.RequestChild{
+func matchedStudentChild(id int64, pin *int64) *RequestChild {
+	child := &RequestChild{
 		FirstName:        "Anna",
 		LastName:         "Müller",
 		DateOfBirth:      "2019-04-12",
