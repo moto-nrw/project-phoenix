@@ -1788,7 +1788,7 @@
     "alreadyActive": "Your access details are already active. They are shown only once. If you no longer have them, create new ones. This also ends the existing calendar subscription.",
     "regenerated": "New access details created. The previous ones no longer work.",
     "caldavTitle": "Connect a calendar app",
-    "caldavDescription": "View your moto calendar in an app such as Thunderbird. You can only view the appointments there.",
+    "caldavDescription": "View your moto calendar in an app such as Thunderbird. You can only view the appointments there. Calendar apps call this access CalDAV.",
     "caldavAddress": "Address",
     "caldavUsername": "Username",
     "caldavPassword": "App password",

@@ -1788,7 +1788,7 @@
     "alreadyActive": "Ihre Zugangsdaten sind bereits aktiv. Sie werden nur einmal gezeigt. Wenn Sie sie nicht mehr haben, erstellen Sie neue. Das bisherige Kalender-Abo endet dann ebenfalls.",
     "regenerated": "Neue Zugangsdaten erstellt. Die bisherigen gelten nicht mehr.",
     "caldavTitle": "Mit einem Kalenderprogramm verbinden",
-    "caldavDescription": "Zeigen Sie Ihren moto-Kalender zum Beispiel in Thunderbird. Dort können Sie die Termine nur ansehen.",
+    "caldavDescription": "Zeigen Sie Ihren moto-Kalender zum Beispiel in Thunderbird. Dort können Sie die Termine nur ansehen. Kalenderprogramme nennen diesen Zugang CalDAV.",
     "caldavAddress": "Adresse",
     "caldavUsername": "Benutzername",
     "caldavPassword": "App-Passwort",

@@ -1788,7 +1788,7 @@
     "alreadyActive": "Të dhënat tuaja të hyrjes janë tashmë aktive. Ato shfaqen vetëm një herë. Nëse nuk i keni më, krijoni të reja. Kjo mbyll edhe abonimin e mëparshëm të kalendarit.",
     "regenerated": "U krijuan të dhëna të reja hyrjeje. Të mëparshmet nuk vlejnë më.",
     "caldavTitle": "Lidhuni me një program kalendari",
-    "caldavDescription": "Shikoni kalendarin tuaj moto, për shembull në Thunderbird. Atje mund t'i shikoni vetëm takimet.",
+    "caldavDescription": "Shikoni kalendarin tuaj moto, për shembull në Thunderbird. Atje mund t'i shikoni vetëm takimet. Programet e kalendarit e quajnë këtë lidhje CalDAV.",
     "caldavAddress": "Adresa",
     "caldavUsername": "Emri i përdoruesit",
     "caldavPassword": "Fjalëkalimi i aplikacionit",

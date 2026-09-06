@@ -195,7 +195,7 @@ func TestCalendarCalDAVSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyCalendarCalDAVEnabled)
 	require.NotNil(t, def)
 	assert.Equal(t, "Kalenderzugang mit App-Passwort erlauben", def.Label)
-	assert.Equal(t, "Mitarbeitende können ihren moto-Kalender mit Benutzername und App-Passwort verbinden. Der normale Abo-Link bleibt weiterhin verfügbar. Termine können nur angesehen werden.", def.Description)
+	assert.Equal(t, "Zweiter Weg neben dem Abo-Link. Mitarbeitende erstellen sich in moto ein App-Passwort. Damit melden sie sich im Kalenderprogramm an. Termine können sie nur ansehen. Kalenderprogramme nennen diesen Zugang CalDAV.", def.Description)
 	assert.Equal(t, config.FieldBoolean, def.Type)
 	assert.Equal(t, false, def.Default)
 	assert.Equal(t, "config:read", def.ReadPermission)
