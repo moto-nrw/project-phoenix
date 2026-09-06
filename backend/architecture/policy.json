@@ -2495,6 +2495,10 @@
       "write_owner": "timetable-activities"
     },
     {
+      "name": "audit.attendance_corrections",
+      "write_owner": "audit-platform"
+    },
+    {
       "name": "audit.auth_events",
       "write_owner": "audit-platform"
     },

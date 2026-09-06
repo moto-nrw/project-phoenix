@@ -12,6 +12,8 @@ export interface BackendAttendanceHistoryResponse {
 }
 
 export type AttendanceSlotStatus = "expected" | "present" | "absent";
+export type ActivityInstanceStatus =
+  "planned" | "active" | "completed" | "cancelled";
 
 interface BackendAttendanceHistoryDay {
   date: string;
@@ -40,11 +42,13 @@ interface BackendAttendanceSession {
 
 interface BackendAttendanceSlot {
   instance_id: string;
+  instance_status?: ActivityInstanceStatus;
   title: string;
   start_time: string;
   end_time: string;
   status: AttendanceSlotStatus;
   substatus?: string | null;
+  note?: string | null;
   checked_in_at?: string | null;
   checked_out_at?: string | null;
   is_unplanned: boolean;
@@ -102,11 +106,13 @@ interface AttendanceSession {
 
 interface AttendanceSlot {
   instanceId: string;
+  instanceStatus: ActivityInstanceStatus | null;
   title: string;
   startTime: string;
   endTime: string;
   status: AttendanceSlotStatus;
   substatus: string | null;
+  note: string | null;
   checkedInAt: Date | null;
   checkedOutAt: Date | null;
   isUnplanned: boolean;
@@ -179,11 +185,13 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
 function mapAttendanceSlot(slot: BackendAttendanceSlot): AttendanceSlot {
   return {
     instanceId: slot.instance_id,
+    instanceStatus: slot.instance_status ?? null,
     title: slot.title,
     startTime: slot.start_time,
     endTime: slot.end_time,
     status: slot.status,
     substatus: slot.substatus ?? null,
+    note: slot.note ?? null,
     checkedInAt: slot.checked_in_at ? new Date(slot.checked_in_at) : null,
     checkedOutAt: slot.checked_out_at ? new Date(slot.checked_out_at) : null,
     isUnplanned: slot.is_unplanned,
