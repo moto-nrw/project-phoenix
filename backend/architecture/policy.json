@@ -83,6 +83,10 @@
       "kind": "domain"
     },
     {
+      "id": "export-transfer",
+      "kind": "platform"
+    },
+    {
       "id": "facilities",
       "kind": "domain"
     },
@@ -1104,6 +1108,62 @@
       "path": "internal/sliceutil",
       "owner": "legacy-shared",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer",
+      "owner": "export-transfer",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/compose",
+      "owner": "export-transfer",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/postgres",
+      "owner": "export-transfer",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/sftp",
+      "owner": "export-transfer",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/domain",
+      "owner": "export-transfer",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/adapters/sftp/sftptest",
+      "owner": "export-transfer",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/application",
+      "owner": "export-transfer",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/internal/ports",
+      "owner": "export-transfer",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2482,6 +2542,10 @@
       "write_owner": "audit-platform"
     },
     {
+      "name": "audit.export_transfers",
+      "write_owner": "export-transfer"
+    },
+    {
       "name": "audit.file_event_ledger",
       "write_owner": "audit-platform"
     },
@@ -3236,6 +3300,10 @@
       "class": "crypto"
     },
     {
+      "path": "crypto/ed25519",
+      "class": "crypto"
+    },
+    {
       "path": "crypto/hmac",
       "class": "crypto"
     },
@@ -3376,6 +3444,10 @@
       "class": "crypto"
     },
     {
+      "path": "github.com/pkg/sftp",
+      "class": "delivery"
+    },
+    {
       "path": "github.com/prometheus/client_golang/prometheus",
       "class": "observability"
     },
@@ -3478,6 +3550,10 @@
     {
       "path": "golang.org/x/crypto/argon2",
       "class": "utility"
+    },
+    {
+      "path": "golang.org/x/crypto/ssh",
+      "class": "delivery"
     },
     {
       "path": "golang.org/x/image/font/sfnt",
@@ -3597,6 +3673,10 @@
     },
     {
       "path": "net/mail",
+      "class": "standard"
+    },
+    {
+      "path": "net/netip",
       "class": "standard"
     },
     {
@@ -6062,6 +6142,41 @@
       "target_role": "public"
     },
     {
+      "id": "root-composition.to.export-transfer-compose",
+      "description": "The production root constructs the Export Transfer module once (#3050). It is composed next to the staff surface rather than with the other modules because it reads tenant settings, which exist only once the service factory is built.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.export-transfer-contract",
+      "description": "The production root passes the Export Transfer capability to the workforce HTTP resource.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-time-tracking.to.export-transfer",
+      "description": "The workforce time-tracking HTTP resource calls the public Export Transfer capability to send an already-produced export file (#3050).",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-time-tracking",
+      "source_role": "http",
+      "target_owner": "export-transfer",
+      "target_role": "contract"
+    },
+    {
       "id": "root-composition.to.meal-plan-compose",
       "description": "The production root constructs the Meal Plan module once.",
       "scopes": [
@@ -7981,6 +8096,203 @@
       ],
       "source_owner": "delivery-platform",
       "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "export-transfer.test-support.dependencies",
+      "description": "The shared in-process SFTP counterpart runs a real SSH server: it needs the SSH stack, the SFTP server implementation, a generated host key and the test helpers.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "test-support",
+      "target_class": "delivery"
+    },
+    {
+      "id": "export-transfer.test-support.crypto",
+      "description": "Generating the test counterpart's host key needs a key type and a random source.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "test-support",
+      "target_class": "crypto"
+    },
+    {
+      "id": "export-transfer.test-support.test",
+      "description": "The test counterpart binds its lifetime to the running test. Only the production scope needs the grant: the test scopes already carry it through the shared external.test rule.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "test-support",
+      "target_class": "test"
+    },
+    {
+      "id": "export-transfer.e2e-test.test-support",
+      "description": "The transport's end-to-end tests drive the shared in-process counterpart.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "e2e-test",
+      "target_owner": "export-transfer",
+      "target_role": "test-support"
+    },
+    {
+      "id": "export-transfer.internal-test.test-support",
+      "description": "The capability's integration test drives the same in-process counterpart as the transport's own tests, so both sides prove behaviour against one server.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "module-internal-test",
+      "target_owner": "export-transfer",
+      "target_role": "test-support"
+    },
+    {
+      "id": "export-transfer.internal-test.tenant-runtime",
+      "description": "The capability's integration test opens the tenant transaction that TenantTxMiddleware provides in production, so the journal entry is written where it would really be written.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "export-transfer.internal-test.orm-sql",
+      "description": "The capability's integration test reads audit.export_transfers back through the tenant role to prove the row landed under RLS.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "export-transfer.adapter.delivery",
+      "description": "The SFTP transport uses classified delivery dependencies: the SFTP client and the SSH stack that carries it.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "adapter",
+      "target_class": "delivery"
+    },
+    {
+      "id": "export-transfer.port-domain",
+      "description": "Export Transfer ports are declared over domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "port",
+      "target_owner": "export-transfer",
+      "target_role": "domain"
+    },
+    {
+      "id": "export-transfer.compose.domain",
+      "description": "Export Transfer composition builds domain values from the tenant settings and translates results to the public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "domain"
+    },
+    {
+      "id": "export-transfer.compose.contract",
+      "description": "Export Transfer composition returns the public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "contract"
+    },
+    {
+      "id": "export-transfer.compose.application",
+      "description": "Export Transfer composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "application"
+    },
+    {
+      "id": "export-transfer.compose.postgres",
+      "description": "Export Transfer composition constructs its journal adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "postgres"
+    },
+    {
+      "id": "export-transfer.compose.adapter",
+      "description": "Export Transfer composition constructs its SFTP transport and binds it to the port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "export-transfer",
+      "target_role": "adapter"
+    },
+    {
+      "id": "export-transfer.compose.tenant-runtime",
+      "description": "Export Transfer composition writes its journal on the caller's tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "export-transfer.compose.orm-sql",
+      "description": "Export Transfer composition passes the database handle to its journal adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "export-transfer.e2e-test.adapter",
+      "description": "The SFTP export transfer's end-to-end test (#3050) drives the adapter through its public API from an external test package.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "e2e-test",
+      "target_owner": "export-transfer",
+      "target_role": "adapter"
+    },
+    {
+      "id": "export-transfer.e2e-test.crypto",
+      "description": "The SFTP export transfer's end-to-end test (#3050) runs an in-process SSH server so host-key pinning is proven against a real handshake; generating that server's host key needs a key type and a random source.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "e2e-test",
       "target_class": "crypto"
     },
     {

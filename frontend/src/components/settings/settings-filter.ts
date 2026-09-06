@@ -11,6 +11,7 @@ const categoryLabelOverrides: Record<string, string> = {
   pin: "PIN",
   aktivitaeten: "Aktivitäten",
   stundenplan: "Betreuungsplan",
+  schnittstellen: "Schnittstellen",
 };
 
 export function displayCategoryLabel(category: SchemaCategory): string {

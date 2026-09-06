@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -30,6 +31,7 @@ type StaffAdminResource struct {
 	StaffOverviewService activeSvc.StaffOverviewService
 	AuditLogService      activeSvc.TimeTrackingAuditLogService
 	TimeExportService    activeSvc.StaffTimeExportService
+	ExportTransfer       *exportTransferModule.Module
 	db                   *bun.DB
 	logger               *slog.Logger
 }
@@ -46,6 +48,7 @@ func NewStaffAdminResource(
 	staffOverviewService activeSvc.StaffOverviewService,
 	auditLogService activeSvc.TimeTrackingAuditLogService,
 	timeExportService activeSvc.StaffTimeExportService,
+	exportTransfer *exportTransferModule.Module,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *StaffAdminResource {
@@ -65,6 +68,7 @@ func NewStaffAdminResource(
 		StaffOverviewService: staffOverviewService,
 		AuditLogService:      auditLogService,
 		TimeExportService:    timeExportService,
+		ExportTransfer:       exportTransfer,
 		db:                   db,
 		logger:               logger,
 	}
@@ -185,6 +189,8 @@ func (rs *StaffAdminResource) registerCrossStaffRoutes(r chi.Router, withTx comm
 	r.With(timeTracking, withTx).Get("/time-tracking/audit-log", rs.getTimeTrackingAuditLog)
 	r.With(timeTracking, withTx).Get("/time-tracking/export", rs.exportTimeTracking)
 	r.With(timeTracking, withTx).Get("/time-tracking/export/datev-report", rs.datevExportReport)
+	r.With(timeTracking, withTx).Get("/time-tracking/export/sftp-status", rs.exportSFTPStatus)
+	r.With(timeTracking, withTx).Post("/time-tracking/export/sftp", rs.transferExportViaSFTP)
 
 	r.With(timeTracking, withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
 	r.With(timeTracking, withTx).Post("/time-tracking/month-close", rs.closeMonth)

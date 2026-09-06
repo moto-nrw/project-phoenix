@@ -172,6 +172,14 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"notifications.care_cancelled_email",
 		// Tenant reply address for parent-facing mail (#1936).
 		"email.reply_to_address",
+		// SFTP target for the manual export transfer (#3050).
+		"sftp.enabled",
+		"sftp.host",
+		"sftp.port",
+		"sftp.username",
+		"sftp.password",
+		"sftp.remote_directory",
+		"sftp.host_key_fingerprint",
 	}
 
 	for _, key := range expectedKeys {
@@ -1838,4 +1846,73 @@ func TestParentRequestReasonPolicySetting(t *testing.T) {
 	assert.Contains(t, values, config.ReasonPolicyGuardians)
 	assert.Contains(t, values, config.ReasonPolicyStaff)
 	assert.Contains(t, values, config.ReasonPolicyBoth)
+}
+
+// TestSFTPSettings pins the SFTP target definitions (#3050). The empty
+// defaults are the point: a school without a configured counterpart must have
+// no counterpart at all, and the fingerprint must never carry a value nobody
+// verified.
+func TestSFTPSettings(t *testing.T) {
+	t.Parallel()
+
+	textKeys := []string{
+		config.KeySFTPHost,
+		config.KeySFTPUsername,
+		config.KeySFTPPassword,
+		config.KeySFTPRemoteDirectory,
+		config.KeySFTPHostKeyFingerprint,
+	}
+	for _, key := range textKeys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, "", def.Default, "%s must default to EMPTY — an invented target is a wrong target", key)
+		assert.Equal(t, "system", def.Tab, key)
+		assert.Equal(t, "schnittstellen", def.Category, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
+		require.NotNil(t, def.Validation, key)
+		assert.True(t, def.Validation.AllowEmpty, key)
+	}
+
+	enabled := config.GetDefinition(config.KeySFTPEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, false, enabled.Default, "the transfer must be off until a school switches it on")
+
+	// The password is a password field, so the settings service redacts it in
+	// the audit trail and the schema masks it in the UI.
+	password := config.GetDefinition(config.KeySFTPPassword)
+	require.NotNil(t, password)
+	assert.Equal(t, config.FieldPassword, password.Type)
+
+	port := config.GetDefinition(config.KeySFTPPort)
+	require.NotNil(t, port)
+	assert.Equal(t, config.FieldNumber, port.Type)
+	assert.Equal(t, 22, port.Default, "22 is the protocol's standard, not a per-school guess")
+	require.NotNil(t, port.Validation)
+	require.NotNil(t, port.Validation.Min)
+	require.NotNil(t, port.Validation.Max)
+	assert.Equal(t, 1.0, *port.Validation.Min)
+	assert.Equal(t, 65535.0, *port.Validation.Max)
+
+	// The fingerprint pattern must accept exactly what ssh.FingerprintSHA256
+	// produces and reject the shapes people paste by mistake (MD5 fingerprint,
+	// a whole public key, a bare base64 blob).
+	fingerprint := config.GetDefinition(config.KeySFTPHostKeyFingerprint)
+	require.NotNil(t, fingerprint)
+	require.NotNil(t, fingerprint.Validation)
+	require.NotNil(t, fingerprint.Validation.CompiledPattern)
+	pattern := fingerprint.Validation.CompiledPattern
+	assert.True(t, pattern.MatchString("SHA256:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"))
+	assert.False(t, pattern.MatchString("47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU"))
+	assert.False(t, pattern.MatchString("MD5:1f:aa:bb:cc"))
+	assert.False(t, pattern.MatchString("SHA256:short"))
+
+	// Every field except the on/off switch hangs off sftp.enabled, so the
+	// form does not ask for a password before anyone wants a transfer.
+	for _, key := range append(textKeys, config.KeySFTPPort) {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def.DependsOn, "%s should depend on sftp.enabled", key)
+		assert.Equal(t, config.KeySFTPEnabled, def.DependsOn.Key, key)
+	}
 }

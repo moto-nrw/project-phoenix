@@ -272,7 +272,7 @@ func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
 	db, serviceFactory := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+	require.NoError(t, initializeAPIResources(api, repoFactory, db, slog.Default()))
 	return &caregiverComposition{
 		authWired:        api.Auth != nil,
 		operatorWired:    api.Operator != nil,
@@ -304,7 +304,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	db, serviceFactory := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+	require.NoError(t, initializeAPIResources(api, repoFactory, db, slog.Default()))
 	return &settingsCallbackRoute{router: api.Settings.SettingsRouter(), hub: api.Services.RealtimeHub}
 }
 
@@ -315,7 +315,7 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	api.rateLimiting = true
 	api.authRateLimit = "5"
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+	require.NoError(t, initializeAPIResources(api, repoFactory, db, slog.Default()))
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
 		Settings: enabledMealPlanSettings{},

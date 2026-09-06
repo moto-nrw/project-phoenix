@@ -36,6 +36,8 @@ var staffRouteSurface = []string{
 	"GET /time-tracking/audit-log",
 	"GET /time-tracking/export",
 	"GET /time-tracking/export/datev-report",
+	"GET /time-tracking/export/sftp-status",
+	"POST /time-tracking/export/sftp",
 	"GET /time-tracking/month-close",
 	"GET /time-tracking/overview",
 	"GET /{id}",

@@ -11,6 +11,8 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -106,9 +108,44 @@ func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRole
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource from api/time-tracking and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingAPI.StaffAdminResource) {
-	staffAdmin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, logger)
-	return newStaffResource(module, svc, staffAdmin, db, logger), staffAdmin
+func newStaffComposition(module schoolMembershipModule.Capability, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingAPI.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(svc, db, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	staffAdmin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, exportTransfer, db, logger)
+	return newStaffResource(module, svc, staffAdmin, db, logger), staffAdmin, nil
+}
+
+// newExportTransferModule wires the Export Transfer capability (#3050) over
+// the tenant settings. It is composed HERE rather than alongside the other
+// modules because it needs the settings service, which only exists once the
+// service factory is built.
+func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Logger) (*exportTransferModule.Module, error) {
+	// The setting keys stay in the settings layer next to their registry
+	// definitions; the root only passes the binding on.
+	resolvers, keys := svc.SFTPExportSettings()
+	return exportTransferCompose.New(exportTransferCompose.Dependencies{
+		DB: db,
+		Settings: exportTransferCompose.Settings{
+			Enabled:            resolvers.Enabled,
+			Host:               resolvers.Host,
+			Port:               resolvers.Port,
+			Username:           resolvers.Username,
+			Password:           resolvers.Password,
+			RemoteDirectory:    resolvers.RemoteDirectory,
+			HostKeyFingerprint: resolvers.HostKeyFingerprint,
+		},
+		Keys: exportTransferCompose.SettingKeys{
+			Host:               keys.Host,
+			Port:               keys.Port,
+			Username:           keys.Username,
+			Password:           keys.Password,
+			RemoteDirectory:    keys.RemoteDirectory,
+			HostKeyFingerprint: keys.HostKeyFingerprint,
+		},
+		Logger: logger,
+	})
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared

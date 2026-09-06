@@ -18,19 +18,30 @@ func newFakeSettingsService(opts fakeSettingsServiceOpts) *fakeSettingsService {
 }
 
 type fakeSettingsService struct {
-	opts          fakeSettingsServiceOpts
-	snapshot      *SettingsSnapshot
-	snapshotErr   error
+	opts        fakeSettingsServiceOpts
+	snapshot    *SettingsSnapshot
+	snapshotErr error
+	// Per-key hooks. Set one where a test needs different values for
+	// different keys (the SFTP target reads six keys of three types); leave
+	// it nil to keep the single canned value from opts.
 	resolveString func(context.Context, string) (string, error)
+	resolveBool   func(context.Context, string) (bool, error)
+	resolveInt    func(context.Context, string) (int, error)
 }
 
 func (f *fakeSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
 	return f.opts.hasOverride, f.opts.hasOverrideErr
 }
-func (f *fakeSettingsService) ResolveBool(context.Context, string) (bool, error) {
+func (f *fakeSettingsService) ResolveBool(ctx context.Context, key string) (bool, error) {
+	if f.resolveBool != nil {
+		return f.resolveBool(ctx, key)
+	}
 	return f.opts.boolVal, f.opts.boolErr
 }
-func (f *fakeSettingsService) ResolveInt(context.Context, string) (int, error) {
+func (f *fakeSettingsService) ResolveInt(ctx context.Context, key string) (int, error) {
+	if f.resolveInt != nil {
+		return f.resolveInt(ctx, key)
+	}
 	return f.opts.intVal, f.opts.intErr
 }
 func (f *fakeSettingsService) ResolveString(ctx context.Context, key string) (string, error) {

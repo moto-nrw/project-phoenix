@@ -778,7 +778,9 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db, logger)
+	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+		return nil, err
+	}
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory, db)
@@ -1052,7 +1054,7 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) error {
 	deviceLastSeenDebouncer := iotAPI.NewDeviceLastSeenDebouncer()
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
@@ -1142,7 +1144,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	staffResource, staffAdmin, err := newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	if err != nil {
+		return err
+	}
+	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
@@ -1346,6 +1352,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+	return nil
 }
 
 func (a *API) currentStaffID(ctx context.Context) (int64, error) {

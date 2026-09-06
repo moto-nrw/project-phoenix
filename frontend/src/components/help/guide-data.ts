@@ -1138,6 +1138,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit der Berechtigung `time_tracking:manage` erscheinen unter der Übersicht die Reiter `Status`, `Zeitkonten` und `Änderungsprotokoll`. Wer zusätzlich Personalunterlagen sehen darf, findet dort auch `Personalunterlagen`: Das Verzeichnis führt zur Akte einer Person, auch wenn die Rolle keine Mitarbeiterliste sehen darf. `Zeitkonten` zeigt eine Tabelle mit Soll, Ist, Saldo und Resturlaub pro Person; über die Pfeile neben dem Monatsnamen lassen sich auch vergangene Monate anzeigen. Jede Spalte lässt sich über die Kopfzeile sortieren, die Schaltflächen darüber filtern nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`, und `Eigene Grenze` erlaubt eine eigene Untergrenze in Stunden. Ein Klick auf eine Zeile öffnet das Mitarbeiterprofil.",
           "Über `Exportieren` in der Zeitkonten-Ansicht lassen sich die Zeitkonten aller Mitarbeitenden als Datei ziehen, zum Beispiel für Lohnbuchhaltung oder Träger: wahlweise der angezeigte Monat oder das ganze Jahr, als Monatssummen (mit Übertrag, Gutschriften, Buchungen und Saldo je Person) oder als einzelne Tage, als CSV oder Excel, Zeitangaben in Stunden:Minuten oder Dezimalstunden. Abgeschlossene Monate tragen in der Datei den eingefrorenen Übertrag; jeder Export wird im Zugriffsprotokoll vermerkt.",
           "Im selben Dialog stehen zusätzlich die Formate `DATEV LODAS` und `DATEV Lohn und Gehalt` bereit: Bewegungsdaten für die Lohnabrechnung, immer ein einzelner Monat pro Datei, mit einer Zeile je Person und Lohnart. Voraussetzung ist die vollständige Konfiguration unter `Abrechnung` (Lohnarten, für LODAS auch Berater- und Mandantennummer) sowie Personalnummern an allen Personen. Vor dem Download zeigt der Dialog einen Bericht: wie viele Buchungszeilen entstehen, bei wem eine Personalnummer fehlt und ob der Monat noch offen ist. Fehlende Personalnummern sperren den Export, bis sie im Mitarbeiterprofil ergänzt wurden. Die erste Datei vor dem Echtlauf mit der Lohnbuchhaltung abstimmen; bei Lohn und Gehalt legt das Lohnbüro die Importbeschreibung selbst an.",
+          "Unter `Wohin` steht neben `Herunterladen` die Auswahl `An die Gegenstelle übertragen`, sobald ein Admin die Übertragung unter `Planung` -> `Abrechnung` eingerichtet hat. Ist sie noch nicht eingerichtet, ist die Auswahl grau und der Dialog sagt das. Übertragen wird genau dieselbe Datei wie beim Herunterladen; der Dialog nennt vorher Adresse und Zielordner und danach das Ergebnis. Klappt es nicht, steht der Grund im Dialog und es wurde nichts abgelegt. Jeder Versuch wird protokolliert, erfolgreich wie erfolglos, ohne Passwort.",
           "Über `Monat abschließen` wird ein vergangener Monat für alle Mitarbeitenden festgeschrieben (Begründung erforderlich, zum Beispiel für die Lohnabrechnung). Der Saldo zum Monatsende wird eingefroren und alle Folgemonate rechnen mit diesem Übertrag weiter, auch wenn später noch Zeiten im abgeschlossenen Monat geändert werden. Der laufende Monat lässt sich erst ab dem 1. des Folgemonats abschließen. Ein abgeschlossener Monat trägt das Schloss-Symbol mit Datum neben dem Monatsnamen.",
           "Der Reiter `Änderungsprotokoll` (ebenfalls nur mit `time_tracking:manage`) zeigt alle Änderungen an Arbeitszeiten über alle Mitarbeitenden hinweg: korrigierte Zeiterfassungen, entschiedene Abwesenheiten, Stundenkonto-Buchungen, Monatsabschlüsse und -öffnungen sowie gelöschte Einträge — jeweils mit Zeitpunkt, betroffener Person, bearbeitender Person und Begründung. Filtern lässt sich nach Mitarbeiter:in, bearbeitender Person, Bereich und Zeitraum; `Weitere Einträge laden` blättert weiter zurück. Einträge zur Zeiterfassung, die älter als die eingestellte Aufbewahrungsfrist sind, wurden bereits gelöscht; Buchungen und Monatsabschlüsse bleiben vollständig.",
           "Mit Genehmigungsrecht steht oben auf der Seite ein Verweis `Anträge von Mitarbeitenden` mit der Zahl der offenen Anträge. Entschieden wird in der Seitenleiste unter `Anfragen` im Reiter `Mitarbeitende`: Urlaub, Krank, Fortbildung und Sonstige, offen wie Historie, mit Suche nach dem Namen und Filter nach Art. Pro Antrag lässt sich `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen; die Historie zeigt zusätzlich, wer wann mit welcher Begründung entschieden hat.",
@@ -2490,6 +2491,27 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Einstellungen, Tab Betrieb mit dem Schalter Angebotsabgleich für dauerhafte Gehzeiten.",
+      },
+      {
+        id: "einstellungen-schnittstellen-sftp",
+        title: "Dateien an eine andere Stelle übertragen (SFTP)",
+        icon: PlugZap,
+        summary:
+          "Die Zeitkonten-Exporte lassen sich verschlüsselt an eine feste Gegenstelle senden, zum Beispiel an das Lohnbüro, statt sie herunterzuladen und weiterzuschicken. Die Funktion ist zuerst ausgeschaltet.",
+        steps: [
+          "`Einstellungen` -> `System` öffnen und zur Sektion `Schnittstellen` scrollen.",
+          "`SFTP-Übertragung` einschalten. Erst danach erscheinen die weiteren Felder.",
+          "Adresse, Port (meist 22), Benutzername, Passwort und Zielordner eintragen. Alle Angaben erhalten Sie von der Stelle, die die Dateien entgegennimmt.",
+          "Den Fingerabdruck eintragen. Fragen Sie dort nach dem Wert für den RSA-Schlüssel: Eine Gegenstelle hat oft mehrere Schlüssel, und moto verwendet den RSA-Schlüssel.",
+          "Danach steht im Export-Dialog der Zeitkonten unter `Wohin` die Auswahl `An die Gegenstelle übertragen` bereit.",
+        ],
+        callout: {
+          title: "Ohne vollständige Angaben passiert nichts",
+          body: "Fehlt ein Feld oder passt der Fingerabdruck nicht, bricht moto ab und überträgt nichts. Das ist Absicht: So kann eine Lohndatei nicht bei einer falschen Stelle landen. Adressen im eigenen Netz der Schule sind nicht möglich.",
+          tone: "orange",
+        },
+        screenshot:
+          "Einstellungen, Tab System mit der Sektion Schnittstellen und dem Schalter SFTP-Übertragung.",
       },
       {
         id: "einstellungen-benachrichtigungen",
