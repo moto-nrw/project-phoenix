@@ -41,9 +41,9 @@ const EMPTY_STATE: HomeLayoutState = {
 /**
  * Liest Auswahl und Vorgabe in einem Zug.
  *
- * Fällt die Abfrage aus, rendert die Startseite ihren Standard statt einer
- * Fehlerseite: eine nicht gespeicherte Kachelauswahl darf niemanden von seinen
- * Zahlen aussperren.
+ * Bei einer fehlenden Anmeldung gilt die empfohlene Ansicht. Andere Fehler
+ * werden an SWR weitergereicht, damit die Startseite ihren Standard rendert
+ * und SWR die Auswahl erneut laden kann.
  */
 export async function fetchHomeLayout(): Promise<HomeLayoutState> {
   let response: Response;
@@ -61,7 +61,7 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
     logger.error("fetch_home_layout_network_error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return EMPTY_STATE;
+    throw error;
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -70,7 +70,7 @@ export async function fetchHomeLayout(): Promise<HomeLayoutState> {
 
   if (!response.ok) {
     logger.error("fetch_home_layout_failed", { status: response.status });
-    return EMPTY_STATE;
+    throw new Error(`home layout request failed (${response.status})`);
   }
 
   const result = (await response.json()) as HomeLayoutResponse;

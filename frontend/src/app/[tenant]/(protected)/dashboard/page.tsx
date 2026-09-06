@@ -154,8 +154,8 @@ function DashboardContent() {
   // gilt die Empfehlung; die Seite wartet bewusst nicht auf sie, sonst bliebe
   // sie bei einer hängenden Abfrage leer. Innerhalb einer Sitzung kennt SWR
   // die Auswahl, ausgeblendete Kacheln fragen dann nichts mehr nach.
-  const wantsBirthdays = isHomeBlockVisible(
-    { ...blockContext, birthdaysEnabled },
+  const wantsBirthdayData = isHomeBlockVisible(
+    blockContext,
     homeLayout.overrides,
     homeLayout.policies,
     "section.birthdays",
@@ -172,10 +172,12 @@ function DashboardContent() {
   // Birthdays live on their own key: they change once a day, while the
   // analytics key below is revalidated by every check-in via SSE (#1542).
   // A failure here must never take the dashboard down, so the card simply
-  // stays hidden.
+  // stays hidden. Die Abfrage bleibt auch bei einer vorübergehend
+  // ausgeschalteten Geburtstagsanzeige aktiv: Nur so erkennt die Startseite,
+  // wenn die Schule sie später wieder freigibt.
   const { data: birthdays, isLoading: birthdaysLoading } =
     useSWRAuth<BirthdayOverview>(
-      wantsBirthdays ? "birthday-overview" : null,
+      wantsBirthdayData ? "birthday-overview" : null,
       fetchBirthdayOverviewClient,
       { refreshInterval: 30 * 60 * 1000 },
     );
