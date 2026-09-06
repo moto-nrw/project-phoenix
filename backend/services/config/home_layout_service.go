@@ -129,6 +129,13 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 		if err := s.lockAccount(txCtx, tenantID, accountID); err != nil {
 			return err
 		}
+		// The merge below reads the school's prescription. A shared lock keeps
+		// concurrent personal saves independent, but conflicts with the
+		// exclusive policy-replacement lock so this read cannot go stale before
+		// the replacement is stored.
+		if err := s.lockPolicies(txCtx, tenantID, true); err != nil {
+			return err
+		}
 		policySet, err := s.repo.FindPolicies(txCtx)
 		if err != nil {
 			return err
@@ -195,6 +202,20 @@ func homeLayoutAccountLockKey(tenantID, accountID int64) string {
 	return fmt.Sprintf("home-layout:%d:%d", tenantID, accountID)
 }
 
+// lockPolicies guards a school's whole policy map. Personal writes hold the
+// shared side while merging their overrides; policy replacements hold the
+// exclusive side so no merge can read an old prescription.
+func (s *HomeLayoutService) lockPolicies(ctx context.Context, tenantID int64, shared bool) error {
+	if err := s.runtime.AcquireLock(ctx, homeLayoutPoliciesLockKey(tenantID), shared); err != nil {
+		return fmt.Errorf("lock home layout policies: %w", err)
+	}
+	return nil
+}
+
+func homeLayoutPoliciesLockKey(tenantID int64) string {
+	return fmt.Sprintf("home-layout:%d:policies", tenantID)
+}
+
 // SetPolicies replaces the school's prescription.
 //
 // Blocks left optional are removed from the map before storing: "the school has
@@ -231,6 +252,9 @@ func (s *HomeLayoutService) SetPolicies(ctx context.Context, tenantID, accountID
 
 	changedBy := accountID
 	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		if err := s.lockPolicies(txCtx, tenantID, false); err != nil {
+			return err
+		}
 		set := &configModel.HomeBlockPolicySet{
 			TenantID:  tenantID,
 			Policies:  cleaned,

@@ -59,8 +59,13 @@ func (f *fakeHomeLayoutRepo) UpsertPolicies(_ context.Context, policies *configM
 // boundary itself is covered by the repository tests against Postgres.
 type passthroughRuntime struct {
 	tenants []int64
-	locks   []string
+	locks   []homeLayoutLock
 	lockErr error
+}
+
+type homeLayoutLock struct {
+	key    string
+	shared bool
 }
 
 func (r *passthroughRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
@@ -69,10 +74,7 @@ func (r *passthroughRuntime) WithinTenant(ctx context.Context, tenantID int64, f
 }
 
 func (r *passthroughRuntime) AcquireLock(_ context.Context, key string, shared bool) error {
-	if shared {
-		return errors.New("home layout lock must be exclusive")
-	}
-	r.locks = append(r.locks, key)
+	r.locks = append(r.locks, homeLayoutLock{key: key, shared: shared})
 	return r.lockErr
 }
 
@@ -138,14 +140,18 @@ func TestHomeLayoutService_NotifiesAffectedStartPagesAfterWrites(t *testing.T) {
 	}, notifications)
 }
 
-func TestHomeLayoutService_PersonalWritesUseTheAccountLock(t *testing.T) {
+func TestHomeLayoutService_PersonalWritesLockTheAccountAndPolicyRead(t *testing.T) {
 	t.Parallel()
 	service, _, runtime := newHomeLayoutTestService(t)
 
 	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
 	require.NoError(t, service.ResetOverrides(context.Background(), 7, 42))
 
-	assert.Equal(t, []string{"home-layout:7:42", "home-layout:7:42"}, runtime.locks)
+	assert.Equal(t, []homeLayoutLock{
+		{key: "home-layout:7:42"},
+		{key: "home-layout:7:policies", shared: true},
+		{key: "home-layout:7:42"},
+	}, runtime.locks)
 }
 
 func TestHomeLayoutService_PersonalWritesStopWhenTheAccountLockFails(t *testing.T) {
@@ -292,7 +298,7 @@ func TestHomeLayoutService_SetPolicies_RequiresPermission(t *testing.T) {
 
 func TestHomeLayoutService_SetPolicies_AcceptsAdminWildcard(t *testing.T) {
 	t.Parallel()
-	service, repo, _ := newHomeLayoutTestService(t)
+	service, repo, runtime := newHomeLayoutTestService(t)
 
 	err := service.SetPolicies(context.Background(), 7, 42, []string{"admin:*"},
 		map[string]configModel.BlockPolicy{"section.birthdays": configModel.BlockRequired})
@@ -300,6 +306,19 @@ func TestHomeLayoutService_SetPolicies_AcceptsAdminWildcard(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, repo.policies)
 	assert.Equal(t, configModel.BlockRequired, repo.policies.Policies["section.birthdays"])
+	assert.Equal(t, []homeLayoutLock{{key: "home-layout:7:policies"}}, runtime.locks)
+}
+
+func TestHomeLayoutService_PolicyWritesStopWhenThePolicyLockFails(t *testing.T) {
+	t.Parallel()
+	service, repo, runtime := newHomeLayoutTestService(t)
+	runtime.lockErr = errors.New("lock failed")
+
+	err := service.SetPolicies(context.Background(), 7, 42, []string{adminPermissions},
+		map[string]configModel.BlockPolicy{"section.birthdays": configModel.BlockRequired})
+
+	require.Error(t, err)
+	assert.Nil(t, repo.policies)
 }
 
 func TestHomeLayoutService_SetPolicies_DropsOptionalAndStampsAuthor(t *testing.T) {
