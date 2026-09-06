@@ -61,18 +61,6 @@ func (m *Module) SetSchemaActive(ctx context.Context, id int64, active bool) err
 	})
 }
 
-func (m *Module) RenameSchemaLineage(ctx context.Context, oldName, newName string) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.RenameSchemaLineage(txCtx, oldName, newName)
-	})
-}
-
-func (m *Module) DeleteSchemaLineage(ctx context.Context, name string) error {
-	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return m.engine.DeleteSchemaLineage(txCtx, name)
-	})
-}
-
 func (m *Module) LockSchemaLineages(ctx context.Context) error {
 	return m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		return m.engine.LockSchemaLineages(txCtx)

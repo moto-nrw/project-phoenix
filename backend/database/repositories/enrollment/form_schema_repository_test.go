@@ -443,15 +443,16 @@ func TestFormSchemaRepository_UpdateActiveFlag_MissingIDErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// --- DeleteByName -------------------------------------------------------
+// --- DeleteUnusedSchema -------------------------------------------------------
 
-func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
+func TestFormSchemaRepository_DeleteUnusedSchema_RemovesEveryVersion(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
 	name := uniqueSchemaName("delall")
+	var schemaID int64
 	for i := 1; i <= 3; i++ {
 		s := &capability.FormSchema{
 			Name:      name,
@@ -463,6 +464,7 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.InsertSchemaVersion(ctx, s)
 		}))
+		schemaID = s.ID
 	}
 	// Keep a row under a *different* name to confirm it survives.
 	survivor := &capability.FormSchema{
@@ -477,7 +479,9 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.DeleteSchemaLineage(ctx, name)
+		deletedName, err := repo.DeleteUnusedSchema(ctx, schemaID)
+		assert.Equal(t, name, deletedName)
+		return err
 	}))
 
 	// Every version under `name` is gone.
@@ -486,7 +490,7 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 		Where("tenant_id = ? AND name = ?", tenantID, name).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "DeleteByName must drop every version of the name")
+	assert.Equal(t, 0, count, "DeleteUnusedSchema must drop every version of the name")
 
 	// Survivor is intact.
 	count, err = db.NewSelect().
@@ -497,16 +501,19 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 	assert.Equal(t, 1, count, "different-name rows must survive")
 }
 
-func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
+func TestFormSchemaRepository_DeleteUnusedSchema_MissingSchemaErrors(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
+	var missingID int64
+	require.NoError(t, db.NewRaw("SELECT nextval('enrollment.form_schemas_id_seq')").Scan(context.Background(), &missingID))
+
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.DeleteSchemaLineage(ctx, "no-such-schema-name-"+t.Name())
+		_, err := repo.DeleteUnusedSchema(ctx, missingID)
+		return err
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound)
 }
 
 // --- Legal document references -----------------------------------------
@@ -629,15 +636,16 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 	assert.False(t, referenced, "references from another tenant must not be visible")
 }
 
-// --- RenameByName -------------------------------------------------------
+// --- RenameSchema -------------------------------------------------------
 
-func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
+func TestFormSchemaRepository_RenameSchema_RenamesEveryVersion(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
 	oldName := uniqueSchemaName("renall")
+	var schemaID int64
 	for i := 1; i <= 3; i++ {
 		s := &capability.FormSchema{
 			Name:      oldName,
@@ -649,6 +657,7 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 			return repo.InsertSchemaVersion(ctx, s)
 		}))
+		schemaID = s.ID
 	}
 	// A row under a different name must keep its name untouched.
 	survivor := &capability.FormSchema{
@@ -664,7 +673,11 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 
 	newName := uniqueSchemaName("renamed")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.RenameSchemaLineage(ctx, oldName, newName)
+		renamed, err := repo.RenameSchema(ctx, schemaID, newName)
+		if assert.NoError(t, err) {
+			assert.Equal(t, newName, renamed.Name)
+		}
+		return err
 	}))
 
 	// All three versions now carry the new name; old name is gone.
@@ -673,7 +686,7 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 		Where("tenant_id = ? AND name = ?", tenantID, newName).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 3, count, "RenameByName must rename every version of the lineage")
+	assert.Equal(t, 3, count, "RenameSchema must rename every version of the lineage")
 
 	count, err = db.NewSelect().
 		TableExpr("enrollment.form_schemas").
@@ -691,16 +704,19 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 	assert.Equal(t, 1, count, "rows under other names must not be touched")
 }
 
-func TestFormSchemaRepository_RenameByName_UnknownNameErrors(t *testing.T) {
+func TestFormSchemaRepository_RenameSchema_MissingSchemaErrors(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
+	var missingID int64
+	require.NoError(t, db.NewRaw("SELECT nextval('enrollment.form_schemas_id_seq')").Scan(context.Background(), &missingID))
+
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.RenameSchemaLineage(ctx, "no-such-schema-name-"+t.Name(), "whatever")
+		_, err := repo.RenameSchema(ctx, missingID, "whatever")
+		return err
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	require.ErrorIs(t, err, capability.ErrFormSchemaNotFound)
 }
 
 // --- Tenant isolation ---------------------------------------------------
