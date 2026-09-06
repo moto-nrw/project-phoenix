@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   CalendarRange,
@@ -44,6 +43,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { ButtonLink } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -766,7 +766,7 @@ function EnrollmentSetupGuide({
                   const StepIcon = step.icon;
                   return (
                     <li key={step.title}>
-                      <Link
+                      <NavigationLink
                         href={step.href}
                         className="group grid gap-3 py-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:grid-cols-[2.25rem_1fr_auto] sm:items-center sm:px-2"
                       >
@@ -800,7 +800,7 @@ function EnrollmentSetupGuide({
                             />
                           </span>
                         </span>
-                      </Link>
+                      </NavigationLink>
                     </li>
                   );
                 })}
@@ -854,7 +854,7 @@ function EnrollmentSetupGuide({
                   </p>
                   <div className="mt-3 space-y-2">
                     {steps.map((step) => (
-                      <Link
+                      <NavigationLink
                         key={step.title}
                         href={step.href}
                         className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -866,7 +866,7 @@ function EnrollmentSetupGuide({
                           className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
                           aria-hidden="true"
                         />
-                      </Link>
+                      </NavigationLink>
                     ))}
                   </div>
                 </div>
