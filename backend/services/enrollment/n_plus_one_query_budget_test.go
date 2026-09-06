@@ -130,7 +130,7 @@ func createBudgetRequestChild(
 	sourceChildID *int64,
 ) {
 	t.Helper()
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		RequestID: requestID, FirstName: fmt.Sprintf("Child%d", sortOrder), LastName: prefix,
 		DateOfBirth: "2018-04-15", CustomData: map[string]any{}, Status: status,
 		ActivationMode: enrollmentModels.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,

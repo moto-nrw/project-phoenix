@@ -108,7 +108,7 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	grade := int16(1)
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
 		DateOfBirth:      "2018-05-12",
@@ -437,7 +437,7 @@ func statusExportSample() *enrollmentService.PhaseExport {
 		}
 	}
 	mkChild := func(first, last, status string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName:   first,
 			LastName:    last,
 			DateOfBirth: "2018-01-01",
@@ -528,7 +528,7 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",
@@ -563,7 +563,7 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: "2018-01-01",

@@ -5,12 +5,13 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type ApprovedOfferingReader interface {
-	ListApprovedChildrenByCareOfferingIDs(context.Context, []int64, timezone.Date) ([]*legacy.ApprovedOfferingChild, error)
+	ListApprovedChildrenByCareOfferingIDs(context.Context, []int64, timezone.Date) ([]*ApprovedOfferingChild, error)
 }
 
 type ApprovedSelectionReader interface {
@@ -39,8 +40,8 @@ func NewApprovedOfferingProjection(selections ApprovedSelectionReader, students 
 	return &ApprovedOfferingProjection{selections: selections, students: students}
 }
 
-func (p *ApprovedOfferingProjection) ListApprovedChildrenByCareOfferingIDs(ctx context.Context, offeringIDs []int64, onOrAfter timezone.Date) ([]*legacy.ApprovedOfferingChild, error) {
-	result := make([]*legacy.ApprovedOfferingChild, 0)
+func (p *ApprovedOfferingProjection) ListApprovedChildrenByCareOfferingIDs(ctx context.Context, offeringIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error) {
+	result := make([]*ApprovedOfferingChild, 0)
 	if len(offeringIDs) == 0 {
 		return result, nil
 	}
@@ -51,8 +52,8 @@ func (p *ApprovedOfferingProjection) ListApprovedChildrenByCareOfferingIDs(ctx c
 	return p.resolveSelections(ctx, selections)
 }
 
-func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, selections []*owner.ApprovedOfferingSelection) ([]*legacy.ApprovedOfferingChild, error) {
-	result := make([]*legacy.ApprovedOfferingChild, 0)
+func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, selections []*owner.ApprovedOfferingSelection) ([]*ApprovedOfferingChild, error) {
+	result := make([]*ApprovedOfferingChild, 0)
 	if len(selections) == 0 {
 		return result, nil
 	}
@@ -82,7 +83,7 @@ func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, sele
 		if !ok {
 			continue
 		}
-		result = append(result, &legacy.ApprovedOfferingChild{
+		result = append(result, &ApprovedOfferingChild{
 			Link:      legacyOfferingSelections([]*owner.RequestChildOffering{selection.Selection})[0],
 			StudentID: student.ID, SchoolClass: student.SchoolClass,
 		})
@@ -90,8 +91,8 @@ func (p *ApprovedOfferingProjection) resolveSelections(ctx context.Context, sele
 	return result, nil
 }
 
-func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*legacy.ApprovedOfferingChild, error) {
-	result := make([]*legacy.ApprovedOfferingChild, 0)
+func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context.Context, ids []int64, from, to timezone.Date) ([]*scheduleService.ApprovedBooking, error) {
+	result := make([]*scheduleService.ApprovedBooking, 0)
 	if len(ids) == 0 || to.Before(from) {
 		return result, nil
 	}
@@ -115,5 +116,21 @@ func (p *ApprovedOfferingProjection) ListApprovedByStudentIDsInRange(ctx context
 	if err != nil {
 		return nil, err
 	}
-	return p.resolveSelections(ctx, selections)
+	children, err := p.resolveSelections(ctx, selections)
+	if err != nil {
+		return nil, err
+	}
+	for _, child := range children {
+		booking := &scheduleService.ApprovedBooking{StudentID: child.StudentID}
+		if child.Link != nil {
+			booking.Link = &scheduleService.BookingSelection{
+				CareOfferingID: child.Link.CareOfferingID,
+				SelectedDays:   child.Link.SelectedDays,
+				ValidFrom:      child.Link.ValidFrom,
+				ValidUntil:     child.Link.ValidUntil,
+			}
+		}
+		result = append(result, booking)
+	}
+	return result, nil
 }

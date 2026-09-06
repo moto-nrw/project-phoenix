@@ -316,7 +316,7 @@ type DirectOfferingAdjustmentCoordinator interface {
 
 type DirectOfferingAdjustmentApplier interface {
 	LockOfferingDerivedWrites(ctx context.Context) error
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 }
 
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
@@ -745,7 +745,7 @@ func (s *offeringChangeRequestService) catalogAt(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
-	currentByID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
 			currentByID[link.CareOfferingID] = link
@@ -791,7 +791,7 @@ func (s *offeringChangeRequestService) catalogAt(
 func (s *offeringChangeRequestService) catalogItem(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-	current *enrollmentModels.RequestChildOffering,
+	current *RequestChildOffering,
 	onDate, phaseEndExclusive timezone.Date,
 ) (OfferingChangeCatalogItem, error) {
 	item := OfferingChangeCatalogItem{
@@ -1439,7 +1439,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	if err != nil {
 		return nil, fmt.Errorf("load request children: %w", err)
 	}
-	childrenByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	childrenByID := make(map[int64]*RequestChild, len(children))
 	requestIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		if child == nil {
@@ -1521,7 +1521,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 	if err != nil {
 		return nil, fmt.Errorf("load current offerings: %w", err)
 	}
-	currentByChild := make(map[int64][]*enrollmentModels.RequestChildOffering)
+	currentByChild := make(map[int64][]*RequestChildOffering)
 	for _, link := range current {
 		if link != nil {
 			currentByChild[link.RequestChildID] = append(currentByChild[link.RequestChildID], link)
@@ -2080,9 +2080,9 @@ func (s *offeringChangeRequestService) payloadDecisionDiff(
 }
 
 func explicitOfferingLinks(
-	links []*enrollmentModels.RequestChildOffering,
-) []*enrollmentModels.RequestChildOffering {
-	explicit := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+	links []*RequestChildOffering,
+) []*RequestChildOffering {
+	explicit := make([]*RequestChildOffering, 0, len(links))
 	for _, link := range links {
 		if link == nil || (len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0) {
 			continue
@@ -2417,7 +2417,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 }
 
 func heldOfferingCoversRange(
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	offeringID int64,
 	until timezone.Date,
 ) bool {
@@ -2454,7 +2454,7 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	return ids, nil
 }
 
-func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+func heldOfferingIDs(links []*RequestChildOffering) map[int64]bool {
 	held := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil {
@@ -2467,8 +2467,8 @@ func heldOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]b
 // withoutAutomaticSelections ignores guardian input for offerings that are
 // currently derived from another selection. Automatic offerings are visible in
 // the form but cannot be independently changed or turned into manual bookings.
-func withoutAutomaticSelections(current []*enrollmentModels.RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
-	automatic := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+func withoutAutomaticSelections(current []*RequestChildOffering, selections []OfferingChangeSelection) []OfferingChangeSelection {
+	automatic := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil && len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0 {
 			automatic[link.CareOfferingID] = link
@@ -2484,11 +2484,11 @@ func withoutAutomaticSelections(current []*enrollmentModels.RequestChildOffering
 	return manual
 }
 
-func sameMaterializedOfferingSelections(current []*enrollmentModels.RequestChildOffering, selections []materializedOfferingSelection) bool {
+func sameMaterializedOfferingSelections(current []*RequestChildOffering, selections []materializedOfferingSelection) bool {
 	if len(current) != len(selections) {
 		return false
 	}
-	byID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	byID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link == nil {
 			return false
@@ -2622,7 +2622,7 @@ func (s *offeringChangeRequestService) addHeldOfferingsAtDate(
 	requestChildID int64,
 	onDate timezone.Date,
 	allowed map[int64]*enrollmentModels.CareOffering,
-) ([]*enrollmentModels.RequestChildOffering, error) {
+) ([]*RequestChildOffering, error) {
 	if requestChildID <= 0 {
 		return nil, nil
 	}
@@ -2713,7 +2713,7 @@ func (s *offeringChangeRequestService) diffForRequest(
 type offeringDecisionDiff struct {
 	entries      []OfferingChangeDiffEntry
 	overridden   []enrollmentModels.OfferingChangeSnapshotOffering
-	current      []*enrollmentModels.RequestChildOffering
+	current      []*RequestChildOffering
 	base         []materializedOfferingSelection
 	selected     []materializedOfferingSelection
 	offeringByID map[int64]*enrollmentModels.CareOffering
@@ -2853,10 +2853,10 @@ func appendMissingOfferingIDs(ids []int64, selections []materializedOfferingSele
 func (s *offeringChangeRequestService) buildDecisionDiff(
 	ctx context.Context,
 	excludedIDs []int64,
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	base, materialized []materializedOfferingSelection,
 	ids []int64,
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) (*offeringDecisionDiff, error) {
 	offeringIDs := appendMissingOfferingIDs(ids, base)
@@ -2875,7 +2875,7 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 }
 
 func materializedDecisionDiff(
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	materialized, base []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
@@ -2887,10 +2887,10 @@ func materializedDecisionDiff(
 }
 
 func materializedDecisionDiffFromSides(
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 	ids []int64,
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	base, materialized []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
@@ -2907,7 +2907,7 @@ func materializedDecisionDiffFromSides(
 func offeringDiffEntries(
 	ids []int64,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
-	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	currentByID map[int64]*RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) []OfferingChangeDiffEntry {
 	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
@@ -2972,11 +2972,11 @@ func offeringChangeSelections(materialized []materializedOfferingSelection) []Of
 }
 
 func offeringChangeSides(
-	current []*enrollmentModels.RequestChildOffering,
+	current []*RequestChildOffering,
 	requested []OfferingChangeSelection,
 ) (
 	[]int64,
-	map[int64]*enrollmentModels.RequestChildOffering,
+	map[int64]*RequestChildOffering,
 	map[int64]OfferingChangeSelection,
 ) {
 	ids := make([]int64, 0, len(current)+len(requested))
@@ -2987,7 +2987,7 @@ func offeringChangeSides(
 			ids = append(ids, id)
 		}
 	}
-	currentByID := make(map[int64]*enrollmentModels.RequestChildOffering, len(current))
+	currentByID := make(map[int64]*RequestChildOffering, len(current))
 	for _, link := range current {
 		if link != nil {
 			currentByID[link.CareOfferingID] = link
@@ -3106,7 +3106,7 @@ func daysOverlap(left, right []string) bool {
 func offeringDiffEntry(
 	id int64,
 	name string,
-	current *enrollmentModels.RequestChildOffering,
+	current *RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) (OfferingChangeDiffEntry, bool) {
 	if name == "" {
