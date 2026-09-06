@@ -288,32 +288,33 @@ export function NotificationSetupDialog({
       mobileSheet
     >
       <div className="space-y-5">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-          <MotoConceptIcon
-            concept={mode.startsWith("install-") ? "devices" : "notifications"}
-            size={30}
-          />
-        </div>
-
+        {/* Anleitungen tragen ihre eigenen Schrittsymbole; ein zweites Symbol
+            darüber stünde nur allein in einer Zeile herum. Bei den kurzen
+            Texten steht es neben dem Satz, wie im Kopf der Einstellungskarte. */}
         {mode === "install-ios" ? (
-          <PushInstallSteps />
-        ) : mode === "install-android" ? (
-          <div className="space-y-3">
-            <p className="text-[17px] leading-7 text-gray-700">
-              {t("installAndroidIntro")}
-            </p>
-            {!installPromptReady && (
-              <p className="text-base leading-7 text-gray-600">
-                {t("installAndroidManual")}
-              </p>
-            )}
-          </div>
-        ) : mode === "denied" ? (
-          <p className="text-[17px] leading-7 text-gray-700">{t("denied")}</p>
+          <PushInstallSteps platform="ios" />
+        ) : mode === "install-android" && !installPromptReady ? (
+          <PushInstallSteps platform="android" />
         ) : (
-          <p className="text-[17px] leading-7 text-gray-700">
-            {portal === "parent" ? t("intro") : t("introStaff")}
-          </p>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-100">
+              <MotoConceptIcon
+                concept={
+                  mode.startsWith("install-") ? "devices" : "notifications"
+                }
+                size={26}
+              />
+            </div>
+            <p className="text-[17px] leading-7 text-gray-700">
+              {mode === "install-android"
+                ? t("installAndroidIntro")
+                : mode === "denied"
+                  ? t("denied")
+                  : portal === "parent"
+                    ? t("intro")
+                    : t("introStaff")}
+            </p>
+          </div>
         )}
 
         {error && <Alert type="error" message={error} />}

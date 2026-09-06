@@ -442,17 +442,18 @@ export function PushNotificationSection({
 
       {state === "needs-install-ios" && <PushInstallSteps compact />}
 
-      {state === "needs-install-android" && (
-        <Alert
-          type="info"
-          title={setupT("installAndroidTitle")}
-          message={
-            installPromptReady
-              ? setupT("installAndroidIntro")
-              : setupT("installAndroidManual")
-          }
-        />
-      )}
+      {state === "needs-install-android" &&
+        (installPromptReady ? (
+          <Alert
+            type="info"
+            title={setupT("installAndroidTitle")}
+            message={setupT("installAndroidIntro")}
+          />
+        ) : (
+          // Ohne Ein-Tipp-Installation dieselbe nummerierte Anleitung wie auf
+          // iPhone und iPad, statt eines Fließtextes (#2831).
+          <PushInstallSteps compact platform="android" />
+        ))}
 
       {state === "denied" && (
         <Alert

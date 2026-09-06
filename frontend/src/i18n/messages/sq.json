@@ -284,7 +284,12 @@
     "restart": "Nisni përsëri konfigurimin",
     "installOffer": "Mund ta instaloni moto në këtë pajisje. Atëherë moto hapet si aplikacion, pa shiritin e shfletuesit.",
     "installOfferAction": "Instalo moto",
-    "installNotNeeded": "Në këtë pajisje kjo nuk është e nevojshme. Njoftimet vijnë edhe në shfletues."
+    "installNotNeeded": "Në këtë pajisje kjo nuk është e nevojshme. Njoftimet vijnë edhe në shfletues.",
+    "installIntroAndroid": "Kështu moto qëndron në ekranin kryesor si një aplikacion.",
+    "installStepAndroid1": "Prekni tri pikat lart djathtas në shfletues.",
+    "installStepAndroid2": "Zgjidhni „Instalo aplikacionin“ ose „Shto në ekranin kryesor“.",
+    "installStepAndroid3": "Konfirmoni me „Instalo“. Pastaj hapni moto nga ikona e re.",
+    "installOutroAndroid": "Hapni sërish cilësimet brenda aplikacionit. Aty i ndizni njoftimet me një prekje."
   },
   "parentSettings": {
     "eyebrow": "Llogaria juaj",

@@ -284,7 +284,12 @@
     "restart": "Start setup again",
     "installOffer": "You can install moto on this device. moto then opens like an app, without the browser bar.",
     "installOfferAction": "Install moto",
-    "installNotNeeded": "On this device that is not needed. Notifications also arrive in the browser."
+    "installNotNeeded": "On this device that is not needed. Notifications also arrive in the browser.",
+    "installIntroAndroid": "This puts moto on your home screen like an app.",
+    "installStepAndroid1": "Tap the three dots at the top right of the browser.",
+    "installStepAndroid2": "Choose “Install app” or “Add to home screen”.",
+    "installStepAndroid3": "Confirm with “Install”. Then open moto from the new icon.",
+    "installOutroAndroid": "Open the settings again inside the app. There you can turn notifications on with one tap."
   },
   "parentSettings": {
     "eyebrow": "Your account",

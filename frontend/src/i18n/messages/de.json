@@ -284,7 +284,12 @@
     "restart": "Einrichtung erneut starten",
     "installOffer": "Sie können moto auf diesem Gerät installieren. moto öffnet sich dann wie eine App, ohne Browserleiste.",
     "installOfferAction": "moto installieren",
-    "installNotNeeded": "Auf diesem Gerät ist das nicht nötig. Benachrichtigungen kommen auch im Browser an."
+    "installNotNeeded": "Auf diesem Gerät ist das nicht nötig. Benachrichtigungen kommen auch im Browser an.",
+    "installIntroAndroid": "So liegt moto wie eine App auf Ihrem Startbildschirm.",
+    "installStepAndroid1": "Tippen Sie oben rechts im Browser auf die drei Punkte.",
+    "installStepAndroid2": "Wählen Sie „App installieren“ oder „Zum Startbildschirm hinzufügen“.",
+    "installStepAndroid3": "Bestätigen Sie mit „Installieren“. Öffnen Sie moto danach über das neue Symbol.",
+    "installOutroAndroid": "Öffnen Sie in der App wieder die Einstellungen. Dort schalten Sie Benachrichtigungen mit einem Tipp ein."
   },
   "parentSettings": {
     "eyebrow": "Ihr Konto",

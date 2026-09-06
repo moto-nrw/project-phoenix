@@ -161,8 +161,13 @@ describe("ParentNotificationOnboarding", () => {
     mocks.isAndroidDevice.mockReturnValue(true);
     renderOnboarding();
 
+    // Seit #2831 dieselben nummerierten Schritte wie auf iPhone und iPad
+    // statt eines Fließtextes.
     expect(
-      await screen.findByText(/Öffnen Sie das Browser-Menü/),
+      await screen.findByText(/Tippen Sie oben rechts im Browser/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Zum Startbildschirm hinzufügen/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "App installieren" }),
