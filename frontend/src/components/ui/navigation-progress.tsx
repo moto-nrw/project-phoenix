@@ -175,11 +175,11 @@ function createStore(): NavigationProgressStore {
           for (const navigation of completed) {
             clearTimeout(navigation.timeout);
           }
-        } else if (pendingNavigations.length === 1) {
-          // Ein Redirect ändert die Ziel-URL. Ohne weitere ausstehende
-          // Navigation gehört der Commit zu diesem Wechsel.
-          const [completed] = pendingNavigations.splice(0, 1);
-          if (completed) clearTimeout(completed.timeout);
+        } else {
+          // Ein Redirect ändert die Ziel-URL und beendet die von ihm
+          // unterbrochene Router-Warteschlange. Ohne ein bestätigtes Ziel
+          // lässt sich kein späterer Eintrag mehr einem Commit zuordnen.
+          clearNavigations();
         }
       });
     },

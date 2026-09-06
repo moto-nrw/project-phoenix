@@ -614,6 +614,48 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("clears queued navigations after a redirected destination is active", () => {
+    function ProgrammaticNavigation() {
+      const progressRouter = useProgressRouter();
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => progressRouter?.push("/staff/dienstplan")}
+          >
+            Zum Dienstplan
+          </button>
+          <button
+            type="button"
+            onClick={() => progressRouter?.push("/calendar-periods")}
+          >
+            Zu den Planungszeiträumen
+          </button>
+        </>
+      );
+    }
+
+    navigateTo("/rooms");
+    const rendered = renderShell(<ProgrammaticNavigation />);
+    fireEvent.click(screen.getByRole("button", { name: "Zum Dienstplan" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
+    );
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
+
+    navigateTo("/dienstplan");
+    rendered.rerender(
+      <AppRouterContext.Provider value={appRouter}>
+        <NavigationProgressProvider>
+          <NavigationProgressBar />
+          <ProgrammaticNavigation />
+        </NavigationProgressProvider>
+      </AppRouterContext.Provider>,
+    );
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
   it("ends an aborted programmatic navigation after the fallback timeout", () => {
     function ProgrammaticNavigation() {
       const progressRouter = useProgressRouter();
