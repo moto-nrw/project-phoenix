@@ -121,8 +121,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("titles the three planning areas and their redirect frames", () => {
-        // Planung-Redesign (docs/planung-redesign/docs/03 Abschnitt 5): die
-        // Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
+        // Die Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
         // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
         expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");

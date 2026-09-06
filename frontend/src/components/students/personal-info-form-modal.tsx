@@ -1,8 +1,18 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -68,6 +78,36 @@ interface PersonalInfoFormModalProps {
   readonly onClose: () => void;
   readonly student: ExtendedStudent;
   readonly onSave: (student: ExtendedStudent) => Promise<void>;
+  /**
+   * „inline" bearbeitet am Objekt: dieselben Felder, dieselbe Prüfung,
+   * derselbe Speicheraufruf, nur ohne Dialogschicht. Die Kindakte nutzt
+   * ausschließlich diese Form (siehe `PersonalInfoEditPanel`).
+   */
+  readonly variant?: "modal" | "inline";
+}
+
+/**
+ * Bearbeiten der Stammdaten IM Stammdaten-Reiter der Kindakte: kein Modal,
+ * ein „Speichern" unten, Fehler oben im Bearbeiten-Bereich.
+ */
+export function PersonalInfoEditPanel({
+  student,
+  onSave,
+  onCancel,
+}: Readonly<{
+  student: ExtendedStudent;
+  onSave: (student: ExtendedStudent) => Promise<void>;
+  onCancel: () => void;
+}>) {
+  return (
+    <PersonalInfoFormModal
+      variant="inline"
+      isOpen
+      onClose={onCancel}
+      student={student}
+      onSave={onSave}
+    />
+  );
 }
 
 export function PersonalInfoFormModal({
@@ -75,10 +115,16 @@ export function PersonalInfoFormModal({
   onClose,
   student,
   onSave,
+  variant = "modal",
 }: PersonalInfoFormModalProps) {
   const toast = useToast();
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
   const [isSaving, setIsSaving] = useState(false);
+  // Ein Speicherfehler darf nicht nur als Kurzmeldung vorbeiziehen: er steht
+  // oben im Bearbeiten-Bereich, und wo er zu einem Feld gehört, zusätzlich
+  // direkt an diesem Feld.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [departureError, setDepartureError] = useState<string | null>(null);
   // Set when the backend refused because a linked child's own departure plan
   // does not allow the requested days. Answering yes re-sends the identical
   // payload with the confirmation flag.
@@ -131,6 +177,8 @@ export function PersonalInfoFormModal({
       setPlanConflict(null);
       setConfirmedExtensions([]);
       setPendingExtensions([]);
+      setSaveError(null);
+      setDepartureError(null);
     }
   }, [isOpen, student]);
 
@@ -229,11 +277,14 @@ export function PersonalInfoFormModal({
     // here (instead of saving and hoping the backend's stranding check happens
     // to object) is the only reading that cannot lose someone else's work.
     if (companionsStale) {
-      toast.error(
-        "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte neu laden und die Änderung wiederholen.",
-      );
+      const message =
+        "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte neu laden und die Änderung wiederholen.";
+      setSaveError(message);
+      toast.error(message);
       return;
     }
+    setSaveError(null);
+    setDepartureError(null);
     const allowedDepartureModes = departureModesOf(editedStudent);
     // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
     // child (better: structured, symmetric) or the free-text note for someone
@@ -256,9 +307,10 @@ export function PersonalInfoFormModal({
         (day) => !coveredDays.has(day),
       )
     ) {
-      toast.error(
-        "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht",
-      );
+      const message =
+        "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht";
+      setDepartureError(message);
+      toast.error(message);
       return;
     }
     await submit(
@@ -373,6 +425,7 @@ export function PersonalInfoFormModal({
       // link can go. Swallowing it into the generic text would leave the user
       // guessing what to change.
       if (isCompanionDepartureRefusal(err)) {
+        setDepartureError(companionDepartureMessage(err));
         toast.error(companionDepartureMessage(err));
         return;
       }
@@ -382,9 +435,11 @@ export function PersonalInfoFormModal({
       // retrying the same save, which is exactly the write that was refused.
       if (isCompanionsChanged(err)) {
         markStale();
+        setSaveError(companionsChangedMessage(err));
         toast.error(companionsChangedMessage(err));
         return;
       }
+      setSaveError("Fehler beim Speichern der persönlichen Informationen");
       toast.error("Fehler beim Speichern der persönlichen Informationen");
     } finally {
       setIsSaving(false);
@@ -393,249 +448,288 @@ export function PersonalInfoFormModal({
 
   const handleCancel = () => {
     setEditedStudent(student);
+    setSaveError(null);
+    setDepartureError(null);
     onClose();
   };
 
+  const footer = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={handleCancel}
+        disabled={isSaving}
+      >
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => void handleSave()}
+        disabled={isSaving}
+      >
+        {isSaving ? "Wird gespeichert…" : "Speichern"}
+      </Button>
+    </>
+  );
+
+  const fields = (
+    <div className="space-y-4">
+      {saveError && <Alert type="error" message={saveError} />}
+      {companionsStale ? (
+        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
+            Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
+            nicht überschrieben wird.
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            Neu laden verwirft die hier vorgenommenen Änderungen an der
+            Laufgemeinschaft.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => {
+                setSaveError(null);
+                refreshFromRemote();
+              }}
+            >
+              Neu laden
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {companionsStatus === "error" ? (
+        <div className="border-moto-red bg-moto-red/5 rounded-lg border p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft konnte nicht geladen werden und wird unten
+            nicht angezeigt. Andere Angaben lassen sich speichern, die
+            bestehenden Verknüpfungen bleiben dabei unverändert.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadCompanions((count) => count + 1)}
+            >
+              Erneut laden
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {planConflict ? (
+        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
+          <p className="text-sm text-gray-900">{planConflict}</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+            werden? Bestehende Heimwege bleiben erhalten.
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                // Dismissing the question is a NO: drop the conflicts with
+                // it, so the next save asks again instead of widening the
+                // linked child's Heimweg on a yes that was never given.
+                setPlanConflict(null);
+                setPendingExtensions([]);
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              disabled={isSaving || companionsStale}
+              onClick={() => {
+                // Same reason as in handleSave — the confirmed retry
+                // re-sends the very list that went stale.
+                if (companionsStale) return;
+                // The yes happens HERE: only now do the conflicts the
+                // question named become confirmed extensions.
+                const confirmed = mergeCompanionConfirmations(
+                  confirmedExtensions,
+                  pendingExtensions,
+                );
+                setConfirmedExtensions(confirmed);
+                setPendingExtensions([]);
+                updateField("extend_companion_plans", true);
+                void submit(departureModesOf(editedStudent), true, confirmed);
+              }}
+            >
+              Ergänzen und speichern
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <ParentVisibilityLegend />
+      <TextInput
+        id="modal-student-first-name"
+        label="Vorname"
+        value={editedStudent.first_name ?? ""}
+        onChange={(value) => updateField("first_name", value)}
+        parentVisibleHint={PARENT_VISIBLE_HINTS.name}
+      />
+      <TextInput
+        id="modal-student-last-name"
+        label="Nachname"
+        value={editedStudent.second_name ?? ""}
+        onChange={(value) => updateField("second_name", value)}
+        parentVisibleHint={PARENT_VISIBLE_HINTS.name}
+      />
+      <TextInput
+        id="modal-student-school-class"
+        label="Klasse"
+        value={editedStudent.school_class}
+        onChange={(value) => updateField("school_class", value)}
+        parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
+      />
+      <DateInput
+        id="modal-student-birthday"
+        label="Geburtsdatum"
+        value={editedStudent.birthday}
+        onChange={(value) => updateField("birthday", value)}
+        parentVisibleHint={PARENT_VISIBLE_HINTS.birthday}
+      />
+      <TextInput
+        id="modal-student-address-street"
+        label="Straße und Hausnummer"
+        value={editedStudent.address_street ?? ""}
+        onChange={(value) => updateField("address_street", value)}
+      />
+      <TextInput
+        id="modal-student-address-postal-code"
+        label="PLZ"
+        value={editedStudent.address_postal_code ?? ""}
+        onChange={(value) => updateField("address_postal_code", value)}
+      />
+      <TextInput
+        id="modal-student-address-city"
+        label="Ort"
+        value={editedStudent.address_city ?? ""}
+        onChange={(value) => updateField("address_city", value)}
+      />
+      {departureError && <Alert type="error" message={departureError} />}
+      <DepartureSection
+        companions={editedStudent.companions}
+        // Editable ONLY once the stored links are known. While the fetch is
+        // pending the picker would start from an empty list and be
+        // overwritten the moment it resolves; after a failed load the edit is
+        // discarded silently, because submit deliberately sends
+        // `companions: undefined` rather than delete links it never read.
+        onCompanionsChange={
+          companionsStatus === "ready"
+            ? (companions) => updateField("companions", companions)
+            : undefined
+        }
+        companionStudentId={student.id}
+        onCompanionExtensionConfirmed={(confirmation) => {
+          updateField("extend_companion_plans", true);
+          setConfirmedExtensions((current) =>
+            mergeCompanionConfirmations(current, [confirmation]),
+          );
+        }}
+        days={
+          editedStudent.allowed_departure_modes ??
+          allowedDepartureModesFromDeparture(
+            editedStudent.departure_days ??
+              departureDaysFromLegacy(
+                editedStudent.bus_days,
+                editedStudent.pickup_days,
+              ),
+          )
+        }
+        onChange={(value) => {
+          const allowed = normalizeAllowedDepartureModes(value);
+          const departure = allowedDepartureToDepartureDays(allowed);
+          const busDays = allowedDepartureToBusDays(allowed);
+          const pickupDays = allowedDepartureToPickupDays(allowed);
+          setEditedStudent((prev) => ({
+            ...prev,
+            allowed_departure_modes: allowed,
+            departure_days: departure,
+            bus_days: busDays,
+            buskind: busDaysHaveAny(busDays),
+            pickup_days: pickupDays,
+            pickup_status: pickupDaysHaveAny(pickupDays)
+              ? "Wird abgeholt"
+              : "Geht alleine nach Hause",
+          }));
+        }}
+        companionNote={editedStudent.departure_companion_note}
+        onCompanionNoteChange={(value) =>
+          updateField("departure_companion_note", value)
+        }
+      />
+      <TextAreaInput
+        id="modal-student-health-info"
+        label="Gesundheitsinformationen"
+        value={editedStudent.health_info ?? ""}
+        onChange={(value) => updateField("health_info", value)}
+        placeholder="Allergien, Medikamente, wichtige medizinische Informationen"
+        rows={3}
+        parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
+      />
+      <TextAreaInput
+        id="modal-student-supervisor-notes"
+        label="Betreuernotizen"
+        value={editedStudent.supervisor_notes ?? ""}
+        onChange={(value) => updateField("supervisor_notes", value)}
+        placeholder="Notizen für Betreuer"
+        rows={3}
+      />
+      <TextAreaInput
+        id="modal-student-extra-info"
+        label="Elternnotizen"
+        value={editedStudent.extra_info ?? ""}
+        onChange={(value) => updateField("extra_info", value)}
+        placeholder="Notizen der Eltern"
+        rows={2}
+      />
+    </div>
+  );
+
+  if (variant === "inline") {
+    // Bearbeitet wird am Objekt, nicht daneben: derselbe Inhalt in der Fläche
+    // des Reiters, ein „Speichern" unten.
+    return (
+      <SectionCard title="Persönliche Informationen">
+        {fields}
+        <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div>
+      </SectionCard>
+    );
+  }
+
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={handleCancel}
-      title="Persönliche Infos"
-      size="lg"
-      mobilePosition="center"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
-          >
-            {isSaving ? "Wird gespeichert..." : "Speichern"}
-          </button>
-        </>
-      }
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleCancel();
+      }}
     >
-      <div className="space-y-4">
-        {companionsStale ? (
-          <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-            <p className="text-sm text-gray-900">
-              Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an
-              anderer Stelle geändert. Speichern ist gesperrt, damit die fremde
-              Änderung nicht überschrieben wird.
-            </p>
-            <p className="mt-1 text-xs text-gray-600">
-              Neu laden verwirft die hier vorgenommenen Änderungen an der
-              Laufgemeinschaft.
-            </p>
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={refreshFromRemote}
-                className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
-              >
-                Neu laden
-              </button>
-            </div>
+      <SlideOverContent widthClass="sm:w-[720px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>Persönliche Infos</SlideOverTitle>
           </div>
-        ) : null}
-        {companionsStatus === "error" ? (
-          <div className="border-moto-red bg-moto-red/5 rounded-lg border p-3">
-            <p className="text-sm text-gray-900">
-              Die Laufgemeinschaft konnte nicht geladen werden und wird unten
-              nicht angezeigt. Andere Angaben lassen sich speichern, die
-              bestehenden Verknüpfungen bleiben dabei unverändert.
-            </p>
-            <div className="mt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setReloadCompanions((count) => count + 1)}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50"
-              >
-                Erneut laden
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {planConflict ? (
-          <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-            <p className="text-sm text-gray-900">{planConflict}</p>
-            <p className="mt-1 text-xs text-gray-600">
-              Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
-              werden? Bestehende Heimwege bleiben erhalten.
-            </p>
-            <div className="mt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  // Dismissing the question is a NO: drop the conflicts with
-                  // it, so the next save asks again instead of widening the
-                  // linked child's Heimweg on a yes that was never given.
-                  setPlanConflict(null);
-                  setPendingExtensions([]);
-                }}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                disabled={isSaving || companionsStale}
-                onClick={() => {
-                  // Same reason as in handleSave — the confirmed retry
-                  // re-sends the very list that went stale.
-                  if (companionsStale) return;
-                  // The yes happens HERE: only now do the conflicts the
-                  // question named become confirmed extensions.
-                  const confirmed = mergeCompanionConfirmations(
-                    confirmedExtensions,
-                    pendingExtensions,
-                  );
-                  setConfirmedExtensions(confirmed);
-                  setPendingExtensions([]);
-                  updateField("extend_companion_plans", true);
-                  void submit(departureModesOf(editedStudent), true, confirmed);
-                }}
-                className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
-              >
-                Ergänzen und speichern
-              </button>
-            </div>
-          </div>
-        ) : null}
-        <ParentVisibilityLegend />
-        <TextInput
-          id="modal-student-first-name"
-          label="Vorname"
-          value={editedStudent.first_name ?? ""}
-          onChange={(value) => updateField("first_name", value)}
-          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
-        />
-        <TextInput
-          id="modal-student-last-name"
-          label="Nachname"
-          value={editedStudent.second_name ?? ""}
-          onChange={(value) => updateField("second_name", value)}
-          parentVisibleHint={PARENT_VISIBLE_HINTS.name}
-        />
-        <TextInput
-          id="modal-student-school-class"
-          label="Klasse"
-          value={editedStudent.school_class}
-          onChange={(value) => updateField("school_class", value)}
-          parentVisibleHint={PARENT_VISIBLE_HINTS.schoolClass}
-        />
-        <DateInput
-          id="modal-student-birthday"
-          label="Geburtsdatum"
-          value={editedStudent.birthday}
-          onChange={(value) => updateField("birthday", value)}
-          parentVisibleHint={PARENT_VISIBLE_HINTS.birthday}
-        />
-        <TextInput
-          id="modal-student-address-street"
-          label="Straße und Hausnummer"
-          value={editedStudent.address_street ?? ""}
-          onChange={(value) => updateField("address_street", value)}
-        />
-        <TextInput
-          id="modal-student-address-postal-code"
-          label="PLZ"
-          value={editedStudent.address_postal_code ?? ""}
-          onChange={(value) => updateField("address_postal_code", value)}
-        />
-        <TextInput
-          id="modal-student-address-city"
-          label="Ort"
-          value={editedStudent.address_city ?? ""}
-          onChange={(value) => updateField("address_city", value)}
-        />
-        <DepartureSection
-          companions={editedStudent.companions}
-          // Editable ONLY once the stored links are known. While the fetch is
-          // pending the picker would start from an empty list and be
-          // overwritten the moment it resolves; after a failed load the edit is
-          // discarded silently, because submit deliberately sends
-          // `companions: undefined` rather than delete links it never read.
-          onCompanionsChange={
-            companionsStatus === "ready"
-              ? (companions) => updateField("companions", companions)
-              : undefined
-          }
-          companionStudentId={student.id}
-          onCompanionExtensionConfirmed={(confirmation) => {
-            updateField("extend_companion_plans", true);
-            setConfirmedExtensions((current) =>
-              mergeCompanionConfirmations(current, [confirmation]),
-            );
-          }}
-          days={
-            editedStudent.allowed_departure_modes ??
-            allowedDepartureModesFromDeparture(
-              editedStudent.departure_days ??
-                departureDaysFromLegacy(
-                  editedStudent.bus_days,
-                  editedStudent.pickup_days,
-                ),
-            )
-          }
-          onChange={(value) => {
-            const allowed = normalizeAllowedDepartureModes(value);
-            const departure = allowedDepartureToDepartureDays(allowed);
-            const busDays = allowedDepartureToBusDays(allowed);
-            const pickupDays = allowedDepartureToPickupDays(allowed);
-            setEditedStudent((prev) => ({
-              ...prev,
-              allowed_departure_modes: allowed,
-              departure_days: departure,
-              bus_days: busDays,
-              buskind: busDaysHaveAny(busDays),
-              pickup_days: pickupDays,
-              pickup_status: pickupDaysHaveAny(pickupDays)
-                ? "Wird abgeholt"
-                : "Geht alleine nach Hause",
-            }));
-          }}
-          companionNote={editedStudent.departure_companion_note}
-          onCompanionNoteChange={(value) =>
-            updateField("departure_companion_note", value)
-          }
-        />
-        <TextAreaInput
-          id="modal-student-health-info"
-          label="Gesundheitsinformationen"
-          value={editedStudent.health_info ?? ""}
-          onChange={(value) => updateField("health_info", value)}
-          placeholder="Allergien, Medikamente, wichtige medizinische Informationen"
-          rows={3}
-          parentVisibleHint={PARENT_VISIBLE_HINTS.healthInfo}
-        />
-        <TextAreaInput
-          id="modal-student-supervisor-notes"
-          label="Betreuernotizen"
-          value={editedStudent.supervisor_notes ?? ""}
-          onChange={(value) => updateField("supervisor_notes", value)}
-          placeholder="Notizen für Betreuer"
-          rows={3}
-        />
-        <TextAreaInput
-          id="modal-student-extra-info"
-          label="Elternnotizen"
-          value={editedStudent.extra_info ?? ""}
-          onChange={(value) => updateField("extra_info", value)}
-          placeholder="Notizen der Eltern"
-          rows={2}
-        />
-      </div>
-    </FormModal>
+          <SlideOverCloseButton aria-label="Fenster schließen" />
+        </SlideOverHeader>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{fields}</div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

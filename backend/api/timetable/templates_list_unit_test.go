@@ -2,7 +2,6 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +24,7 @@ func TestTemplateRequiredStaffCount(t *testing.T) {
 		{
 			name: "override wins over the derived requirement when an occurrence exists",
 			row: templateRow{
-				RequiredStaff:           sql.NullInt64{Int64: 7, Valid: true},
+				RequiredStaff:           activities.NullInt64{Int64: 7, Valid: true},
 				CapacityEnrollmentCount: 12,
 				CapacityOccurrenceFound: true,
 			},
@@ -42,7 +41,7 @@ func TestTemplateRequiredStaffCount(t *testing.T) {
 		{
 			name: "override is suppressed when no occurrence exists in the period",
 			row: templateRow{
-				RequiredStaff:           sql.NullInt64{Int64: 7, Valid: true},
+				RequiredStaff:           activities.NullInt64{Int64: 7, Valid: true},
 				CapacityOccurrenceFound: false,
 			},
 			want: 0,

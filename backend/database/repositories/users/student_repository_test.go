@@ -48,7 +48,7 @@ func TestStudentRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates student with valid data", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestStudentRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing student", func(t *testing.T) {
@@ -222,7 +222,7 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds student by person ID", func(t *testing.T) {
@@ -245,7 +245,7 @@ func TestStudentRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates student fields", func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestStudentRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing student", func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by group ID", func(t *testing.T) {
@@ -366,7 +366,7 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by multiple group IDs", func(t *testing.T) {
@@ -401,7 +401,7 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns student to education group - verify method exists", func(t *testing.T) {
@@ -424,7 +424,7 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes student from group - verify method exists", func(t *testing.T) {
@@ -458,7 +458,7 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
@@ -502,7 +502,7 @@ func TestStudentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists students with filters", func(t *testing.T) {
@@ -530,7 +530,7 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with pagination", func(t *testing.T) {
@@ -567,7 +567,7 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts students with filter", func(t *testing.T) {
@@ -598,7 +598,7 @@ func newGroupProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindSchoolStructure(groups)
 	return factory
 }
@@ -713,7 +713,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 	from := timezone.NewDate(2026, 6, 1)
 	to := timezone.NewDate(2026, 6, 10)
@@ -801,7 +801,7 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 	from := timezone.NewDate(2026, 6, 1)
 	to := timezone.NewDate(2026, 6, 10)
@@ -859,7 +859,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds by name and class (case-insensitive)", func(t *testing.T) {
@@ -908,7 +908,7 @@ func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns old urls and clears photo_path in one statement", func(t *testing.T) {
@@ -963,7 +963,7 @@ func TestStudentRepository_LockPhotoFeature(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	// First tx: take the lock, but DON'T commit yet — we want to observe
@@ -1012,7 +1012,7 @@ func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns the locked row", func(t *testing.T) {

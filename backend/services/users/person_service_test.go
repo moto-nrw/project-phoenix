@@ -26,7 +26,7 @@ import (
 
 // setupPersonService creates a PersonService with real database connection
 func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Users
@@ -719,7 +719,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		repos := repositories.NewFactory(db)
+		repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT

@@ -125,9 +125,9 @@ func TestInstanceStudent_EntityInterface(t *testing.T) {
 	s.CreatedAt = now
 	s.UpdatedAt = now.Add(time.Minute)
 
-	assert.Equal(t, int64(42), s.GetID())
-	assert.Equal(t, now, s.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Minute), s.GetUpdatedAt())
+	assert.Equal(t, int64(42), s.ID)
+	assert.Equal(t, now, s.CreatedAt)
+	assert.Equal(t, now.Add(time.Minute), s.UpdatedAt)
 }
 
 func TestAttendanceFieldPatch_HasChanges(t *testing.T) {

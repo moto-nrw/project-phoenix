@@ -82,8 +82,7 @@ describe("WeeklyCalendarGrid gapInstanceIds", () => {
 });
 
 /**
- * Guards the optional `showDayHeader` prop (06-betreuungsplan.md Abschnitt
- * 3.1): opt-in, default off — the Vertretung single-day usage of this grid
+ * Guards the optional `showDayHeader` prop: opt-in, default off — the Vertretung single-day usage of this grid
  * never sets it and keeps rendering without a day-header capacity row.
  */
 describe("WeeklyCalendarGrid showDayHeader", () => {

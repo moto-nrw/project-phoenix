@@ -142,7 +142,7 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
         style={{ backgroundColor: LOCATION_COLORS.GROUP_ROOM }}
       />
       <span
-        className="text-[11px] font-semibold tabular-nums"
+        className="text-xs font-semibold tabular-nums"
         style={{ color: GROUP_ROOM_SHADES.text }}
       >
         Jetzt · {nowHHMM} Uhr
@@ -416,7 +416,6 @@ export function TagesplanView() {
       {actionError ? <Alert type="error" message={actionError} /> : null}
 
       <SectionCard
-        kicker="Betreuungsplan"
         title={isToday ? "Heute" : formatDate(day)}
         description={description}
         headingLevel={1}

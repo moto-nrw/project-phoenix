@@ -88,7 +88,7 @@ describe("StammdatenTab", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
       "href",
-      "/payroll",
+      "/test-tenant/payroll",
     );
   });
 

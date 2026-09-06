@@ -26,6 +26,8 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  // BackButton (via useTenantRouter) braucht useRouter.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 // Mock ToastContext
@@ -188,11 +190,13 @@ describe("StaffImportPage", () => {
     render(<StaffImportPage />);
 
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     // Regression: the alignment spacer must not duplicate this label.
     expect(screen.getByText("Format wählen")).toBeInTheDocument();
-    expect(screen.getByText("Vorlage herunterladen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    ).toBeInTheDocument();
   });
 
   it("renders the upload section", () => {
@@ -232,7 +236,9 @@ describe("StaffImportPage", () => {
 
     render(<StaffImportPage />);
 
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -250,7 +256,9 @@ describe("StaffImportPage", () => {
     });
 
     render(<StaffImportPage />);
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();

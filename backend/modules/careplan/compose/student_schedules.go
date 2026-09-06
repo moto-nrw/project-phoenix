@@ -110,11 +110,11 @@ func (e engine) DeletePickupSchedulesByStudent(ctx context.Context, id int64) er
 	return mapError(e.withinTenant(ctx, func(tx context.Context) error { return e.service.DeletePickupSchedulesByStudent(tx, id) }))
 }
 
-func (e engine) FindPickupException(ctx context.Context, id int64, lock bool) (careplan.PickupException, error) {
+func (e *exceptionQueries) FindPickupException(ctx context.Context, id int64, lock bool) (careplan.PickupException, error) {
 	value, err := e.service.FindPickupException(ctx, id, lock)
 	return value, mapError(err)
 }
-func (e engine) ListPickupExceptions(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
+func (e *exceptionQueries) ListPickupExceptions(ctx context.Context, f careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
 	values, err := e.service.ListPickupExceptions(ctx, f)
 	return values, mapError(err)
 }

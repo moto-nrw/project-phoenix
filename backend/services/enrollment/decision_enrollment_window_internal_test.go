@@ -6,14 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 func windowPhase(kind string, start, end timezone.Date) *enrollmentModels.Phase {
 	return &enrollmentModels.Phase{
 		Kind:             kind,
-		ServiceStartDate: start,
-		ServiceEndDate:   end,
+		ServiceStartDate: enrollmentModels.Date(start),
+		ServiceEndDate:   enrollmentModels.Date(end),
 	}
 }
 

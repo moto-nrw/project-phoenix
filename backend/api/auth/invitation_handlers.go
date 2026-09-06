@@ -239,10 +239,8 @@ func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
 
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Password, validation.Required),
-		validation.Field(&req.ConfirmPassword, validation.Required),
-	)
+	// Registration passwords are validated by the service only for new accounts.
+	return nil
 }
 
 type AcceptInvitationResponse struct {
@@ -251,31 +249,33 @@ type AcceptInvitationResponse struct {
 	TenantSubdomain string `json:"tenant_subdomain,omitempty"`
 }
 
+var acceptInvitationErrorRules = []common.ErrorRule{
+	{Target: authService.ErrInvitationOwnerRequired, Render: func(err error) render.Renderer {
+		return common.ErrorUnauthorizedWithCode(err, "INVITATION_ACCOUNT_LOGIN_REQUIRED")
+	}},
+	{Target: authService.ErrInvitationOwnerMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "INVITATION_ACCOUNT_MISMATCH")
+	}},
+	{Target: authService.ErrAccountInactive, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "ACCOUNT_INACTIVE")
+	}},
+	{Target: authService.ErrPasswordTooWeak, Render: common.ErrorInvalidRequest},
+	{Target: authService.ErrPasswordMismatch, Render: common.ErrorInvalidRequest},
+	{Target: authService.ErrEmailAlreadyExists, Render: common.FixedRenderer(common.ErrorConflict, authService.ErrEmailAlreadyExists)},
+	{Target: authService.ErrInvitationNameRequired, Render: common.FixedRenderer(common.ErrorInvalidRequest, authService.ErrInvitationNameRequired)},
+	{Target: authService.ErrInvitationTenantDeleted, Render: common.FixedRenderer(common.ErrorNotFound, authService.ErrInvitationTenantDeleted)},
+	// A child's identity cannot be provisioned as personnel; expose the fixable request error.
+	{Match: authService.IsSchoolIdentityRequestError, Render: common.ErrorInvalidRequest},
+}
+
 // renderAcceptError maps service-layer errors to HTTP responses.
 // Returns true if the error was handled.
 func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
-	switch {
-	case errors.Is(err, authService.ErrPasswordTooWeak),
-		errors.Is(err, authService.ErrPasswordMismatch):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, authService.ErrEmailAlreadyExists):
-		common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
-	case errors.Is(err, authService.ErrInvitationNameRequired):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationNameRequired))
-	case errors.Is(err, authService.ErrInvitationTenantDeleted):
-		common.RenderError(w, r, common.ErrorNotFound(authService.ErrInvitationTenantDeleted))
-	// Accepting an invitation provisions the school identity (#2222), and that
-	// step refuses an account whose person at this school is a child's record —
-	// filing a child as personnel is worse than leaving the account
-	// incomplete. Fixable by a human (the two records have to be separated),
-	// so it belongs in the response as the German message rather than a 500.
-	case authService.IsSchoolIdentityRequestError(err):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case renderInvitationError(w, r, err):
-		// handled by renderInvitationError
-	default:
-		return false
+	response := common.RenderWithRules(err, acceptInvitationErrorRules, func(error) render.Renderer { return nil })
+	if response == nil {
+		return renderInvitationError(w, r, err)
 	}
+	common.RenderError(w, r, response)
 	return true
 }
 
@@ -294,10 +294,11 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userData := authService.UserRegistrationData{
-		FirstName:       req.FirstName,
-		LastName:        req.LastName,
-		Password:        req.Password,
-		ConfirmPassword: req.ConfirmPassword,
+		OwnerAccessToken: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "),
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Password:         req.Password,
+		ConfirmPassword:  req.ConfirmPassword,
 	}
 
 	// Public route — no JWT/tenant context. Use WithAdminTx (BYPASSRLS) so the service's
@@ -368,10 +369,9 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	responses := make([]InvitationResponse, 0, len(invitations))
 	for _, invitation := range invitations {
 		resp := toInvitationResponse(invitation)
-		// The token is a bearer credential: whoever holds it can redeem the
-		// invitation. The create response returns it because the UI builds a
-		// copyable invite link from it; nothing consumes it from the list, so
-		// it is not handed out again here.
+		// Copyable creation links are membership offers, not existing-account
+		// ownership proof. Existing accounts must independently authenticate.
+		// Nothing consumes tokens from this list, so do not expose them here.
 		resp.Token = ""
 		responses = append(responses, resp)
 	}

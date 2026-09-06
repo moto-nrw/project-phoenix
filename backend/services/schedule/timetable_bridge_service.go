@@ -104,7 +104,7 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 		return nil, nil
 	}
 
-	instances, err := s.deps.Instances.List(ctx, &modelBase.QueryOptions{
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.Instances, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(activeGroupIDs)...),
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
 	for _, instance := range instances {
 		instanceIDs = append(instanceIDs, instance.ID)
-		datesByInstance[instance.ID] = instance.Date
+		datesByInstance[instance.ID] = timezone.Date(instance.Date)
 	}
 	if len(instanceIDs) == 0 {
 		return nil, nil

@@ -800,9 +800,7 @@ describe("SubstitutionSlideOver", () => {
         ).toBeInTheDocument();
 
         // Scope-Umschaltung auf "Ganzer Tag" → Datum statt Position.
-        fireEvent.mouseDown(screen.getByRole("tab", { name: "Ganzer Tag" }), {
-          button: 0,
-        });
+        fireEvent.click(screen.getByRole("button", { name: "Ganzer Tag" }));
         expect(screen.getByText("13.07.2026")).toBeInTheDocument();
         expect(
           screen.queryByText("Diese Position: Mensa, montags 14:00"),
@@ -820,7 +818,7 @@ describe("SubstitutionSlideOver", () => {
         });
 
         expect(
-          screen.queryByRole("tab", { name: "Dieser Block" }),
+          screen.queryByRole("button", { name: "Dieser Block" }),
         ).not.toBeInTheDocument();
         // Nur der Tages-Scope existiert → Datum-Chip.
         expect(screen.getByText("13.07.2026")).toBeInTheDocument();

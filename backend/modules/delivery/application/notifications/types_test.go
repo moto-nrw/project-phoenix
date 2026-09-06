@@ -5,7 +5,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/reminders"
+	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 // their source of truth.
 //
 // The strings are declared twice on purpose — services/notifications must not
-// depend on services/reminders — but they are one wire contract: the frontend
+// depend on the reminder evaluator, but they are one wire contract: the frontend
 // switches on Reminder.Type and stores consent under the same string. A silent
 // rename on either side would leave people opted into a type that no longer
 // exists, which looks exactly like a working opt-in.

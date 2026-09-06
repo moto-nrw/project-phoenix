@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { X, Plus, Star, Trash2 } from "lucide-react";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+  SlideOverFooter,
+  SlideOverCloseButton,
+} from "~/components/ui/slide-over";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import type {
@@ -525,420 +532,527 @@ export default function GuardianFormModal({
       : "Erziehungsberechtigte/n bearbeiten";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle}>
-      <form
-        onSubmit={handleSubmit}
-        noValidate
-        className="space-y-4 md:space-y-6"
-      >
-        {/* Submit Error */}
-        {error && (
-          <div
-            ref={errorRef}
-            className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
-          >
-            <p className="text-moto-red-strong text-xs md:text-sm">{error}</p>
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{modalTitle}</SlideOverTitle>
           </div>
-        )}
-
-        {/* Guardian Entries */}
-        {entries.map((entry, index) => (
-          <div
-            key={entry.id}
-            ref={(el) => {
-              if (el) {
-                entryRefs.current.set(entry.id, el);
-              } else {
-                entryRefs.current.delete(entry.id);
-              }
-            }}
-            className="space-y-4"
-          >
-            {/* Entry Header (only show for multiple entries) */}
-            {entries.length > 1 && (
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-gray-700">
-                  Person {index + 1}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => removeEntry(entry.id)}
-                  disabled={isLoading}
-                  className="text-moto-red hover:bg-moto-red-soft flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:opacity-50"
-                >
-                  <X className="h-3 w-3" />
-                  Entfernen
-                </button>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 md:space-y-6">
+            {/* Submit Error */}
+            {error && (
+              <div
+                ref={errorRef}
+                className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3"
+              >
+                <p className="text-moto-red-strong text-xs md:text-sm">
+                  {error}
+                </p>
               </div>
             )}
 
-            {/* Personal Information */}
-            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-                <svg
-                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-                Persönliche Daten
-              </h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                <div>
-                  <div className="mb-1 flex items-center gap-1">
-                    <label
-                      htmlFor={`guardian-first-name-${entry.id}`}
-                      className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-moto-red" : "text-gray-700"}`}
-                    >
-                      Vorname <span className="text-moto-red">*</span>
-                    </label>
-                    <ParentVisibleBadge
-                      compact
-                      hint={PARENT_VISIBLE_HINTS.guardianName}
-                    />
-                  </div>
-                  <input
-                    id={`guardian-first-name-${entry.id}`}
-                    type="text"
-                    value={entry.firstName}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "firstName", e.target.value)
-                    }
-                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-moto-red/40" : "border-gray-200"}`}
-                    placeholder="Max"
-                    required
-                    disabled={isLoading}
-                    maxLength={255}
-                  />
-                </div>
-
-                <div>
-                  <div className="mb-1 flex items-center gap-1">
-                    <label
-                      htmlFor={`guardian-last-name-${entry.id}`}
-                      className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-moto-red" : "text-gray-700"}`}
-                    >
-                      Nachname <span className="text-moto-red">*</span>
-                    </label>
-                    <ParentVisibleBadge
-                      compact
-                      hint={PARENT_VISIBLE_HINTS.guardianName}
-                    />
-                  </div>
-                  <input
-                    id={`guardian-last-name-${entry.id}`}
-                    type="text"
-                    value={entry.lastName}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "lastName", e.target.value)
-                    }
-                    className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-moto-red/40" : "border-gray-200"}`}
-                    placeholder="Mustermann"
-                    required
-                    disabled={isLoading}
-                    maxLength={255}
-                  />
-                </div>
-
-                <RelationshipTypeSelect
-                  id={`guardian-relationship-type-${entry.id}`}
-                  value={entry.relationshipType}
-                  onChange={(value) => updateRelationshipType(entry.id, value)}
-                  disabled={isLoading}
-                  parentVisibleHint={PARENT_VISIBLE_HINTS.guardianName}
-                />
-                <GuardianRoleSelect
-                  id={`guardian-role-${entry.id}`}
-                  value={entry.guardianRole}
-                  onChange={(value) => updateGuardianRole(entry.id, value)}
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            {/* Contact Information */}
-            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-                <svg
-                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-                Kontaktdaten
-                <ParentVisibleBadge
-                  hint={PARENT_VISIBLE_HINTS.guardianContact}
-                />
-              </h3>
-
-              {/* Email */}
-              <div className="mb-4">
-                <label
-                  htmlFor={`guardian-email-${entry.id}`}
-                  className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-moto-red" : "text-gray-700"}`}
-                >
-                  E-Mail
-                </label>
-                <input
-                  id={`guardian-email-${entry.id}`}
-                  type="email"
-                  value={entry.email}
-                  onChange={(e) =>
-                    updateEntry(entry.id, "email", e.target.value)
+            {/* Guardian Entries */}
+            {entries.map((entry, index) => (
+              <div
+                key={entry.id}
+                ref={(el) => {
+                  if (el) {
+                    entryRefs.current.set(entry.id, el);
+                  } else {
+                    entryRefs.current.delete(entry.id);
                   }
-                  className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-moto-red/40" : "border-gray-200"}`}
-                  placeholder="max.mustermann@example.com"
-                  disabled={isLoading}
-                  maxLength={255}
-                />
-              </div>
+                }}
+                className="space-y-4"
+              >
+                {/* Entry Header (only show for multiple entries) */}
+                {entries.length > 1 && (
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-gray-700">
+                      Person {index + 1}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => removeEntry(entry.id)}
+                      disabled={isLoading}
+                      className="text-moto-red hover:bg-moto-red-soft flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                      Entfernen
+                    </button>
+                  </div>
+                )}
 
-              {/* Phone Numbers */}
-              <div className="space-y-3">
-                <span className="block text-xs font-medium text-gray-700">
-                  Telefonnummern
-                </span>
-
-                {entry.phoneNumbers.map((phone, phoneIndex) => (
-                  <div
-                    key={phone.id}
-                    className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
-                  >
-                    {/* Phone Type Select */}
-                    <div className="w-full sm:w-32">
-                      <CustomSelect
-                        id={`phone-type-${entry.id}-${phone.id}`}
-                        value={phone.phoneType}
-                        options={(
-                          Object.keys(PHONE_TYPE_LABELS) as PhoneType[]
-                        ).map((type) => ({
-                          value: type,
-                          label: PHONE_TYPE_LABELS[type],
-                        }))}
-                        onChange={(next) =>
-                          updatePhone(
-                            entry.id,
-                            phone.id,
-                            "phoneType",
-                            next as PhoneType,
-                          )
-                        }
-                        disabled={isLoading}
-                        ariaLabel={`Telefontyp ${phoneIndex + 1}`}
+                {/* Personal Information */}
+                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                    <svg
+                      className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                       />
-                    </div>
-
-                    {/* Phone Number Input */}
-                    <div className="flex-1">
+                    </svg>
+                    Persönliche Daten
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                    <div>
+                      <div className="mb-1 flex items-center gap-1">
+                        <label
+                          htmlFor={`guardian-first-name-${entry.id}`}
+                          className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-moto-red" : "text-gray-700"}`}
+                        >
+                          Vorname <span className="text-moto-red">*</span>
+                        </label>
+                        <ParentVisibleBadge
+                          compact
+                          hint={PARENT_VISIBLE_HINTS.guardianName}
+                        />
+                      </div>
                       <input
-                        id={`phone-number-${entry.id}-${phone.id}`}
-                        type="tel"
-                        value={phone.phoneNumber}
-                        onChange={(e) =>
-                          updatePhone(
-                            entry.id,
-                            phone.id,
-                            "phoneNumber",
-                            e.target.value,
-                          )
-                        }
-                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-moto-red/40" : "border-gray-200"}`}
-                        placeholder="+49 170 1234567"
-                        disabled={isLoading}
-                        aria-label={`Telefonnummer ${phoneIndex + 1}`}
-                        maxLength={30}
-                      />
-                    </div>
-
-                    {/* Label Input (optional) */}
-                    <div className="w-full sm:w-28">
-                      <input
-                        id={`phone-label-${entry.id}-${phone.id}`}
+                        id={`guardian-first-name-${entry.id}`}
                         type="text"
-                        value={phone.label}
+                        value={entry.firstName}
                         onChange={(e) =>
-                          updatePhone(
-                            entry.id,
-                            phone.id,
-                            "label",
-                            e.target.value,
-                          )
+                          updateEntry(entry.id, "firstName", e.target.value)
                         }
-                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:ring-1"
-                        placeholder="Notiz"
+                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-moto-red/40" : "border-gray-200"}`}
+                        placeholder="Max"
+                        required
                         disabled={isLoading}
-                        aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
                         maxLength={255}
                       />
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-1">
-                      {/* Primary Star */}
-                      <button
-                        type="button"
-                        onClick={() => setPhonePrimary(entry.id, phone.id)}
-                        disabled={isLoading || phone.isPrimary}
-                        className={`rounded p-1.5 transition-colors ${
-                          phone.isPrimary
-                            ? "text-moto-amber"
-                            : "hover:text-moto-amber text-gray-300"
-                        }`}
-                        title={
-                          phone.isPrimary ? "Primär" : "Als primär markieren"
-                        }
-                        aria-label={
-                          phone.isPrimary
-                            ? "Primäre Nummer"
-                            : "Als primäre Nummer markieren"
-                        }
-                      >
-                        <Star
-                          className="h-4 w-4"
-                          fill={phone.isPrimary ? "currentColor" : "none"}
-                        />
-                      </button>
-
-                      {/* Delete Button */}
-                      {entry.phoneNumbers.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePhone(entry.id, phone.id)}
-                          disabled={isLoading}
-                          className="hover:bg-moto-red-soft hover:text-moto-red rounded p-1.5 text-gray-400 transition-colors"
-                          title="Entfernen"
-                          aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
+                    <div>
+                      <div className="mb-1 flex items-center gap-1">
+                        <label
+                          htmlFor={`guardian-last-name-${entry.id}`}
+                          className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-moto-red" : "text-gray-700"}`}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
+                          Nachname <span className="text-moto-red">*</span>
+                        </label>
+                        <ParentVisibleBadge
+                          compact
+                          hint={PARENT_VISIBLE_HINTS.guardianName}
+                        />
+                      </div>
+                      <input
+                        id={`guardian-last-name-${entry.id}`}
+                        type="text"
+                        value={entry.lastName}
+                        onChange={(e) =>
+                          updateEntry(entry.id, "lastName", e.target.value)
+                        }
+                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-moto-red/40" : "border-gray-200"}`}
+                        placeholder="Mustermann"
+                        required
+                        disabled={isLoading}
+                        maxLength={255}
+                      />
+                    </div>
+
+                    <RelationshipTypeSelect
+                      id={`guardian-relationship-type-${entry.id}`}
+                      value={entry.relationshipType}
+                      onChange={(value) =>
+                        updateRelationshipType(entry.id, value)
+                      }
+                      disabled={isLoading}
+                      parentVisibleHint={PARENT_VISIBLE_HINTS.guardianName}
+                    />
+                    <GuardianRoleSelect
+                      id={`guardian-role-${entry.id}`}
+                      value={entry.guardianRole}
+                      onChange={(value) => updateGuardianRole(entry.id, value)}
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                    <svg
+                      className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Kontaktdaten
+                    <ParentVisibleBadge
+                      hint={PARENT_VISIBLE_HINTS.guardianContact}
+                    />
+                  </h3>
+
+                  {/* Email */}
+                  <div className="mb-4">
+                    <label
+                      htmlFor={`guardian-email-${entry.id}`}
+                      className={`mb-1 block text-xs font-medium ${hasFieldError(entry.id, "email") ? "text-moto-red" : "text-gray-700"}`}
+                    >
+                      E-Mail
+                    </label>
+                    <input
+                      id={`guardian-email-${entry.id}`}
+                      type="email"
+                      value={entry.email}
+                      onChange={(e) =>
+                        updateEntry(entry.id, "email", e.target.value)
+                      }
+                      className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-moto-red/40" : "border-gray-200"}`}
+                      placeholder="max.mustermann@example.com"
+                      disabled={isLoading}
+                      maxLength={255}
+                    />
+                  </div>
+
+                  {/* Phone Numbers */}
+                  <div className="space-y-3">
+                    <span className="block text-xs font-medium text-gray-700">
+                      Telefonnummern
+                    </span>
+
+                    {entry.phoneNumbers.map((phone, phoneIndex) => (
+                      <div
+                        key={phone.id}
+                        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
+                      >
+                        {/* Phone Type Select */}
+                        <div className="w-full sm:w-32">
+                          <CustomSelect
+                            id={`phone-type-${entry.id}-${phone.id}`}
+                            value={phone.phoneType}
+                            options={(
+                              Object.keys(PHONE_TYPE_LABELS) as PhoneType[]
+                            ).map((type) => ({
+                              value: type,
+                              label: PHONE_TYPE_LABELS[type],
+                            }))}
+                            onChange={(next) =>
+                              updatePhone(
+                                entry.id,
+                                phone.id,
+                                "phoneType",
+                                next as PhoneType,
+                              )
+                            }
+                            disabled={isLoading}
+                            ariaLabel={`Telefontyp ${phoneIndex + 1}`}
+                          />
+                        </div>
+
+                        {/* Phone Number Input */}
+                        <div className="flex-1">
+                          <input
+                            id={`phone-number-${entry.id}-${phone.id}`}
+                            type="tel"
+                            value={phone.phoneNumber}
+                            onChange={(e) =>
+                              updatePhone(
+                                entry.id,
+                                phone.id,
+                                "phoneNumber",
+                                e.target.value,
+                              )
+                            }
+                            className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-moto-red/40" : "border-gray-200"}`}
+                            placeholder="+49 170 1234567"
+                            disabled={isLoading}
+                            aria-label={`Telefonnummer ${phoneIndex + 1}`}
+                            maxLength={30}
+                          />
+                        </div>
+
+                        {/* Label Input (optional) */}
+                        <div className="w-full sm:w-28">
+                          <input
+                            id={`phone-label-${entry.id}-${phone.id}`}
+                            type="text"
+                            value={phone.label}
+                            onChange={(e) =>
+                              updatePhone(
+                                entry.id,
+                                phone.id,
+                                "label",
+                                e.target.value,
+                              )
+                            }
+                            className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:ring-1"
+                            placeholder="Notiz"
+                            disabled={isLoading}
+                            aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
+                            maxLength={255}
+                          />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1">
+                          {/* Primary Star */}
+                          <button
+                            type="button"
+                            onClick={() => setPhonePrimary(entry.id, phone.id)}
+                            disabled={isLoading || phone.isPrimary}
+                            className={`rounded p-1.5 transition-colors ${
+                              phone.isPrimary
+                                ? "text-moto-amber"
+                                : "hover:text-moto-amber text-gray-300"
+                            }`}
+                            title={
+                              phone.isPrimary
+                                ? "Primär"
+                                : "Als primär markieren"
+                            }
+                            aria-label={
+                              phone.isPrimary
+                                ? "Primäre Nummer"
+                                : "Als primäre Nummer markieren"
+                            }
+                          >
+                            <Star
+                              className="h-4 w-4"
+                              fill={phone.isPrimary ? "currentColor" : "none"}
+                            />
+                          </button>
+
+                          {/* Delete Button */}
+                          {entry.phoneNumbers.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removePhone(entry.id, phone.id)}
+                              disabled={isLoading}
+                              className="hover:bg-moto-red-soft hover:text-moto-red rounded p-1.5 text-gray-400 transition-colors"
+                              title="Entfernen"
+                              aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add Phone Button */}
+                    <button
+                      type="button"
+                      onClick={() => addPhone(entry.id)}
+                      disabled={isLoading}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Weitere Nummer hinzufügen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Address (optional) */}
+                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                    <svg
+                      className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                    Adresse
+                    <ParentVisibleBadge
+                      hint={PARENT_VISIBLE_HINTS.guardianContact}
+                    />
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor={`guardian-street-${entry.id}`}
+                        className="mb-1 block text-xs font-medium text-gray-700"
+                      >
+                        Straße und Hausnummer
+                      </label>
+                      <input
+                        id={`guardian-street-${entry.id}`}
+                        type="text"
+                        value={entry.addressStreet}
+                        onChange={(e) =>
+                          updateEntry(entry.id, "addressStreet", e.target.value)
+                        }
+                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
+                        placeholder="Musterstr. 1"
+                        disabled={isLoading}
+                        maxLength={255}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`guardian-postal-${entry.id}`}
+                        className="mb-1 block text-xs font-medium text-gray-700"
+                      >
+                        PLZ
+                      </label>
+                      <input
+                        id={`guardian-postal-${entry.id}`}
+                        type="text"
+                        value={entry.addressPostalCode}
+                        onChange={(e) =>
+                          updateEntry(
+                            entry.id,
+                            "addressPostalCode",
+                            e.target.value,
+                          )
+                        }
+                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
+                        placeholder="50667"
+                        maxLength={5}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`guardian-city-${entry.id}`}
+                        className="mb-1 block text-xs font-medium text-gray-700"
+                      >
+                        Ort
+                      </label>
+                      <input
+                        id={`guardian-city-${entry.id}`}
+                        type="text"
+                        value={entry.addressCity}
+                        onChange={(e) =>
+                          updateEntry(entry.id, "addressCity", e.target.value)
+                        }
+                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
+                        placeholder="Köln"
+                        disabled={isLoading}
+                        maxLength={255}
+                      />
                     </div>
                   </div>
-                ))}
+                </div>
 
-                {/* Add Phone Button */}
-                <button
-                  type="button"
-                  onClick={() => addPhone(entry.id)}
+                {/* Additional Info */}
+                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                    <svg
+                      className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    Weitere Angaben
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                    <div>
+                      <label
+                        id={`guardian-language-${entry.id}-label`}
+                        htmlFor={`guardian-language-${entry.id}`}
+                        className="mb-1 block text-xs font-medium text-gray-700"
+                      >
+                        Bevorzugte Sprache
+                      </label>
+                      <CustomSelect
+                        id={`guardian-language-${entry.id}`}
+                        ariaLabelledBy={`guardian-language-${entry.id}-label`}
+                        value={entry.languagePreference}
+                        options={LANGUAGE_PREFERENCES}
+                        onChange={(next) =>
+                          updateEntry(entry.id, "languagePreference", next)
+                        }
+                        disabled={isLoading}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor={`guardian-notes-${entry.id}`}
+                        className="mb-1 block text-xs font-medium text-gray-700"
+                      >
+                        Notizen
+                      </label>
+                      <textarea
+                        id={`guardian-notes-${entry.id}`}
+                        value={entry.notes}
+                        onChange={(e) =>
+                          updateEntry(entry.id, "notes", e.target.value)
+                        }
+                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
+                        placeholder="Interne Notizen zum Erziehungsberechtigten"
+                        rows={2}
+                        disabled={isLoading}
+                        maxLength={2000}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Relationship Flags + Emergency Contact (shared with picker) */}
+                <RelationshipPermissionsFields
+                  isPrimary={entry.isPrimary}
+                  canPickup={entry.canPickup}
+                  isEmergencyContact={entry.isEmergencyContact}
+                  onChange={(field, value) =>
+                    updateEntry(entry.id, field, value)
+                  }
                   disabled={isLoading}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100 disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Weitere Nummer hinzufügen
-                </button>
-              </div>
-            </div>
-
-            {/* Address (optional) */}
-            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
-                <svg
-                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                Adresse
-                <ParentVisibleBadge
-                  hint={PARENT_VISIBLE_HINTS.guardianContact}
                 />
-              </h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                <div className="md:col-span-2">
-                  <label
-                    htmlFor={`guardian-street-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    Straße und Hausnummer
-                  </label>
-                  <input
-                    id={`guardian-street-${entry.id}`}
-                    type="text"
-                    value={entry.addressStreet}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "addressStreet", e.target.value)
-                    }
-                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
-                    placeholder="Musterstr. 1"
-                    disabled={isLoading}
-                    maxLength={255}
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor={`guardian-postal-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    PLZ
-                  </label>
-                  <input
-                    id={`guardian-postal-${entry.id}`}
-                    type="text"
-                    value={entry.addressPostalCode}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "addressPostalCode", e.target.value)
-                    }
-                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
-                    placeholder="50667"
-                    maxLength={5}
-                    disabled={isLoading}
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor={`guardian-city-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    Ort
-                  </label>
-                  <input
-                    id={`guardian-city-${entry.id}`}
-                    type="text"
-                    value={entry.addressCity}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "addressCity", e.target.value)
-                    }
-                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
-                    placeholder="Köln"
-                    disabled={isLoading}
-                    maxLength={255}
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Additional Info */}
-            <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+                {/* Divider between entries */}
+                {index < entries.length - 1 && (
+                  <div className="border-t border-dashed border-gray-300" />
+                )}
+              </div>
+            ))}
+
+            {/* Add More Button (only in create mode) */}
+            {mode === "create" && (
+              <button
+                type="button"
+                onClick={addEntry}
+                disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              >
                 <svg
-                  className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
+                  className="h-4 w-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -947,162 +1061,80 @@ export default function GuardianFormModal({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    d="M12 4v16m8-8H4"
                   />
                 </svg>
-                Weitere Angaben
-              </h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                <div>
-                  <label
-                    id={`guardian-language-${entry.id}-label`}
-                    htmlFor={`guardian-language-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    Bevorzugte Sprache
-                  </label>
-                  <CustomSelect
-                    id={`guardian-language-${entry.id}`}
-                    ariaLabelledBy={`guardian-language-${entry.id}-label`}
-                    value={entry.languagePreference}
-                    options={LANGUAGE_PREFERENCES}
-                    onChange={(next) =>
-                      updateEntry(entry.id, "languagePreference", next)
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label
-                    htmlFor={`guardian-notes-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    Notizen
-                  </label>
-                  <textarea
-                    id={`guardian-notes-${entry.id}`}
-                    value={entry.notes}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "notes", e.target.value)
-                    }
-                    className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
-                    placeholder="Interne Notizen zum Erziehungsberechtigten"
-                    rows={2}
-                    disabled={isLoading}
-                    maxLength={2000}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Relationship Flags + Emergency Contact (shared with picker) */}
-            <RelationshipPermissionsFields
-              isPrimary={entry.isPrimary}
-              canPickup={entry.canPickup}
-              isEmergencyContact={entry.isEmergencyContact}
-              onChange={(field, value) => updateEntry(entry.id, field, value)}
-              disabled={isLoading}
-            />
-
-            {/* Divider between entries */}
-            {index < entries.length - 1 && (
-              <div className="border-t border-dashed border-gray-300" />
+                Weiteren hinzufügen
+              </button>
             )}
           </div>
-        ))}
-
-        {/* Add More Button (only in create mode) */}
-        {mode === "create" && (
-          <button
-            type="button"
-            onClick={addEntry}
-            disabled={isLoading}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Weiteren hinzufügen
-          </button>
-        )}
-
-        {/* Action Buttons */}
-        <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex items-center justify-between gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">
-          {/* Delete button (only in edit mode) */}
-          {mode === "edit" && onDelete ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={isLoading}
-              className="text-moto-red hover:bg-moto-red-soft rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-            >
-              Entfernen
-            </button>
-          ) : (
-            <div />
-          )}
-          <div className="flex gap-2 md:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isLoading}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              {(() => {
-                if (isLoading) {
-                  return (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="h-4 w-4 animate-spin text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Wird gespeichert...
-                    </span>
-                  );
-                }
-                if (mode === "create") {
-                  return entries.length > 1
-                    ? `${entries.length} Personen hinzufügen`
-                    : "Hinzufügen";
-                }
-                return "Speichern";
-              })()}
-            </button>
-          </div>
-        </div>
-      </form>
-    </Modal>
+          <SlideOverFooter className="flex-row items-center justify-between gap-2 md:gap-3">
+            {/* Delete button (only in edit mode) */}
+            {mode === "edit" && onDelete ? (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={isLoading}
+                className="text-moto-red hover:bg-moto-red-soft rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+              >
+                Entfernen
+              </button>
+            ) : (
+              <div />
+            )}
+            <div className="flex gap-2 md:gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isLoading}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+              >
+                {(() => {
+                  if (isLoading) {
+                    return (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg
+                          className="h-4 w-4 animate-spin text-white"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        Wird gespeichert...
+                      </span>
+                    );
+                  }
+                  if (mode === "create") {
+                    return entries.length > 1
+                      ? `${entries.length} Personen hinzufügen`
+                      : "Hinzufügen";
+                  }
+                  return "Speichern";
+                })()}
+              </button>
+            </div>
+          </SlideOverFooter>
+        </form>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

@@ -226,14 +226,14 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 	}
 	counts["group_substitutions"] = substitutions
 
-	instanceAssignments, err := s.InstanceStaffRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
+	instanceAssignments, err := s.InstanceStaffRepo.DeleteUpcomingByStaffID(ctx, staffID, scheduleModels.Date(today))
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["timetable_instance_staff"] = instanceAssignments
 
 	if s.StaffShiftRepo != nil {
-		staffShifts, err := s.StaffShiftRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
+		staffShifts, err := s.StaffShiftRepo.DeleteUpcomingByStaffID(ctx, staffID, scheduleModels.Date(today))
 		if err != nil {
 			return nil, &UsersError{Op: opOffboardStaff, Err: err}
 		}
@@ -244,7 +244,7 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 	// rows for the offboarded staff member; staff rows are soft-deleted, so
 	// the FK cascade never fires.
 	if s.StaffShiftSeriesRepo != nil {
-		cappedSeries, err := s.StaffShiftSeriesRepo.CapAllByStaffID(ctx, staffID, today)
+		cappedSeries, err := s.StaffShiftSeriesRepo.CapAllByStaffID(ctx, staffID, scheduleModels.Date(today))
 		if err != nil {
 			return nil, &UsersError{Op: opOffboardStaff, Err: err}
 		}

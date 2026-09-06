@@ -67,7 +67,7 @@ describe("SearchStudentCard", () => {
     render(renderCard({}));
 
     expect(
-      screen.getByLabelText("Max Mustermann - Tippen für mehr Infos"),
+      screen.getByLabelText("Max Mustermann - Details öffnen"),
     ).toBeInTheDocument();
     expect(screen.getByText("1a")).toBeInTheDocument();
     expect(screen.getByText("Gruppe: Bärengruppe")).toBeInTheDocument();

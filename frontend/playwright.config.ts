@@ -52,6 +52,7 @@ const webServerEnvPrefix = Object.entries(webServerEnv)
   .map(([key, value]) => `${key}=${value}`)
   .join(" ");
 
+/** @public Loaded by the Playwright CLI rather than imported by application code. */
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

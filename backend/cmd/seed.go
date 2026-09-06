@@ -74,9 +74,12 @@ DEMO DATA:
 OUTPUT FILES:
 - .seed-state.json — all created IDs, credentials, and API keys
 
-PROFILE:
+PROFILES:
 The default profile is vollbetrieb. It has stable identities and credentials,
 so a repeated run fails with a clear conflict until the database is reset.
+The same run creates anmeldung-wochenplan in a second organization: twelve
+children, online enrollment, parent accounts, and weekly-plan-driven care
+without physical terminals. The first developer admin can switch to it.
 
   --tenant-slug vollbetrieb    Override the profile's tenant slug
   --staff-password 'Test1234%' Shared password for all 20 staff accounts

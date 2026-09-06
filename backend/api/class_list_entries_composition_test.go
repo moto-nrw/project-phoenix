@@ -26,7 +26,7 @@ import (
 
 func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupClassListModule(t)
 	membership, err := repositories.NewSchoolMembership(db)
 	require.NoError(t, err)
 	return db, newClassListEntriesResource(membership, svc, db, slog.Default()).Router()

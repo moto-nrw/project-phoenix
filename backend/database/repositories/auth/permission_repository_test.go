@@ -25,7 +25,7 @@ func TestPermissionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates permission with valid data", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestPermissionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing permission", func(t *testing.T) {
@@ -87,7 +87,7 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permission by exact name", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestPermissionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates permission description", func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestPermissionRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing permission", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestPermissionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all permissions", func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestPermissionRepository_FindByRoleID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions assigned to role", func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions for account via role", func(t *testing.T) {
@@ -253,7 +253,7 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds directly assigned permissions only", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns permission to role", func(t *testing.T) {
@@ -315,7 +315,7 @@ func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Permission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Permission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes permission from role", func(t *testing.T) {

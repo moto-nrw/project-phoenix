@@ -328,7 +328,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("activity templates: %w", err)
 	}
 
-	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, today)
+	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, scheduleModels.Date(today))
 	if err != nil {
 		return nil, fmt.Errorf("activity instances: %w", err)
 	}

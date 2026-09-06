@@ -25,7 +25,6 @@ type SeedScheduledActivityState = demoprofile.SeedScheduledActivityState
 type SeedStateCredentials = demoprofile.SeedStateCredentials
 type SeedOperatorCredentials = demoprofile.SeedOperatorCredentials
 type SeedStateTopology = demoprofile.SeedStateTopology
-type SeedCareWithdrawalDemo = demoprofile.SeedCareWithdrawalDemo
 type SeedStateEntities = demoprofile.SeedStateEntities
 type SeedStateLookups = demoprofile.SeedStateLookups
 type SeedStateScenarios = demoprofile.SeedStateScenarios

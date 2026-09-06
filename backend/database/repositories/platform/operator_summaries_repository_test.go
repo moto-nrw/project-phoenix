@@ -206,7 +206,7 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	// Person counts come from the People Directory composition (#2661).
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
@@ -256,7 +256,7 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	// Person counts come from the People Directory composition (#2661).
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
@@ -299,7 +299,7 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 	// Person counts come from the People Directory composition (#2661).
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
@@ -333,7 +333,7 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
 	ctx := testpkg.Ctx(t)
@@ -403,7 +403,7 @@ func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
 	ctx := context.Background()

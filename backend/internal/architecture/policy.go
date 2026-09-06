@@ -135,6 +135,9 @@ func (p *Policy) Validate() error {
 	if err != nil {
 		return err
 	}
+	if err := p.validateCanonicalOwners(); err != nil {
+		return err
+	}
 	roles, err := validateUniqueValues("role", p.Roles, allowedRoles)
 	if err != nil {
 		return err
@@ -323,6 +326,43 @@ func (p *Policy) validateOwners() (map[string]Owner, error) {
 		owners[owner.ID] = owner
 	}
 	return owners, nil
+}
+
+// validateCanonicalOwners pins moto's module map from ADR 0010 and #2580.
+// Evaluator fixtures use independent module paths and their own small maps.
+func (p *Policy) validateCanonicalOwners() error {
+	if p.ModulePath != "github.com/moto-nrw/project-phoenix" {
+		return nil
+	}
+	for _, canonical := range []struct {
+		kind string
+		ids  []string
+	}{
+		{kind: "domain", ids: []string{
+			"appointments", "care-plan", "communication", "device-fleet",
+			"enrollment", "facilities", "feedback", "file-storage", "identity-access",
+			"meal-plan", "organization-tenancy", "people-directory", "school-calendar",
+			"school-membership", "school-structure", "student-presence",
+			"timetable-activities", "workforce",
+		}},
+		{kind: "platform", ids: []string{
+			"audit-platform", "delivery-platform", "document-rendering", "observability",
+			"scheduler-runtime", "security-runtime", "settings-platform",
+			"tenant-runtime", "transaction-runtime",
+		}},
+	} {
+		var actual []string
+		for _, owner := range p.Owners {
+			if owner.Kind == canonical.kind {
+				actual = append(actual, owner.ID)
+			}
+		}
+		slices.Sort(actual)
+		if !slices.Equal(actual, canonical.ids) {
+			return fmt.Errorf("canonical %s owners must be exactly %v (ADR 0010); got %v", canonical.kind, canonical.ids, actual)
+		}
+	}
+	return nil
 }
 
 func validateUniqueValues(label string, values []string, allowed map[string]bool) (map[string]struct{}, error) {

@@ -26,15 +26,11 @@ import (
 // router, so a single test can drive the full staff→parent flow over HTTP.
 func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupCalendarModule(t)
 
 	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
 	parentResource := parentAPI.NewResource(
-		factory.Auth,
-		factory.Parent,
-		factory.EnrollmentRequest,
-		factory.GuardianProfileLoader,
-		factory.Schools,
+		nil, nil, nil, nil, nil,
 		db,
 	)
 	parentResource.SetCalendarService(factory.Calendar)

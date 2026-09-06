@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func TestClassArrivalExceptionLabel(t *testing.T) {
@@ -26,14 +24,14 @@ func TestClassArrivalExceptionValidate(t *testing.T) {
 	t.Parallel()
 
 	noon := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
-	valid := &ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon}
+	valid := &ClassArrivalException{SchoolClass: "4a", Date: NewDate(2027, 3, 1), ArrivalTime: noon}
 	assert.NoError(t, valid.Validate())
 
-	assert.Error(t, (&ClassArrivalException{SchoolClass: " ", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon}).Validate())
+	assert.Error(t, (&ClassArrivalException{SchoolClass: " ", Date: NewDate(2027, 3, 1), ArrivalTime: noon}).Validate())
 	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", ArrivalTime: noon}).Validate())
-	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1)}).Validate())
+	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", Date: NewDate(2027, 3, 1)}).Validate())
 	long := strings.Repeat("x", 256)
-	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon, Reason: &long}).Validate())
+	assert.Error(t, (&ClassArrivalException{SchoolClass: "4a", Date: NewDate(2027, 3, 1), ArrivalTime: noon, Reason: &long}).Validate())
 }
 
 // TestClassArrivalExceptionOrigin pins the two portals a row can come from
@@ -41,7 +39,7 @@ func TestClassArrivalExceptionValidate(t *testing.T) {
 func TestClassArrivalExceptionOrigin(t *testing.T) {
 	t.Parallel()
 	noon := time.Date(0, 1, 1, 12, 0, 0, 0, time.UTC)
-	base := ClassArrivalException{SchoolClass: "4a", Date: timezone.NewDate(2027, 3, 1), ArrivalTime: noon}
+	base := ClassArrivalException{SchoolClass: "4a", Date: NewDate(2027, 3, 1), ArrivalTime: noon}
 
 	fromSchool := base
 	fromSchool.Origin = ClassArrivalExceptionOriginSchool

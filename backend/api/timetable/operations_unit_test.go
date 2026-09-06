@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -378,7 +379,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	guardianRepo := repositories.NewFactory(db).GuardianProfile
+	guardianRepo := repositories.NewGuardianProfileTestRepository(db)
 	email := fmt.Sprintf("spontaneous-start-rollback-%d@test.local", time.Now().UnixNano())
 	probe := &userModels.GuardianProfile{
 		FirstName:              "Spontaneous",

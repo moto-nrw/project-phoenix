@@ -400,7 +400,9 @@ func (s *operatorAuthService) mintOperatorTokenPair(operator *platform.Operator,
 			ExpiresAt: refreshToken.Expiry.Unix(),
 		},
 	}
-	access, refresh, err := s.tokenAuth.GenTokenPair(s.operatorAccessClaims(operator), refreshClaims)
+	accessClaims := s.operatorAccessClaims(operator)
+	accessClaims.FamilyID = refreshToken.FamilyID
+	access, refresh, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
 	}

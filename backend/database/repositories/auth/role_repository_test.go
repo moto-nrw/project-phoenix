@@ -22,7 +22,7 @@ func TestRoleRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates role with valid data", func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestRoleRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing role", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestRoleRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds role by exact name", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestRoleRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates role description", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestRoleRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing role", func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRoleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all roles", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds roles assigned to account", func(t *testing.T) {
@@ -240,7 +240,7 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
@@ -280,7 +280,7 @@ func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Role
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Role
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns role names for multiple accounts", func(t *testing.T) {

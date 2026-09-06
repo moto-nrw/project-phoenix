@@ -7,7 +7,6 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -185,7 +184,7 @@ func templateRequiredStaffCount(row templateRow, childrenPerStaffRatio int) int 
 
 // templateRequiredStaffOverride converts the nullable required_staff column
 // into the *int override EffectiveRequiredStaff expects (NULL -> nil = derive).
-func templateRequiredStaffOverride(n sql.NullInt64) *int {
+func templateRequiredStaffOverride(n activities.NullInt64) *int {
 	if !n.Valid {
 		return nil
 	}

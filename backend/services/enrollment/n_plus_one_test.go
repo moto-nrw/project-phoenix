@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-func (failingSchemaRepo) ListWithOptions(context.Context, *modelBase.QueryOptions) ([]*enrollmentModels.FormSchema, error) {
+func (failingSchemaRepo) Schemas(context.Context, []int64) ([]*capability.FormSchema, error) {
 	return nil, errors.New("schema read failed")
 }
 
-func (failingPhaseRepo) ListByIDs(context.Context, []int64) ([]*enrollmentModels.Phase, error) {
+func (failingPhaseRepo) PhasesByID(context.Context, []int64) ([]*capability.Phase, error) {
 	return nil, errors.New("phase read failed")
 }

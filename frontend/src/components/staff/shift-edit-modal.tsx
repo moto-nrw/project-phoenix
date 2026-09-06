@@ -9,7 +9,14 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -1083,416 +1090,435 @@ export function ShiftEditModal({
       {/* Hidden while another confirmation is open — all use the same fixed
           z-index, so stacking them puts the topmost dialog's buttons behind
           this modal's body. */}
-      <Modal
-        isOpen={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
-        onClose={onClose}
-        title={title}
-        footer={footer}
+      <SlideOver
+        open={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
       >
-        {seriesNotice ? (
-          <div className="space-y-3 text-sm">
-            <p className="text-gray-700">Die Serie wurde gespeichert.</p>
-            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-              {seriesNotice}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4 text-sm">
-            <p className="text-sm text-gray-600">{staffName}</p>
-            {isSeriesRow && (
-              // The series panel states the rule itself (#2028). Knowing only
-              // "Teil einer Serie" leaves the planner guessing which days the
-              // series covers and how far it runs — and the way to the whole
-              // series used to exist only as a dialog after Speichern.
-              <div className="space-y-2 rounded-md bg-gray-50 px-3 py-2.5">
-                <p className="text-xs text-gray-600">
-                  {shift?.detached
-                    ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
-                    : "Diese Schicht ist Teil einer Serie."}
+        <SlideOverContent widthClass="sm:w-[760px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>{title}</SlideOverTitle>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {seriesNotice ? (
+              <div className="space-y-3 text-sm">
+                <p className="text-gray-700">Die Serie wurde gespeichert.</p>
+                <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
+                  {seriesNotice}
                 </p>
-                {seriesRule && (
-                  <p className="text-xs font-medium text-gray-800">
-                    {describeSeriesRule(seriesRule)}
-                  </p>
-                )}
-                {seriesRuleError && (
-                  <p className="text-xs text-gray-500">
-                    Die Serienangaben konnten nicht geladen werden. Änderungen
-                    an dieser Schicht sind weiterhin möglich.
-                  </p>
-                )}
-                {!seriesEditOpen && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="compact"
-                    onClick={openSeriesEdit}
-                    disabled={seriesRule === null || isSaving || isDeleting}
-                  >
-                    Serie bearbeiten
-                  </Button>
-                )}
               </div>
-            )}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Beginn">
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
-                />
-              </Field>
-              <Field label="Ende">
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Pause (Minuten)">
-                <input
-                  type="number"
-                  min={0}
-                  max={breakMaxMinutes}
-                  inputMode="numeric"
-                  value={breakMinutesStr}
-                  onChange={(e) => setBreakMinutesStr(e.target.value)}
-                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
-                />
-              </Field>
-            </div>
-            {typeOptions.length > 1 && (
-              <Field label="Schichtart">
-                <CustomSelect
-                  value={shiftTypeId}
-                  options={typeOptions}
-                  onChange={setShiftTypeId}
-                  ariaLabel="Schichtart"
-                  placeholder="Keine Schichtart"
-                />
-              </Field>
-            )}
-            {mode === "edit" && !seriesEditOpen && (
-              <Field label="Grund der Änderung (optional)">
-                <input
-                  type="text"
-                  value={changeReason}
-                  maxLength={200}
-                  onChange={(e) => setChangeReason(e.target.value)}
-                  placeholder="z. B. Krankheit, Fortbildung, Tausch"
-                  className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
-                />
-                {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
-                    series and carries no per-day reason, so be honest that the
-                    reason only sticks to a single-occurrence change. */}
+            ) : (
+              <div className="space-y-4 text-sm">
+                <p className="text-sm text-gray-600">{staffName}</p>
                 {isSeriesRow && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Der Grund wird nur bei „Nur diese Woche" gespeichert, nicht
-                    bei „Ab jetzt dauerhaft".
-                  </p>
-                )}
-              </Field>
-            )}
-            {isReplacementRow && (
-              <p
-                className="rounded-md px-3 py-2 text-xs"
-                style={{
-                  backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}14`,
-                  color: LOCATION_COLORS.OTHER_ROOM,
-                }}
-              >
-                Diese Schicht ist eine Vertretung für eine ausgefallene Schicht.
-              </p>
-            )}
-            {seriesEditOpen && seriesRule && (
-              <div className="space-y-3 rounded-md border border-gray-200 p-3">
-                <p className="text-xs text-gray-600">
-                  {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
-                </p>
-                <FieldGroup label="Wochentage">
-                  <WeekdayPicker
-                    idPrefix="shift-series-edit"
-                    weekdays={seriesWeekdays}
-                    onToggle={toggleSeriesWeekday}
-                  />
-                </FieldGroup>
-                <FieldGroup label="Wochenrhythmus">
-                  <RhythmPicker
-                    idPrefix="shift-series-edit"
-                    biweekly={seriesBiweekly}
-                    onBiweeklyChange={setSeriesBiweekly}
-                    abPattern={seriesAbPattern}
-                    onAbPatternChange={setSeriesAbPattern}
-                    periodHasCycle={seriesPeriodHasCycle}
-                    weekHint={
-                      seriesDefaultAbPattern !== null
-                        ? `Die Woche vom ${formatShortDate(seriesAppliesFrom)} ist Woche ${
-                            seriesDefaultAbPattern === 1 ? "A" : "B"
-                          }.`
-                        : undefined
-                    }
-                  />
-                </FieldGroup>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {/* The date the change actually takes effect: the opened
-                      occurrence, moved forward to tomorrow when it already
-                      passed — the re-plan never touches today or earlier. */}
-                  <Field label="Gilt ab">
-                    <input
-                      type="text"
-                      value={formatShortDate(seriesAppliesFrom)}
-                      disabled
-                      className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
-                    />
-                  </Field>
-                  {/* FieldGroup, not Field — see the create block: a label
-                      around the DatePicker re-dispatches clicks. */}
-                  <FieldGroup label="Gültig bis (optional)">
-                    <DatePicker
-                      value={
-                        seriesValidUntil === ""
-                          ? null
-                          : parseISODate(seriesValidUntil)
-                      }
-                      onChange={(picked) =>
-                        setSeriesValidUntil(picked ? toISODate(picked) : "")
-                      }
-                      placeholder="Datum auswählen"
-                    />
-                  </FieldGroup>
-                </div>
-                {/* Say it before the save fails: a segment whose last day has
-                    arrived has nothing left for the re-plan to change (#2028). */}
-                {!seriesHasRemainingOccurrence && (
-                  <p
-                    className="rounded-md px-3 py-2 text-xs"
-                    style={{
-                      backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
-                      color: LOCATION_COLORS.SCHOOLYARD,
-                    }}
-                  >
-                    {seriesNoOccurrenceMessage}
-                  </p>
-                )}
-              </div>
-            )}
-            {mode === "edit" &&
-              shift &&
-              !isReplacementRow &&
-              !seriesEditOpen && (
-                <div className="space-y-3 rounded-md border border-gray-200 p-3">
-                  <label
-                    htmlFor="shift-cancel-toggle"
-                    className="flex items-center gap-2"
-                  >
-                    <Checkbox
-                      id="shift-cancel-toggle"
-                      checked={cancelled}
-                      // Keep the replacement rows across an un-check/re-check: the
-                      // section is hidden while unchecked and the save only sends
-                      // replacements when `cancelled` is true, so clearing here
-                      // would erase the existing covers for a reactivation that was
-                      // never submitted — and re-checking must bring them back
-                      // rather than silently wiping every cover on save (#1841).
-                      onChange={(e) => setCancelled(e.target.checked)}
-                    />
-                    <span className="text-sm font-medium text-gray-800">
-                      Diese Schicht fällt aus
-                    </span>
-                  </label>
-                  {cancelled && (
-                    <div className="space-y-3">
-                      <p className="text-xs text-gray-500">
-                        Die Schicht zählt nicht mehr zur geplanten Zeit. Ohne
-                        Vertretung bleibt die Lücke bewusst offen; sonst tragen
-                        Sie eine oder mehrere Ersatzpersonen ein.
+                  // The series panel states the rule itself (#2028). Knowing only
+                  // "Teil einer Serie" leaves the planner guessing which days the
+                  // series covers and how far it runs — and the way to the whole
+                  // series used to exist only as a dialog after Speichern.
+                  <div className="space-y-2 rounded-md bg-gray-50 px-3 py-2.5">
+                    <p className="text-xs text-gray-600">
+                      {shift?.detached
+                        ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
+                        : "Diese Schicht ist Teil einer Serie."}
+                    </p>
+                    {seriesRule && (
+                      <p className="text-xs font-medium text-gray-800">
+                        {describeSeriesRule(seriesRule)}
                       </p>
-                      {replacements.map((row, index) => (
-                        <div
-                          key={getStableObjectKey(row, "replacement")}
-                          className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                              Vertretung {index + 1}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="compact"
-                              onClick={() => removeReplacement(index)}
-                            >
-                              Entfernen
-                            </Button>
-                          </div>
-                          <CustomSelect
-                            value={row.staffId}
-                            options={replacementStaffOptions}
-                            onChange={(value) =>
-                              updateReplacement(index, { staffId: value })
-                            }
-                            ariaLabel={`Ersatzperson ${index + 1}`}
-                            placeholder="Person auswählen"
-                          />
-                          <div className="grid grid-cols-2 gap-2">
-                            <Field label="Beginn">
-                              <input
-                                type="time"
-                                aria-label={`Vertretung ${index + 1} Beginn`}
-                                value={row.startTime}
-                                onChange={(e) =>
-                                  updateReplacement(index, {
-                                    startTime: e.target.value,
-                                  })
-                                }
-                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
-                              />
-                            </Field>
-                            <Field label="Ende">
-                              <input
-                                type="time"
-                                aria-label={`Vertretung ${index + 1} Ende`}
-                                value={row.endTime}
-                                onChange={(e) =>
-                                  updateReplacement(index, {
-                                    endTime: e.target.value,
-                                  })
-                                }
-                                className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
-                              />
-                            </Field>
-                          </div>
-                        </div>
-                      ))}
+                    )}
+                    {seriesRuleError && (
+                      <p className="text-xs text-gray-500">
+                        Die Serienangaben konnten nicht geladen werden.
+                        Änderungen an dieser Schicht sind weiterhin möglich.
+                      </p>
+                    )}
+                    {!seriesEditOpen && (
                       <Button
                         type="button"
                         variant="outline"
-                        size="md"
-                        onClick={addReplacement}
-                        disabled={replacementStaffOptions.length <= 1}
+                        size="compact"
+                        onClick={openSeriesEdit}
+                        disabled={seriesRule === null || isSaving || isDeleting}
                       >
-                        + Vertretung hinzufügen
+                        Serie bearbeiten
                       </Button>
-                      {replacementStaffOptions.length <= 1 && (
-                        <p className="text-xs text-gray-500">
-                          Keine andere Person verfügbar, um eine Vertretung
-                          einzutragen.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Beginn">
+                    <input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                    />
+                  </Field>
+                  <Field label="Ende">
+                    <input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                    />
+                  </Field>
                 </div>
-              )}
-            {mode === "create" && (
-              <div className="space-y-3 rounded-md border border-gray-200 p-3">
-                <label
-                  htmlFor="shift-series-toggle"
-                  className="flex items-center gap-2"
-                >
-                  <Checkbox
-                    id="shift-series-toggle"
-                    checked={repeatEnabled}
-                    onChange={(e) => setRepeatEnabled(e.target.checked)}
-                  />
-                  <span className="text-sm font-medium text-gray-800">
-                    Als Serie wiederholen
-                  </span>
-                </label>
-                {repeatEnabled && (
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Pause (Minuten)">
+                    <input
+                      type="number"
+                      min={0}
+                      max={breakMaxMinutes}
+                      inputMode="numeric"
+                      value={breakMinutesStr}
+                      onChange={(e) => setBreakMinutesStr(e.target.value)}
+                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                    />
+                  </Field>
+                </div>
+                {typeOptions.length > 1 && (
+                  <Field label="Schichtart">
+                    <CustomSelect
+                      value={shiftTypeId}
+                      options={typeOptions}
+                      onChange={setShiftTypeId}
+                      ariaLabel="Schichtart"
+                      placeholder="Keine Schichtart"
+                    />
+                  </Field>
+                )}
+                {mode === "edit" && !seriesEditOpen && (
+                  <Field label="Grund der Änderung (optional)">
+                    <input
+                      type="text"
+                      value={changeReason}
+                      maxLength={200}
+                      onChange={(e) => setChangeReason(e.target.value)}
+                      placeholder="z. B. Krankheit, Fortbildung, Tausch"
+                      className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
+                    />
+                    {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
+                    series and carries no per-day reason, so be honest that the
+                    reason only sticks to a single-occurrence change. */}
+                    {isSeriesRow && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Der Grund wird nur bei „Nur diese Woche" gespeichert,
+                        nicht bei „Ab jetzt dauerhaft".
+                      </p>
+                    )}
+                  </Field>
+                )}
+                {isReplacementRow && (
+                  <p
+                    className="rounded-md px-3 py-2 text-xs"
+                    style={{
+                      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}14`,
+                      color: LOCATION_COLORS.OTHER_ROOM,
+                    }}
+                  >
+                    Diese Schicht ist eine Vertretung für eine ausgefallene
+                    Schicht.
+                  </p>
+                )}
+                {seriesEditOpen && seriesRule && (
+                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                    <p className="text-xs text-gray-600">
+                      {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
+                    </p>
                     <FieldGroup label="Wochentage">
                       <WeekdayPicker
-                        idPrefix="shift-series"
-                        weekdays={weekdays}
-                        onToggle={toggleWeekday}
+                        idPrefix="shift-series-edit"
+                        weekdays={seriesWeekdays}
+                        onToggle={toggleSeriesWeekday}
                       />
                     </FieldGroup>
-                    <Field label="Kalenderzeitraum">
-                      {periods !== null && periodOptions.length === 0 ? (
-                        <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-                          Kein aktiver Kalenderzeitraum vorhanden. Bitte zuerst
-                          unter Planung → Kalenderzeiträume einen Zeitraum
-                          anlegen.
-                        </p>
-                      ) : (
-                        <CustomSelect
-                          value={periodId}
-                          options={periodOptions}
-                          onChange={setPeriodId}
-                          ariaLabel="Kalenderzeitraum"
-                          placeholder={
-                            periods === null ? "Lade Zeiträume…" : "Auswählen"
-                          }
-                        />
-                      )}
-                    </Field>
                     <FieldGroup label="Wochenrhythmus">
                       <RhythmPicker
-                        idPrefix="shift-series"
-                        biweekly={biweekly}
-                        onBiweeklyChange={setBiweekly}
-                        abPattern={abPattern}
-                        onAbPatternChange={(next) => {
-                          setAbTouched(true);
-                          setAbPattern(next);
-                        }}
-                        periodHasCycle={periodHasCycle}
+                        idPrefix="shift-series-edit"
+                        biweekly={seriesBiweekly}
+                        onBiweeklyChange={setSeriesBiweekly}
+                        abPattern={seriesAbPattern}
+                        onAbPatternChange={setSeriesAbPattern}
+                        periodHasCycle={seriesPeriodHasCycle}
                         weekHint={
-                          defaultAbPattern !== null
-                            ? `Die Woche vom ${formatShortDate(date)} ist Woche ${
-                                defaultAbPattern === 1 ? "A" : "B"
+                          seriesDefaultAbPattern !== null
+                            ? `Die Woche vom ${formatShortDate(seriesAppliesFrom)} ist Woche ${
+                                seriesDefaultAbPattern === 1 ? "A" : "B"
                               }.`
                             : undefined
                         }
                       />
                     </FieldGroup>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <Field label="Gültig ab">
+                      {/* The date the change actually takes effect: the opened
+                      occurrence, moved forward to tomorrow when it already
+                      passed — the re-plan never touches today or earlier. */}
+                      <Field label="Gilt ab">
                         <input
                           type="text"
-                          value={formatShortDate(date)}
+                          value={formatShortDate(seriesAppliesFrom)}
                           disabled
                           className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                         />
                       </Field>
-                      {/* FieldGroup, not Field: the DatePicker trigger and
-                          calendar are buttons — inside Field's <label> a
-                          click would re-dispatch onto the first labelable
-                          child (see FieldGroup comment below). */}
+                      {/* FieldGroup, not Field — see the create block: a label
+                      around the DatePicker re-dispatches clicks. */}
                       <FieldGroup label="Gültig bis (optional)">
                         <DatePicker
                           value={
-                            validUntil === "" ? null : parseISODate(validUntil)
+                            seriesValidUntil === ""
+                              ? null
+                              : parseISODate(seriesValidUntil)
                           }
                           onChange={(picked) =>
-                            setValidUntil(picked ? toISODate(picked) : "")
+                            setSeriesValidUntil(picked ? toISODate(picked) : "")
                           }
                           placeholder="Datum auswählen"
                         />
                       </FieldGroup>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Ohne Enddatum läuft die Serie bis zum Ende des
-                      Kalenderzeitraums; mit Enddatum bis einschließlich diesem
-                      Tag. Schichten werden ab morgen eingeplant; bestehende
-                      Schichten bleiben unverändert.
-                    </p>
+                    {/* Say it before the save fails: a segment whose last day has
+                    arrived has nothing left for the re-plan to change (#2028). */}
+                    {!seriesHasRemainingOccurrence && (
+                      <p
+                        className="rounded-md px-3 py-2 text-xs"
+                        style={{
+                          backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
+                          color: LOCATION_COLORS.SCHOOLYARD,
+                        }}
+                      >
+                        {seriesNoOccurrenceMessage}
+                      </p>
+                    )}
                   </div>
+                )}
+                {mode === "edit" &&
+                  shift &&
+                  !isReplacementRow &&
+                  !seriesEditOpen && (
+                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                      <label
+                        htmlFor="shift-cancel-toggle"
+                        className="flex items-center gap-2"
+                      >
+                        <Checkbox
+                          id="shift-cancel-toggle"
+                          checked={cancelled}
+                          // Keep the replacement rows across an un-check/re-check: the
+                          // section is hidden while unchecked and the save only sends
+                          // replacements when `cancelled` is true, so clearing here
+                          // would erase the existing covers for a reactivation that was
+                          // never submitted — and re-checking must bring them back
+                          // rather than silently wiping every cover on save (#1841).
+                          onChange={(e) => setCancelled(e.target.checked)}
+                        />
+                        <span className="text-sm font-medium text-gray-800">
+                          Diese Schicht fällt aus
+                        </span>
+                      </label>
+                      {cancelled && (
+                        <div className="space-y-3">
+                          <p className="text-xs text-gray-500">
+                            Die Schicht zählt nicht mehr zur geplanten Zeit.
+                            Ohne Vertretung bleibt die Lücke bewusst offen;
+                            sonst tragen Sie eine oder mehrere Ersatzpersonen
+                            ein.
+                          </p>
+                          {replacements.map((row, index) => (
+                            <div
+                              key={getStableObjectKey(row, "replacement")}
+                              className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                  Vertretung {index + 1}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="compact"
+                                  onClick={() => removeReplacement(index)}
+                                >
+                                  Entfernen
+                                </Button>
+                              </div>
+                              <CustomSelect
+                                value={row.staffId}
+                                options={replacementStaffOptions}
+                                onChange={(value) =>
+                                  updateReplacement(index, { staffId: value })
+                                }
+                                ariaLabel={`Ersatzperson ${index + 1}`}
+                                placeholder="Person auswählen"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Field label="Beginn">
+                                  <input
+                                    type="time"
+                                    aria-label={`Vertretung ${index + 1} Beginn`}
+                                    value={row.startTime}
+                                    onChange={(e) =>
+                                      updateReplacement(index, {
+                                        startTime: e.target.value,
+                                      })
+                                    }
+                                    className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                                  />
+                                </Field>
+                                <Field label="Ende">
+                                  <input
+                                    type="time"
+                                    aria-label={`Vertretung ${index + 1} Ende`}
+                                    value={row.endTime}
+                                    onChange={(e) =>
+                                      updateReplacement(index, {
+                                        endTime: e.target.value,
+                                      })
+                                    }
+                                    className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+                                  />
+                                </Field>
+                              </div>
+                            </div>
+                          ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="md"
+                            onClick={addReplacement}
+                            disabled={replacementStaffOptions.length <= 1}
+                          >
+                            + Vertretung hinzufügen
+                          </Button>
+                          {replacementStaffOptions.length <= 1 && (
+                            <p className="text-xs text-gray-500">
+                              Keine andere Person verfügbar, um eine Vertretung
+                              einzutragen.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                {mode === "create" && (
+                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                    <label
+                      htmlFor="shift-series-toggle"
+                      className="flex items-center gap-2"
+                    >
+                      <Checkbox
+                        id="shift-series-toggle"
+                        checked={repeatEnabled}
+                        onChange={(e) => setRepeatEnabled(e.target.checked)}
+                      />
+                      <span className="text-sm font-medium text-gray-800">
+                        Als Serie wiederholen
+                      </span>
+                    </label>
+                    {repeatEnabled && (
+                      <div className="space-y-3">
+                        <FieldGroup label="Wochentage">
+                          <WeekdayPicker
+                            idPrefix="shift-series"
+                            weekdays={weekdays}
+                            onToggle={toggleWeekday}
+                          />
+                        </FieldGroup>
+                        <Field label="Kalenderzeitraum">
+                          {periods !== null && periodOptions.length === 0 ? (
+                            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
+                              Kein aktiver Kalenderzeitraum vorhanden. Bitte
+                              zuerst unter Planung → Kalenderzeiträume einen
+                              Zeitraum anlegen.
+                            </p>
+                          ) : (
+                            <CustomSelect
+                              value={periodId}
+                              options={periodOptions}
+                              onChange={setPeriodId}
+                              ariaLabel="Kalenderzeitraum"
+                              placeholder={
+                                periods === null
+                                  ? "Lade Zeiträume…"
+                                  : "Auswählen"
+                              }
+                            />
+                          )}
+                        </Field>
+                        <FieldGroup label="Wochenrhythmus">
+                          <RhythmPicker
+                            idPrefix="shift-series"
+                            biweekly={biweekly}
+                            onBiweeklyChange={setBiweekly}
+                            abPattern={abPattern}
+                            onAbPatternChange={(next) => {
+                              setAbTouched(true);
+                              setAbPattern(next);
+                            }}
+                            periodHasCycle={periodHasCycle}
+                            weekHint={
+                              defaultAbPattern !== null
+                                ? `Die Woche vom ${formatShortDate(date)} ist Woche ${
+                                    defaultAbPattern === 1 ? "A" : "B"
+                                  }.`
+                                : undefined
+                            }
+                          />
+                        </FieldGroup>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <Field label="Gültig ab">
+                            <input
+                              type="text"
+                              value={formatShortDate(date)}
+                              disabled
+                              className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
+                            />
+                          </Field>
+                          {/* FieldGroup, not Field: the DatePicker trigger and
+                          calendar are buttons — inside Field's <label> a
+                          click would re-dispatch onto the first labelable
+                          child (see FieldGroup comment below). */}
+                          <FieldGroup label="Gültig bis (optional)">
+                            <DatePicker
+                              value={
+                                validUntil === ""
+                                  ? null
+                                  : parseISODate(validUntil)
+                              }
+                              onChange={(picked) =>
+                                setValidUntil(picked ? toISODate(picked) : "")
+                              }
+                              placeholder="Datum auswählen"
+                            />
+                          </FieldGroup>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Ohne Enddatum läuft die Serie bis zum Ende des
+                          Kalenderzeitraums; mit Enddatum bis einschließlich
+                          diesem Tag. Schichten werden ab morgen eingeplant;
+                          bestehende Schichten bleiben unverändert.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {error && (
+                  <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
+                    {error}
+                  </p>
                 )}
               </div>
             )}
-            {error && (
-              <p className="bg-moto-red-soft text-moto-red-strong rounded-md px-3 py-2 text-xs">
-                {error}
-              </p>
-            )}
           </div>
-        )}
-      </Modal>
+          <SlideOverFooter className="flex-row justify-end gap-2">
+            {footer}
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
       {closingDayPrompt !== null && (
         <ClosingDayConfirmModal
           dateISO={closingDayPrompt.conflict.dateISO}

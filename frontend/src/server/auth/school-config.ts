@@ -16,6 +16,7 @@
  * BasePath: "/api/school/auth"
  */
 
+import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
@@ -60,7 +61,11 @@ export const schoolAuthConfig = {
             logger.debug("handling school internal token refresh", {});
           }
 
-          const payload = parseJwtPayload(creds.token);
+          const payload = await validateSessionToken(
+            creds.token,
+            "school",
+            creds.refreshToken,
+          );
           if (!payload) return null;
 
           const email = payload.email ?? payload.sub ?? "";

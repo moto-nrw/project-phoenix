@@ -249,7 +249,8 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "Einladungs-Mail von moto öffnen.",
           "Dem Link aus der E-Mail folgen.",
-          "Konto erstellen und ein starkes Passwort setzen.",
+          "Für ein neues Konto: Konto erstellen und ein starkes Passwort setzen.",
+          "Sie nutzen moto bereits? Melden Sie sich mit Ihrem bestehenden Konto an. Kehren Sie zur Einladung zurück und wählen Sie `Einladung annehmen`. Ihr Passwort und Ihre bisherigen Zugänge bleiben bestehen.",
           "moto öffnen und `E-Mail-Adresse` und `Passwort` eingeben.",
           "Auf `Anmelden` klicken.",
           "Prüfen, ob nach dem Login der Name der richtigen Einrichtung erscheint.",
@@ -614,7 +615,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Home",
         icon: LayoutDashboard,
         summary:
-          "Die Startseite für Admins zeigt in Kacheln, wie der Tag gerade steht. Fast jede Zahl führt direkt in den passenden Bereich.",
+          "Die Startseite für Admins zeigt die Kacheln, die Sie ausgewählt haben. Fast jede Zahl führt direkt in den passenden Bereich.",
         steps: [
           "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
           "Die sichtbaren Kacheln ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Zuhause` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Auslastung` hinzu.",
@@ -622,15 +623,43 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
           "Die Karte `Geburtstage` nennt die Kinder, die heute Geburtstag haben, mit Gruppe, Klasse und dem Alter, das sie erreichen. Rechts steht bei jedem Eintrag, wann der Geburtstag war: `Heute` oder der Tag mit Datum, zum Beispiel `Sa, 01.08.`. Montags stehen so auch die Geburtstage vom Wochenende mit dabei. Geburtstage von Mitarbeitenden erscheinen, sofern eingeschaltet, in einem eigenen Abschnitt `Team`. Hat niemand Geburtstag, steht dort `Heute keine Geburtstage`. Die Karte lässt sich unter `Einstellungen` -> `Betrieb` -> `Geburtstage` ausschalten; dort wird auch entschieden, ob die Geburtstage der Mitarbeitenden mit erscheinen.",
+          "Oben rechts `Startseite anpassen` öffnen. Dort die Kacheln auswählen, die Sie sehen möchten. Der Dialog ist im Abschnitt `Startseite anpassen` erklärt.",
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler: entweder passt sie nicht zu Ihrer Einrichtung, oder sie ist über `Startseite anpassen` ausgeblendet.",
           tone: "blue",
         },
         screenshot:
-          "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Aktive Gruppen.",
-        image: "/help/screens/home.webp",
+          "Startseite mit Begrüßung, ausgewählten Status-Kacheln und dem Knopf `Startseite anpassen` oben rechts.",
+        image: "/help/screens/startseite.webp",
+      },
+      {
+        id: "home-anpassen",
+        title: "Startseite anpassen",
+        searchTerms: [
+          "Kacheln ausblenden",
+          "Startseite anpassen",
+          "Zurücksetzen",
+        ],
+        icon: SlidersHorizontal,
+        summary:
+          "Jede Person entscheidet selbst, was ihre Startseite zeigt. Die Auswahl gilt auf allen Geräten.",
+        steps: [
+          "Auf `Home` oben rechts `Startseite anpassen` öffnen.",
+          "Unter `Kennzahlen` und `Bereiche` die Haken setzen oder entfernen. Was Sie abwählen, verschwindet von Ihrer Startseite.",
+          "`Speichern` klicken. Die Auswahl gilt sofort, auch am Handy und auf dem Tablet.",
+          "`Zurücksetzen` stellt die empfohlene Ansicht wieder her. Der Knopf ist nur aktiv, wenn Sie etwas geändert haben.",
+          "Haben Sie alles ausgeblendet, steht auf der Startseite `Ihre Startseite ist leer` mit dem Knopf `Kacheln einblenden`.",
+        ],
+        callout: {
+          title: "Manches gibt die Schule vor",
+          body: "Unter `Einstellungen` -> `Startseite für alle` legt die Leitung fest, was für alle gilt: `Frei wählbar`, `Immer anzeigen` oder `Aus`. Was dort fest eingestellt ist, steht im Dialog `Startseite anpassen` nicht zur Auswahl. Ein Hinweis im Dialog nennt, wie viele Kacheln das betrifft.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dialog Startseite anpassen mit den Gruppen Kennzahlen und Bereiche und je Eintrag einem Haken.",
+        image: "/help/screens/startseite-anpassen.webp",
       },
       {
         id: "kindersuche",
@@ -1242,7 +1271,8 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt Admins moto so, wie eine bestimmte Person Ihrer Schule es sieht — mit deren Menü, Seiten und Daten. In der Vorschau ist nur Lesen möglich.",
         steps: [
-          "Oben rechts auf Ihr Profil tippen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Am Computer oben rechts Ihr Profil öffnen und `Ansicht eines Mitarbeitenden` wählen.",
+          "Auf dem Handy unten `Mehr` und dann `Ansicht eines Mitarbeitenden` tippen.",
           "Die Person auswählen und `Vorschau starten` tippen.",
           "moto zeigt jetzt die Ansicht dieser Person. Ein orangefarbener Streifen oben nennt die Person und bleibt auf jeder Seite sichtbar.",
           "In der Vorschau können Sie nichts ändern, anlegen oder löschen. Seiten, die die Person nicht sieht, sehen auch Sie in der Vorschau nicht.",
@@ -1254,7 +1284,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben, der die gewählte Person nennt und die Schaltfläche Vorschau beenden trägt.",
+          "Vorschau-Modus mit orangefarbenem Hinweisstreifen oben. Er nennt die gewählte Person und zeigt `Vorschau beenden` auf allen Geräten.",
       },
       {
         id: "eroeffnungssalden-import",
@@ -1288,7 +1318,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
-          "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie in der `Klassenansicht`: einer Tagesübersicht mit ihren Klassen und den Zahlen des Tages. Ein Tipp auf eine Klasse öffnet deren Liste: der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`). Über `Alle Klassen` geht es zurück zur Übersicht.",
+          "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Für ein neues Konto wählt sie dort ein Passwort. Mit bestehendem Konto meldet sie sich wie gewohnt an. Danach kehrt sie zur Einladung zurück und nimmt sie an. Das bisherige Passwort bleibt unverändert. Anschließend öffnet sie moto schule. Danach landet sie in der `Klassenansicht`: einer Tagesübersicht mit ihren Klassen und den Zahlen des Tages. Ein Tipp auf eine Klasse öffnet deren Liste: der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`). Über `Alle Klassen` geht es zurück zur Übersicht.",
           "Weicht bei einem Kind etwas vom üblichen Plan ab, steht das direkt an dem Kind: `Andere Abholzeit` mit beiden Zeiten (`bis 12:15`, darunter `sonst 15:30`) oder das Kennzeichen `Krank`, `Entschuldigt`, `Klassenfahrt`, `Heute abgemeldet`. Kam die Meldung am selben Tag herein, steht die Uhrzeit dabei: `Heute 09:24 gemeldet`. So sieht die Lehrkraft ohne Rückfrage, wer heute früher gehen darf. Geändert wird das im OGS-Team, nicht in moto schule.",
           "Eine Ausnahme gibt es: Fällt Unterricht aus oder endet er früher, kann die Lehrkraft die neue Ankunftszeit ihrer Klasse selbst eintragen, wenn Sie das unter `Einstellungen` bei `Was Lehrkräfte in moto schule eintragen dürfen` freigeben. In der Klassenansicht erscheint dann `Ankunft heute ändern`. Die Zeit gilt an diesem Tag für alle Kinder der Klasse mit Betreuung und steht sofort in Ihrer Aufsicht am Kind. Ohne Freigabe sieht die Lehrkraft nur, was Sie eingetragen haben: `Heute kommt die Klasse um 12:45 Uhr`.",
           "Auf der Übersicht trägt jede Klasse eine Zeile wie `4 Kinder anders als sonst`, sobald es an dem Tag Abweichungen gibt. Damit ist ohne Öffnen jeder einzelnen Klasse erkennbar, wo heute etwas zu beachten ist.",

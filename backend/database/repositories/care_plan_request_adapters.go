@@ -177,20 +177,20 @@ func (r careScheduleRequestRepository) GetPendingForStudentAndKind(ctx context.C
 	return values[0], nil
 }
 
-func (r careScheduleRequestRepository) ListPendingForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicQueueFilter(filters)})
+func (r careScheduleRequestRepository) ListPendingForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicScheduleQueueFilter(filters)})
 }
 
-func (r careScheduleRequestRepository) ListPendingForTenantAndKind(ctx context.Context, kind string, filters carePlanLegacy.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicQueueFilter(filters)})
+func (r careScheduleRequestRepository) ListPendingForTenantAndKind(ctx context.Context, kind string, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+	return r.list(ctx, careplan.CareScheduleRequestFilter{RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicScheduleQueueFilter(filters)})
 }
 
 func (r careScheduleRequestRepository) ListRecentForStudentAndKind(ctx context.Context, studentID int64, kind string, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
 	return r.list(ctx, careplan.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, RecentSince: since})
 }
 
-func (r careScheduleRequestRepository) ListDecidedForTenant(ctx context.Context, filters carePlanLegacy.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusApproved, scheduleModels.CareRequestStatusRejected, scheduleModels.CareRequestStatusWithdrawn}, Queue: publicQueueFilter(filters)})
+func (r careScheduleRequestRepository) ListDecidedForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusApproved, scheduleModels.CareRequestStatusRejected, scheduleModels.CareRequestStatusWithdrawn}, Queue: publicScheduleQueueFilter(filters)})
 }
 
 func (r careScheduleRequestRepository) list(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]*scheduleModels.CareScheduleChangeRequest, error) {
@@ -363,6 +363,10 @@ func mapStudentDataRequestError(err error) error {
 }
 
 func publicQueueFilter(value carePlanLegacy.RequestQueueFilters) *careplan.RequestQueueFilter {
+	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
+}
+
+func publicScheduleQueueFilter(value scheduleModels.RequestQueueFilters) *careplan.RequestQueueFilter {
 	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
 }
 

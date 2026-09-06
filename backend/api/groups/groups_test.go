@@ -57,7 +57,7 @@ type testContext struct {
 func setupGroupsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupGroupsModule(t)
 
 	// Groups resource requires multiple services and repositories
 	resource := groupsAPI.NewResource(

@@ -41,7 +41,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -156,7 +156,7 @@ func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -178,7 +178,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -443,7 +443,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -697,7 +697,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -956,7 +956,7 @@ func TestAttendanceRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1010,7 +1010,7 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1052,7 +1052,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1085,7 +1085,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1129,7 +1129,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1208,7 +1208,7 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1324,7 +1324,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
@@ -1423,7 +1423,7 @@ func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 

@@ -684,7 +684,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.",
+          "Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.",
         ),
       ).toBeInTheDocument();
     });
@@ -705,7 +705,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Starte eine Aktivität in der Web-App, um Live-Raumdaten einzusehen.",
+          "Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität in der Web-App, um Live-Raumdaten einzusehen.",
         ),
       ).toBeInTheDocument();
     });

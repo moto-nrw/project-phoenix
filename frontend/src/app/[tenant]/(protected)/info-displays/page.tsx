@@ -4,17 +4,18 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
 import { Copy, Check } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -44,7 +45,7 @@ interface TokenModalState {
 // on a tenant that hasn't enabled the feature.
 export default function InfoDisplaysPage() {
   return (
-    <DisplayModeGuard>
+    <DisplayModeGuard title="Info-Displays">
       <InfoDisplaysPageContent />
     </DisplayModeGuard>
   );
@@ -70,7 +71,7 @@ function InfoDisplaysPageContent() {
   } = useSWRAuth<InfoDisplay[]>("info-displays", listDisplays);
 
   const loadError = displaysError
-    ? "Fehler beim Laden der Info-Displays. Bitte versuche es später erneut."
+    ? "Fehler beim Laden der Info-Displays. Bitte versuchen Sie es später erneut."
     : "";
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -234,151 +235,167 @@ function InfoDisplaysPageContent() {
       : []),
   ];
 
+  const total = displays?.length ?? 0;
+  const active = (displays ?? []).filter((d) => d.isActive).length;
+  const listLoading = permissionLoading || isLoading;
+
   return (
-    <div className="space-y-6">
-      <PageHeaderWithSearch
-        title="Info-Displays"
-        badge={{
-          icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
-          count: displays?.length ?? 0,
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: "Display suchen …",
-        }}
-        actionButton={
-          canManage ? (
-            <Button
-              type="button"
-              size="md"
-              onClick={() => {
-                setNameInput("");
-                setCreateOpen(true);
-              }}
-            >
-              Neues Display
-            </Button>
-          ) : undefined
-        }
-      />
+    <TenantPage
+      title="Info-Displays"
+      stats={`${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`}
+      statsLoading={listLoading}
+      actions={
+        canManage ? (
+          <Button
+            type="button"
+            size="md"
+            onClick={() => {
+              setNameInput("");
+              setCreateOpen(true);
+            }}
+          >
+            Neues Display
+          </Button>
+        ) : undefined
+      }
+      search={{
+        value: searchQuery,
+        onChange: setSearchQuery,
+        placeholder: "Display suchen…",
+      }}
+      error={loadError || null}
+      loading={listLoading}
+      empty={
+        !listLoading && !loadError && total === 0
+          ? {
+              title: "Noch keine Info-Displays",
+              description:
+                "Ein Info-Display zeigt die Anwesenheit auf einem Fernseher oder Smartboard. Legen Sie eines an; den Link öffnen Sie danach im Browser des Geräts.",
+              action: canManage ? (
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={() => {
+                    setNameInput("");
+                    setCreateOpen(true);
+                  }}
+                >
+                  Neues Display
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+      overlays={
+        <>
+          {/* Create / rename modal */}
+          <FormModal
+            isOpen={createOpen || renameTarget !== null}
+            onClose={() => {
+              setCreateOpen(false);
+              setRenameTarget(null);
+            }}
+            title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
+            size="sm"
+            footer={
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setRenameTarget(null);
+                  }}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  size="md"
+                  disabled={busy || nameInput.trim() === ""}
+                  onClick={() =>
+                    void (renameTarget ? handleRename() : handleCreate())
+                  }
+                >
+                  {renameTarget ? "Speichern" : "Erstellen"}
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-2">
+              <label
+                htmlFor="display-name"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Name des Displays
+              </label>
+              <Input
+                id="display-name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="z. B. Eingangsbereich"
+                maxLength={100}
+              />
+              {!renameTarget && (
+                <p className="text-sm text-gray-500">
+                  Nach dem Erstellen wird der Link zum Dashboard genau einmal
+                  angezeigt.
+                </p>
+              )}
+            </div>
+          </FormModal>
 
-      {(error || loadError) && (
-        <Alert type="error" message={error || loadError} />
-      )}
+          {/* One-time token modal */}
+          {tokenModal && (
+            <TokenModal
+              state={tokenModal}
+              onClose={() => setTokenModal(null)}
+            />
+          )}
 
+          {/* Delete confirmation */}
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              isOpen
+              title="Display löschen"
+              description={
+                <>
+                  Das Display <strong>{deleteTarget.name}</strong> wird gelöscht
+                  und der zugehörige Link sofort ungültig. Der Bildschirm zeigt
+                  danach nur noch einen Hinweis.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              onConfirm={handleDelete}
+              onClose={() => setDeleteTarget(null)}
+              loading={busy}
+              error={deleteError}
+            />
+          )}
+        </>
+      }
+    >
+      {error && <Alert type="error" message={error} />}
+
+      {/* Die Zeilen sind bewusst nicht anklickbar: zu einem Display gibt es
+            keine Objektansicht. Sein Link wird genau einmal gezeigt und laesst
+            sich nicht wieder aufrufen, alles Weitere steht im Kebab der Zeile.
+            Ohne `onRowClick` traegt die Zeile weder Zeiger noch Hover-Flaeche,
+            verspricht also auch nichts. */}
       <DataTable
         columns={columns}
         rows={filtered}
         getRowKey={(row) => row.id}
-        isLoading={permissionLoading || isLoading}
         defaultSortKey="name"
         emptyState={
-          loadError ? (
-            // A failed load must never masquerade as "no displays yet".
-            <div className="py-12 text-center text-gray-500">
-              <p className="font-medium">
-                Displays konnten nicht geladen werden
-              </p>
-              <p className="mt-1 text-sm">
-                Bitte lade die Seite neu oder versuche es später erneut.
-              </p>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-gray-500">
-              <p className="font-medium">Noch keine Info-Displays</p>
-              <p className="mt-1 text-sm">
-                Erstelle ein Display und öffne den Link im Browser des
-                Fernsehers oder Smartboards.
-              </p>
-            </div>
-          )
+          <EmptyState
+            title="Kein Display gefunden"
+            description="Zu Ihrer Suche gibt es kein Display. Ändern Sie den Suchbegriff."
+          />
         }
       />
-
-      {/* Create / rename modal */}
-      <FormModal
-        isOpen={createOpen || renameTarget !== null}
-        onClose={() => {
-          setCreateOpen(false);
-          setRenameTarget(null);
-        }}
-        title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
-        size="sm"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                setCreateOpen(false);
-                setRenameTarget(null);
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              disabled={busy || nameInput.trim() === ""}
-              onClick={() =>
-                void (renameTarget ? handleRename() : handleCreate())
-              }
-            >
-              {renameTarget ? "Speichern" : "Erstellen"}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-2">
-          <label
-            htmlFor="display-name"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Name des Displays
-          </label>
-          <Input
-            id="display-name"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            placeholder="z. B. Eingangsbereich"
-            maxLength={100}
-          />
-          {!renameTarget && (
-            <p className="text-sm text-gray-500">
-              Nach dem Erstellen wird der Link zum Dashboard genau einmal
-              angezeigt.
-            </p>
-          )}
-        </div>
-      </FormModal>
-
-      {/* One-time token modal */}
-      {tokenModal && (
-        <TokenModal state={tokenModal} onClose={() => setTokenModal(null)} />
-      )}
-
-      {/* Delete confirmation */}
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          isOpen
-          title="Display löschen"
-          description={
-            <>
-              Das Display <strong>{deleteTarget.name}</strong> wird gelöscht und
-              der zugehörige Link sofort ungültig. Der Bildschirm zeigt danach
-              nur noch einen Hinweis.
-            </>
-          }
-          gate={{ mode: "twoStep" }}
-          onConfirm={handleDelete}
-          onClose={() => setDeleteTarget(null)}
-          loading={busy}
-          error={deleteError}
-        />
-      )}
-    </div>
+    </TenantPage>
   );
 }
 
@@ -405,7 +422,7 @@ function TokenModal({
     <FormModal
       isOpen
       onClose={onClose}
-      title={`Link für „${state.displayName}"`}
+      title={`Link für „${state.displayName}“`}
       size="md"
       footer={
         <div className="flex justify-end">
@@ -418,7 +435,7 @@ function TokenModal({
       <div className="space-y-5">
         <Alert
           type="warning"
-          message="Dieser Link wird nur einmal angezeigt. Kopiere ihn jetzt oder scanne den QR-Code am Zielgerät. Bei Verlust kannst du jederzeit einen neuen Link erstellen."
+          message="Dieser Link wird nur einmal angezeigt. Kopieren Sie ihn jetzt oder scannen Sie den QR-Code am Zielgerät. Bei Verlust können Sie jederzeit einen neuen Link erstellen."
         />
         <div className="flex items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
@@ -438,11 +455,11 @@ function TokenModal({
             <span className="ml-2">{copied ? "Kopiert" : "Kopieren"}</span>
           </Button>
         </div>
-        <div className="moto-content-surface flex justify-center rounded-2xl border p-6 shadow-sm">
+        <SectionCard className="flex justify-center">
           <QRCodeSVG value={state.url} size={192} />
-        </div>
+        </SectionCard>
         <p className="text-sm text-gray-500">
-          Öffne den Link im Browser des Fernsehers oder Smartboards. Das
+          Öffnen Sie den Link im Browser des Fernsehers oder Smartboards. Das
           Dashboard aktualisiert sich automatisch.
         </p>
       </div>

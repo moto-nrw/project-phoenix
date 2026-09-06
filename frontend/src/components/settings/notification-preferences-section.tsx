@@ -245,7 +245,11 @@ function NotificationPreferencesSectionContent({
         level={3}
         title={isParentPortal ? t("title") : "Benachrichtigungen"}
         concept="notifications"
-        subtitle={isParentPortal ? t("description") : undefined}
+        subtitle={
+          isParentPortal
+            ? t("description")
+            : "Wählen Sie, worüber moto Sie informieren soll."
+        }
         actionsClassName={isParentPortal ? "ms-auto" : undefined}
         actions={
           isParentPortal && loading ? (
@@ -288,12 +292,6 @@ function NotificationPreferencesSectionContent({
           ) : null
         }
       />
-
-      {!isParentPortal && (
-        <p className="mb-4 text-sm text-gray-600">
-          Wählen Sie, worüber moto Sie informieren soll.
-        </p>
-      )}
 
       {error && (
         <div className="mb-3">

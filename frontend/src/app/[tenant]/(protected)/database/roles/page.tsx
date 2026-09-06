@@ -1,12 +1,13 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { TriangleAlert } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -22,9 +23,8 @@ import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -47,13 +47,11 @@ function RolesPageContent() {
   // require authenticated backend authorization and explicit confirmation.
   const selectedId = searchParams.get("role");
   const [searchTerm, setSearchTerm] = useState("");
-  const isMobile = useIsMobile();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
@@ -117,6 +115,18 @@ function RolesPageContent() {
         : [],
     [searchTerm],
   );
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Rollenliste.
+  const statusLine = useMemo(() => {
+    const systemRoles = roles.filter((r) => r.isSystem).length;
+    const parts = [
+      `${formatCount(roles.length)} ${roles.length === 1 ? "Rolle" : "Rollen"}`,
+    ];
+    if (systemRoles > 0) {
+      parts.push(`${formatCount(systemRoles)} vom System`);
+    }
+    return parts.join(" · ");
+  }, [roles]);
 
   const unclassifiedCount = useMemo(
     () => roles.filter((r) => !r.isSystem && !r.baseRole).length,
@@ -198,8 +208,6 @@ function RolesPageContent() {
     };
   }, [selectedId, selectedRoleSummary, service]);
 
-  const handleEditClick = useCallback(() => setShowEditModal(true), []);
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
   const handleManagePermissions = useCallback(
     () => setShowPermissionModal(true),
     [],
@@ -247,7 +255,6 @@ function RolesPageContent() {
         await service.update(selectedRole.id, data);
         const refreshed = await service.getOne(selectedRole.id);
         setSelectedRoleDetail(refreshed);
-        setShowEditModal(false);
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -315,11 +322,95 @@ function RolesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredRoles.length === 0
+          ? {
+              title: searchTerm
+                ? "Keine Rollen gefunden"
+                : "Keine Rollen vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Legen Sie die erste Rolle an, um Rechte zu vergeben.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.roles.icon}
+                  tone={MOTO_CONCEPTS.roles.tone}
+                  size={48}
+                />
+              ),
+              action: searchTerm ? undefined : (
+                <DatabaseCreateAction
+                  label="Rolle"
+                  ariaLabel="Rolle erstellen"
+                  onClick={() => setShowCreateModal(true)}
+                />
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Role>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={rolesConfig}
+            onSubmit={handleCreateRole}
+          />
+
+          {selectedRole && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteRole())}
+              title="Rolle löschen?"
+              description={
+                <>
+                  Möchten Sie die Rolle{" "}
+                  <span className="font-medium">
+                    {getRoleDisplayName(selectedRole.name)}
+                  </span>{" "}
+                  wirklich löschen? Alle Personen mit dieser Rolle verlieren
+                  ihre Berechtigungen.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={detailLoading}
+              error=""
+            />
+          )}
+
+          {selectedRole && (
+            <RolePermissionManagementModal
+              isOpen={showPermissionModal}
+              onClose={() => setShowPermissionModal(false)}
+              role={selectedRole}
+              onUpdate={async () => {
+                await fetchRoles();
+                const refreshed = await service.getOne(selectedRole.id);
+                setSelectedRoleDetail(refreshed);
+              }}
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Rollen",
+        description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
+        actions: (
+          <DatabaseCreateAction
+            label="Rolle"
+            ariaLabel="Rolle erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Rollen" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -334,49 +425,27 @@ function RolesPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Rollen suchen...",
+            placeholder: "Rollen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Rolle"
-              ariaLabel="Rolle erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {unclassifiedCount > 0 && (
-        <div className="border-moto-amber/20 bg-moto-amber-soft mb-6 rounded-lg border p-4">
-          <div className="flex items-start gap-3">
-            <TriangleAlert
-              className="text-moto-amber-strong mt-0.5 h-5 w-5 flex-shrink-0"
-              aria-hidden
-            />
-            <div>
-              <p className="text-moto-amber-strong text-sm font-medium">
-                {unclassifiedCount === 1
-                  ? "1 Rolle hat keine Systemrollen-Zuordnung"
-                  : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`}
-              </p>
-              <p className="text-moto-amber-strong mt-1 text-sm">
-                Ankündigungen werden möglicherweise nicht korrekt zugestellt.
-                Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine
-                Systemrolle aus.
-              </p>
-            </div>
-          </div>
+        <div className="mb-6">
+          <Alert
+            type="warning"
+            title={
+              unclassifiedCount === 1
+                ? "1 Rolle hat keine Systemrollen-Zuordnung"
+                : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`
+            }
+            message="Ankündigungen werden möglicherweise nicht korrekt zugestellt. Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine Systemrolle aus."
+          />
         </div>
       )}
 
@@ -388,83 +457,12 @@ function RolesPageContent() {
             selectedRole={selectedRole}
             detailLoading={detailLoading}
             onSelect={handleSelectRole}
-            onEditClick={handleEditClick}
+            onSaveRole={handleUpdateRole}
             onDeleteClick={handleDeleteClick}
             onManagePermissions={handleManagePermissions}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.roles.icon}
-              tone={MOTO_CONCEPTS.roles.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm ? "Keine Rollen gefunden" : "Keine Rollen vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie einen anderen Suchbegriff."
-              : "Es wurden noch keine Rollen erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Role>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={rolesConfig}
-        onSubmit={handleCreateRole}
-      />
-
-      {selectedRole && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteRole())}
-          title="Rolle löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmVariant="danger"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie die Rolle{" "}
-            <span className="font-medium">
-              {getRoleDisplayName(selectedRole.name)}
-            </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedRole && (
-        <DatabaseFormModal<Role>
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          mode="edit"
-          config={rolesConfig}
-          initialData={selectedRole}
-          onSubmit={handleUpdateRole}
-        />
-      )}
-
-      {selectedRole && (
-        <RolePermissionManagementModal
-          isOpen={showPermissionModal}
-          onClose={() => setShowPermissionModal(false)}
-          role={selectedRole}
-          onUpdate={async () => {
-            await fetchRoles();
-            const refreshed = await service.getOne(selectedRole.id);
-            setSelectedRoleDetail(refreshed);
-          }}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

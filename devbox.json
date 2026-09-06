@@ -35,7 +35,10 @@
     "fzf@latest",
     "sops@latest",
     "age@latest",
-    "graphviz@latest"
+    "graphviz@latest",
+    "gopls@0.23.0",
+    "typescript-language-server@5.3.0",
+    "agent-browser@0.27.0"
   ],
   "env": {
     "CGO_ENABLED": "0",
@@ -43,7 +46,12 @@
   },
   "shell": {
     "scripts": {
-      "bootstrap": "(command -v agent-browser > /dev/null 2>&1 || (npm install -g agent-browser && agent-browser install)) && cd frontend && nci --silent",
+      "bootstrap":    "scripts/bootstrap-dev.sh",
+      "doctor":       "node scripts/check-dev-environment.mjs",
+      "check-lsp":    "node scripts/check-lsp.mjs",
+      "editor":       "zed . \"$@\"",
+      "claude":       "scripts/start-claude.sh \"$@\"",
+      "codex":        "codex \"$@\"",
       "test-backend": "scripts/test-backend.sh"
     },
     "init_hook": [

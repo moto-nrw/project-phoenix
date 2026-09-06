@@ -59,7 +59,7 @@ func setupAuthRoute(t *testing.T) *testContext {
 
 func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthModule(t)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, db)
 	resource.SettingsService = svc.Settings
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)

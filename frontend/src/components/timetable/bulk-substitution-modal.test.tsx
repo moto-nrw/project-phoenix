@@ -1,5 +1,4 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -11,6 +10,50 @@ import type {
 // Der Kit-Datepicker wird durch native Inputs ersetzt: die Tests hier prüfen
 // die Geschäftsregeln (welche Tage gesendet werden, wann der Save blockt),
 // nicht das Kalender-Overlay.
+// Vaul (SlideOver) rendert in jsdom nichts. Derselbe Ersatz wie in
+// components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
@@ -79,32 +122,6 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
-}));
-
-// Der Mock macht das closeDisabled-Prop als data-Attribut sichtbar; dass
-// FormModal damit wirklich alle Schließwege blockiert, prüft der eigene
-// FormModal-Test.
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    children,
-    footer,
-    closeDisabled,
-  }: {
-    isOpen: boolean;
-    children: ReactNode;
-    footer?: ReactNode;
-    closeDisabled?: boolean;
-  }) =>
-    isOpen ? (
-      <div
-        data-testid="form-modal"
-        data-close-disabled={closeDisabled ? "true" : "false"}
-      >
-        {children}
-        {footer}
-      </div>
-    ) : null,
 }));
 
 import { BulkSubstitutionModal } from "./bulk-substitution-modal";
@@ -393,7 +410,7 @@ describe("BulkSubstitutionModal", () => {
     ).toBeEnabled();
   });
 
-  it("blockiert das Schließen des Modals, solange der Save läuft", async () => {
+  it("blockiert das Schließen des Panels, solange der Save läuft", async () => {
     mockGetWeek.mockReturnValue(
       weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
     );
@@ -408,18 +425,16 @@ describe("BulkSubstitutionModal", () => {
 
     pickOption("Abwesende Person", "Anna Alt");
     setRange(futureISO(1), futureISO(1));
-    expect(screen.getByTestId("form-modal")).toHaveAttribute(
-      "data-close-disabled",
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: "Sammel-Vertretung schließen" }),
+    ).toBeEnabled();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
     );
-    expect(screen.getByTestId("form-modal")).toHaveAttribute(
-      "data-close-disabled",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Sammel-Vertretung schließen" }),
+    ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
 
     resolveSave(

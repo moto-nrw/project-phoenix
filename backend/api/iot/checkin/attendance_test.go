@@ -35,7 +35,7 @@ type attendanceTestContext struct {
 func setupAttendanceModule(t *testing.T) *attendanceTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActiveModule(t)
 
 	// Create attendance resource
 	resource := checkinAPI.NewAttendanceResource(

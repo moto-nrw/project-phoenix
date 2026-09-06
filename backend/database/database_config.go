@@ -50,24 +50,36 @@ func resolveDatabaseDSNFrom(getenv func(string) string) (string, error) {
 // Connects as the phoenix_auth role (NOINHERIT, can SET ROLE to phoenix_tenant/phoenix_admin)
 // instead of the postgres superuser. This enforces least-privilege at the connection level.
 //
-// PHOENIX_AUTH_PASSWORD is mandatory. The server will refuse to start without it.
+// Deployed services supply a credential-free DB_DSN endpoint, not the privileged
+// migration DSN. PHOENIX_AUTH_PASSWORD is mandatory.
 // Run migration V1.14.1 to create the phoenix_auth role, then set the password
 // in your env file (dev.env for local, .env for Docker).
 func GetServeDSN() string {
-	baseDSN := GetDatabaseDSN()
-
-	password := os.Getenv("PHOENIX_AUTH_PASSWORD")
-	if password == "" {
-		slog.Error("PHOENIX_AUTH_PASSWORD is required for serve — set it in your env file after running migration V1.14.1")
+	dsn, err := resolveServeDSNFrom(os.Getenv)
+	if err != nil {
+		slog.Error(err.Error())
 		os.Exit(1)
+	}
+	return dsn
+}
+
+func resolveServeDSNFrom(getenv func(string) string) (string, error) {
+	baseDSN, err := resolveDatabaseDSNFrom(getenv)
+	if err != nil {
+		return "", err
+	}
+
+	password := getenv("PHOENIX_AUTH_PASSWORD")
+	if password == "" {
+		return "", fmt.Errorf("PHOENIX_AUTH_PASSWORD is required for serve")
 	}
 
 	parsed, err := url.Parse(baseDSN)
 	if err != nil {
-		slog.Error("failed to parse DB_DSN for phoenix_auth substitution", slog.String("error", err.Error()))
-		os.Exit(1)
+		// URL parser errors can include credentials from the original input.
+		return "", fmt.Errorf("invalid database DSN for serve")
 	}
 
 	parsed.User = url.UserPassword("phoenix_auth", password)
-	return parsed.String()
+	return parsed.String(), nil
 }

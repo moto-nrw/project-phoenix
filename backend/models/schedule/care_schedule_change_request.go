@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrCareRequestNotPending means a pending-row transition lost a race or the
@@ -49,8 +47,8 @@ const (
 // decided atomically, and apply merges only the filled aspects onto the live
 // plan. At most one pending request exists per student (partial unique index).
 type CareScheduleChangeRequest struct {
-	base.Model `bun:"schema:schedule,table:care_schedule_change_requests"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:care_schedule_change_requests"`
+	TenantModel
 
 	StudentID      int64          `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy    int64          `bun:"submitted_by,notnull" json:"submitted_by"`
@@ -115,16 +113,16 @@ type CareScheduleChangeRequestRepository interface {
 
 	// ListPendingForTenant returns every pending request for the current
 	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 	GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*CareScheduleChangeRequest, error)
-	ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
 
 	// ListDecidedForTenant returns the tenant's decided care-schedule rows
 	// (approved, rejected, withdrawn) newest-decision-first via keyset
 	// pagination on (updated_at, id); a zero beforeUpdatedAt returns the first
 	// page.
-	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
+	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 
 	// FindPendingByIDForUpdate locks a request row for decision processing.
 	// It returns ErrCareRequestNotFound when the row is missing in the

@@ -82,7 +82,7 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "PlannedBudget", "Teacher")
 	room := testpkg.CreateTestRoom(t, db, "PlannedBudgetRoom")
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := scheduleSvc.NewTimetableOperationsService(scheduleSvc.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,

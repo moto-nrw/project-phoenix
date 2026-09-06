@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -28,10 +30,17 @@ type EnrollmentDeletionService interface {
 	DeleteChild(ctx context.Context, requestID, childID, actorAccountID int64, reason string) (*enrollmentModels.DeletionImpact, error)
 }
 
+type DeletionChildren interface {
+	DeleteRequestTree(context.Context, int64) error
+	DeleteRequestChildTree(context.Context, int64, int64) error
+	RequestChildrenReader
+	ChildByID(context.Context, int64) (*capability.RequestChild, error)
+}
+
 type enrollmentDeletionService struct {
-	requests enrollmentModels.RequestRepository
-	children enrollmentModels.RequestChildRepository
-	deletion enrollmentModels.DeletionRepository
+	requests RequestIDReader
+	children DeletionChildren
+	deletion DeletionPreview
 	audit    auditModels.EnrollmentDeletionRepository
 	tx       *tenant.TransactionRunner
 	logger   *slog.Logger
@@ -46,9 +55,9 @@ type EnrollmentDeletionDelivery interface {
 const enrollmentRequestDeliveryType = "enrollment_request"
 
 func NewEnrollmentDeletionService(
-	requests enrollmentModels.RequestRepository,
-	children enrollmentModels.RequestChildRepository,
-	deletion enrollmentModels.DeletionRepository,
+	requests RequestIDReader,
+	children DeletionChildren,
+	deletion DeletionPreview,
 	audit auditModels.EnrollmentDeletionRepository,
 	db *bun.DB,
 	logger *slog.Logger,
@@ -96,7 +105,7 @@ func (s *enrollmentDeletionService) PreviewChild(ctx context.Context, requestID,
 	if impact == nil || impact.Counts.RequestChildren != 1 {
 		return nil, ErrEnrollmentDeletionNotFound
 	}
-	child, err := s.children.FindByID(ctx, childID)
+	child, err := s.children.ChildByID(ctx, childID)
 	if err != nil {
 		return nil, fmt.Errorf("load enrollment child for deletion preview: %w", err)
 	}
@@ -127,7 +136,7 @@ func (s *enrollmentDeletionService) DeleteRequest(ctx context.Context, requestID
 		if lockErr := s.lockRequestForDeletion(txCtx, requestID); lockErr != nil {
 			return lockErr
 		}
-		if _, lockErr := s.children.ListByRequestIDForUpdate(txCtx, requestID); lockErr != nil {
+		if _, lockErr := s.children.ChildrenForRequest(txCtx, requestID, true); lockErr != nil {
 			return fmt.Errorf("lock enrollment request children for deletion: %w", lockErr)
 		}
 		impact, err = s.deletion.PreviewRequest(txCtx, requestID)
@@ -146,7 +155,7 @@ func (s *enrollmentDeletionService) DeleteRequest(ctx context.Context, requestID
 		if _, err = s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "enrollment request deleted"); err != nil {
 			return fmt.Errorf("cancel enrollment delivery intents: %w", err)
 		}
-		if err = s.deletion.DeleteRequest(txCtx, requestID); err != nil {
+		if err = s.children.DeleteRequestTree(txCtx, requestID); err != nil {
 			return err
 		}
 		return s.auditDeletion(txCtx, impact, actorAccountID, reason, auditModels.EnrollmentDeletionScopeRequest)
@@ -174,7 +183,7 @@ func (s *enrollmentDeletionService) DeleteChild(ctx context.Context, requestID, 
 		if lockErr := s.lockRequestForDeletion(txCtx, requestID); lockErr != nil {
 			return lockErr
 		}
-		children, lockErr := s.children.ListByRequestIDForUpdate(txCtx, requestID)
+		children, lockErr := s.children.ChildrenForRequest(txCtx, requestID, true)
 		if lockErr != nil {
 			return fmt.Errorf("lock enrollment request children for deletion: %w", lockErr)
 		}
@@ -202,9 +211,9 @@ func (s *enrollmentDeletionService) DeleteChild(ctx context.Context, requestID, 
 			if _, err = s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "enrollment request deleted"); err != nil {
 				return fmt.Errorf("cancel enrollment delivery intents: %w", err)
 			}
-			err = s.deletion.DeleteRequest(txCtx, requestID)
+			err = s.children.DeleteRequestTree(txCtx, requestID)
 		} else {
-			err = s.deletion.DeleteChild(txCtx, requestID, childID)
+			err = s.children.DeleteRequestChildTree(txCtx, requestID, childID)
 		}
 		if err != nil {
 			return err
@@ -224,18 +233,14 @@ func (s *enrollmentDeletionService) DeleteChild(ctx context.Context, requestID, 
 }
 
 func (s *enrollmentDeletionService) lockRequestForDeletion(ctx context.Context, requestID int64) error {
-	if _, err := s.requests.FindByIDForUpdate(ctx, requestID); err == nil {
-		return nil
-	} else {
-		// RequestRepository historically does not preserve sql.ErrNoRows. Re-check
-		// through the deletion repository so absence remains a 404 while genuine
-		// database failures are not mislabeled as "not found".
-		impact, previewErr := s.deletion.PreviewRequest(ctx, requestID)
-		if previewErr == nil && (impact == nil || impact.Counts.Requests != 1) {
-			return ErrEnrollmentDeletionNotFound
-		}
+	_, err := s.requests.RequestByID(ctx, requestID, true)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrEnrollmentDeletionNotFound
+	}
+	if err != nil {
 		return fmt.Errorf("lock enrollment request for deletion: %w", err)
 	}
+	return nil
 }
 
 func (s *enrollmentDeletionService) auditDeletion(ctx context.Context, impact *enrollmentModels.DeletionImpact, actorAccountID int64, reason, scope string) error {
@@ -293,7 +298,7 @@ func validateEnrollmentDeletionInput(actorAccountID int64, reason string) (strin
 	return reason, nil
 }
 
-func validateDeletableEnrollmentChild(child *enrollmentModels.RequestChild) error {
+func validateDeletableEnrollmentChild(child *capability.RequestChild) error {
 	if child == nil {
 		return ErrEnrollmentDeletionNotFound
 	}
@@ -310,7 +315,7 @@ func validateDeletableEnrollmentChild(child *enrollmentModels.RequestChild) erro
 	}
 }
 
-func deletionRequestChildByID(children []*enrollmentModels.RequestChild, childID int64) *enrollmentModels.RequestChild {
+func deletionRequestChildByID(children []*capability.RequestChild, childID int64) *capability.RequestChild {
 	for _, child := range children {
 		if child != nil && child.ID == childID {
 			return child

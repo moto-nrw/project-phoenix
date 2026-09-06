@@ -1,7 +1,6 @@
 /**
  * PlanLegend resolves the categories and block states of a planning grid into a
- * compact wrapping legend (docs/planung-redesign/docs/04-designsprache.md
- * Abschnitt 6.2). Category entries render a vertical edge-bar swatch that mirrors
+ * compact wrapping legend. Category entries render a vertical edge-bar swatch that mirrors
  * the 3px PlanBlock edge; state entries render a 12px glyph that echoes a
  * PlanBlock status.
  *

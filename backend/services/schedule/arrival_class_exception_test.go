@@ -43,7 +43,7 @@ func setClassArrivalException(t *testing.T, repos *repositories.Factory, class s
 	require.NoError(t, err)
 	row := &scheduleModel.ClassArrivalException{
 		SchoolClass: class,
-		Date:        date,
+		Date:        scheduleModel.Date(date),
 		ArrivalTime: timezone.NormalizeWallClock(parsed),
 	}
 	if reason != "" {
@@ -58,7 +58,7 @@ func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -100,7 +100,7 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -126,7 +126,7 @@ func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -160,7 +160,7 @@ func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -182,7 +182,7 @@ func TestPerChildDayExceptionWinsOverTheClassException(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -228,7 +228,7 @@ func TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -277,7 +277,7 @@ func TestUpsertClassArrivalExceptionReturnsPersistedMetadata(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -310,7 +310,7 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -325,14 +325,14 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	}, staff.ID)
 	assert.True(t, errors.Is(err, scheduleService.ErrClassArrivalExceptionPastDate), "got %v", err)
 
+	weekend := timezone.NewDate(2099, time.March, 7)
 	_, err = svc.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
 		SchoolClass: "9z",
-		Date:        timezone.NewDate(2099, time.March, 9),
+		Date:        weekend.AddDays(2),
 		ArrivalTime: noon,
 	}, staff.ID)
 	assert.True(t, errors.Is(err, scheduleService.ErrClassArrivalExceptionClassNotFound), "got %v", err)
 
-	weekend := timezone.NewDate(2099, time.March, 7)
 	_, err = svc.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
 		SchoolClass: "1a",
 		Date:        weekend,

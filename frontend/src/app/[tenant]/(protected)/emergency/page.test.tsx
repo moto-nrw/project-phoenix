@@ -42,14 +42,18 @@ vi.mock("~/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("lucide-react", () => ({
-  Download: (props: Record<string, unknown>) => (
-    <svg data-testid="download-icon" {...props} />
-  ),
-  Printer: (props: Record<string, unknown>) => (
-    <svg data-testid="printer-icon" {...props} />
-  ),
-}));
+vi.mock("lucide-react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("lucide-react")>();
+  return {
+    ...actual,
+    Download: (props: Record<string, unknown>) => (
+      <svg data-testid="download-icon" {...props} />
+    ),
+    Printer: (props: Record<string, unknown>) => (
+      <svg data-testid="printer-icon" {...props} />
+    ),
+  };
+});
 
 beforeEach(() => {
   mockUseSession.mockReturnValue({ status: "authenticated" });

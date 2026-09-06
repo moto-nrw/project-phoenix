@@ -26,7 +26,7 @@ import (
 func buildEditableMasterDataService(t *testing.T) (parentService.Service, usersSvc.ParentRequestEventRecorder, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	events := usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -223,7 +223,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := repositories.NewFactory(db).Person.FindByID(ctx, chain.PersonID)
+	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, chain.PersonID)
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

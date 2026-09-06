@@ -118,7 +118,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 
 	// The series-managed roster follows the same boundary.
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
-		assert.Equal(t, newStart, row.ValidFrom, "supervisor valid_from must follow the new start")
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "supervisor valid_from must follow the new start")
 	}
 	openEnrollments := 0
 	for _, row := range s.enrollmentRows(t, result.TemplateID) {
@@ -126,7 +126,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 			continue
 		}
 		openEnrollments++
-		assert.Equal(t, newStart, row.ValidFrom, "enrollment valid_from must follow the new start")
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "enrollment valid_from must follow the new start")
 	}
 	require.Positive(t, openEnrollments)
 
@@ -196,7 +196,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
 		require.NotNil(t, row.Weekday, "per-weekday mode keeps weekday-scoped staff rows")
-		assert.Equal(t, newStart, row.ValidFrom,
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
 			"weekday-scoped supervisor rows must follow the new start")
 	}
 	openEnrollments := 0
@@ -206,7 +206,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 		}
 		openEnrollments++
 		require.NotNil(t, row.Weekday)
-		assert.Equal(t, newStart, row.ValidFrom,
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
 			"weekday-scoped enrollment rows must follow the new start")
 	}
 	require.Equal(t, 2, openEnrollments)

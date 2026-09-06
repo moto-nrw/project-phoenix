@@ -2,8 +2,6 @@ package schedule
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // CourseInstanceRow counts the occurrences of one course inside the report
@@ -54,9 +52,9 @@ type CourseStatisticsRepository interface {
 	// CourseInstances returns one row per course with occurrences dated in
 	// [from, to]. today is the report date the caller captured once; it
 	// decides which occurrences already took place.
-	CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]CourseInstanceRow, error)
+	CourseInstances(ctx context.Context, from, to, today Date) ([]CourseInstanceRow, error)
 	// CourseParticipation returns one row per (course, child) with attendance
 	// on the occurrences dated in [from, to] that took place — same today,
 	// same rule as CourseInstances.
-	CourseParticipation(ctx context.Context, from, to, today timezone.Date) ([]CourseParticipationRow, error)
+	CourseParticipation(ctx context.Context, from, to, today Date) ([]CourseParticipationRow, error)
 }

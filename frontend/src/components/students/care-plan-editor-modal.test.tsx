@@ -15,25 +15,44 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    title,
+// Der Editor laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht, deshalb
+// steht hier dieselbe Struktur ohne Animationsschicht.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
-    footer,
   }: {
-    isOpen: boolean;
-    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
-    footer?: React.ReactNode;
   }) =>
-    isOpen ? (
-      <div role="dialog" aria-label={title}>
-        <h2>{title}</h2>
+    open ? (
+      <div>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Panel schließen
+        </button>
         {children}
-        <div>{footer}</div>
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
 }));
 
 vi.mock("~/components/ui/modal", () => ({

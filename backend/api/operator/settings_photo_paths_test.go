@@ -50,7 +50,7 @@ import (
 func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupOperatorSettingsModule(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := operatorAPI.NewSettingsResource(
 		svc.Settings, db, nil, platformSvc.NewSchoolService(schoolRepo), svc.Active, svc.CareLifecycle,

@@ -51,7 +51,7 @@ func decodeData[T any](t *testing.T, body []byte) T {
 func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *school.Resource, int64, string) {
 	t.Helper()
 
-	db, services := testutil.SetupAPITest(t, clocks...)
+	db, services := testutil.SetupSchoolModule(t, clocks...)
 	classDayResource := classday.NewResource(services.EnrollmentReport, services.UserContext, db, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,

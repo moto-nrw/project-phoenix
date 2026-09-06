@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Modal } from "~/components/ui/modal";
+import { EmptyState } from "~/components/ui/empty-state";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
+import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   CalendarAppointmentOverview,
@@ -32,25 +35,16 @@ export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
   /**
-   * The page's h1. Both calendar routes render this component as their whole
-   * page body, so dropping the heading left them with no top-level heading at
-   * all and made the subscribe panel's h2 the first landmark a screen reader
-   * reaches.
+   * Wochenenden anzeigen. Den Schalter dazu trägt `PersonalCalendarChrome`
+   * in der Kopfkarte der Seite, deshalb kommt der Wert von außen.
    */
-  readonly title: string;
-  readonly subtitle?: string;
-  /** Titel/Untertitel als Karte rendern (Elternportal-Konvention). */
-  readonly cardHeader?: boolean;
+  readonly showWeekend?: boolean;
   readonly events: readonly CalendarEvent[];
   readonly referenceDate?: Date;
   readonly weekStart?: Date;
   readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
   readonly error?: string | null;
-  readonly onDateChange?: (nextDate: Date) => void;
-  readonly onWeekChange?: (nextWeekStart: Date) => void;
-  readonly onViewModeChange?: (mode: CalendarViewMode) => void;
-  readonly onCreate?: () => void;
   readonly onShowOverview?: (appointmentId: string) => void;
   readonly onRespond?: (
     recipientId: string,
@@ -107,6 +101,28 @@ const sourceTone = {
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
 >;
+
+/**
+ * Der Kalender codiert die Herkunft eines Termins farbig. Bauart 3 Regel 3:
+ * jede farbcodierte Fläche trägt eine Legende.
+ */
+const calendarLegendEntries: readonly PlanLegendEntry[] = [
+  {
+    key: "source-appointment",
+    label: sourceTone.appointment.label,
+    color: sourceTone.appointment.bar,
+  },
+  {
+    key: "source-timetable",
+    label: sourceTone.timetable.label,
+    color: sourceTone.timetable.bar,
+  },
+  {
+    key: "source-shift",
+    label: sourceTone.shift.label,
+    color: sourceTone.shift.bar,
+  },
+];
 
 const responseLabel: Record<string, string> = {
   pending: "Offen",
@@ -176,6 +192,22 @@ function isWeekendOnlyEvent(event: CalendarEvent): boolean {
     if (!isWeekendDay(day)) return false;
   }
   return true;
+}
+
+/**
+ * Einträge, die bei der gewählten Wochenend-Anzeige im Raster vorkommen.
+ * Die Seitenkopfkarte nutzt dieselbe Regel für Zahl und Leerzustand, damit
+ * ein nur am Wochenende liegender Zeitraum nicht als gefüllter Kalender
+ * ohne sichtbaren Inhalt erscheint.
+ */
+export function visibleCalendarEvents(
+  events: readonly CalendarEvent[],
+  showWeekend: boolean,
+  viewMode: CalendarViewMode,
+): readonly CalendarEvent[] {
+  return showWeekend || viewMode === "day"
+    ? events
+    : events.filter((event) => !isWeekendOnlyEvent(event));
 }
 
 function countWeekendEvents(
@@ -364,10 +396,29 @@ const viewOptions = [
   { mode: "month", label: "Monat" },
 ] satisfies Array<{ mode: CalendarViewMode; label: string }>;
 
-function emptyLabel(viewMode: CalendarViewMode): string {
+/**
+ * Text des Leerzustands. Die Kalenderseite belegt damit `empty` der
+ * `TenantPage`, das Raster selbst nutzt ihn als Rückfall.
+ */
+export function calendarEmptyLabel(viewMode: CalendarViewMode): string {
   if (viewMode === "day") return "Keine Einträge an diesem Tag.";
   if (viewMode === "month") return "Keine Einträge in diesem Monat.";
   return "Keine Einträge in dieser Woche.";
+}
+
+/** Zeigt die Fläche bereits den heutigen Tag? Dann bleibt "Heute" inaktiv. */
+function showsToday(referenceDate: Date, viewMode: CalendarViewMode): boolean {
+  const today = new Date();
+  if (viewMode === "month") {
+    return (
+      referenceDate.getFullYear() === today.getFullYear() &&
+      referenceDate.getMonth() === today.getMonth()
+    );
+  }
+  if (viewMode === "day") return toISODate(referenceDate) === toISODate(today);
+  const { from, to } = getWeekRange(referenceDate);
+  const todayISO = toISODate(today);
+  return todayISO >= toISODate(from) && todayISO <= toISODate(to);
 }
 
 function previousLabel(viewMode: CalendarViewMode): string {
@@ -383,19 +434,13 @@ function nextLabel(viewMode: CalendarViewMode): string {
 }
 
 export function PersonalCalendar({
-  title,
-  subtitle,
-  cardHeader = false,
+  showWeekend = false,
   events,
   referenceDate: rawReferenceDate,
   weekStart,
   viewMode = "week",
   loading,
   error,
-  onDateChange,
-  onWeekChange,
-  onViewModeChange,
-  onCreate,
   onShowOverview,
   onRespond,
   respondingRecipientId,
@@ -420,33 +465,23 @@ export function PersonalCalendar({
     icsHrefBase,
   };
   const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
-  const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
-  const handleViewModeChange = onViewModeChange ?? (() => undefined);
-  const { from, to } = getWeekRange(referenceDate);
+  const { from } = getWeekRange(referenceDate);
   const days = getWeekdays(from);
   const monthDays = monthGridDays(referenceDate);
   const sortedEvents = [...events].sort((a, b) =>
     eventSortValue(a).localeCompare(eventSortValue(b)),
   );
-  const label = periodLabel(referenceDate, viewMode, from, to);
-  const [showWeekend, setShowWeekend] = useState(false);
   const visibleWeekDays = showWeekend
     ? days
     : days.filter((day) => !isWeekendDay(day));
   const visibleMonthDays = showWeekend
     ? monthDays
     : monthDays.filter((day) => !isWeekendDay(day));
-  const hiddenWeekendDays =
-    viewMode === "month"
-      ? monthDays.filter(isWeekendDay)
-      : days.filter(isWeekendDay);
-  const hiddenWeekendCount = showWeekend
-    ? 0
-    : countWeekendEvents(events, hiddenWeekendDays);
-  const visibleSortedEvents =
-    showWeekend || viewMode === "day"
-      ? sortedEvents
-      : sortedEvents.filter((event) => !isWeekendOnlyEvent(event));
+  const visibleSortedEvents = visibleCalendarEvents(
+    sortedEvents,
+    showWeekend,
+    viewMode,
+  );
   // Mobile lacks the space for the time grid, so it renders a per-day agenda.
   // The day set mirrors the desktop view (single day / visible week / visible
   // month) so the weekend toggle and range stay consistent across breakpoints.
@@ -457,166 +492,79 @@ export function PersonalCalendar({
         ? visibleMonthDays
         : visibleWeekDays;
 
-  return (
-    <div className="space-y-4">
-      {cardHeader ? (
-        <header className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            {title}
-          </h1>
-          {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
-          ) : null}
-        </header>
-      ) : (
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-          {subtitle ? (
-            <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
-          ) : null}
-        </div>
-      )}
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:flex-none">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={previousLabel(viewMode)}
-              onClick={() =>
-                handleDateChange(shiftDate(referenceDate, viewMode, -1))
-              }
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-            </Button>
-            <div className="min-w-0 flex-1 truncate px-2 text-center text-sm font-semibold text-gray-900 sm:min-w-52">
-              {label}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={nextLabel(viewMode)}
-              onClick={() =>
-                handleDateChange(shiftDate(referenceDate, viewMode, 1))
-              }
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </Button>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            className="shrink-0 justify-center bg-white"
-            onClick={() => handleDateChange(new Date())}
-          >
-            Heute
-          </Button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
-          <div className="flex flex-1 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:flex-none">
-            {viewOptions.map((option) => {
-              const selected = option.mode === viewMode;
-              return (
-                <Button
-                  key={option.mode}
-                  type="button"
-                  variant={selected ? "primary" : "ghost"}
-                  size="compact"
-                  className="flex-1 justify-center sm:flex-none"
-                  aria-pressed={selected}
-                  onClick={() => handleViewModeChange(option.mode)}
-                >
-                  {option.label}
-                </Button>
-              );
-            })}
-          </div>
-          {viewMode !== "day" ? (
-            <Button
-              type="button"
-              variant={showWeekend ? "primary" : "outline"}
-              size="compact"
-              className={`flex-1 justify-center sm:flex-none ${
-                showWeekend ? "" : "bg-white"
-              }`}
-              aria-pressed={showWeekend}
-              onClick={() => setShowWeekend((value) => !value)}
-            >
-              {hiddenWeekendCount > 0
-                ? `Sa/So (${hiddenWeekendCount})`
-                : "Sa/So"}
-            </Button>
-          ) : null}
-          {onCreate ? (
-            <Button
-              type="button"
-              size="compact"
-              className="w-full justify-center sm:w-auto"
-              onClick={onCreate}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Neuer Termin
-            </Button>
-          ) : null}
-        </div>
+  // Die Legende sitzt als Fussband IN der jeweiligen Rasterflaeche. Frei
+  // darunter stuende sie auf dem gemusterten Grund (BAUARTEN-SPEC Teil 3).
+  const legendBand =
+    visibleSortedEvents.length > 0 ? (
+      <div className="border-t border-gray-200 bg-white px-3 py-2">
+        <PlanLegend
+          entries={calendarLegendEntries}
+          aria-label="Legende Terminarten"
+        />
       </div>
+    ) : null;
 
-      {error ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-4 text-sm">
-          {error}
-        </div>
-      ) : null}
+  return (
+    <div className="w-full space-y-6">
+      {error ? <Alert type="error" message={error} /> : null}
 
       <div className="relative">
+        {/* Der Kopf bleibt beim Laden stehen, nur die Datenfläche wird
+            abgedeckt; ein Skelett darüber statt eines Eigenbau-Spinners. */}
         {loading ? (
-          <div className="absolute inset-0 z-10 grid place-items-center bg-white/70">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+          <div
+            role="status"
+            aria-busy="true"
+            aria-label="Kalender wird geladen"
+            className="absolute inset-0 z-10 space-y-2 bg-white/80 p-4"
+          >
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-full min-h-40 w-full rounded-lg" />
           </div>
         ) : null}
         {viewMode === "day" ? (
-          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
               actions={actions}
             />
+            {legendBand}
           </div>
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
               actions={actions}
             />
+            {legendBand}
           </div>
         ) : null}
 
         {viewMode === "month" ? (
-          <div
-            className={`hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid ${
-              showWeekend ? "lg:grid-cols-7" : "lg:grid-cols-5"
-            }`}
-          >
-            {visibleMonthDays.map((day) => {
-              const inMonth = day.getMonth() === referenceDate.getMonth();
-              return (
-                <CalendarDayColumn
-                  key={toISODate(day)}
-                  day={day}
-                  events={eventsForDay(events, day)}
-                  actions={actions}
-                  compact
-                  muted={!inMonth}
-                  className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
-                />
-              );
-            })}
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+            <div
+              className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
+            >
+              {visibleMonthDays.map((day) => {
+                const inMonth = day.getMonth() === referenceDate.getMonth();
+                return (
+                  <CalendarDayColumn
+                    key={toISODate(day)}
+                    day={day}
+                    events={eventsForDay(events, day)}
+                    actions={actions}
+                    compact
+                    muted={!inMonth}
+                    className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
+                  />
+                );
+              })}
+            </div>
+            {legendBand}
           </div>
         ) : null}
 
@@ -626,6 +574,7 @@ export function PersonalCalendar({
             events={events}
             viewMode={viewMode}
             actions={actions}
+            legend={legendBand}
           />
         </div>
 
@@ -636,20 +585,30 @@ export function PersonalCalendar({
         ) : null}
       </div>
 
-      <Modal
-        isOpen={selectedEvent !== null}
-        onClose={() => setSelectedEvent(null)}
-        title="Termin"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
+      <SlideOver
+        open={selectedEvent !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEvent(null);
+        }}
       >
-        {selectedEvent ? (
-          <CalendarEventDetail
-            event={selectedEvent}
-            actions={actions}
-            onClose={() => setSelectedEvent(null)}
-          />
-        ) : null}
-      </Modal>
+        <SlideOverContent widthClass="sm:w-[520px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>Termin</SlideOverTitle>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {selectedEvent ? (
+              <CalendarEventDetail
+                event={selectedEvent}
+                actions={actions}
+                onClose={() => setSelectedEvent(null)}
+              />
+            ) : null}
+          </div>
+        </SlideOverContent>
+      </SlideOver>
     </div>
   );
 }
@@ -663,11 +622,13 @@ function MobileAgenda({
   events,
   viewMode,
   actions,
+  legend,
 }: Readonly<{
   days: readonly Date[];
   events: readonly CalendarEvent[];
   viewMode: CalendarViewMode;
   actions: CalendarEventActions;
+  legend?: ReactNode;
 }>) {
   const groups = days
     .map((day) => {
@@ -706,6 +667,7 @@ function MobileAgenda({
           ))}
         </section>
       ))}
+      {legend}
     </div>
   );
 }
@@ -1463,8 +1425,114 @@ function EmptyCalendarState({
   viewMode,
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
-    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-      {emptyLabel(viewMode)}
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <EmptyState title={calendarEmptyLabel(viewMode)} />
     </div>
+  );
+}
+
+/**
+ * Das Bedienband des Kalenders: Zeitnavigation, Ansichtsumschalter,
+ * Wochenend-Schalter und die Primäraktion. Es sitzt in der Kopfkarte der
+ * Seite (`TenantPage` Slot `searchSlot`) und NICHT über dem Raster — sonst
+ * hätte die Seite zwei Köpfe. Deshalb ist es eine eigene Komponente und kein
+ * Teil von `PersonalCalendar`.
+ */
+export function PersonalCalendarChrome({
+  events,
+  referenceDate: rawReferenceDate,
+  weekStart,
+  viewMode = "week",
+  showWeekend,
+  onShowWeekendChange,
+  onDateChange,
+  onWeekChange,
+  onViewModeChange,
+  onCreate,
+  subtitle,
+}: Readonly<{
+  events: readonly CalendarEvent[];
+  referenceDate?: Date;
+  weekStart?: Date;
+  viewMode?: CalendarViewMode;
+  showWeekend: boolean;
+  onShowWeekendChange: (next: boolean) => void;
+  onDateChange?: (date: Date) => void;
+  onWeekChange?: (date: Date) => void;
+  onViewModeChange?: (mode: CalendarViewMode) => void;
+  onCreate?: () => void;
+  subtitle?: string;
+}>) {
+  const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
+  const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
+  const handleViewModeChange = onViewModeChange ?? (() => undefined);
+  const { from, to } = getWeekRange(referenceDate);
+  const days = getWeekdays(from);
+  const monthDays = monthGridDays(referenceDate);
+  const label = periodLabel(referenceDate, viewMode, from, to);
+  const hiddenWeekendDays =
+    viewMode === "month"
+      ? monthDays.filter(isWeekendDay)
+      : days.filter(isWeekendDay);
+  const hiddenWeekendCount = showWeekend
+    ? 0
+    : countWeekendEvents([...events], hiddenWeekendDays);
+
+  return (
+    <PlanningContextBar
+      onPrevious={() =>
+        handleDateChange(shiftDate(referenceDate, viewMode, -1))
+      }
+      onNext={() => handleDateChange(shiftDate(referenceDate, viewMode, 1))}
+      previousLabel={previousLabel(viewMode)}
+      nextLabel={nextLabel(viewMode)}
+      dateLabel={label}
+      onToday={
+        showsToday(referenceDate, viewMode)
+          ? undefined
+          : () => handleDateChange(new Date())
+      }
+      viewSwitcher={
+        <SegmentedControl
+          items={viewOptions.map((option) => ({
+            value: option.mode,
+            label: option.label,
+          }))}
+          value={viewMode}
+          onChange={handleViewModeChange}
+          ariaLabel="Ansicht wählen"
+        />
+      }
+      actions={
+        onCreate ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={onCreate}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Termin
+          </Button>
+        ) : undefined
+      }
+    >
+      {viewMode !== "day" ? (
+        <Button
+          type="button"
+          variant={showWeekend ? "primary" : "outline"}
+          size="compact"
+          className={showWeekend ? "" : "bg-white"}
+          aria-pressed={showWeekend}
+          onClick={() => onShowWeekendChange(!showWeekend)}
+        >
+          {hiddenWeekendCount > 0 ? `Sa/So (${hiddenWeekendCount})` : "Sa/So"}
+        </Button>
+      ) : null}
+      {subtitle ? (
+        <p className="truncate text-xs text-gray-500">{subtitle}</p>
+      ) : null}
+    </PlanningContextBar>
   );
 }

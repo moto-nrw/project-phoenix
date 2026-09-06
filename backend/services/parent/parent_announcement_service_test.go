@@ -30,7 +30,7 @@ import (
 func buildAnnouncementService(t *testing.T, newsEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:             repos.ParentChild,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,

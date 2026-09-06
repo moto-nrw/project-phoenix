@@ -22,7 +22,7 @@ type settingsTestContext struct {
 func setupSettingsModule(t *testing.T) *settingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupSettingsModule(t)
 	runtime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
 		Protected:   testutil.ProtectedTestTenantGroupFunc(db),
 		Permission:  func(configAPI.Access) configAPI.Middleware { return testutil.IdentityMiddleware },
@@ -35,7 +35,9 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 		NoContent: testutil.RespondNoContent,
 		Failure:   testutil.RespondError,
 	})
-	resource := configAPI.NewSettingsResource(svc.TenantSettings, runtime)
+	homeLayouts, ok := svc.Settings.(configAPI.HomeLayoutOperations)
+	require.True(t, ok)
+	resource := configAPI.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
 
 	return &settingsTestContext{
 		db:       db,

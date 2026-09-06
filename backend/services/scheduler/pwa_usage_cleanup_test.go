@@ -44,7 +44,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
 	}
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	cleanup := pwaSvc.NewUsageService(
 		db,
 		repos.PWAStandaloneUsage,

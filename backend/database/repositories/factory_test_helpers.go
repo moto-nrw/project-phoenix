@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -12,20 +11,14 @@ import (
 // People Directory and Timetable capability already bound, so repository tests
 // read the same person-enriched rows and execute the same care-exit booking
 // writes as the service graph does.
-func NewFactoryWithPeopleDirectory(db *bun.DB, clocks ...func() time.Time) (*Factory, error) {
+func NewFactoryWithPeopleDirectory(db *bun.DB, dependencies TimetableDependencies, clocks ...func() time.Time) (*Factory, error) {
 	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}
-	timetable, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB: db, Observe: func(timetableCompose.Observation) {},
-	})
-	if err != nil {
-		return nil, err
-	}
-	factory := NewFactory(db, clocks...)
+	factory := NewFactory(db, dependencies, clocks...)
 	factory.BindPeopleDirectory(persons)
-	factory.BindTimetable(timetable)
+	factory.BindTimetable(dependencies.Capability)
 	return factory, nil
 }
 
@@ -46,7 +39,7 @@ func NewCareStudentLock(db *bun.DB) (lock func(context.Context, int64) error, no
 // NewStudentScheduleRepositories composes only the student schedule adapters
 // needed by legacy service integration tests.
 func NewStudentScheduleRepositories(db *bun.DB) StudentScheduleRepositories {
-	repositories := NewFactory(db)
+	repositories := NewFactory(db, NewUnobservedTimetableDependencies(db))
 	return StudentScheduleRepositories{
 		ArrivalSchedule:  repositories.StudentArrivalSchedule,
 		ArrivalException: repositories.StudentArrivalException,

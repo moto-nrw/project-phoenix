@@ -32,7 +32,7 @@ func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Group
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Group
 	ctx := testpkg.Ctx(t)
 	today := timezone.TodayDate()
 

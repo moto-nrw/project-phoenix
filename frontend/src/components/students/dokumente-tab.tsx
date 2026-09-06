@@ -249,7 +249,6 @@ export function StudentDokumenteTab({
   return (
     <div className="space-y-6">
       <SectionCard
-        kicker="Kindakte"
         title="Dokumente"
         description="Dateien zum Kind. Uploads und Löschungen werden im Änderungsprotokoll festgehalten. Beim Löschen wird die Datei sofort entfernt, der Protokolleintrag bleibt."
       >

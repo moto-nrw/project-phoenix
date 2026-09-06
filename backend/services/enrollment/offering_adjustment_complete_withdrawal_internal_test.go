@@ -6,19 +6,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 func TestCompleteWithdrawalIsDetectedAfterMaterialization(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 1}, Name: "Ganztag", CountsAsCare: true,
+		ID: 1, Name: "Ganztag", CountsAsCare: true,
 		IsRequired: true, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays: []string{"mon", "tue"},
 	}
 	lunch := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 2}, Name: "Mittagessen", CountsAsCare: false,
+		ID: 2, Name: "Mittagessen", CountsAsCare: false,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	catalog := map[int64]*enrollmentModels.CareOffering{care.ID: care, lunch.ID: lunch}
@@ -41,7 +40,7 @@ func TestCompleteWithdrawalIsDetectedAfterMaterialization(t *testing.T) {
 func TestFixedCareOfferingPreventsCompleteWithdrawalWithoutSelectedDays(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 1}, CountsAsCare: true,
+		ID: 1, CountsAsCare: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	assert.True(t, materializedSelectionsHaveCareDays(
@@ -51,8 +50,8 @@ func TestFixedCareOfferingPreventsCompleteWithdrawalWithoutSelectedDays(t *testi
 
 func TestQueueFullWithdrawalIgnoresRemainingNonCareOfferings(t *testing.T) {
 	t.Parallel()
-	care := &enrollmentModels.CareOffering{Model: base.Model{ID: 1}, CountsAsCare: true}
-	lunch := &enrollmentModels.CareOffering{Model: base.Model{ID: 2}, CountsAsCare: false}
+	care := &enrollmentModels.CareOffering{ID: 1, CountsAsCare: true}
+	lunch := &enrollmentModels.CareOffering{ID: 2, CountsAsCare: false}
 	entries := []OfferingChangeDiffEntry{
 		{OfferingID: care.ID, OldState: "booked", NewState: "not_booked"},
 		{OfferingID: lunch.ID, OldState: "booked", NewState: "booked"},
@@ -66,17 +65,17 @@ func TestQueueFullWithdrawalIgnoresRemainingNonCareOfferings(t *testing.T) {
 func TestCompleteWithdrawalStillEnforcesOfferingGroupUpperBounds(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 1}, Name: "Ganztag", CountsAsCare: true,
+		ID: 1, Name: "Ganztag", CountsAsCare: true,
 		CountsAsCareSet: true, IsRequired: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	lunchA := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 2}, Name: "Essen A", CountsAsCareSet: true,
+		ID: 2, Name: "Essen A", CountsAsCareSet: true,
 		SelectionGroup: "lunch", SelectionRule: enrollmentModels.SelectionRuleAtMostOne,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	lunchB := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 3}, Name: "Essen B", CountsAsCareSet: true,
+		ID: 3, Name: "Essen B", CountsAsCareSet: true,
 		SelectionGroup: "lunch", SelectionRule: enrollmentModels.SelectionRuleAtMostOne,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
@@ -92,16 +91,16 @@ func TestCompleteWithdrawalStillEnforcesOfferingGroupUpperBounds(t *testing.T) {
 func TestCompleteWithdrawalStillEnforcesPhaseExactlyOneUpperBound(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 1}, Name: "Ganztag", CountsAsCare: true,
+		ID: 1, Name: "Ganztag", CountsAsCare: true,
 		CountsAsCareSet: true, IsRequired: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	lunchA := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 2}, Name: "Essen A", CountsAsCareSet: true,
+		ID: 2, Name: "Essen A", CountsAsCareSet: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	lunchB := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 3}, Name: "Essen B", CountsAsCareSet: true,
+		ID: 3, Name: "Essen B", CountsAsCareSet: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
 	}
 	catalog := map[int64]*enrollmentModels.CareOffering{care.ID: care, lunchA.ID: lunchA, lunchB.ID: lunchB}
@@ -116,12 +115,12 @@ func TestCompleteWithdrawalStillEnforcesPhaseExactlyOneUpperBound(t *testing.T) 
 func TestCompleteWithdrawalDetectionUsesFinalAutoMaterialization(t *testing.T) {
 	t.Parallel()
 	trigger := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 1}, Name: "Frühstück", CountsAsCareSet: true,
+		ID: 1, Name: "Frühstück", CountsAsCareSet: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon"},
 	}
 	automaticCare := &enrollmentModels.CareOffering{
-		Model: base.Model{ID: 2}, Name: "Frühbetreuung", CountsAsCare: true, CountsAsCareSet: true,
+		ID: 2, Name: "Frühbetreuung", CountsAsCare: true, CountsAsCareSet: true,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 		AvailableDays:  []string{"mon"}, AutoAddTriggerOfferingIDs: []int64{trigger.ID},
 	}

@@ -3,8 +3,7 @@ import { todayISO } from "../src/lib/date-helpers";
 
 // F9 (Planung-Redesign Inkrement 6A): stamping outside the tolerance window
 // around the planned shift window requires a reason that lands in the
-// session's audit log. The flow under test mirrors docs/08-zeiterfassung.md
-// section 13: enable the setting, plan a shift, check out too late, fill the
+// session's audit log. The flow under test: enable the setting, plan a shift, check out too late, fill the
 // reason dialog, verify the audit entry; then disable the setting and verify
 // the same stamp passes without a dialog.
 

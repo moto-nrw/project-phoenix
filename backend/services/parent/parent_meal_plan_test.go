@@ -43,7 +43,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	if len(moduleOverride) == 1 {
 		mealPlan = moduleOverride[0]
 	}
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,

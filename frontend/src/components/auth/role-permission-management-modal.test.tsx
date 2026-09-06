@@ -53,26 +53,47 @@ vi.mock("~/lib/permission-labels", () => ({
 }));
 
 // Mock UI components
-vi.mock("~/components/ui/form-modal", () => ({
-  FormModal: ({
-    isOpen,
-    children,
-    title,
-    footer,
-  }: {
-    isOpen: boolean;
-    children: React.ReactNode;
-    title: string;
-    footer?: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="form-modal">
-        <h1>{title}</h1>
-        {children}
-        {footer}
-      </div>
-    ) : null,
-}));
+// SlideOver laeuft ueber Vaul; in jsdom ersetzt dieser Mock die Bibliothek.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
 
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) =>
@@ -162,13 +183,17 @@ describe("RolePermissionManagementModal", () => {
   it("renders the modal when open", async () => {
     renderModal();
     await waitFor(() => {
-      expect(screen.getByTestId("form-modal")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: /Berechtigungen verwalten/ }),
+      ).toBeInTheDocument();
     });
   });
 
   it("does not render when closed", () => {
     renderModal({ isOpen: false });
-    expect(screen.queryByTestId("form-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Berechtigungen verwalten/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("displays the role name in title", async () => {

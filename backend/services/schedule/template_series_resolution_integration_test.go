@@ -115,19 +115,19 @@ func (c *seriesChain) assertShape(t *testing.T) {
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.rootID) {
 		assert.Nil(t, row.ValidFrom, "root segment keeps its open start")
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.firstBoundary, *row.ValidUntil)
+		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidUntil)
 	}
 	middle := loadSplitSchedules(t, c.scenarioSetup, c.middleID)
 	require.Len(t, middle, len(c.weekdays))
 	for _, row := range middle {
 		require.NotNil(t, row.ValidFrom)
 		require.NotNil(t, row.ValidUntil)
-		assert.Equal(t, c.firstBoundary, *row.ValidFrom)
-		assert.Equal(t, c.secondBoundary, *row.ValidUntil, "middle segment must be fully bounded")
+		assert.Equal(t, activitiesModels.Date(c.firstBoundary), *row.ValidFrom)
+		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "middle segment must be fully bounded")
 	}
 	for _, row := range loadSplitSchedules(t, c.scenarioSetup, c.livingID) {
 		require.NotNil(t, row.ValidFrom)
-		assert.Equal(t, c.secondBoundary, *row.ValidFrom)
+		assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidFrom)
 		assert.Nil(t, row.ValidUntil, "living segment stays open")
 	}
 }

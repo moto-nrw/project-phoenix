@@ -58,6 +58,7 @@ export function PageHeaderWithSearch({
   filterSections,
   desktopFiltersFrom = "lg",
   className = "",
+  embedded = false,
 }: Readonly<PageHeaderWithSearchProps>) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
@@ -164,6 +165,7 @@ export function PageHeaderWithSearch({
           `lg:hidden` and `xl:hidden` literally present in the source for
           the JIT scanner to include them — hence the static map. */}
         <MobileSearchSection
+          embedded={embedded}
           search={search}
           filters={filters}
           hasFilters={hasFilters}
@@ -192,6 +194,7 @@ export function PageHeaderWithSearch({
           with many filters can opt into `xl` (1280px) so iPad-class
           viewports use the sheet pattern instead of overflowing inline. */}
         <DesktopSearchSection
+          embedded={embedded}
           search={search}
           filters={filters}
           hasFilters={hasFilters}
@@ -324,6 +327,7 @@ function TabsSection({
 }
 
 interface MobileSearchSectionProps {
+  readonly embedded: boolean;
   readonly search?: PageHeaderWithSearchProps["search"];
   readonly filters: NonNullable<PageHeaderWithSearchProps["filters"]>;
   readonly hasFilters: boolean;
@@ -353,6 +357,7 @@ interface MobileSearchSectionProps {
 }
 
 function MobileSearchSection({
+  embedded,
   search,
   filters,
   hasFilters,
@@ -400,7 +405,7 @@ function MobileSearchSection({
     : "";
 
   return (
-    <div className={hideClass}>
+    <div className={`${hideClass} ${embedded ? "[&>*:last-child]:mb-0" : ""}`}>
       {search && (
         <div
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
@@ -466,6 +471,7 @@ function MobileSearchSection({
 }
 
 interface DesktopSearchSectionProps {
+  readonly embedded: boolean;
   readonly search?: PageHeaderWithSearchProps["search"];
   readonly filters: NonNullable<PageHeaderWithSearchProps["filters"]>;
   readonly hasFilters: boolean;
@@ -495,6 +501,7 @@ interface DesktopSearchSectionProps {
 }
 
 function DesktopSearchSection({
+  embedded,
   search,
   filters,
   hasFilters,
@@ -621,7 +628,9 @@ function DesktopSearchSection({
   // consumers).
   if (hasPrimaryAction) {
     return (
-      <div className={`mb-6 ${showClass}`}>
+      <div
+        className={`${embedded ? "[&>*:last-child]:mb-0" : "mb-6"} ${showClass}`}
+      >
         {/* Row 1: search + popover filter left, primary action right */}
         {(search !== undefined || desktopFilterButton || hasPrimaryAction) && (
           <div
@@ -638,6 +647,9 @@ function DesktopSearchSection({
                   />
                 )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+              {badge ? (
+                <InlineStatusBadge badge={badge} variant="desktop" />
+              ) : null}
               {primaryAction}
               {kebabJoinsPrimaryRow ? (
                 <OverflowMenu items={overflowMenu} />
@@ -670,7 +682,7 @@ function DesktopSearchSection({
               hasTitle={hasTitle}
               actionButton={actionButton}
               statusIndicator={statusIndicator}
-              badge={badge}
+              badge={undefined}
             />
 
             {hasOverflowMenu && !kebabJoinsPrimaryRow ? (
@@ -696,7 +708,9 @@ function DesktopSearchSection({
     hasFilters || hasActionContent ? "min-w-48 max-w-96 flex-1" : "flex-1";
 
   return (
-    <div className={`mb-6 ${showClass}`}>
+    <div
+      className={`${embedded ? "[&>*:last-child]:mb-0" : "mb-6"} ${showClass}`}
+    >
       {showSearchRow && (
         <div
           className={`mb-3 flex flex-wrap items-center gap-3 ${compactWrapper}`}

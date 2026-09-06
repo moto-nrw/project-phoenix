@@ -3,14 +3,12 @@
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import {
   SkeletonRegion,
-  PageHeaderSkeleton,
   CardGridSkeleton,
 } from "~/components/ui/page-skeletons";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import type {
-  ActiveFilter,
-  FilterConfig,
-} from "~/components/ui/page-header/types";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -27,12 +25,6 @@ interface EmptyRoomsViewProps {
   readonly onClaimed: () => void;
   readonly cachedActiveGroups: MinimalActiveGroup[];
   readonly currentStaffId: string | undefined;
-  readonly searchTerm: string;
-  readonly setSearchTerm: (term: string) => void;
-  readonly setGroupFilter: (filter: string) => void;
-  readonly setSelectedYear: (year: string) => void;
-  readonly filterConfigs: FilterConfig[];
-  readonly activeFilters: ActiveFilter[];
 }
 
 interface SchulhofNotSupervisingViewProps {
@@ -51,20 +43,35 @@ interface ReleaseSupervisionModalProps {
   readonly onConfirm: () => void;
 }
 
-// withHeader is false when the real PageHeaderWithSearch chrome is already
-// on screen (e.g. re-loading only the student grid) — showing a second
-// header skeleton underneath it would duplicate the page's own chrome.
+// withHeader is false when the page's own Kopfkarte is already on screen
+// (e.g. re-loading only the student grid) — a second header underneath it
+// would duplicate the page's chrome.
 export function ActiveSupervisionLoadingView({
   withHeader = true,
 }: Readonly<{ withHeader?: boolean }> = {}) {
+  const grid = (
+    <CardGridSkeleton
+      cards={6}
+      rowsPerCard={2}
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+    />
+  );
+
+  if (!withHeader) {
+    return (
+      <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
+        {grid}
+      </SkeletonRegion>
+    );
+  }
+
+  // Der Titel ist statisch, die Kopfkarte steht also sofort; nur Statuszeile
+  // und Karten darunter skelettieren.
   return (
     <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
-      {withHeader && <PageHeaderSkeleton actions={1} />}
-      <CardGridSkeleton
-        cards={6}
-        rowsPerCard={2}
-        className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-      />
+      <TenantPage title="Aktuelle Aufsicht" statsLoading>
+        {grid}
+      </TenantPage>
     </SkeletonRegion>
   );
 }
@@ -77,44 +84,29 @@ export function NoActiveSupervisionAccessView() {
   });
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Aktuelle Aufsicht" />
-
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <div className="flex max-w-md flex-col items-center gap-6 text-center">
-          <MotoConceptIcon concept="rooms" size={48} />
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-gray-600">
-              Du bist aktuell in keinem Raum als Live-Aktivität registriert.
-            </p>
-            <p className="mt-4 text-sm text-gray-500">
-              Starte eine Aktivität{" "}
-              {nfcEnabled ? "an einem Terminal" : "in der Web-App"}, um
-              Live-Raumdaten einzusehen.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <TenantPage
+      title="Aktuelle Aufsicht"
+      stats="Keine Aufsicht aktiv"
+      empty={{
+        icon: <MotoConceptIcon concept="rooms" size={48} />,
+        title: "Keine aktive Raum-Aufsicht",
+        description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
+          nfcEnabled ? "an einem Terminal" : "in der Web-App"
+        }, um Live-Raumdaten einzusehen.`,
+      }}
+    />
   );
 }
 
+// Suche und Filter stehen in der Kopfkarte der Seite; diese Ansicht trägt
+// nur noch die freien Räume und den Leerzustand.
 export function EmptyRoomsView({
   onClaimed,
   cachedActiveGroups,
   currentStaffId,
-  searchTerm,
-  setSearchTerm,
-  setGroupFilter,
-  setSelectedYear,
-  filterConfigs,
-  activeFilters,
 }: EmptyRoomsViewProps) {
   return (
-    <div className="w-full">
+    <>
       <UnclaimedRooms
         onClaimed={onClaimed}
         activeGroups={
@@ -123,36 +115,15 @@ export function EmptyRoomsView({
         currentStaffId={currentStaffId}
       />
 
-      <PageHeaderWithSearch
-        title=""
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setGroupFilter("all");
-          setSelectedYear("all");
-        }}
-      />
-
-      <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-        <div className="flex max-w-md flex-col items-center gap-4 text-center">
-          <MotoConceptIcon concept="rooms" size={48} />
-          <div className="space-y-1">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-sm text-gray-500">
-              Du beaufsichtigst aktuell keinen Raum.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. */}
+      <SectionCard>
+        <EmptyState
+          icon={<MotoConceptIcon concept="rooms" size={48} />}
+          title="Keine aktive Raum-Aufsicht"
+          description="Sie beaufsichtigen aktuell keinen Raum."
+        />
+      </SectionCard>
+    </>
   );
 }
 
@@ -173,7 +144,7 @@ export function ReleaseSupervisionModal({
       isConfirmLoading={isConfirmLoading}
     >
       <div className="space-y-4">
-        <div className="border-moto-red/10 bg-moto-red-soft/50 rounded-lg border p-3">
+        <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-3">
           <div className="flex items-start gap-3">
             <MotoDuotoneIcon
               icon={WarningCircleIcon}
@@ -183,8 +154,8 @@ export function ReleaseSupervisionModal({
             />
             <div className="flex-1">
               <p className="text-sm text-gray-600">
-                Du wirst nicht mehr als Aufsicht angezeigt. Der Schulhof wird
-                dann als &quot;ohne Aufsicht&quot; angezeigt, bis eine andere
+                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof wird
+                dann als &bdquo;ohne Aufsicht&ldquo; angezeigt, bis eine andere
                 Lehrkraft die Aufsicht übernimmt.
               </p>
             </div>
@@ -204,25 +175,28 @@ export function SchulhofNotSupervisingView({
   onToggle,
 }: SchulhofNotSupervisingViewProps) {
   return (
-    <div className="flex flex-col items-center gap-4 py-12 text-center">
-      <MotoConceptIcon concept="schoolyard" size={48} />
-      <p className="text-lg font-medium text-gray-900">
-        Schulhof ohne Aufsicht
-      </p>
-      <p className="text-sm text-gray-500">
-        {startDisabledReason ??
+    <SectionCard>
+      <EmptyState
+        icon={<MotoConceptIcon concept="schoolyard" size={48} />}
+        title="Schulhof ohne Aufsicht"
+        description={
+          startDisabledReason ??
           (supervisorCount > 0
             ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-            : "Übernimm die Aufsicht, um Kinder zu sehen.")}
-      </p>
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={isToggling || startDisabled}
-        className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-      >
-        {isToggling ? "Wird übernommen..." : "Beaufsichtigen"}
-      </button>
-    </div>
+            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen.")
+        }
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onToggle}
+            disabled={isToggling || startDisabled}
+          >
+            {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
+          </Button>
+        }
+      />
+    </SectionCard>
   );
 }

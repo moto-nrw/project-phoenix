@@ -14,6 +14,50 @@ const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
 // them settable via fireEvent.change and forwards min/max so the bound
 // assertions below still pin what the component computes. Imported inside the
 // factory because vi.mock is hoisted above the imports.
+// Vaul (SlideOver) rendert in jsdom nichts. Derselbe Ersatz wie in
+// components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
+// Animationsschicht fällt weg.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
@@ -164,7 +208,8 @@ describe("CalendarPeriodModal", () => {
     expect(
       screen
         .getByRole("button", { name: "Löschen bestätigen" })
-        .closest("div.flex.w-full"),
+        // Die Fusszeile des Panels: stapelt auf schmalen Bildschirmen.
+        .closest("div.border-t"),
     ).toHaveClass("flex-col");
     fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
     expect(

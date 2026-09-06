@@ -117,9 +117,9 @@ export const groupsConfig = defineEntityConfig<Group>({
                 return [];
               }
             },
-            placeholder: "Gruppenleitung auswählen...",
+            placeholder: "Gruppenleitung auswählen…",
             helperText:
-              "Wählen Sie eine oder mehrere Gruppenleiter/innen für diese Gruppe aus",
+              "Wählen Sie eine oder mehrere Gruppenleitungen für diese Gruppe aus",
           },
         ],
       },
@@ -141,30 +141,11 @@ export const groupsConfig = defineEntityConfig<Group>({
         text: (group: Group) => group.name?.[0] ?? "G",
         size: "lg",
       },
-      badges: [
-        {
-          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-moto-green-light/80",
-          showWhen: () => true,
-        },
-        {
-          label: "Raum zugewiesen",
-          color: "bg-moto-blue-light/80",
-          showWhen: (group: Group) => !!group.room_name,
-        },
-        {
-          label: (group: Group) =>
-            `${group.supervisors?.length ?? 0} Gruppenleiter/in${(group.supervisors?.length ?? 0) === 1 ? "" : "nen"}`,
-          color: "bg-moto-indigo-light/80",
-          showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
-        },
-      ],
     },
 
     sections: [
       {
         title: "Gruppendetails",
-        titleColor: "text-moto-green-strong",
         items: [
           {
             label: "Gruppenname",
@@ -214,7 +195,7 @@ export const groupsConfig = defineEntityConfig<Group>({
   list: {
     title: "Gruppe auswählen",
     description: "Verwalte Gruppen und deren Zuordnungen",
-    searchPlaceholder: "Gruppe suchen...",
+    searchPlaceholder: "Gruppe suchen…",
 
     // Frontend search configuration (loads all data at once)
     searchStrategy: "frontend",
@@ -235,8 +216,8 @@ export const groupsConfig = defineEntityConfig<Group>({
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
         if (supervisorCount === 0) return "Keine Gruppenleitung";
-        const suffix = supervisorCount === 1 ? "" : "nen";
-        return `${supervisorCount} Gruppenleiter/in${suffix}`;
+        const suffix = supervisorCount === 1 ? "" : "en";
+        return `${supervisorCount} Gruppenleitung${suffix}`;
       },
       description: (group: Group) => {
         const parts = [];
@@ -248,18 +229,6 @@ export const groupsConfig = defineEntityConfig<Group>({
       avatar: {
         text: (group: Group) => group.name?.[0] ?? "G",
       },
-      badges: [
-        {
-          label: (group: Group) => group.room_name ?? "Kein Raum",
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: (group: Group) => !!group.room_name,
-        },
-        {
-          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-moto-green-soft text-moto-green-strong",
-          showWhen: () => true,
-        },
-      ],
     },
   },
 

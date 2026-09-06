@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -26,8 +25,8 @@ func classBlockInstance(id, groupID int64, start string, status string) *schedul
 		panic(err)
 	}
 	return &scheduleModel.ActivityInstance{
-		Model:           modelBase.Model{ID: id},
-		Date:            timezone.NewDate(2026, 9, 7),
+		Model:           scheduleModel.Model{ID: id},
+		Date:            scheduleModel.NewDate(2026, 9, 7),
 		ActivityGroupID: &groupID,
 		StartTime:       parsed,
 		Status:          status,
@@ -43,11 +42,11 @@ func TestEarliestPlannedBlockStartForClassPicksTheFirstBlockThatAddressesTheClas
 	// " 4a " are the same class, "Klasse 4a" is not.
 	klasse4a := "4A"
 	klasse3b := "3b"
-	deps.activityGroups.byID[1] = &activitiesModel.Group{Model: modelBase.Model{ID: 1}, TargetSchoolClass: &klasse4a}
-	deps.activityGroups.byID[2] = &activitiesModel.Group{Model: modelBase.Model{ID: 2}, TargetSchoolClass: &klasse3b}
-	deps.activityGroups.byID[3] = &activitiesModel.Group{Model: modelBase.Model{ID: 3}}
+	deps.activityGroups.byID[1] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 1}, TargetSchoolClass: &klasse4a}
+	deps.activityGroups.byID[2] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 2}, TargetSchoolClass: &klasse3b}
+	deps.activityGroups.byID[3] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 3}}
 	deps.activityGroups.targetsByGroup[3] = []*activitiesModel.GroupTarget{{TargetGroupType: activitiesModel.TargetGroupTypeKlasse, TargetSchoolClass: &klasse4a}}
-	deps.activityGroups.byID[4] = &activitiesModel.Group{Model: modelBase.Model{ID: 4}, SourceSchoolClasses: []string{"4a"}}
+	deps.activityGroups.byID[4] = &activitiesModel.Group{Model: activitiesModel.Model{ID: 4}, SourceSchoolClasses: []string{"4a"}}
 
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		// Another class's earlier block must not win.
@@ -75,7 +74,7 @@ func TestEarliestPlannedBlockStartForClassIsEmptyWithoutABlock(t *testing.T) {
 
 	// Spontaneous blocks carry no template and therefore no class.
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
-		{Model: modelBase.Model{ID: 20}, Date: date, StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
+		{Model: scheduleModel.Model{ID: 20}, Date: scheduleModel.Date(date), StartTime: time.Date(0, 1, 1, 9, 0, 0, 0, time.UTC), Status: scheduleModel.InstanceStatusPlanned},
 	}
 
 	start, err := deps.service.EarliestPlannedBlockStartForClass(context.Background(), "4a", date)

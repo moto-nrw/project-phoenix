@@ -68,7 +68,7 @@ func edPristineInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
 		Title:            edTitle,
 		Notes:            nil,
-		Date:             edWednesday,
+		Date:             scheduleModel.Date(edWednesday),
 		StartTime:        edClock(15, 0),
 		EndTime:          edClock(16, 0),
 		RoomID:           edRoomA,
@@ -101,7 +101,7 @@ func edDiff(
 	expected []materialParams,
 ) []string {
 	expectedStudentIDs := expectedStudentIDsOn(
-		edEnrollments(), nil, nil, inst.Date, calendarPeriodID(inst),
+		edEnrollments(), nil, nil, timezone.Date(inst.Date), calendarPeriodID(inst),
 	)
 	return diffOccurrenceWithExpectedStudents(
 		inst,

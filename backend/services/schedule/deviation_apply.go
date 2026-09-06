@@ -228,7 +228,7 @@ func (s *instanceService) loadDeviationReadSet(
 	if err != nil {
 		return nil, devErrInternal("load staff failed", err)
 	}
-	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, devErrInternal("load staff assignments failed", err)
 	}
@@ -396,7 +396,7 @@ func (s *instanceService) loadDeviationInstance(ctx context.Context, instanceID 
 // concurrent same-day saves, re-reads under the lock to catch a concurrent move,
 // then delegates to the shared Cancel service.
 func (s *instanceService) cancelDeviation(ctx context.Context, instanceID int64, instance *scheduleModel.ActivityInstance, in ApplyDeviationsInput) (*ApplyDeviationsResult, error) {
-	if err := s.acquireSubstituteDayLock(ctx, instance.Date); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(instance.Date)); err != nil {
 		return nil, devErrInternal("lock day failed", err)
 	}
 	locked, err := s.loadDeviationInstance(ctx, instanceID)
@@ -444,7 +444,7 @@ func (s *instanceService) cancelDeviation(ctx context.Context, instanceID int64,
 // substitution writes, and reconciles the selected block's acknowledgement — all
 // without writing a row.
 func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, instance *scheduleModel.ActivityInstance, in ApplyDeviationsInput) (*deviationPlan, error) {
-	date := instance.Date
+	date := timezone.Date(instance.Date)
 
 	// Serialize concurrent saves for the whole (tenant, date) BEFORE any
 	// classification read. One request may target several appointments on the
@@ -459,7 +459,7 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	if err != nil {
 		return nil, err
 	}
-	if locked.Date != date || !isPlannableInstance(locked) {
+	if timezone.Date(locked.Date) != date || !isPlannableInstance(locked) {
 		return nil, devErrConflict("instance_moved", "der Termin wurde gleichzeitig geändert. Öffnen Sie ihn erneut")
 	}
 	instance = locked
@@ -752,7 +752,7 @@ func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, re
 		if instance == nil {
 			return devErrNotFound("der Termin wurde nicht gefunden")
 		}
-		if instance.Date != date {
+		if timezone.Date(instance.Date) != date {
 			return devErrBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen")
 		}
 		if !isPlannableInstance(instance) {
@@ -1232,7 +1232,7 @@ func (s *instanceService) loadSubstitutionWarnings(
 	for _, probe := range probes {
 		staffIDs = append(staffIDs, probe.staffID)
 	}
-	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+	rows, err := s.deps.InstanceStaffRepo.FindByStaffIDsAndDate(ctx, staffIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1367,7 +1367,7 @@ func (s *instanceService) AcknowledgeUnderstaffed(ctx context.Context, instanceI
 	}
 	// Serialize with substitute/deviation saves on the same (tenant, date) before
 	// validating and writing the acknowledgement (#1840).
-	if err := s.acquireSubstituteDayLock(ctx, instance.Date); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(instance.Date)); err != nil {
 		return nil, devErrInternal("lock day failed", err)
 	}
 	// Re-read under the lock: a concurrent PUT may have MOVED the block to another

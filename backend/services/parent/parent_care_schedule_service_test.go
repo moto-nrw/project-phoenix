@@ -40,7 +40,7 @@ import (
 func buildCareScheduleService(t *testing.T, notesEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
 }
 

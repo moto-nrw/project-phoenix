@@ -3,8 +3,6 @@ package activities
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestIsValidWeekday(t *testing.T) {
@@ -187,13 +185,13 @@ func TestSchedule_GetID(t *testing.T) {
 	t.Parallel()
 
 	schedule := &Schedule{
-		Model:           base.Model{ID: 42},
+		Model:           Model{ID: 42},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}
 
-	if got, ok := schedule.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", schedule.GetID())
+	if schedule.ID != 42 {
+		t.Errorf("ID = %v, want 42", schedule.ID)
 	}
 }
 
@@ -202,12 +200,12 @@ func TestSchedule_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	schedule := &Schedule{
-		Model:           base.Model{CreatedAt: now},
+		Model:           Model{CreatedAt: now},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}
 
-	if got := schedule.GetCreatedAt(); !got.Equal(now) {
+	if got := schedule.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -217,12 +215,12 @@ func TestSchedule_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	schedule := &Schedule{
-		Model:           base.Model{UpdatedAt: now},
+		Model:           Model{UpdatedAt: now},
 		Weekday:         WeekdayMonday,
 		ActivityGroupID: 1,
 	}
 
-	if got := schedule.GetUpdatedAt(); !got.Equal(now) {
+	if got := schedule.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

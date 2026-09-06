@@ -15,7 +15,7 @@ func TestStaffVacationQuotaRepositoryListPreservesQueryOptionsBehavior(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).StaffVacationQuota
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffVacationQuota
 	ctx := testpkg.Ctx(t)
 	firstStaff := testpkg.CreateTestStaff(t, db, "Quota", "First")
 	secondStaff := testpkg.CreateTestStaff(t, db, "Quota", "Second")
@@ -41,7 +41,7 @@ func TestStaffVacationQuotaRepositoryListPreservesQueryOptionsBehavior(t *testin
 func TestStaffVacationQuotaRepositoryListPreservesEmptyNilSlice(t *testing.T) {
 	t.Parallel()
 
-	repo := repositories.NewFactory(testpkg.SetupTestDB(t)).StaffVacationQuota
+	repo := repositories.NewFactory(testpkg.SetupTestDB(t), repositories.NewUnobservedTimetableDependencies(testpkg.SetupTestDB(t))).StaffVacationQuota
 	options := modelBase.NewQueryOptions()
 	options.Filter.Equal("year", 2099)
 	empty, err := repo.List(testpkg.Ctx(t), options)

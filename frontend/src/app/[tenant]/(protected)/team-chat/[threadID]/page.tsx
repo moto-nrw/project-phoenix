@@ -2,37 +2,73 @@
 
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft } from "lucide-react";
 import { BackButton } from "~/components/ui/back-button";
-import { TeamChatThread } from "~/components/messaging/team-chat-thread";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { ButtonLink } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  TeamChatThread,
+  type TeamChatThreadParts,
+} from "~/components/messaging/team-chat-thread";
 import { useTenantTeamChatPortal } from "~/lib/hooks/use-tenant-team-chat-portal";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
-// Back navigation, in ONE place (it renders in both the not-found and the
-// loaded branches). Mobile uses the kit BackButton (md:hidden); desktop gets an
-// inline link because the kit has no desktop back component and this screen has
-// no breadcrumb. The two are responsive-exclusive.
-function TeamChatBackNav() {
-  const router = useTenantRouter();
-  return (
-    <>
-      <BackButton referrer="/team-chat" />
-      <button
-        type="button"
-        onClick={() => router.push("/team-chat")}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
+/**
+ * Die Hülle des OGS-Portals um das geteilte Chat-Fenster. Der Titel der
+ * Kopfkarte ist der Name des Gegenübers, die Statuszeile zählt die
+ * Nachrichten; Aus-Zustand und Fehler kommen aus dem Gerüst.
+ */
+export function renderThreadFrame(parts: TeamChatThreadParts) {
+  if (parts.state === "disabled") {
+    return (
+      <TenantPage
+        title="Team-Chat"
+        empty={{ ...parts.empty, action: parts.backNav }}
+      />
+    );
+  }
+  if (parts.state === "error") {
+    return (
+      <TenantPage
+        title="Unterhaltung"
+        error={{ message: parts.errorMessage, keepContent: true }}
       >
-        <ArrowLeft className="h-4 w-4" /> Zurück zum Team-Chat
-      </button>
-    </>
+        {parts.backNav}
+      </TenantPage>
+    );
+  }
+  return (
+    <TenantPage
+      title={
+        parts.roleLabel ? `${parts.title} · ${parts.roleLabel}` : parts.title
+      }
+      stats={parts.stats}
+      statsLoading={parts.statsLoading}
+    >
+      {parts.backNav}
+
+      <div
+        ref={parts.containerRef}
+        className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+      >
+        <SectionCard
+          className="flex min-h-0 flex-1 flex-col"
+          bodyClassName="flex min-h-0 flex-1 flex-col"
+        >
+          {parts.body}
+        </SectionCard>
+      </div>
+    </TenantPage>
   );
 }
 
+/** Eine Unterhaltung im OGS-Portal; Logik in der geteilten `TeamChatThread`. */
 export default function TeamThreadPage() {
   const params = useParams();
   const threadID = params.threadID as string;
   const { data: session } = useSession();
   const portal = useTenantTeamChatPortal();
+  const tenantPath = useTenantAwarePath();
   // Which bubbles are "mine". The backend stamps every message with its sender
   // account, and the session carries the viewer's — so the side a bubble sits
   // on is decided here, not by the API.
@@ -43,7 +79,20 @@ export default function TeamThreadPage() {
       portal={portal}
       threadID={threadID}
       myAccountId={myAccountId}
-      backNav={<TeamChatBackNav />}
+      backNav={
+        <>
+          <BackButton referrer="/team-chat" />
+          <ButtonLink
+            href={tenantPath("/team-chat")}
+            variant="ghost"
+            size="md"
+            className="mb-4 hidden md:inline-flex"
+          >
+            Zum Team-Chat
+          </ButtonLink>
+        </>
+      }
+      frame={renderThreadFrame}
     />
   );
 }

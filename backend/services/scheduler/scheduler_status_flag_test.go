@@ -108,7 +108,7 @@ type fakeStatusFlagSettings struct {
 
 func statusDayRepository(t *testing.T, db *bun.DB) activeModels.StudentStatusDayOverviewRepository {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory.StudentStatusDay
 }

@@ -4,6 +4,7 @@ package slotlisttest
 
 import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
 )
 
@@ -11,4 +12,8 @@ import (
 // adapters without exposing the complete legacy repository factory to tests.
 func NewStudentScheduleRepositories(db *bun.DB) repositories.StudentScheduleRepositories {
 	return repositories.NewStudentScheduleRepositories(db)
+}
+
+func NewApprovedOfferingProjection(db *bun.DB) (*services.ApprovedOfferingTestProjection, error) {
+	return services.NewOwnerApprovedOfferingTestProjection(db)
 }

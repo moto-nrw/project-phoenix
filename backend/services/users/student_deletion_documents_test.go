@@ -30,7 +30,7 @@ func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	usersService.WireStudentDocumentCleanup(service, repos.StudentDocument)
 

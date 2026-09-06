@@ -20,7 +20,7 @@ import (
 
 // setupAuthServiceWithDB creates an auth service with real database connection
 func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}

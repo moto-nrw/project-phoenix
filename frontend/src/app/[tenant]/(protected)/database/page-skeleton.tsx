@@ -1,14 +1,15 @@
 "use client";
 
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
   // description, footer link.
   return (
     <div className="moto-content-surface w-full overflow-hidden rounded-2xl border shadow-sm">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <Skeleton className="h-12 w-12 rounded-2xl" />
           <Skeleton className="h-6 w-16 rounded-full" />
@@ -23,23 +24,33 @@ function DatabaseCardSkeleton() {
 
 // Content-shaped placeholder for the /database index page — mirrors the real
 // card grid (DatabaseContent) so there is no layout shift once data arrives.
-export function DatabaseIndexSkeleton() {
+// Ohne Kopfkarte: im Seitengerüst steht sie bereits über dem Inhalt.
+export function DatabaseCardGridSkeleton() {
   return (
     <div
       role="status"
       aria-busy="true"
       aria-label="Datenverwaltung wird geladen"
       data-testid="database-index-skeleton"
-      className="w-full"
+      className="min-h-[60vh]"
     >
-      <PageHeaderSkeleton search={false} />
-      <div className="min-h-[60vh]">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 8 }, (_, i) => (
-            <DatabaseCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
+      <CollectionGrid minTileWidth="18rem">
+        {Array.from({ length: 8 }, (_, i) => (
+          <DatabaseCardSkeleton key={i} />
+        ))}
+      </CollectionGrid>
+    </div>
+  );
+}
+
+// Route-Ladezustand (loading.tsx): dort gibt es noch kein Seitengerüst,
+// deshalb bringt dieses Skelett die Kopfkarte selbst mit.
+export function DatabaseIndexSkeleton() {
+  return (
+    <div className="w-full space-y-6">
+      {/* Titel ist statisch, die Statuszeile kommt mit den Zahlen. */}
+      <TenantPageHeaderSkeleton />
+      <DatabaseCardGridSkeleton />
     </div>
   );
 }

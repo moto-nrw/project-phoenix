@@ -1521,6 +1521,9 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 		return nil, &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
+	if expiry, ok := jwtToken.Expiration(); ok {
+		refreshClaims.ExpiresAt = expiry.Unix()
+	}
 	return &refreshClaims, nil
 }
 

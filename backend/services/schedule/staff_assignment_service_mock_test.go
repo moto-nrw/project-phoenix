@@ -30,7 +30,7 @@ type asInstanceStaffRepo struct {
 	err  error
 }
 
-func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModels.InstanceStaff, error) {
+func (r *asInstanceStaffRepo) FindByStaffAndDateRange(context.Context, int64, scheduleModels.Date, scheduleModels.Date) ([]*scheduleModels.InstanceStaff, error) {
 	return r.rows, r.err
 }
 
@@ -192,20 +192,20 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	override := int64(200)
 
 	instA := &scheduleModels.ActivityInstance{ // later date, primary block, resolved group
-		Date: timezone.NewDate(2026, time.March, 11), Title: "Lernzeit",
+		Date: scheduleModels.NewDate(2026, time.March, 11), Title: "Lernzeit",
 		ActivityGroupID: &grp1, RoomID: 100, StartTime: wall(9, 0), EndTime: wall(10, 0),
 		Status: scheduleModels.InstanceStatusPlanned,
 	}
 	instA.ID = 1
 	cancelReason := "Ausflug"
 	instB := &scheduleModels.ActivityInstance{ // earlier date, cancelled, vanished group, room override
-		Date: timezone.NewDate(2026, time.March, 10), Title: "Fußball-AG",
+		Date: scheduleModels.NewDate(2026, time.March, 10), Title: "Fußball-AG",
 		ActivityGroupID: &grp2, RoomID: 100, StartTime: wall(14, 0), EndTime: wall(15, 0),
 		Status: scheduleModels.InstanceStatusCancelled, CancelReason: &cancelReason, UnderstaffedAck: true,
 	}
 	instB.ID = 2
 	instC := &scheduleModels.ActivityInstance{ // same date as B, earlier time, spontaneous (no group)
-		Date: timezone.NewDate(2026, time.March, 10), Title: "Spontan",
+		Date: scheduleModels.NewDate(2026, time.March, 10), Title: "Spontan",
 		RoomID: 100, StartTime: wall(8, 0), EndTime: wall(9, 0),
 		Status: scheduleModels.InstanceStatusPlanned,
 	}

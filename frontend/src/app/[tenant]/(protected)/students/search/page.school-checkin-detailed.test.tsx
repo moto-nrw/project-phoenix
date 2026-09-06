@@ -39,7 +39,21 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", async (importOriginal) => {
 
 // Detailed mode is the default, but pin it explicitly so the test still means
 // what it says if the global default ever moves.
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: () => ({
+    hasGroups: false,
+    isSupervising: false,
+    isLoadingGroups: false,
+    isLoadingSupervision: false,
+    overviewEnabled: false,
+    supervisedRooms: [],
+    groups: [],
+    refresh: () => undefined,
+  }),
+}));
+
 vi.mock("~/lib/tenant-context", () => ({
+  useOpenCareGroupMode: () => false,
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSafe: vi.fn(() => ({
     tenantSlug: "test-tenant",

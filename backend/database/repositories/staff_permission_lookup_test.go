@@ -20,7 +20,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	// Staff WITH an active tenant mapping (calendar helper adds mapping + base
@@ -70,7 +70,7 @@ func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Mila", "Muster")

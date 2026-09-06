@@ -23,6 +23,11 @@ import {
   searchTabs,
   visibleCategoryItems,
 } from "./settings-filter";
+import { useSession } from "next-auth/react";
+
+import { hasPermission } from "~/lib/auth-utils";
+
+import { HomeBlocksTab } from "./home-blocks-tab";
 import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -211,7 +216,7 @@ function SettingsTabContent({
             <SettingsCategory
               key={expansionKey(hit.tab.key, hit.category.key)}
               category={hit.category}
-              kicker={tabLabel(hit.tab)}
+              tabLabel={tabLabel(hit.tab)}
               filterQuery={normalizedQuery}
               onSave={onSave}
               onReset={onReset}
@@ -379,20 +384,24 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   // Server error on initial fetch — show retry.
   if (fetchError && !schema) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <p className="text-moto-red-strong text-sm">
-          {fetchError instanceof Error
+      <Alert
+        type="error"
+        message={
+          fetchError instanceof Error
             ? fetchError.message
-            : "Einstellungen konnten nicht geladen werden"}
-        </p>
-        <button
-          type="button"
-          onClick={() => void revalidate()}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          Erneut versuchen
-        </button>
-      </div>
+            : "Einstellungen konnten nicht geladen werden"
+        }
+        action={
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            onClick={() => void revalidate()}
+          >
+            Erneut versuchen
+          </Button>
+        }
+      />
     );
   }
 
@@ -405,9 +414,10 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
 
   if (!tab) {
     return (
-      <div className="py-8 text-center text-sm text-gray-500">
-        Keine Einstellungen verfügbar.
-      </div>
+      <EmptyState
+        title="Keine Einstellungen verfügbar."
+        description="Für diesen Bereich sind derzeit keine Einstellungen freigeschaltet."
+      />
     );
   }
 
@@ -460,7 +470,9 @@ export function useSettingsTabs(): {
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const { data: schema, error: schemaError, isLoading } = useSettingsSchema();
+  const canManageHomeBlocks = hasPermission(session, "config:update");
 
   if (isLoading) {
     return null;
@@ -507,12 +519,41 @@ export function useSettingsTabs(): {
     icon: "settings",
   };
 
-  const tabs = [...schemaTabs, personalizationTab];
+  // "Startseite für alle" is what the school prescribes for everybody (#2875).
+  // The name carries the "für alle" on purpose: the start page also has a
+  // personal "Startseite anpassen" dialog, and two labels sharing a word stem
+  // are read as two names for the same thing unless the screen itself says
+  // otherwise. It is a hand-written tab rather than a registry entry: the
+  // choice is one of three states per start page block, and the block
+  // catalogue lives in the frontend.
+  //
+  // Unlike Personalisierung the tab only exists for whoever may actually write
+  // the prescription. A tab that opens onto "you are not allowed to change
+  // this" is a dead end; everybody else adjusts their own start page from the
+  // start page itself.
+  const homeBlocksTab: {
+    id: string;
+    label: string;
+    icon: MotoConceptKey;
+  } = {
+    id: "settings-startseite",
+    label: "Startseite für alle",
+    icon: "settings",
+  };
+
+  const tabs = [
+    ...schemaTabs,
+    ...(canManageHomeBlocks ? [homeBlocksTab] : []),
+    personalizationTab,
+  ];
   const highlightKey = searchParams.get("highlight");
 
   const renderTab = (tabId: string) => {
     if (tabId === "settings-personalisierung") {
       return <PersonalizationTab />;
+    }
+    if (tabId === "settings-startseite") {
+      return <HomeBlocksTab />;
     }
     const settingsKey = tabId.replace("settings-", "");
     return <SettingsContent tabKey={settingsKey} highlightKey={highlightKey} />;

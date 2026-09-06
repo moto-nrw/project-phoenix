@@ -28,7 +28,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() {
 		_, err := db.NewDelete().

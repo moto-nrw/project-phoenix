@@ -9,8 +9,15 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { getCategories } from "~/lib/activity-api";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -272,225 +279,238 @@ export function ShiftTypeManageModal({
 
   return (
     <>
-      <Modal
-        isOpen={isOpen && !deleteTarget}
-        onClose={onClose}
-        title={
-          view === "form"
-            ? editing
-              ? "Schichtart bearbeiten"
-              : "Neue Schichtart"
-            : "Schichtarten verwalten"
-        }
-        footer={view === "form" ? formFooter : listFooter}
+      <SlideOver
+        open={isOpen && !deleteTarget}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
       >
-        {view === "list" ? (
-          <div className="space-y-4 text-sm">
-            <p className="text-gray-600">
-              Schichtarten kennzeichnen die Aufgabe einer geplanten Schicht (z.
-              B. Betreuung, Vorbereitung, Vertretung, Pause). Die Farbe macht
-              sie im Wochenplan sofort unterscheidbar.
-            </p>
-
-            {loadError ? (
-              <Alert
-                type="error"
-                message="Die Schichtarten konnten nicht geladen werden. Bitte schließe den Dialog und lade die Seite neu."
-              />
-            ) : isLoading ? (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
-                Schichtarten werden geladen…
-              </div>
-            ) : shiftTypes.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
-                <p className="text-sm text-gray-600">
-                  Noch keine Schichtarten angelegt.
+        <SlideOverContent widthClass="sm:w-[560px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>
+                {view === "form"
+                  ? editing
+                    ? "Schichtart bearbeiten"
+                    : "Neue Schichtart"
+                  : "Schichtarten verwalten"}
+              </SlideOverTitle>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {view === "list" ? (
+              <div className="space-y-4 text-sm">
+                <p className="text-gray-600">
+                  Schichtarten kennzeichnen die Aufgabe einer geplanten Schicht
+                  (z. B. Betreuung, Vorbereitung, Vertretung, Pause). Die Farbe
+                  macht sie im Wochenplan sofort unterscheidbar.
                 </p>
-                <div className="mt-4 flex flex-col justify-center gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    isLoading={seeding}
-                    loadingText="Wird angelegt…"
-                    onClick={handleSeedDefaults}
-                  >
-                    Beispiele hinzufügen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    Eigene Schichtart
-                  </Button>
-                </div>
+
+                {loadError ? (
+                  <Alert
+                    type="error"
+                    message="Die Schichtarten konnten nicht geladen werden. Bitte schließe den Dialog und lade die Seite neu."
+                  />
+                ) : isLoading ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                    Schichtarten werden geladen…
+                  </div>
+                ) : shiftTypes.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                    <p className="text-sm text-gray-600">
+                      Noch keine Schichtarten angelegt.
+                    </p>
+                    <div className="mt-4 flex flex-col justify-center gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="md"
+                        isLoading={seeding}
+                        loadingText="Wird angelegt…"
+                        onClick={handleSeedDefaults}
+                      >
+                        Beispiele hinzufügen
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        onClick={openCreate}
+                      >
+                        Eigene Schichtart
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200">
+                      {shiftTypes.map((type) => (
+                        <li
+                          key={type.id}
+                          className="flex items-center gap-3 px-3 py-2.5"
+                        >
+                          <span
+                            className="h-4 w-4 shrink-0 rounded-full border border-black/10"
+                            style={{ backgroundColor: type.color }}
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate font-medium text-gray-900">
+                                {type.name}
+                              </span>
+                              {!type.isActive && (
+                                <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                                  Inaktiv
+                                </span>
+                              )}
+                            </div>
+                            {type.description && (
+                              <p className="truncate text-xs text-gray-500">
+                                {type.description}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`${type.name} bearbeiten`}
+                            onClick={() => openEdit(type)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`${type.name} löschen`}
+                            onClick={() => setDeleteTarget(type)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        isLoading={seeding}
+                        loadingText="Wird angelegt…"
+                        onClick={handleSeedDefaults}
+                      >
+                        Beispiele hinzufügen
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        onClick={openCreate}
+                      >
+                        <Plus className="mr-1.5 h-4 w-4" />
+                        Neue Schichtart
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {error && <Alert type="error" message={error} />}
               </div>
             ) : (
-              <>
-                <ul className="divide-y divide-gray-100 rounded-2xl border border-gray-200">
-                  {shiftTypes.map((type) => (
-                    <li
-                      key={type.id}
-                      className="flex items-center gap-3 px-3 py-2.5"
-                    >
-                      <span
-                        className="h-4 w-4 shrink-0 rounded-full border border-black/10"
-                        style={{ backgroundColor: type.color }}
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate font-medium text-gray-900">
-                            {type.name}
-                          </span>
-                          {!type.isActive && (
-                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                              Inaktiv
-                            </span>
-                          )}
-                        </div>
-                        {type.description && (
-                          <p className="truncate text-xs text-gray-500">
-                            {type.description}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`${type.name} bearbeiten`}
-                        onClick={() => openEdit(type)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`${type.name} löschen`}
-                        onClick={() => setDeleteTarget(type)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    isLoading={seeding}
-                    loadingText="Wird angelegt…"
-                    onClick={handleSeedDefaults}
+              <div className="space-y-4 text-sm">
+                <Input
+                  name="shift-type-name"
+                  label="Name*"
+                  value={name}
+                  maxLength={100}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Betreuung / Zeit am Kind"
+                />
+
+                <ColorPickerField
+                  value={color}
+                  onChange={setColor}
+                  label="Farbe"
+                  fallbackColor={DEFAULT_NEW_COLOR}
+                  helpText="Die Farbe kennzeichnet diese Schichtart im Wochenplan."
+                />
+
+                <label htmlFor="shift-type-description" className="block">
+                  <span className="mb-2 block text-sm font-medium text-gray-700">
+                    Beschreibung (optional)
+                  </span>
+                  <textarea
+                    id="shift-type-description"
+                    value={description}
+                    maxLength={500}
+                    rows={2}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                  />
+                </label>
+
+                <div>
+                  <span
+                    id="shift-type-categories-label"
+                    className="mb-2 block text-sm font-medium text-gray-700"
                   >
-                    Beispiele hinzufügen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Neue Schichtart
-                  </Button>
+                    Timetable-Kategorien (optional)
+                  </span>
+                  <MultiCheckboxSelect
+                    ariaLabel="Timetable-Kategorien"
+                    value={categoryIds}
+                    onChange={setCategoryIds}
+                    disabled={!categoriesReady}
+                    options={categories.map((category) => ({
+                      value: category.id,
+                      label: category.name,
+                    }))}
+                    emptyLabel="Keine Kategorie zugeordnet"
+                    unavailableLabel="Kategorien werden geladen…"
+                    multipleLabel={(count) => `${count} Kategorien`}
+                    searchable
+                    searchPlaceholder="Kategorie suchen…"
+                  />
+                  {!categoriesReady && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Kategorien werden geladen … Namen, Farbe und Status lassen
+                      sich bereits speichern; die Kategorie-Zuordnung bleibt
+                      dabei unverändert.
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Ordnet Betreuungsblöcke dieser Kategorien im Stundenplan
+                    dieser Schichtart zu. Eine Kategorie kann nur einer
+                    Schichtart zugeordnet sein.
+                  </p>
                 </div>
-              </>
+
+                <label
+                  htmlFor="shift-type-active"
+                  className="flex cursor-pointer items-center gap-2.5"
+                >
+                  <Checkbox
+                    id="shift-type-active"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                  />
+                  <span className="text-sm text-gray-700">
+                    Aktiv (zur Auswahl in neuen Schichten)
+                  </span>
+                </label>
+
+                {error && <Alert type="error" message={error} />}
+              </div>
             )}
-
-            {error && <Alert type="error" message={error} />}
           </div>
-        ) : (
-          <div className="space-y-4 text-sm">
-            <Input
-              name="shift-type-name"
-              label="Name*"
-              value={name}
-              maxLength={100}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Betreuung / Zeit am Kind"
-            />
-
-            <ColorPickerField
-              value={color}
-              onChange={setColor}
-              label="Farbe"
-              fallbackColor={DEFAULT_NEW_COLOR}
-              helpText="Die Farbe kennzeichnet diese Schichtart im Wochenplan."
-            />
-
-            <label htmlFor="shift-type-description" className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Beschreibung (optional)
-              </span>
-              <textarea
-                id="shift-type-description"
-                value={description}
-                maxLength={500}
-                rows={2}
-                onChange={(e) => setDescription(e.target.value)}
-                className="block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-              />
-            </label>
-
-            <div>
-              <span
-                id="shift-type-categories-label"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Timetable-Kategorien (optional)
-              </span>
-              <MultiCheckboxSelect
-                ariaLabel="Timetable-Kategorien"
-                value={categoryIds}
-                onChange={setCategoryIds}
-                disabled={!categoriesReady}
-                options={categories.map((category) => ({
-                  value: category.id,
-                  label: category.name,
-                }))}
-                emptyLabel="Keine Kategorie zugeordnet"
-                unavailableLabel="Kategorien werden geladen…"
-                multipleLabel={(count) => `${count} Kategorien`}
-                searchable
-                searchPlaceholder="Kategorie suchen…"
-              />
-              {!categoriesReady && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Kategorien werden geladen … Namen, Farbe und Status lassen
-                  sich bereits speichern; die Kategorie-Zuordnung bleibt dabei
-                  unverändert.
-                </p>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Ordnet Betreuungsblöcke dieser Kategorien im Stundenplan dieser
-                Schichtart zu. Eine Kategorie kann nur einer Schichtart
-                zugeordnet sein.
-              </p>
-            </div>
-
-            <label
-              htmlFor="shift-type-active"
-              className="flex cursor-pointer items-center gap-2.5"
-            >
-              <Checkbox
-                id="shift-type-active"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-              />
-              <span className="text-sm text-gray-700">
-                Aktiv (zur Auswahl in neuen Schichten)
-              </span>
-            </label>
-
-            {error && <Alert type="error" message={error} />}
-          </div>
-        )}
-      </Modal>
+          <SlideOverFooter className="flex-row justify-end gap-2">
+            {view === "form" ? formFooter : listFooter}
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
 
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}

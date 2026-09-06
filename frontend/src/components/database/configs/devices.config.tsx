@@ -1,5 +1,10 @@
 // Device Entity Configuration
 
+"use client";
+
+import { useState } from "react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Device } from "@/lib/iot-helpers";
 import {
@@ -13,6 +18,63 @@ import {
   generateDefaultDeviceName,
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
+
+/**
+ * Der API-Schlüssel eines Geräts: verborgen, mit zwei Schaltflächen aus dem
+ * Kit. Vorher zwei bunte Eigenbau-Knöpfe, die ihren Text per DOM-Zugriff
+ * umschrieben, und ein blauer Hinweiskasten mit Schloss-Emoji.
+ */
+function ApiKeyField({ device }: Readonly<{ device: Device }>) {
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  if (!device.api_key) {
+    return (
+      <span className="text-xs text-gray-500">Nur bei Erstellung sichtbar</span>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          aria-label={`API-Schlüssel für ${device.name}`}
+          type={visible ? "text" : "password"}
+          value={device.api_key}
+          readOnly
+          className="flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs"
+          onClick={(event) => event.currentTarget.select()}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={() => setVisible((value) => !value)}
+        >
+          {visible ? "Verbergen" : "Anzeigen"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          onClick={() => {
+            void navigator.clipboard.writeText(device.api_key!);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+        >
+          {copied ? "Kopiert" : "Kopieren"}
+        </Button>
+      </div>
+      <Alert
+        type="info"
+        message={
+          'Der Schlüssel ist verborgen. Mit „Anzeigen" machen Sie ihn sichtbar.'
+        }
+      />
+    </div>
+  );
+}
 
 export const devicesConfig = defineEntityConfig<Device>({
   name: {
@@ -88,13 +150,11 @@ export const devicesConfig = defineEntityConfig<Device>({
         text: (device) => device.name?.[0] ?? device.device_id?.[0] ?? "D",
         size: "lg",
       },
-      badges: [],
     },
 
     sections: [
       {
         title: "Geräteinformationen",
-        titleColor: "text-moto-amber-strong",
         items: [
           {
             label: "Geräte-ID",
@@ -144,7 +204,6 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: "Systemdaten",
-        titleColor: "text-moto-amber-strong",
         columns: 2,
         items: [
           {
@@ -161,76 +220,10 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: "API-Schlüssel",
-        titleColor: "text-moto-amber-strong",
         items: [
           {
             label: "API-Schlüssel",
-            value: (device) =>
-              device.api_key ? (
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      aria-label={`API-Schlüssel für ${device.name}`}
-                      type="password"
-                      value={device.api_key}
-                      readOnly
-                      className="border-moto-amber/20 bg-moto-amber-soft flex-1 rounded border px-2 py-1 font-mono text-xs"
-                      id={`api-key-${device.id}`}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const input = document.getElementById(
-                          `api-key-${device.id}`,
-                        ) as HTMLInputElement;
-                        const btn = e.currentTarget as HTMLButtonElement;
-
-                        if (input.type === "password") {
-                          input.type = "text";
-                          btn.textContent = "Verbergen";
-                        } else {
-                          input.type = "password";
-                          btn.textContent = "Anzeigen";
-                        }
-                      }}
-                      className="bg-moto-blue-strong hover:bg-moto-blue-strong/90 rounded px-2 py-1 text-xs text-white"
-                    >
-                      Anzeigen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        void navigator.clipboard.writeText(device.api_key!);
-                        // Simple feedback - could be enhanced with toast
-                        const btn = e.target as HTMLButtonElement;
-                        const originalText = btn.textContent;
-                        btn.textContent = "Kopiert!";
-                        setTimeout(() => {
-                          btn.textContent = originalText;
-                        }, 2000);
-                      }}
-                      className="bg-moto-amber-strong hover:bg-moto-amber-strong/90 rounded px-2 py-1 text-xs text-white"
-                    >
-                      Kopieren
-                    </button>
-                  </div>
-                  <div className="border-moto-blue/20 bg-moto-blue-soft rounded-md border p-2">
-                    <div className="flex items-start space-x-2">
-                      <span className="text-moto-blue-strong text-sm">🔐</span>
-                      <span className="text-moto-blue-strong text-xs">
-                        <strong>Sicherheit:</strong> API-Schlüssel ist
-                        standardmäßig verborgen. Klicken Sie
-                        &quot;Anzeigen&quot; um ihn sichtbar zu machen.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <span className="text-xs text-gray-500">
-                  Nur bei Erstellung sichtbar
-                </span>
-              ),
+            value: (device) => <ApiKeyField device={device} />,
           },
         ],
       },
@@ -240,7 +233,7 @@ export const devicesConfig = defineEntityConfig<Device>({
   list: {
     title: "Gerät auswählen",
     description: "Verwalte IoT-Geräte und deren Status",
-    searchPlaceholder: "Geräte suchen...",
+    searchPlaceholder: "Geräte suchen…",
 
     searchStrategy: "frontend",
     searchableFields: ["device_id", "device_type", "name"],
@@ -283,13 +276,6 @@ export const devicesConfig = defineEntityConfig<Device>({
       avatar: {
         text: (device) => getDeviceTypeEmoji(device.device_type),
       },
-      badges: [
-        {
-          label: (device) => getDeviceTypeDisplayName(device.device_type),
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: () => true,
-        },
-      ],
     },
   },
 

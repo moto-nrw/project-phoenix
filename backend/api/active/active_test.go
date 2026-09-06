@@ -56,7 +56,7 @@ func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Conte
 func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActiveModule(t)
 	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 

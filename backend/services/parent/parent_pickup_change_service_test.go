@@ -31,7 +31,7 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -56,7 +56,7 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
@@ -70,7 +70,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		repos.Attendance,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),
@@ -133,7 +133,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 
 	// Nothing was applied: only a staff approval may move a pickup time.
 	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, date)
+		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }
@@ -277,4 +277,11 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	_, err := svc.ListPickupChangeRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
+}
+
+func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProjection {
+	t.Helper()
+	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	require.NoError(t, err)
+	return projection
 }

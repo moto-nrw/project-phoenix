@@ -17,7 +17,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	today := timezone.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")
@@ -62,7 +62,7 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	today := timezone.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Vertretung Gruppe")

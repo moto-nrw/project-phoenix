@@ -32,7 +32,7 @@ func TestRFIDCardRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates RFID card with valid data", func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestRFIDCardRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing RFID card", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card active status via Deactivate", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestRFIDCardRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing RFID card", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestRFIDCardRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all RFID cards with no filters", func(t *testing.T) {
@@ -190,7 +190,7 @@ func TestRFIDCardRepository_Deactivate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deactivates active RFID card", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestRFIDCardRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RFIDCard
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RFIDCard
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates RFID card fields", func(t *testing.T) {

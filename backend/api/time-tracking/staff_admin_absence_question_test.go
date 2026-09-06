@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,7 +36,7 @@ func createRequestedVacation(t *testing.T, tc *testContext, staffID int64) *acti
 		RequestedAt: time.Now(),
 	}
 	absence.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(tc.db).StaffAbsence.Create(testpkg.Ctx(t), absence))
+	require.NoError(t, newWorkforceTestRepositories(t, tc.db).StaffAbsence.Create(testpkg.Ctx(t), absence))
 	t.Cleanup(func() {
 		// Audit rows cascade with the absence (FK ON DELETE CASCADE).
 	})
@@ -66,7 +65,7 @@ func TestQuestionAbsence_Success(t *testing.T) {
 	rec := postQuestion(t, tc, token, absence.ID, "Bitte Vertretung klären")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	updated, err := repositories.NewFactory(tc.db).StaffAbsence.FindByID(testpkg.Ctx(t), absence.ID)
+	updated, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.FindByID(testpkg.Ctx(t), absence.ID)
 	require.NoError(t, err)
 	assert.Equal(t, activeModels.AbsenceStatusQuestion, updated.Status)
 	assert.Equal(t, "Bitte Vertretung klären", updated.DecisionNote)

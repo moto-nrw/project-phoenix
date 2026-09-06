@@ -134,7 +134,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt Bearbeiten-Buttons mit staff:stammdaten und öffnet das Personen-Modal", () => {
+  it("zeigt mit staff:stammdaten EIN Bearbeiten für den ganzen Reiter", () => {
     seedSWR();
     render(
       <StammdatenTab
@@ -147,11 +147,16 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     );
 
     const editButtons = screen.getAllByRole("button", { name: "Bearbeiten" });
-    expect(editButtons).toHaveLength(4);
+    expect(editButtons).toHaveLength(1);
 
     fireEvent.click(editButtons[0]!);
-    expect(screen.getByText("Person bearbeiten")).toBeInTheDocument();
+    // Alle Gruppen wechseln gemeinsam in den Bearbeiten-Zustand, mit genau
+    // einem Speichern am Ende des Reiters.
     expect(screen.getByLabelText("Vorname")).toHaveValue("Mila");
+    expect(screen.getByLabelText("Telefon")).toHaveValue("+49 251 123456");
+    expect(screen.getAllByRole("button", { name: "Speichern" })).toHaveLength(
+      1,
+    );
   });
 
   it("überschreibt ein vorhandenes Geburtsdatum und sendet den ISO-Wert", async () => {

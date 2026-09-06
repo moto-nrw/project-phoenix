@@ -4,18 +4,17 @@
 // eingetragenen Abwesenheitstage (Krank / Entschuldigt / Klassenfahrt) über
 // alle Kinder der sichtbaren Gruppen. Bewusst nur nach vorn gerichtet (heute
 // bis Enddatum): Gruppenzuordnungen sind nicht datiert, vergangene Einträge
-// ließen sich nicht sicher der damaligen Gruppe zuordnen — dieselbe
+// ließen sich nicht sicher der damaligen Gruppe zuordnen, dieselbe
 // Einschränkung wie bei der Tagesauswertung.
 
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
-import { EmptyState } from "~/components/ui/empty-state";
-import { Input } from "~/components/ui/input";
+import { TenantPage } from "~/components/ui/tenant-page";
+import type { FilterConfig } from "~/components/ui/page-header/types";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   berlinTodayISO,
@@ -53,7 +52,7 @@ const STATUS_FILTER_OPTIONS = [
 
 function defaultRange(todayIso: string): DateRange {
   const from = parseISODate(todayIso);
-  // Zwei Monate voraus — derselbe Zeitraum wie der Betreuungsplan auf der
+  // Zwei Monate voraus, derselbe Zeitraum wie der Betreuungsplan auf der
   // Kind-Detailseite.
   const to = new Date(from.getFullYear(), from.getMonth() + 2, from.getDate());
   return { from, to };
@@ -207,10 +206,39 @@ export default function AbsencesPage() {
   )
     ? groupFilter
     : "all";
+  // Filter der Kopfkarte: dieselbe Bauart wie auf jeder anderen Tenant-Seite.
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        type: "dropdown",
+        value: statusFilter,
+        onChange: (value) => setStatusFilter(value as string),
+        options: [...STATUS_FILTER_OPTIONS],
+      },
+      {
+        id: "group",
+        label: "Gruppe",
+        type: "dropdown",
+        value: effectiveGroupFilter,
+        onChange: (value) => setGroupFilter(value as string),
+        options: groupOptions,
+      },
+    ],
+    [effectiveGroupFilter, groupOptions, statusFilter],
+  );
+
   const hasActiveFilters =
     deferredQuery.trim() !== "" ||
     statusFilter !== "all" ||
     effectiveGroupFilter !== "all";
+
+  const clearFilters = () => {
+    setQuery("");
+    setStatusFilter("all");
+    setGroupFilter("all");
+  };
 
   useEffect(() => {
     if (groupFilter !== effectiveGroupFilter) {
@@ -238,118 +266,108 @@ export default function AbsencesPage() {
     );
   }, [todayIso]);
 
+  // Statuszeile unter dem Titel: gezählte Einträge der aktuellen Seite und der
+  // gewählte Zeitraum. Der Ladezustand gehört separat in die Kopfkarte.
+  const statusLine = entries
+    ? `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"}${
+        displayedPage > 1 || hasMore ? ` auf Seite ${displayedPage}` : ""
+      } · ${formatDate(effectiveFromIso!)} bis ${formatDate(effectiveToIso!)}`
+    : null;
+
+  const isEmpty =
+    error === null &&
+    !isLoading &&
+    entries !== null &&
+    entries.length === 0 &&
+    displayedPage === 1 &&
+    !hasMore;
+
   return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Abwesenheiten
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Eingetragene Abwesenheitstage
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von
-              heute an – zum Nachschlagen, ob für ein Kind schon etwas
-              eingetragen ist.
-            </p>
-          </div>
-          <DateRangePicker
-            value={range}
-            onChange={setRange}
-            presets={rangePresets(todayIso)}
-            fromMin={minDate}
-            toMax={maxDate}
-            className="w-full sm:w-auto"
+    <TenantPage
+      title="Abwesenheiten"
+      stats={statusLine}
+      statsLoading={isLoading || !entries}
+      actions={
+        <DateRangePicker
+          value={range}
+          onChange={setRange}
+          presets={rangePresets(todayIso)}
+          fromMin={minDate}
+          toMax={maxDate}
+          className="w-full sm:w-auto"
+          // Mobil ist die Aktion eine volle Zeile; der Chip muss sie auch
+          // füllen, sonst bleibt rechts toter Raum neben einem schmalen Knopf.
+          triggerClassName="w-full sm:w-auto"
+        />
+      }
+      search={{
+        value: query,
+        onChange: setQuery,
+        placeholder: "Nach Kind oder Klasse suchen…",
+      }}
+      filters={filterConfigs}
+      error={error}
+      empty={
+        isEmpty
+          ? hasActiveFilters
+            ? {
+                title: "Keine Abwesenheit gefunden",
+                description:
+                  "Zu Suche und Filtern passt kein Eintrag. Setzen Sie die Filter zurück, um alle Einträge zu sehen.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={clearFilters}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                ),
+              }
+            : {
+                title: "Keine Abwesenheit eingetragen",
+                description:
+                  "Im gewählten Zeitraum fehlt für alle Kinder ein Eintrag. Tragen Sie eine Krankmeldung beim Kind ein, oder wählen Sie oben einen anderen Zeitraum.",
+              }
+          : null
+      }
+    >
+      <SectionCard title="Eingetragene Abwesenheitstage" bodyClassName="">
+        <div className="mt-4">
+          <DataTable
+            columns={COLUMNS}
+            rows={entries ?? []}
+            isLoading={isLoading && entries === null}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) =>
+              router.push(`/students/${row.student_id}?from=/absences`)
+            }
           />
+          {entries && (displayedPage > 1 || hasMore) && (
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={displayedPage === 1 || isValidating}
+                onClick={() => setPage(Math.max(1, displayedPage - 1))}
+              >
+                Zurück
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={!hasMore || isValidating}
+                onClick={() => setPage(displayedPage + 1)}
+              >
+                Weiter
+              </Button>
+            </div>
+          )}
         </div>
-
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <Input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Nach Kind oder Klasse suchen…"
-            aria-label="Nach Kind oder Klasse suchen"
-            className="w-full sm:w-64"
-          />
-          <CustomSelect
-            value={statusFilter}
-            options={STATUS_FILTER_OPTIONS}
-            onChange={setStatusFilter}
-            ariaLabel="Nach Status filtern"
-            className="w-full sm:w-44"
-          />
-          <CustomSelect
-            value={effectiveGroupFilter}
-            options={groupOptions}
-            onChange={setGroupFilter}
-            ariaLabel="Nach Gruppe filtern"
-            className="w-full sm:w-52"
-          />
-        </div>
-
-        {error !== null && (
-          <div
-            className={`mt-4 transition-opacity ${isValidating ? "opacity-60" : ""}`}
-            aria-busy={isValidating}
-          >
-            <Alert type="error" message={error} />
-          </div>
-        )}
-
-        {error === null && (
-          <div className="mt-4">
-            <DataTable
-              columns={COLUMNS}
-              rows={entries ?? []}
-              isLoading={isLoading && entries === null}
-              getRowKey={(row) => row.id}
-              onRowClick={(row) =>
-                router.push(`/students/${row.student_id}?from=/absences`)
-              }
-              caption={
-                entries
-                  ? `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`
-                  : undefined
-              }
-              emptyState={
-                <EmptyState
-                  title="Keine Abwesenheiten eingetragen"
-                  description={
-                    hasActiveFilters
-                      ? "Kein Eintrag passt zu den gewählten Filtern."
-                      : "Im gewählten Zeitraum ist für kein Kind eine Abwesenheit eingetragen."
-                  }
-                />
-              }
-            />
-            {entries && (displayedPage > 1 || hasMore) && (
-              <div className="mt-3 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={displayedPage === 1 || isValidating}
-                  onClick={() => setPage(Math.max(1, displayedPage - 1))}
-                >
-                  Zurück
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={!hasMore || isValidating}
-                  onClick={() => setPage(displayedPage + 1)}
-                >
-                  Weiter
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
+      </SectionCard>
+    </TenantPage>
   );
 }

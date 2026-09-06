@@ -115,14 +115,14 @@ describe("ParentEnrollPicker", () => {
       screen.getByRole("heading", { name: "OGS Süd" }),
     ).toBeInTheDocument();
 
-    // Phase links point at /parents/enroll/{subdomain}/{phaseId} — the slug
+    // Phase links point at /parents/anmeldung/{subdomain}/{phaseId} — the slug
     // would not resolve for a school whose slug differs from its subdomain.
     expect(
       screen.getByRole("link", { name: "Anmeldung öffnen: Schuljahr 2026/27" }),
-    ).toHaveAttribute("href", "/parents/enroll/ogs-nord/10");
+    ).toHaveAttribute("href", "/parents/anmeldung/ogs-nord/10");
     expect(
       screen.getByRole("link", { name: "Anmeldung öffnen: Sonderphase" }),
-    ).toHaveAttribute("href", "/parents/enroll/ogs-sued/20");
+    ).toHaveAttribute("href", "/parents/anmeldung/ogs-sued/20");
 
     // Kind labels
     expect(screen.getByText("Schuljahr")).toBeInTheDocument();

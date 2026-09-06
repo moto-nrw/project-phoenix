@@ -327,7 +327,7 @@ func (s *internalCategoryRepoStub) UpdateIfActive(context.Context, *activityMode
 	return true, nil
 }
 func (s *internalCategoryRepoStub) Delete(context.Context, interface{}) error { return nil }
-func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions) ([]*activityModels.Category, error) {
+func (s *internalCategoryRepoStub) List(context.Context, *activityModels.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 func (s *internalCategoryRepoStub) FindByName(context.Context, string) (*activityModels.Category, error) {

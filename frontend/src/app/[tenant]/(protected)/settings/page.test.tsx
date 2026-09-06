@@ -14,22 +14,23 @@ vi.mock("next-auth/react", () => ({
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/settings",
+}));
+
+// Die Statuszeile zählt die vom Standard abweichenden Einstellungen.
+const mockUseSettingsSchema = vi.fn<
+  () => { data: unknown; isLoading: boolean }
+>(() => ({ data: null, isLoading: false }));
+vi.mock("~/lib/hooks/use-settings-schema", () => ({
+  useSettingsSchema: () => mockUseSettingsSchema(),
 }));
 
 // Mock useSettingsTabs — returns null by default (no access)
 const mockUseSettingsTabs = vi.fn();
 vi.mock("~/components/settings/settings-page", () => ({
   useSettingsTabs: () => mockUseSettingsTabs(),
-}));
-
-vi.mock("~/components/shared/settings-layout", () => ({
-  SettingsLayout: ({ tabs }: { tabs: { id: string; label: string }[] }) => (
-    <div data-testid="settings-layout">
-      {tabs.map((t) => (
-        <span key={t.id}>{t.label}</span>
-      ))}
-    </div>
-  ),
 }));
 
 describe("SettingsPage", () => {
@@ -49,16 +50,27 @@ describe("SettingsPage", () => {
     });
 
     mockUseSettingsTabs.mockReturnValue(null);
+    mockUseSettingsSchema.mockReturnValue({ data: null, isLoading: false });
   });
 
   it("should show loading when session is loading", () => {
     mockUseSession.mockReturnValue({ data: null, status: "loading" });
 
-    render(<SettingsPage />);
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).
+    const { container } = render(<SettingsPage />);
 
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it("keeps loading while the settings schema is loading", () => {
+    mockUseSettingsSchema.mockReturnValue({ data: null, isLoading: true });
+
+    const { container } = render(<SettingsPage />);
+
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(
-      screen.getByLabelText("Einstellungen werden geladen…"),
-    ).toBeInTheDocument();
+      screen.queryByText(/Keine Einstellungen verfügbar/),
+    ).not.toBeInTheDocument();
   });
 
   it("should redirect when unauthenticated", () => {
@@ -75,13 +87,15 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
+      // Leerzustand ohne Aktion und Symbol = EIN Satz aus Titel und
+      // Beschreibung.
       expect(
-        screen.getByText("Keine Einstellungen verfügbar."),
+        screen.getByText(/Keine Einstellungen verfügbar\./),
       ).toBeInTheDocument();
     });
   });
 
-  it("should render settings layout when tabs are available", async () => {
+  it("should render the settings tabs when they are available", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [
         { id: "settings-operations", label: "Betrieb", icon: "settings" },
@@ -93,9 +107,47 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("settings-layout")).toBeInTheDocument();
-      expect(screen.getByText("Betrieb")).toBeInTheDocument();
-      expect(screen.getByText("Datenschutz")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Betrieb" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Datenschutz" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Tab content")).toBeInTheDocument();
+    });
+  });
+
+  it("counts overrides only in visible settings tabs", async () => {
+    mockUseSettingsTabs.mockReturnValue({
+      tabs: [{ id: "settings-operations", label: "Betrieb", icon: "settings" }],
+      renderTab: () => <div>Tab content</div>,
+    });
+    mockUseSettingsSchema.mockReturnValue({
+      data: {
+        tabs: [
+          {
+            key: "operations",
+            categories: [
+              {
+                items: [{ visible: true, is_default: false }],
+              },
+            ],
+          },
+          {
+            key: "abrechnung",
+            categories: [
+              {
+                items: [{ visible: true, is_default: false }],
+              },
+            ],
+          },
+        ],
+      },
+      isLoading: false,
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 abweichend von der Vorgabe/)).toBeVisible();
     });
   });
 });

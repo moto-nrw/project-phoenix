@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -19,8 +21,12 @@ import (
 
 func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	t.Parallel()
-	apiInstance := newGoldenAPI(t)
-	db := testpkg.SetupTestDB(t)
+	db, module := testutil.SetupStudentModule(t)
+	resource, err := newCareScheduleTestRouter(db, module)
+	require.NoError(t, err)
+	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
+	router.Mount("/", resource)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Review")
 	parentToken := careScheduleParentToken(t, chain)
@@ -39,18 +45,18 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	}
 
 	setAuthority(true)
-	rejected := doCareScheduleJSON(t, apiInstance.Router, http.MethodPost, path, parentToken, careScheduleRequestBody())
+	rejected := doCareScheduleJSON(t, router, http.MethodPost, path, parentToken, careScheduleRequestBody())
 	require.Equal(t, http.StatusForbidden, rejected.Code, rejected.Body.String())
 	assert.Contains(t, rejected.Body.String(), `"code":"care_request_bookings_authoritative"`)
 
 	setAuthority(false)
-	created := doCareScheduleJSON(t, apiInstance.Router, http.MethodPost, path, parentToken, careScheduleRequestBody())
+	created := doCareScheduleJSON(t, router, http.MethodPost, path, parentToken, careScheduleRequestBody())
 	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
 	requestID := careSchedulePendingRequestID(t, created)
 
 	decisionPath := "/api/students/care-schedule-change-requests/" + strconv.FormatInt(requestID, 10) + "/decide"
 	// #2267: reason policy defaults to "both", so a staff approval carries a reason.
-	decided := doCareScheduleJSON(t, apiInstance.Router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": true, "reason": "Passt so"})
+	decided := doCareScheduleJSON(t, router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": true, "reason": "Passt so"})
 	require.Equal(t, http.StatusOK, decided.Code, decided.Body.String())
 	assert.Contains(t, decided.Body.String(), `"status":"approved"`)
 }

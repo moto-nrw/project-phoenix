@@ -329,7 +329,7 @@ func (m *mockCategoryRepo) UpdateIfActive(context.Context, *activityModels.Categ
 	return true, nil
 }
 func (m *mockCategoryRepo) Delete(context.Context, interface{}) error { return nil }
-func (m *mockCategoryRepo) List(context.Context, *base.QueryOptions) ([]*activityModels.Category, error) {
+func (m *mockCategoryRepo) List(context.Context, *activityModels.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 func (m *mockCategoryRepo) FindByName(context.Context, string) (*activityModels.Category, error) {

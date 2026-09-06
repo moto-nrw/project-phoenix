@@ -164,7 +164,9 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getAllStaff).not.toHaveBeenCalled();
     expect(swrKeys).not.toContain("staff-list");
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Zeitkonten —/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Zeitkonten" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Status" }),
     ).not.toBeInTheDocument();
@@ -175,12 +177,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    const auditTab = screen.getByRole("tab", {
-      name: "Änderungsprotokoll",
-    });
-    fireEvent.pointerDown(auditTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(auditTab, { button: 0 });
-    fireEvent.click(auditTab);
+    fireEvent.click(screen.getByRole("tab", { name: "Änderungsprotokoll" }));
 
     expect(screen.getByTestId("staff-audit-log")).toBeInTheDocument();
     expect(
@@ -279,16 +276,13 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getDocumentDirectory).not.toHaveBeenCalled();
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
 
-    const documentsTab = screen.getByRole("tab", {
-      name: "Personalunterlagen",
-    });
-    fireEvent.pointerDown(documentsTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(documentsTab, { button: 0 });
-    fireEvent.click(documentsTab);
+    fireEvent.click(screen.getByRole("tab", { name: "Personalunterlagen" }));
 
     expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
     expect(getDocumentDirectory).toHaveBeenCalled();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    // Die Zahl stand früher als Zähler-Badge im Kopf; sie steht jetzt in der
+    // Statuszeile der Kopfkarte.
+    expect(screen.getByText("2 Personen mit Unterlagen")).toBeInTheDocument();
   });
 
   it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {
@@ -319,7 +313,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByText("Zeitkonten")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Zeitkonten" })).toBeInTheDocument();
   });
 
   it("fragt die Zeitkonten auch mit Berechtigung erst beim Umschalten ab", () => {
@@ -412,7 +406,7 @@ describe("/staff — Berechtigungs-Split", () => {
       screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Keine Mitarbeiter/innen gefunden."),
+      screen.queryByText("Keine Personen gefunden."),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));

@@ -9,6 +9,7 @@ import (
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
@@ -29,13 +30,21 @@ type testContext struct {
 	broadcaster *testpkg.RecordingBroadcaster
 }
 
+func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
+	repos, err := repositories.NewStudentTestRepositories(db, repositories.NewTestAuditStore(db))
+	if err != nil {
+		panic(err)
+	}
+	return repos
+}
+
 // setupStudentsRoute initializes the production students resource.
 func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t, clocks...)
-	repoFactory := repositories.NewFactory(db)
-	repoFactory.RouteAuditWrites(svc.Audit)
+	db, svc := testutil.SetupStudentModule(t, clocks...)
+	repoFactory, err := repositories.NewStudentTestRepositories(db, svc.Audit)
+	require.NoError(t, err)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	// Real emitter wired to the recording broadcaster so the staff-side guardian

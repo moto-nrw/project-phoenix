@@ -234,25 +234,34 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
 }
 
 /**
- * Skeleton der zweizeiligen PlanningContextBar-Kopfzeile: Navigation,
- * Ansichts-Umschalter, Primäraktion und Kontextzeile als Platzhalter — passend
- * zur neuen Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
+ * Platzhalter der Kopfkarte einer Planungsfläche: Titel, Statuszeile und das
+ * Bedienband (Navigation, Ansichtsumschalter, Kontextzeile) — dieselbe
+ * Anordnung wie im geladenen Zustand, damit beim Laden nichts springt.
  */
-function PlanningContextBarSkeleton() {
+export function PlanningContextBarSkeleton({
+  ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
+  testId = "timetable-header-skeleton",
+}: {
+  readonly ariaLabel?: string;
+  readonly testId?: string;
+} = {}) {
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Betreuungsplan-Kopfzeile wird geladen"
-      data-testid="timetable-header-skeleton"
-      className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
+      aria-label={ariaLabel}
+      data-testid={testId}
+      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 shadow-sm"
     >
-      <Skeleton className="h-7 w-40 md:hidden" />
+      <div>
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="mt-2 h-4 w-56" />
+      </div>
       <div className="flex min-h-9 flex-wrap items-center gap-3">
-        <Skeleton className="h-8 w-28 rounded-lg" />
+        <Skeleton className="h-9 w-28 rounded-lg" />
         <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-8 w-48 rounded-lg" />
+        <Skeleton className="h-9 w-48 rounded-lg" />
         <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
       </div>
       <div className="border-t border-gray-100 pt-2">
@@ -266,7 +275,7 @@ function PlanningContextBarSkeleton() {
 
 export function TimetablePageSkeleton() {
   return (
-    <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
+    <div className="w-full space-y-6" data-testid="timetable-page-skeleton">
       <PlanningContextBarSkeleton />
       <TimetableContentSkeleton view="week" />
     </div>

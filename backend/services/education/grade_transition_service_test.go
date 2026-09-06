@@ -29,7 +29,7 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 	transitionRepo := newGradeTransitionRepository(t, db)
 	studentRepo := usersRepo.NewStudentRepository(db)
 	personRepo := usersRepo.NewPersonRepository(db)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo:   transitionRepo,
@@ -1550,7 +1550,7 @@ func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
 // run through the People Directory (#2661).
 func newGradeTransitionRepository(t *testing.T, db *bun.DB) education.GradeTransitionRepository {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory.GradeTransition
 }

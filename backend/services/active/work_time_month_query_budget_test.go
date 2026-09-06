@@ -20,7 +20,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "CompTime", "Budget")
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	schedule := &configModels.StaffWorkSchedule{

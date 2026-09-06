@@ -7,8 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -117,7 +116,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{target}))
 }
@@ -275,7 +274,7 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 			s.extraCleanups = append(s.extraCleanups, func() {
 			})
 
-			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			studentRepo := testInstanceStudents(s.db)
 			before, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
 			require.NoError(t, err)
 			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, before.Status)
@@ -330,7 +329,7 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 			defer s.runCleanup(t)
 			inst := materializeSingleInstance(t, s)
-			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			studentRepo := testInstanceStudents(s.db)
 			row, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
 			require.NoError(t, err)
 			tc.apply(row)
@@ -420,7 +419,7 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	reason := "Einzeltermin gelöscht"
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   editWindowStart,
+		ExceptionDate:   scheduleModels.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -478,7 +477,7 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 	newStart := time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC)
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: s.template.ID,
-		ExceptionDate:   editWindowStart,
+		ExceptionDate:   scheduleModels.Date(editWindowStart),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &newStart,
 	}

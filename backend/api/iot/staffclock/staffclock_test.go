@@ -25,7 +25,7 @@ type testContext struct {
 
 func setupStaffClockRoute(t *testing.T) *testContext {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
+	db, serviceFactory := testutil.SetupWorkSessionModule(t)
 	testDevice := testpkg.CreateTestDevice(t, db, "staff-clock-device")
 	return &testContext{db: db, resource: staffclockAPI.NewResource(serviceFactory.StaffClock), device: testDevice}
 }

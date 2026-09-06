@@ -21,6 +21,7 @@ type LegalDocumentCleanup func(context.Context, int64, string, string) (func(), 
 
 type TenantOperationsRuntime interface {
 	WithinTenant(context.Context, int64, func(context.Context) error) error
+	AcquireLock(context.Context, string, bool) error
 	AfterCommit(context.Context, func())
 }
 

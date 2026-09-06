@@ -50,7 +50,7 @@ export function dailyDepartureLabelForStudent(student: Student): string {
   const legacyLabel = student.departure_label?.trim();
   if (legacyLabel) return legacyLabel;
   const modes = student.departure_modes ?? [];
-  if (modes.length === 0) return "-";
+  if (modes.length === 0) return "–";
   return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
 }
 
@@ -143,10 +143,10 @@ function SearchStudentCardImpl({
       extraContent={
         <>
           <StudentInfoRow icon={<SchoolClassIcon />}>
-            {student.school_class || "—"}
+            {student.school_class || "–"}
           </StudentInfoRow>
           <StudentInfoRow icon={<GroupIcon />}>
-            Gruppe: {student.group_name || "—"}
+            Gruppe: {student.group_name || "–"}
           </StudentInfoRow>
           {student.has_full_access !== false && (
             <StudentInfoRow icon={<DepartureModeIcon />} wrap>

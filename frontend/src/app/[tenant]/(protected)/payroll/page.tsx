@@ -5,12 +5,8 @@ import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import {
-  SkeletonRegion,
-  CardSkeleton,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
   duplicateLohnartNumbers,
@@ -25,6 +21,10 @@ import { setSettingValue } from "~/lib/settings-api";
 // this page is the hand-written panel over them, following the
 // personalization-tab precedent instead of the auto-generated settings tab.
 //
+// Bauart 4 (Einstellungen): die einzige Bauart, die automatisch speichert.
+// Das Verhalten steht als Satz in den Beschreibungen der beiden
+// Eingabekarten, damit es niemand raten muss.
+//
 // There are deliberately NO defaults: Lohnartnummern are mandant-specific,
 // and an invented preset would silently bill wrong. Empty is the honest
 // starting state; the later DATEV writers refuse to export while required
@@ -35,19 +35,6 @@ const UNIT_OPTIONS = [
   { value: "stunden", label: "Stunden" },
   { value: "tage", label: "Tage" },
 ];
-
-/** Data-region-only skeleton: header/chrome renders immediately, only this swaps in. */
-function PayrollDataSkeleton() {
-  return (
-    <SkeletonRegion label="Abrechnung wird geladen">
-      <div className="space-y-5">
-        <CardSkeleton rows={3} />
-        <TableSkeleton rows={4} columns={3} />
-        <CardSkeleton rows={2} />
-      </div>
-    </SkeletonRegion>
-  );
-}
 
 export default function PayrollPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
@@ -91,51 +78,48 @@ export default function PayrollPage() {
   );
 
   // Permission-loading joins the data-loading condition below instead of an
-  // early return before the header, so the real PageHeaderWithSearch renders
-  // immediately and only the data region skeletonizes.
+  // early return before the header, so the page header renders immediately and
+  // only the data region skeletonizes.
   const showSkeleton = permissionLoading || !isReady || (!error && !status);
 
   const duplicates = status ? duplicateLohnartNumbers(status) : [];
 
+  // Statuszeile: die Zahlen, die die Seite ohnehin laedt.
+  const statusLine = status
+    ? `${status.configuredCategories} von ${status.totalCategories} Lohnarten zugeordnet · DATEV-Mandant ${
+        status.lodasHeaderComplete ? "vollständig" : "unvollständig"
+      } · ${status.staffWithoutPersonnelNumber} von ${status.staffTotal} ohne Personalnummer`
+    : null;
+
   return (
-    // Volle Inhaltsbreite und Abstände wie auf den übrigen Seiten: die eigene
-    // zentrierte max-w-4xl-Spalte mit extra px/py ließ die Abrechnung schmaler
-    // und tiefer beginnen als jede andere Seite. Der Titel steht auf dem
-    // Desktop in der Breadcrumb, PageHeaderWithSearch zeigt ihn nur mobil.
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Abrechnung" />
-      {showSkeleton ? (
-        <PayrollDataSkeleton />
-      ) : error ? (
-        <Alert
-          type="error"
-          message="Die Abrechnungs-Konfiguration konnte nicht geladen werden."
-        />
-      ) : (
-        status && (
-          <div className="space-y-5">
-            <p className="max-w-3xl text-sm text-gray-600">
-              Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des
-              Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren
-              DATEV-Export (LODAS und Lohn und Gehalt).
-            </p>
+    <TenantPage
+      title="Abrechnung"
+      stats={statusLine}
+      statsLoading={showSkeleton}
+      loading={showSkeleton}
+      error={
+        error
+          ? "Die Abrechnungs-Konfiguration konnte nicht geladen werden."
+          : null
+      }
+    >
+      {status && (
+        <div className="space-y-6">
+          <ReadinessCard status={status} />
 
-            <ReadinessCard status={status} />
+          {saveError && <Alert type="error" message={saveError} />}
+          {duplicates.length > 0 && (
+            <Alert
+              type="warning"
+              message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden, bitte prüfen.`}
+            />
+          )}
 
-            {saveError && <Alert type="error" message={saveError} />}
-            {duplicates.length > 0 && (
-              <Alert
-                type="warning"
-                message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
-              />
-            )}
-
-            <LohnartenCard status={status} onSave={save} />
-            <DatevCard status={status} onSave={save} />
-          </div>
-        )
+          <LohnartenCard status={status} onSave={save} />
+          <DatevCard status={status} onSave={save} />
+        </div>
       )}
-    </div>
+    </TenantPage>
   );
 }
 
@@ -164,9 +148,11 @@ function ReadinessCard({ status }: { readonly status: PayrollStatus }) {
   ];
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">Vollständigkeit</h2>
-      <ul className="mt-3 space-y-2">
+    <SectionCard
+      title="Vollständigkeit"
+      description="Ohne vollständige Konfiguration erzeugt der spätere DATEV-Export keine Datei. Eine Kategorie ohne Lohnartnummer wird nicht exportiert."
+    >
+      <ul className="space-y-2">
         {items.map((item) => (
           <li key={item.label} className="flex items-start gap-2 text-sm">
             <span
@@ -182,11 +168,7 @@ function ReadinessCard({ status }: { readonly status: PayrollStatus }) {
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-gray-500">
-        Ohne vollständige Konfiguration erzeugt der spätere DATEV-Export keine
-        Datei. Eine Kategorie ohne Lohnartnummer wird nicht exportiert.
-      </p>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -198,14 +180,11 @@ function LohnartenCard({
   readonly onSave: (key: string, value: string) => Promise<void>;
 }) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">Lohnarten</h2>
-      <p className="mt-1 max-w-3xl text-sm text-gray-500">
-        Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1
-        bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die
-        Einheit, die die Lohnart erwartet.
-      </p>
-      <div className="mt-4 overflow-x-auto">
+    <SectionCard
+      title="Lohnarten"
+      description="Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1 bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die Einheit, die die Lohnart erwartet. Änderungen werden sofort gespeichert."
+    >
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[28rem] text-sm">
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500">
@@ -221,7 +200,7 @@ function LohnartenCard({
           </tbody>
         </table>
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -288,13 +267,11 @@ function DatevCard({
   readonly onSave: (key: string, value: string) => Promise<void>;
 }) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">DATEV-Mandant</h2>
-      <p className="mt-1 max-w-3xl text-sm text-gray-500">
-        Kennzahlen für den Kopf der LODAS-Datei. Lohn und Gehalt benötigt sie
-        nicht.
-      </p>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <SectionCard
+      title="DATEV-Mandant"
+      description="Kennzahlen für den Kopf der LODAS-Datei. Lohn und Gehalt benötigt sie nicht. Änderungen werden sofort gespeichert."
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <DatevNumberField
           label="Beraternummer"
           settingKey="payroll.datev_beraternummer"
@@ -310,7 +287,7 @@ function DatevCard({
           onSave={onSave}
         />
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

@@ -1,0 +1,6 @@
+{
+  "name": "moto-local",
+  "owner": { "name": "moto" },
+  "metadata": { "description": "Project-local language server configuration" },
+  "plugins": [{ "name": "moto-lsp", "source": "./moto-lsp" }]
+}

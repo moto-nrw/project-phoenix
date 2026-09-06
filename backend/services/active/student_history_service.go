@@ -67,14 +67,14 @@ func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx conte
 	if s.slotRepo == nil {
 		return []*scheduleModels.ScheduledInstanceRow{}, nil
 	}
-	return s.slotRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, startDate, endDate)
+	return s.slotRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModels.Date(startDate), scheduleModels.Date(endDate))
 }
 
 func (s *studentHistoryService) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
 	if s.slotRepo == nil {
 		return false, nil
 	}
-	return s.slotRepo.HasPlannedSlotsInRange(ctx, startDate, endDate)
+	return s.slotRepo.HasPlannedSlotsInRange(ctx, scheduleModels.Date(startDate), scheduleModels.Date(endDate))
 }
 
 func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activeModels.Attendance, error) {

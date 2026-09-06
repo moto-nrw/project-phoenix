@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -24,7 +26,7 @@ import (
 func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userService.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
@@ -40,7 +42,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
@@ -58,17 +60,37 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 func createCareBooking(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64,
 	key string, validFrom, validUntil *timezone.Date,
-) *enrollmentModels.RequestChild {
+) *enrollmentFixture.RequestChild {
 	t.Helper()
 	offering := createCareBookingOffering(t, db, scope, studentID, key)
 	child := createCareBookingSource(t, db, scope, offering.PhaseID, studentID, key)
-	link := &enrollmentModels.RequestChildOffering{
+	link := &enrollmentFixture.RequestChildOffering{
 		RequestChildID: child.ID, CareOfferingID: offering.ID,
-		ValidFrom: validFrom, ValidUntil: validUntil,
+	}
+	if validFrom != nil {
+		from := enrollmentFixture.Date(*validFrom)
+		link.ValidFrom = &from
+	}
+	if validUntil != nil {
+		until := enrollmentFixture.Date(*validUntil)
+		link.ValidUntil = &until
 	}
 	link.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(link).ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(scope.Context())
-	require.NoError(t, err)
+	require.NoError(t, enrollmentFixture.New().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
+	// These scenarios include legacy unbounded bookings. The owner defaults new
+	// bookings to the phase window, so restore only the intentional legacy nulls.
+	if validFrom == nil || validUntil == nil {
+		update := db.NewUpdate().TableExpr("enrollment.request_child_offerings").
+			Where("id = ? AND tenant_id = ?", link.ID, scope.TenantID)
+		if validFrom == nil {
+			update = update.Set("valid_from = NULL")
+		}
+		if validUntil == nil {
+			update = update.Set("valid_until = NULL")
+		}
+		_, err := update.Exec(scope.Context())
+		require.NoError(t, err)
+	}
 	return child
 }
 
@@ -76,14 +98,14 @@ func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
-	phase := &enrollmentModels.Phase{
+	phase := &enrollmentFixture.Phase{
 		Name: fmt.Sprintf("Buchungsprüfung-%d-%s", studentID, key), Kind: "school_year",
-		ServiceStartDate: timezone.TodayDate().AddDays(-30),
-		ServiceEndDate:   timezone.TodayDate().AddDays(300),
+		ServiceStartDate: enrollmentFixture.Date(timezone.TodayDate().AddDays(-30)),
+		ServiceEndDate:   enrollmentFixture.Date(timezone.TodayDate().AddDays(300)),
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Exec(scope.Context())
+	err := enrollmentFixture.New().InsertPhase(testpkg.WithTenantRuntime(t, scope.Context(), db), phase)
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
@@ -92,32 +114,31 @@ func createCareBookingOffering(
 		AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true,
 	}
 	offering.TenantID = scope.TenantID
-	_, err = db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Exec(scope.Context())
-	require.NoError(t, err)
+	testpkg.InsertTestCareOffering(t, db, scope.Context(), offering)
 	return offering
 }
 
 func createCareBookingSource(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, phaseID, studentID int64, key string,
-) *enrollmentModels.RequestChild {
+) *enrollmentFixture.RequestChild {
 	t.Helper()
-	request := &enrollmentModels.Request{
+	request := &enrollmentFixture.Request{
 		GuardianFirstName: "Test", GuardianLastName: "Person",
 		GuardianEmail: fmt.Sprintf("booking-%d-%s@example.test", studentID, key),
 		StatusToken:   fmt.Sprintf("booking-%d-%s", studentID, key),
 	}
 	request.PhaseID = phaseID
 	request.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(scope.Context())
-	require.NoError(t, err)
-	child := &enrollmentModels.RequestChild{
+	owner := enrollmentFixture.New()
+	ctx := testpkg.WithTenantRuntime(t, scope.Context(), db)
+	require.NoError(t, owner.InsertRequest(ctx, request))
+	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: timezone.TodayDate().AddDays(-2500), Status: enrollmentModels.ChildStatusApproved,
+		DateOfBirth: enrollmentFixture.Date(timezone.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
-	_, err = db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(scope.Context())
-	require.NoError(t, err)
+	require.NoError(t, owner.InsertChild(ctx, child))
 	return child
 }
 
@@ -156,7 +177,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 
 	_, err = svc.ApplyBookingAuthoritySetting(ctx, today, true)
 	require.ErrorIs(t, err, userService.ErrBookingAuthorityBlocked)
-	rows, total, err := repositories.NewFactory(db).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	assert.Zero(t, total)
 	assert.Empty(t, rows)
@@ -166,7 +187,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 		_, err = svc.ApplyBookingAuthoritySetting(ctx, today, true)
 		require.NoError(t, err)
 	}
-	rows, total, err = repositories.NewFactory(db).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 1, total)
 	assert.Equal(t, planned.ID, *rows[0].StudentID)
@@ -257,7 +278,7 @@ func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Live", "Sicher", "2a")
 	studentID := student.ID
 	firstGap := timezone.TodayDate().AddDays(2)
-	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
 		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
@@ -283,7 +304,7 @@ func TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority(t *testing.T) {
 	studentID := student.ID
 	firstGap := timezone.TodayDate()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	require.NoError(t, repos.CareWithdrawal.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
@@ -335,13 +356,13 @@ func TestNaturalBookingEndSchedulerIsIdempotent(t *testing.T) {
 
 	_, err := svc.ApplyDueEffects(ctx, timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
-	rows, total, err := repositories.NewFactory(db).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	updatedAt := map[int64]time.Time{*rows[0].StudentID: rows[0].UpdatedAt, *rows[1].StudentID: rows[1].UpdatedAt}
 	_, err = svc.ApplyDueEffects(ctx, timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
-	rows, total, err = repositories.NewFactory(db).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
+	rows, total, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	assert.ElementsMatch(t, []timezone.Date{plannedGap, overdueGap}, []timezone.Date{
@@ -362,7 +383,7 @@ func TestNaturalSchedulerPreservesConfirmedWithdrawalAudit(t *testing.T) {
 	gap := timezone.TodayDate().AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "audit", nil, &gap)
 	studentID := student.ID
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now().Add(-time.Hour),
@@ -397,7 +418,7 @@ func TestOverdueRebookingReplacesTheStaleCompletion(t *testing.T) {
 	oldGap := timezone.NewDate(2026, 8, 24).AddDays(-2)
 	newGap := timezone.NewDate(2026, 8, 24).AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "renewed", &oldGap, &newGap)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	studentID := student.ID
 	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: oldGap,
@@ -420,7 +441,7 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 	createCareBooking(t, db, scope, student.ID, "old-window", nil, &oldGap)
 	svc := bookingAuthorityService(t, db, true)
 	require.NoError(t, svc.ReconcileAuthoritativeBookingChange(scope.Context(), userModels.CareWithdrawalBookingChange{StudentID: student.ID}))
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	oldTask := requirePendingCompletion(t, repo, scope.Context(), student.ID)
 
 	if newGap.Before(oldGap) {
@@ -466,7 +487,7 @@ func TestBookingMutationPlansFutureNaturalEndImmediately(t *testing.T) {
 		scope.Context(), userModels.CareWithdrawalBookingChange{StudentID: student.ID, ConfirmedRole: "admin"},
 	)
 	require.NoError(t, err)
-	rows, total, err := repositories.NewFactory(db).CareWithdrawal.ListPending(
+	rows, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20},
 	)
 	require.NoError(t, err)
@@ -488,7 +509,7 @@ func TestConfirmedWithdrawalCannotBypassBookingAuthority(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	rows, total, err := repositories.NewFactory(db).CareWithdrawal.ListPending(
+	rows, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{StudentID: student.ID, Page: 1, PageSize: 1},
 	)
 	require.NoError(t, err)
@@ -512,7 +533,7 @@ func assertNonCareMutationKeepsConfirmedWithdrawal(t *testing.T, authoritative b
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Bleibt", "3f")
 	studentID := student.ID
 	gap := timezone.TodayDate().AddDays(4)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
@@ -552,7 +573,7 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 	for err := range errs {
 		require.NoError(t, err)
 	}
-	_, total, err := repositories.NewFactory(db).CareWithdrawal.ListPending(
+	_, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(
 		scope.Context(), userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20},
 	)
 	require.NoError(t, err)
@@ -592,7 +613,7 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	today := timezone.TodayDate()
 

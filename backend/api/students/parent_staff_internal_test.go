@@ -18,7 +18,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -42,7 +41,7 @@ func TestNormalizeSickReason(t *testing.T) {
 // --- staff sick reason round-trip via status-days ---
 
 func newStaffNotesResource(db *bun.DB) *Resource {
-	rf := repositories.NewFactory(db)
+	rf := newStudentTestRepositories(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
 		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent, rf.StudentCompanion, nil),

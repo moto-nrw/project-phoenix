@@ -46,7 +46,7 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
 

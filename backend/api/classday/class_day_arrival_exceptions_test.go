@@ -53,7 +53,7 @@ type arrivalExceptionFixture struct {
 // seam (#2970) the way api/base.go does.
 func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *classday.Resource) {
 	t.Helper()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassDayModule(t)
 	return db, classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil,
 		classday.WithArrivalExceptions(factory.ClassDayArrivalExceptions))
 }

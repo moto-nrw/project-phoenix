@@ -45,7 +45,7 @@ func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Doku", "Kind", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryAttest, "attest.pdf", storedName(t))
@@ -82,7 +82,7 @@ func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.
 	otherStudent := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "1b")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-foreign-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "sonstiges.pdf", storedName(t))
@@ -106,7 +106,7 @@ func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Lösch", "Kind", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-del-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryBetreuungsvertrag, "vertrag.pdf", storedName(t))
@@ -145,7 +145,7 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Waise", "Kind", "1a")
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	name := storedName(t)
@@ -200,7 +200,7 @@ func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Ungueltig", "Kind", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-invalid-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategoryAttest, "attest.pdf", "")
@@ -221,7 +221,7 @@ func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *test
 	otherStudent := testpkg.CreateTestStudent(t, db, "Fremd", "Nachlauf", "1b")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-retry-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	doc := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "nachlauf.pdf", storedName(t))
@@ -255,7 +255,7 @@ func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *tes
 	student := testpkg.CreateTestStudent(t, db, "Abbau", "Kind", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-teardown-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	live := newTestStudentDocument(student.ID, account.ID, userModels.StudentDocumentCategorySonstiges, "aktiv.pdf", storedName(t)+"-live")
@@ -298,7 +298,7 @@ func TestStudentDocumentRepository_QueuedCleanupsAreScopedAndSettleable(t *testi
 	student := testpkg.CreateTestStudent(t, db, "Warteschlange", "Kind", "1a")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Warteschlange", "Andere", "1b")
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	mine := queueCleanupIntent(t, db, repo, ctx, student.ID, storedName(t)+"-mine")
@@ -354,7 +354,7 @@ func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Viele", "Dokumente", "1a")
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	overBatch := documentModels.CleanupBatchSize + 5
@@ -384,7 +384,7 @@ func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Rueckstand", "Kind", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-doc-backlog-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentDocument
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDocument
 	ctx := testpkg.TenantContext(student.TenantID)
 
 	overLimit := documentModels.RequestCleanupRetryLimit + 3

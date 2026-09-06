@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -31,7 +30,7 @@ func NewStaffShiftSeriesRepository(db *bun.DB) schedule.StaffShiftSeriesReposito
 // offboarding). Already tighter bounds are kept. A cap at or before
 // valid_from clamps to valid_from — an empty segment that materializes
 // nothing — instead of violating chk_staff_shift_series_validity.
-func (r *StaffShiftSeriesRepository) CapValidUntil(ctx context.Context, id int64, until timezone.Date) error {
+func (r *StaffShiftSeriesRepository) CapValidUntil(ctx context.Context, id int64, until schedule.Date) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*schedule.StaffShiftSeries)(nil)).
 		ModelTableExpr(tableExprStaffShiftSeriesAsSeries).
@@ -52,7 +51,7 @@ func (r *StaffShiftSeriesRepository) CapValidUntil(ctx context.Context, id int64
 // their tighter bound; segments starting on or after the cap collapse to an
 // empty range (valid_until = valid_from) and generate nothing on future
 // splits.
-func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffID int64, until timezone.Date) (int64, error) {
+func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffID int64, until schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*schedule.StaffShiftSeries)(nil)).
 		ModelTableExpr(tableExprStaffShiftSeriesAsSeries).
@@ -76,7 +75,7 @@ func (r *StaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffI
 // FindOverlappingInLineage returns another chronological segment in one split
 // lineage that is active on or after from. Root rows store a NULL series_root_id,
 // so resolve both roots and successors through COALESCE.
-func (r *StaffShiftSeriesRepository) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*schedule.StaffShiftSeries, error) {
+func (r *StaffShiftSeriesRepository) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from schedule.Date) (*schedule.StaffShiftSeries, error) {
 	series := new(schedule.StaffShiftSeries)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(series).

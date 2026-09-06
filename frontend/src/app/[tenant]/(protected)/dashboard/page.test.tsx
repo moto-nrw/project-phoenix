@@ -363,6 +363,35 @@ describe("DashboardPage", () => {
     });
   });
 
+  it("does not show dashboard counts when the initial fetch fails", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(undefined, { error: new Error("fetch failed") }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/0 Kinder anwesend.*0 krank/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps dashboard data visible when revalidation fails", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue(
+      mockSWR(mockDashboardData, { error: new Error("fetch failed") }),
+    );
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Fehler beim Laden der Dashboard-Daten"),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("dashboard-stats-grid")).toBeInTheDocument();
+    });
+  });
+
   it("redirects when session error is RefreshTokenExpired", async () => {
     vi.mocked(useSession).mockReturnValue({
       data: { ...mockSession, error: "RefreshTokenExpired" },
@@ -633,7 +662,10 @@ describe("StatCard component behavior", () => {
       const studentsLink = screen.getByRole("link", {
         name: /Kinder anwesend/i,
       });
-      expect(studentsLink).toHaveAttribute("href", "/students/search");
+      expect(studentsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/students/search",
+      );
     });
   });
 
@@ -698,10 +730,10 @@ describe("StatCard component behavior", () => {
 
     render(<DashboardPage />);
 
-    // During loading, stat cards should show "..." for values
+    // Während des Ladens tragen die Kacheln ein Skelett statt einer Zahl.
     await waitFor(() => {
-      const dots = screen.getAllByText("...");
-      expect(dots.length).toBeGreaterThan(0);
+      const grid = screen.getByTestId("dashboard-stats-grid");
+      expect(grid.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
     });
   });
 });
@@ -727,7 +759,7 @@ describe("InfoCard component behavior", () => {
       const activitiesLink = screen.getByRole("link", {
         name: /Laufende Aktivitäten/i,
       });
-      expect(activitiesLink).toHaveAttribute("href", "/activities");
+      expect(activitiesLink).toHaveAttribute("href", "/test-tenant/activities");
     });
   });
 

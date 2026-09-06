@@ -169,13 +169,13 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(
 		return false, fmt.Errorf("find current series occurrence: %w", err)
 	}
 	if occurrence == nil || occurrence.SeriesID == nil || *occurrence.SeriesID != input.SeriesID ||
-		occurrence.SeriesOccurrenceDate == nil || *occurrence.SeriesOccurrenceDate != input.EffectiveDate {
+		occurrence.SeriesOccurrenceDate == nil || timezone.Date(*occurrence.SeriesOccurrenceDate) != input.EffectiveDate {
 		return false, fmt.Errorf("%w: current occurrence does not belong to this series date", ErrSeriesInvalid)
 	}
 	// A cancellation (and its replacement coverage) is a deliberate current-day
 	// deviation. Resizing it through UpdateShift can invalidate its covers, so
 	// retain the cancellation and apply the permanent rule only from tomorrow.
-	if occurrence.Date != s.todayDate() || occurrence.Cancelled ||
+	if timezone.Date(occurrence.Date) != s.todayDate() || occurrence.Cancelled ||
 		(occurrence.Detached && !updateRetainedOccurrence) {
 		return false, nil
 	}
@@ -259,8 +259,8 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		from = period.StartDate
 	}
 	tomorrow := s.todayDate().AddDays(1)
-	if tomorrow.After(from) {
-		from = tomorrow
+	if tomorrow.After(timezone.Date(from)) {
+		from = scheduleModels.Date(tomorrow)
 	}
 	to := period.EndDate
 	if series.ValidUntil != nil {
@@ -277,7 +277,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if err != nil {
 		return 0, nil, err
 	}
-	excepted := make(map[timezone.Date]bool, len(exceptionDates))
+	excepted := make(map[scheduleModels.Date]bool, len(exceptionDates))
 	for _, d := range exceptionDates {
 		excepted[d] = true
 	}
@@ -286,17 +286,17 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if err != nil {
 		return 0, nil, err
 	}
-	existingByDate := make(map[timezone.Date][]*scheduleModels.StaffShift, len(existing))
+	existingByDate := make(map[scheduleModels.Date][]*scheduleModels.StaffShift, len(existing))
 	// Recurrence slots that already have a row of THIS series (detached survivors
 	// of a re-plan, or split re-points) are owned: the user deviated that
 	// occurrence, so the series must not add a second shift there. A moved row's
 	// current Date may be another genuine occurrence; ownership follows the
 	// immutable source slot instead.
-	ownedDates := make(map[timezone.Date]bool)
+	ownedDates := make(map[scheduleModels.Date]bool)
 	for _, shift := range existing {
 		existingByDate[shift.Date] = append(existingByDate[shift.Date], shift)
 		if shift.SeriesID != nil && *shift.SeriesID == series.ID {
-			ownedDates[seriesOccurrenceDate(shift)] = true
+			ownedDates[scheduleModels.Date(seriesOccurrenceDate(shift))] = true
 		}
 	}
 
@@ -306,13 +306,13 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	var candidates []*scheduleModels.StaffShift
 	var skipped []timezone.Date
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if !series.ContainsWeekday(isoWeekday(d)) {
+		if !series.ContainsWeekday(isoWeekday(timezone.Date(d))) {
 			continue
 		}
 		if excepted[d] || ownedDates[d] {
 			continue
 		}
-		if !ShouldMaterializeWeekPattern(series.WeekPattern, d, period) {
+		if !ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
 			continue
 		}
 		seriesID := series.ID
@@ -346,7 +346,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 			}
 		}
 		if overlaps {
-			skipped = append(skipped, d)
+			skipped = append(skipped, timezone.Date(d))
 			continue
 		}
 		candidates = append(candidates, candidate)
@@ -367,8 +367,8 @@ func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *
 		from = period.StartDate
 	}
 	tomorrow := today.AddDays(1)
-	if tomorrow.After(from) {
-		from = tomorrow
+	if tomorrow.After(timezone.Date(from)) {
+		from = scheduleModels.Date(tomorrow)
 	}
 	to := period.EndDate
 	if series.ValidUntil != nil {
@@ -378,7 +378,7 @@ func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *
 		}
 	}
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if series.ContainsWeekday(isoWeekday(d)) && ShouldMaterializeWeekPattern(series.WeekPattern, d, period) {
+		if series.ContainsWeekday(isoWeekday(timezone.Date(d))) && ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
 			return true
 		}
 	}
@@ -478,8 +478,8 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if tomorrow.After(effective) {
 		effective = tomorrow
 	}
-	if effective.Before(old.ValidFrom) {
-		effective = old.ValidFrom
+	if effective.Before(timezone.Date(old.ValidFrom)) {
+		effective = timezone.Date(old.ValidFrom)
 	}
 	// The successor is bounded by the EDITED end, not the predecessor's: an
 	// editor that extends "Gültig bis" is deliberately re-opening a series whose
@@ -488,9 +488,13 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	// uneditable, because the effective date is clamped to tomorrow (#2028).
 	validUntil := old.ValidUntil
 	if input.ValidUntilSet {
-		validUntil = input.ValidUntil
+		validUntil = nil
+		if input.ValidUntil != nil {
+			converted := scheduleModels.Date(*input.ValidUntil)
+			validUntil = &converted
+		}
 	}
-	if validUntil != nil && !effective.Before(*validUntil) {
+	if validUntil != nil && !effective.Before(timezone.Date(*validUntil)) {
 		return nil, fmt.Errorf(
 			"%w: series ends before %s, no occurrences left to change",
 			ErrSeriesInvalid, effective.String(),
@@ -524,7 +528,7 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 		Notes:            notes,
 		CalendarPeriodID: old.CalendarPeriodID,
 		WeekPattern:      weekPattern,
-		ValidFrom:        effective,
+		ValidFrom:        scheduleModels.Date(effective),
 		ValidUntil:       validUntil,
 		SeriesRootID:     &rootID,
 		CreatedBy:        input.ActorStaffID,
@@ -548,11 +552,11 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	// A predecessor can be edited before a later segment begins. Keep the new
 	// segment strictly before that successor, but never reopen a segment that a
 	// current successor has already superseded.
-	next, err := s.seriesRepo.FindOverlappingInLineage(ctx, rootID, old.ID, effective)
+	next, err := s.seriesRepo.FindOverlappingInLineage(ctx, rootID, old.ID, scheduleModels.Date(effective))
 	if err != nil {
 		return nil, err
 	}
-	if next != nil && !effective.Before(next.ValidFrom) {
+	if next != nil && !effective.Before(timezone.Date(next.ValidFrom)) {
 		return nil, fmt.Errorf("%w: series segment has already been superseded", ErrSeriesInvalid)
 	}
 	if next != nil && (successor.ValidUntil == nil || next.ValidFrom.Before(*successor.ValidUntil)) {
@@ -577,10 +581,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 			successor.RetainedOccurrenceShiftID = &retainedID
 		}
 	}
-	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, effective); err != nil {
+	if err := s.seriesRepo.CapValidUntil(ctx, old.ID, scheduleModels.Date(effective)); err != nil {
 		return nil, err
 	}
-	deleted, err := s.shiftRepo.DeleteNonDetachedBySeriesFrom(ctx, old.ID, effective)
+	deleted, err := s.shiftRepo.DeleteNonDetachedBySeriesFrom(ctx, old.ID, scheduleModels.Date(effective))
 	if err != nil {
 		return nil, err
 	}
@@ -596,10 +600,10 @@ func (s *staffShiftSeriesService) SplitSeries(ctx context.Context, input SplitSe
 	if updateToday {
 		repointFrom = input.EffectiveDate
 	}
-	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, repointFrom); err != nil {
+	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, old.ID, successor.ID, scheduleModels.Date(repointFrom)); err != nil {
 		return nil, err
 	}
-	if _, err := s.exceptionRepo.RepointToSeriesFrom(ctx, old.ID, successor.ID, effective); err != nil {
+	if _, err := s.exceptionRepo.RepointToSeriesFrom(ctx, old.ID, successor.ID, scheduleModels.Date(effective)); err != nil {
 		return nil, err
 	}
 	created, skipped, err := s.materializeSeries(ctx, successor, period)
@@ -629,16 +633,16 @@ func (s *staffShiftSeriesService) EndSeries(ctx context.Context, seriesID int64,
 	if tomorrow.After(effective) {
 		effective = tomorrow
 	}
-	if effective.Before(series.ValidFrom) {
-		effective = series.ValidFrom
+	if effective.Before(timezone.Date(series.ValidFrom)) {
+		effective = timezone.Date(series.ValidFrom)
 	}
 	if err := s.lockShiftWrites(ctx, series.StaffID); err != nil {
 		return nil, err
 	}
-	if err := s.seriesRepo.CapValidUntil(ctx, series.ID, effective); err != nil {
+	if err := s.seriesRepo.CapValidUntil(ctx, series.ID, scheduleModels.Date(effective)); err != nil {
 		return nil, err
 	}
-	deleted, err := s.shiftRepo.DeleteNonDetachedBySeriesFrom(ctx, series.ID, effective)
+	deleted, err := s.shiftRepo.DeleteNonDetachedBySeriesFrom(ctx, series.ID, scheduleModels.Date(effective))
 	if err != nil {
 		return nil, err
 	}

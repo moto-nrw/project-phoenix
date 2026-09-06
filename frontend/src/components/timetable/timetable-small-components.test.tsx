@@ -230,8 +230,11 @@ describe("small timetable components", () => {
     );
 
     expect(screen.getByText("Yoga")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+    // Bearbeiten und Archivieren liegen im OverflowMenu des Kartenkopfs.
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für Yoga" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für Yoga" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     fireEvent.click(screen.getByRole("button", { name: "Termine erzeugen" }));
 
     expect(onEdit).toHaveBeenCalledWith(template);

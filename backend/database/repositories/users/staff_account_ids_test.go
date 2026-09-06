@@ -16,7 +16,7 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("maps staff with an account and omits staff without one", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Staff
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists mapped staff and skips the rest", func(t *testing.T) {

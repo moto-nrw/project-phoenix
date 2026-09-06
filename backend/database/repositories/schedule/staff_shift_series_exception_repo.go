@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,9 +40,9 @@ func (r *StaffShiftSeriesExceptionRepository) Create(ctx context.Context, except
 }
 
 // FindDatesBySeriesID returns the excepted dates of one series.
-func (r *StaffShiftSeriesExceptionRepository) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]timezone.Date, error) {
+func (r *StaffShiftSeriesExceptionRepository) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]schedule.Date, error) {
 	type exceptionDateRow struct {
-		Date timezone.Date `bun:"date,type:date"`
+		Date schedule.Date `bun:"date,type:date"`
 	}
 	var rows []exceptionDateRow
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -56,7 +55,7 @@ func (r *StaffShiftSeriesExceptionRepository) FindDatesBySeriesID(ctx context.Co
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff shift series exception dates", Err: base.TranslateNotFound(err)}
 	}
-	dates := make([]timezone.Date, 0, len(rows))
+	dates := make([]schedule.Date, 0, len(rows))
 	for _, row := range rows {
 		dates = append(dates, row.Date)
 	}
@@ -65,7 +64,7 @@ func (r *StaffShiftSeriesExceptionRepository) FindDatesBySeriesID(ctx context.Co
 
 // RepointToSeriesFrom moves exceptions on or after from to the successor
 // series created by a split, so removed occurrences stay removed.
-func (r *StaffShiftSeriesExceptionRepository) RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
+func (r *StaffShiftSeriesExceptionRepository) RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from schedule.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("schedule.staff_shift_series_exceptions").
 		Set("series_id = ?", toSeriesID).

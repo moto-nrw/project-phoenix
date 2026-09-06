@@ -161,10 +161,7 @@ function EnrollmentRequestCard({
     <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Anmeldung
-          </p>
-          <h4 className="mt-1 text-base font-semibold text-gray-900">
+          <h4 className="text-base font-semibold text-gray-900">
             {request.phase_name || "Nicht zugeordnet"}
           </h4>
           <p className="mt-1 text-sm text-gray-600">

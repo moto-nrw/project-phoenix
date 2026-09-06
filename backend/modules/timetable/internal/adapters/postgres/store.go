@@ -212,6 +212,25 @@ func (s *Store) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64
 	return stats, setShiftTypeLinks(ctx, db, tenantID, shiftTypeID, ids, &stats)
 }
 
+func (s *Store) SetCategoryShiftTypeID(ctx context.Context, id int64, shiftTypeID *int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	return execMeasuredWrite(ctx, db.NewUpdate().Table("activities.categories").
+		Set("shift_type_id = ?", shiftTypeID).Where("tenant_id = ?", tenantID).Where("id = ?", id),
+		"set category shift type")
+}
+
+func (s *Store) DeleteCategory(ctx context.Context, id int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	return execMeasuredWrite(ctx, db.NewDelete().Table("activities.categories").
+		Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete category")
+}
+
 func (s *Store) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -537,11 +556,36 @@ func scanAll(ctx context.Context, query *bun.SelectQuery, operation string) (dom
 	return stats, nil
 }
 
+func scanAllInto(ctx context.Context, query *bun.SelectQuery, destination any, operation string) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err := query.Scan(ctx, destination)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("timetable postgres: %s: %w", operation, err)
+	}
+	return stats, nil
+}
+
 func classifyWriteError(operation string, err error, stats *domain.OperationStats) error {
 	var postgresError pgdriver.Error
-	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == domain.CategoryNameActiveIndex {
-		stats.DuplicatePreventionConflicts++
-		return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
+	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() {
+		switch postgresError.Field('n') {
+		case domain.CategoryNameActiveIndex:
+			stats.DuplicatePreventionConflicts++
+			return fmt.Errorf("%w: %w", domain.ErrCategoryNameConflict, err)
+		case domain.StudentEnrollmentActiveIndex:
+			stats.DuplicatePreventionConflicts++
+		case domain.PlanningTrackNameActiveIndex:
+			stats.DuplicatePreventionConflicts++
+			return fmt.Errorf("%w: %w", domain.ErrPlanningTrackNameConflict, err)
+		case domain.ActivityExceptionUniqueConstraint:
+			stats.DuplicatePreventionConflicts++
+		case domain.InstanceStaffUniqueConstraint:
+			stats.DuplicatePreventionConflicts++
+		case domain.InstanceStudentUniqueConstraint:
+			stats.DuplicatePreventionConflicts++
+		}
 	}
 	return fmt.Errorf("timetable postgres: %s: %w", operation, err)
 }

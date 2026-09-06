@@ -10,10 +10,14 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { EmptyState } from "~/components/ui/empty-state";
+import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -39,8 +43,8 @@ import { SectionHeader } from "~/components/ui/concept-section-header";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
-import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
-import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
+import { RoomDetailPanel } from "~/components/rooms/room-detail-panel";
+import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-panel";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import {
@@ -76,13 +80,12 @@ function TransitAssignmentCard({
   readonly buttonRef: (node: HTMLButtonElement | null) => void;
 }) {
   return (
-    <button
-      type="button"
-      ref={buttonRef}
+    <TileCard
+      elementRef={buttonRef}
       onClick={onOpen}
-      aria-haspopup="dialog"
-      aria-controls="room-detail-panel"
-      className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
+      ariaHasPopup="dialog"
+      ariaControls="room-detail-panel"
+      className="flex items-center justify-between gap-4"
     >
       <SectionHeader
         className="min-w-0 flex-1"
@@ -101,7 +104,7 @@ function TransitAssignmentCard({
           </span>
         }
       />
-    </button>
+    </TileCard>
   );
 }
 
@@ -137,18 +140,6 @@ function RoomsPageContent() {
   );
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Mirror local filter state into the URL so the current history entry
   // always reflects the user's view. Without this, typing a filter while
@@ -508,46 +499,69 @@ function RoomsPageContent() {
   // redirects on unauthenticated.
   const showSkeleton = status === "loading" || loading;
 
+  // Leerzustand kommt aus dem Gerüst (`empty`), nicht als handgebauter
+  // Block im Inhalt. Er bleibt aus, solange die Übergangsliste steht oder
+  // ein Raum im Panel offen ist: dann ist die Seite nicht leer.
+  const hasActiveFilters =
+    searchTerm !== "" || buildingFilter !== "all" || occupiedFilter !== "all";
+  const resetFilters = useCallback(() => {
+    setSearchTerm("");
+    setBuildingFilter("all");
+    setOccupiedFilter("all");
+  }, []);
+  const emptyState =
+    !showSkeleton &&
+    !showTransitAssignment &&
+    !selectedRoomId &&
+    !exportError &&
+    filteredRooms.length === 0
+      ? hasActiveFilters
+        ? {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
+            action: (
+              <Button type="button" size="md" onClick={resetFilters}>
+                Filter zurücksetzen
+              </Button>
+            ),
+          }
+        : {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Für diese Schule ist noch kein Raum angelegt. Räume legen Sie in der Datenverwaltung an.",
+          }
+      : null;
+
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
+  const roomSummary = (() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((room) => room.isOccupied).length;
+    return `${rooms.length} ${rooms.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
+  })();
+
   return (
-    <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - Title only on mobile */}
-      <PageHeaderWithSearch
-        title={isMobile ? "Räume" : ""}
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MotoConceptIcon concept="rooms" size={20} />,
-                count: filteredRooms.length,
-                label: "Räume",
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Raum suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        overflowMenu={overflowItems}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setBuildingFilter("all");
-          setOccupiedFilter("all");
-        }}
-      />
-
-      {error && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {error}
-        </div>
-      )}
-
-      {exportError && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {exportError}
-        </div>
-      )}
+    <TenantPage
+      title="Räume"
+      stats={roomSummary}
+      statsLoading={showSkeleton}
+      // Das Exportmenü ist eine Aktion der Seite und sitzt deshalb im Kopf,
+      // damit es auch mobil erreichbar bleibt.
+      actions={<OverflowMenu items={overflowItems} />}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Raum suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={resetFilters}
+      error={error}
+      empty={emptyState}
+    >
+      {exportError && <Alert type="error" message={exportError} />}
 
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-2xl, min-h-[180px],
@@ -574,23 +588,14 @@ function RoomsPageContent() {
             />
           ) : null}
 
-          {filteredRooms.length === 0 && !showTransitAssignment ? (
-            <EmptyState
-              icon={<MotoConceptIcon concept="rooms" size={48} />}
-              title="Keine Räume gefunden"
-              description="Versuchen Sie Ihre Suchkriterien anzupassen."
-            />
-          ) : null}
-
           {filteredRooms.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <CollectionGrid>
               {filteredRooms.map((room) => {
                 const handleClick = () => handleSelectRoom(room);
                 return (
-                  <button
-                    type="button"
+                  <TileCard
                     key={room.id}
-                    ref={(node) => {
+                    elementRef={(node) => {
                       if (node) {
                         roomCardRefs.current.set(room.id, node);
                       } else {
@@ -598,33 +603,31 @@ function RoomsPageContent() {
                       }
                     }}
                     onClick={handleClick}
-                    aria-haspopup="dialog"
-                    aria-expanded={selectedRoomId === room.id}
-                    aria-controls={
+                    ariaHasPopup="dialog"
+                    ariaExpanded={selectedRoomId === room.id}
+                    ariaControls={
                       selectedRoomId === room.id
                         ? "room-detail-panel"
                         : undefined
                     }
-                    className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                    padding="none"
                   >
-                    <div className="relative p-6 pb-5">
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-
-                      <div className="relative flex min-h-[156px] flex-col">
+                    <div className="relative p-4 sm:p-5">
+                      <div className="relative flex min-h-[120px] flex-col">
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                              <h3 className="truncate text-base font-bold text-gray-900">
                                 {room.name}
                               </h3>
                               <ChevronRight
-                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
+                                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                                 aria-hidden="true"
                               />
                             </div>
                             {(room.building !== undefined ||
                               room.floor !== undefined) && (
-                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-300 md:group-hover:text-gray-600">
+                              <p className="mt-0.5 truncate text-xs text-gray-500">
                                 {room.building &&
                                   room.floor !== undefined &&
                                   `${room.building} · ${formatFloor(room.floor)}`}
@@ -701,23 +704,19 @@ function RoomsPageContent() {
                           )}
                         </div>
 
-                        <p className="md:group-hover:text-moto-blue-light mt-2 text-xs text-gray-400 transition-colors duration-150">
-                          Tippen für mehr Infos
-                        </p>
-
                         <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                       </div>
                     </div>
-                  </button>
+                  </TileCard>
                 );
               })}
-            </div>
+            </CollectionGrid>
           ) : null}
         </>
       )}
 
-      <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
-    </div>
+      <RoomDetailPanel roomId={selectedRoomId} onClose={handleCloseDetail} />
+    </TenantPage>
   );
 }
 
@@ -726,7 +725,7 @@ function RoomsPageContent() {
 // surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (
-    <BinaryModeGuard>
+    <BinaryModeGuard title="Räume">
       <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>

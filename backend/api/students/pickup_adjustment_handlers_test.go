@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -110,7 +111,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 		Source: scheduleModels.PickupScheduleSourceStaff,
 	}
 	manual.SetTenantID(student.TenantID)
-	repoFactory := repositories.NewFactory(tc.db)
+	repoFactory := newStudentTestRepositories(tc.db)
 	require.NoError(t, repoFactory.StudentPickupSchedule.UpsertSchedule(testpkg.Ctx(t), manual))
 
 	withDecision := cloneMap(withoutDecision)
@@ -170,11 +171,10 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		_, err := tc.db.NewUpdate().Model(offering).
 			ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 			Set("pickup_times = ?", pickupTimes).
-			WherePK().Exec(t.Context())
+			Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).
 		Exec(t.Context())
@@ -186,7 +186,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		StudentID: student.ID, Weekday: 5, PickupTime: manualTime, Notes: &existingNote, CreatedBy: staff.StaffID,
 	}
 	manual.SetTenantID(student.TenantID)
-	require.NoError(t, repositories.NewFactory(tc.db).StudentPickupSchedule.UpsertSchedule(testpkg.Ctx(t), manual))
+	require.NoError(t, newStudentTestRepositories(tc.db).StudentPickupSchedule.UpsertSchedule(testpkg.Ctx(t), manual))
 
 	effectiveFrom := studentsTestToday.String()
 	schedules := make([]map[string]any, 0, 5)
@@ -226,7 +226,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		t, tc, exceptionReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
 	)
 	require.Equal(t, http.StatusOK, exceptionRec.Code, exceptionRec.Body.String())
-	links, err := tc.resource.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
+	links, err := tc.resource.EnrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID,
@@ -260,8 +260,8 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, futureRec.Code, futureRec.Body.String())
 	assert.Contains(t, futureRec.Body.String(), `"code":"pickup.future_manual_reset"`)
-	futureLinks, err := repositories.NewFactory(tc.db).RequestChildOffering.
-		ListByRequestChildIDAtDate(testpkg.Ctx(t), fixture.child.ID, futureDate)
+	futureLinks, err := newStudentTestRepositories(tc.db).Enrollment().
+		RequestChildOfferingsAtDate(testpkg.Ctx(t), fixture.child.ID, owner.Date(futureDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
 	assert.Equal(t, fixture.ganztag.ID, futureLinks[0].CareOfferingID,
@@ -270,7 +270,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	_, err = tc.db.NewUpdate().Model(fixture.mittag).
 		ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 		Set("capacity = 0").
-		WherePK().Exec(t.Context())
+		Where("id = ?", fixture.mittag.ID).Exec(t.Context())
 	require.NoError(t, err)
 	fullBody := cloneMap(offeringBody)
 	fullBody["preview_token"] = confirmedPreview.PreviewToken
@@ -283,7 +283,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, fullRec.Code, fullRec.Body.String())
 	assert.Contains(t, fullRec.Body.String(), `"code":"pickup.offering_capacity_full"`)
-	links, err = tc.resource.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
+	links, err = tc.resource.EnrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID,
@@ -291,7 +291,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	_, err = tc.db.NewUpdate().Model(fixture.mittag).
 		ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 		Set("capacity = NULL").
-		WherePK().Exec(t.Context())
+		Where("id = ?", fixture.mittag.ID).Exec(t.Context())
 	require.NoError(t, err)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
 	concurrentArrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 07:55")
@@ -301,7 +301,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		ExpectedArrival: concurrentArrivalTime, CreatedBy: staff.StaffID,
 	}
 	concurrentArrival.SetTenantID(student.TenantID)
-	require.NoError(t, repositories.NewFactory(tc.db).StudentArrivalSchedule.UpsertSchedule(
+	require.NoError(t, newStudentTestRepositories(tc.db).StudentArrivalSchedule.UpsertSchedule(
 		testpkg.Ctx(t), concurrentArrival,
 	))
 	staleArrivalBody := cloneMap(offeringBody)
@@ -316,7 +316,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, http.StatusConflict, staleArrivalRec.Code, staleArrivalRec.Body.String())
 	assert.Contains(t, staleArrivalRec.Body.String(), `"code":"pickup.preview_stale"`)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
-	arrivalRowsBefore, err := repositories.NewFactory(tc.db).StudentArrivalSchedule.FindByStudentID(
+	arrivalRowsBefore, err := newStudentTestRepositories(tc.db).StudentArrivalSchedule.FindByStudentID(
 		testpkg.Ctx(t), student.ID,
 	)
 	require.NoError(t, err)
@@ -332,7 +332,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	require.Equal(t, http.StatusOK, applyRec.Code, applyRec.Body.String())
 
-	links, err = tc.resource.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
+	links, err = tc.resource.EnrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.mittag.ID, links[fixture.child.ID].Current[0].OfferingID)
@@ -343,7 +343,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		Where("source <> ?", scheduleModels.PickupScheduleSourceCareOffering).
 		Scan(t.Context()))
 	assert.Empty(t, manualRows, "the selected offering must replace every lasting manual pickup time")
-	arrivalRows, err := repositories.NewFactory(tc.db).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
+	arrivalRows, err := newStudentTestRepositories(tc.db).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, arrivalRowsBefore, arrivalRows,
 		"an offering change must leave the existing arrival plan unchanged")
@@ -371,11 +371,10 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 			ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).
 			Set("pickup_times = ?", map[string]string{
 				"mon": pickupTime, "tue": pickupTime, "wed": pickupTime, "thu": pickupTime, "fri": pickupTime,
-			}).WherePK().Exec(t.Context())
+			}).Where("id = ?", offering.ID).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	_, err := tc.db.NewDelete().Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+	_, err := tc.db.NewDelete().TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
 		Where("request_child_id = ?", fixture.child.ID).
 		Where("care_offering_id = ?", fixture.mittag.ID).Exec(t.Context())
 	require.NoError(t, err)
@@ -396,7 +395,7 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 	rec := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"})
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"pickup.invalid"`)
-	links, err := tc.resource.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
+	links, err := tc.resource.EnrollmentDecision.ListChildOfferings(testpkg.Ctx(t), fixture.child.RequestID)
 	require.NoError(t, err)
 	require.Len(t, links[fixture.child.ID].Current, 1)
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID)
@@ -473,9 +472,13 @@ func pickupAdjustmentServiceWithCoordinator(
 	tc *testContext,
 	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
 ) enrollmentService.PickupAdjustmentService {
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
+	approvedOfferings, err := testutil.NewApprovedOfferingProjection(tc.db, repos.Enrollment())
+	if err != nil {
+		panic(err)
+	}
 	baselines := scheduleService.NewPickupBaselineServiceWithSettings(
-		repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering, tc.resource.SettingsService,
+		repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, tc.resource.SettingsService,
 	)
 	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
 		PickupSchedules: tc.resource.PickupScheduleService, ArrivalSchedules: tc.resource.ArrivalScheduleService,

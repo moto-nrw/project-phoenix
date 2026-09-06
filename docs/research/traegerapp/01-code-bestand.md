@@ -119,12 +119,15 @@ Alles strikt ein-tenant (ProtectedTenantGroup + TenantTxMiddleware + RLS):
 
 Anschlussfähig: `services/statistics` hat saubere Service/Report-Trennung (Org-Variante wäre zweiter Aufrufer mit anderem Tx-Rahmen). DATEV-Export ist der plausibelste erste Träger-Use-Case (Lohnbuchhaltung sitzt beim Träger). Es gibt keine einzige Aggregations-Query über `tenant_id` hinweg im Staff-Bereich.
 
-## 5. Dokumentation: spezifiziert, nie gebaut
+## 5. Historische Planung (Februar 2026)
 
-- `docs/multi-tenancy/00-anforderungen.md` Z. 18-22, 47-57, 76-93 (Träger-Büro vs OGS-Büro), 131-153 (Ferien, Springer), 216-218 (10-20 Träger bis 2027), 225-226 (Follow-ups, nicht umgesetzt).
-- `docs/multi-tenancy/DEBATE.md` D18 (Z. 1098-1160, Zusammenfassung 1476): Träger-Büro = `scope: org`, eigener Mechanismus; bewusst kein RLS für Org (3-10 Nutzer pro Träger); Tagesgeschäft per Tenant-Switch mit RLS; Permission `org:dashboard:read`; keine Impersonation; "Application-Layer mit WithAdminTx + org_id-Filter. Dedizierter OrgScopeService, read-only". Entschieden 2026-02-10.
-- `11-implementierungsplan.md:155`: nur "JWT Claims erweitern" (erledigt). Rest von D18 in keinem Plan.
-- `06-offene-punkte.md:179`: Ferienbetreuung träger-übergreifend braucht AVV (D21).
+Die folgenden Quellen wurden bei der Doku-Bereinigung aus dem Arbeitsbaum entfernt.
+Die Links zeigen den damaligen Git-Stand, keine aktuell verbindlichen Entscheidungen.
+
+- [docs/multi-tenancy/00-anforderungen.md](https://github.com/moto-nrw/project-phoenix/blob/bf06d957907bd6e67edf0f58bd3597275bbc0035/docs/multi-tenancy/00-anforderungen.md) Z. 18-22, 47-57, 76-93 (Träger-Büro vs OGS-Büro), 131-153 (Ferien, Springer), 216-218 (10-20 Träger bis 2027), 225-226 (Follow-ups, nicht umgesetzt).
+- [docs/multi-tenancy/DEBATE.md](https://github.com/moto-nrw/project-phoenix/blob/bf06d957907bd6e67edf0f58bd3597275bbc0035/docs/multi-tenancy/DEBATE.md) D18 (Z. 1098-1160, Zusammenfassung 1476): Träger-Büro = `scope: org`, eigener Mechanismus; bewusst kein RLS für Org (3-10 Nutzer pro Träger); Tagesgeschäft per Tenant-Switch mit RLS; Permission `org:dashboard:read`; keine Impersonation; "Application-Layer mit WithAdminTx + org_id-Filter. Dedizierter OrgScopeService, read-only". Entschieden 2026-02-10.
+- [11-implementierungsplan.md:155](https://github.com/moto-nrw/project-phoenix/blob/bf06d957907bd6e67edf0f58bd3597275bbc0035/docs/multi-tenancy/11-implementierungsplan.md#L155): nur "JWT Claims erweitern" (erledigt). Rest von D18 in keinem Plan.
+- [06-offene-punkte.md:179](https://github.com/moto-nrw/project-phoenix/blob/bf06d957907bd6e67edf0f58bd3597275bbc0035/docs/multi-tenancy/06-offene-punkte.md#L179): Ferienbetreuung träger-übergreifend braucht AVV (D21).
 - DSGVO (DEBATE 1371-1439): jeder Träger eigener Verantwortlicher, moto Auftragsverarbeiter (Art. 28).
 - Kein ADR zu Träger/Org-Scope. Branch `ideation/traegerapp` war inhaltlich leer.
 

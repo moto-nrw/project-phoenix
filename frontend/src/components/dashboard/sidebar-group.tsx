@@ -83,7 +83,7 @@ export function SidebarGroup({
         {labelsMounted && (
           <>
             <span
-              className={`${sidebarLabelClasses(labelsVisible)} text-[11px] font-semibold tracking-wider uppercase`}
+              className={`${sidebarLabelClasses(labelsVisible)} text-xs font-semibold tracking-wider uppercase`}
             >
               {label}
             </span>

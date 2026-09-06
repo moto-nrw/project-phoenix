@@ -4,6 +4,8 @@ import { Megaphone, Pencil, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StaffNoticeModal } from "~/components/staff-notices/staff-notice-modal";
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
@@ -124,190 +126,179 @@ export default function TagesinformationenPage() {
     }
   };
 
-  return (
-    <div className="w-full">
-      <header className="moto-content-surface mb-4 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Tagesinformationen
-            </p>
-            <h1 className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">
-              Hinweise an das Team
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Interne Hinweise der Leitung für das ganze Team. Einmalig, für
-              einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.
-            </p>
-          </div>
-          {isAdmin && (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => {
-                setEditing(null);
-                setModalOpen(true);
-              }}
-            >
-              Neue Tagesinformation
-            </Button>
-          )}
-        </div>
-      </header>
+  // Statuszeile aus echten Zahlen: was heute gilt, für Admins zusätzlich der
+  // Bestand. Der frühere Erklärsatz steht in der Hilfe, nicht im Kopf.
+  const statusLine = isAdmin
+    ? `${todayNotices.length} heute · ${notices.length} insgesamt`
+    : `${todayNotices.length} heute`;
 
+  return (
+    <TenantPage
+      title="Tagesinformationen"
+      stats={statusLine}
+      statsLoading={todayLoading && todayNotices.length === 0}
+      actions={
+        isAdmin ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => {
+              setEditing(null);
+              setModalOpen(true);
+            }}
+          >
+            Neue Tagesinformation
+          </Button>
+        ) : undefined
+      }
+      overlays={
+        <>
+          <StaffNoticeModal
+            isOpen={modalOpen}
+            notice={editing}
+            onClose={() => setModalOpen(false)}
+            onSubmit={async (input) => {
+              try {
+                await save(input);
+                setListError("");
+              } catch (err) {
+                logger.error("staff_notice_save_failed", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+                throw err;
+              }
+            }}
+          />
+          <ConfirmDeleteModal
+            isOpen={deleting !== null}
+            title="Tagesinformation löschen"
+            description={
+              deleting
+                ? `„${deleting.title}“ wird für alle entfernt. Bereits erfasste Kenntnisnahmen gehen mit verloren.`
+                : ""
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+            loading={deletePending}
+            error={deleteError}
+            onConfirm={confirmDelete}
+            onClose={() => setDeleting(null)}
+          />
+        </>
+      }
+    >
       {/* Heute: das, was jede Mitarbeiterin braucht. Steht deshalb vor der
           Verwaltung und ist die ganze Seite für Nicht-Admins. */}
-      <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm sm:p-5">
-        <h2 className="text-base font-semibold text-gray-900">Heute</h2>
+      <SectionCard title="Heute">
         {todayLoading && todayNotices.length === 0 ? (
           <Loading fullPage={false} />
         ) : todayError ? (
           // Ein Ladefehler darf nicht wie "keine Hinweise" aussehen: dann
           // verlässt sich jemand auf eine leere Tafel, die nur nicht geladen war.
-          <div className="mt-3">
-            <Alert
-              type="error"
-              message={getApiErrorMessage(
-                todayError,
-                "laden",
-                "die Tagesinformationen",
-                "Die Tagesinformationen konnten nicht geladen werden.",
-              )}
-            />
-          </div>
+          <Alert
+            type="error"
+            message={getApiErrorMessage(
+              todayError,
+              "laden",
+              "die Tagesinformationen",
+              "Die Tagesinformationen konnten nicht geladen werden.",
+            )}
+          />
         ) : todayNotices.length === 0 ? (
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="text-sm leading-6 text-gray-600">
             Für heute liegen keine Hinweise vor.
           </p>
         ) : (
-          <div className="mt-3">
-            <TodayNoticeList notices={todayNotices} onChanged={mutateToday} />
-          </div>
+          <TodayNoticeList notices={todayNotices} onChanged={mutateToday} />
         )}
-      </section>
-
-      {isAdmin && (
-        <h2 className="mb-3 text-base font-semibold text-gray-900">
-          Alle Tagesinformationen
-        </h2>
-      )}
+      </SectionCard>
 
       {visibleListError && <Alert type="error" message={visibleListError} />}
 
-      {!isAdmin ? null : isLoading && notices.length === 0 ? (
-        <Loading fullPage={false} />
-      ) : noticesError ? null : notices.length === 0 ? (
-        <EmptyState
-          icon={<Megaphone className="h-6 w-6" />}
-          title="Noch keine Tagesinformationen"
-          description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Team -> Tagesinformationen."
-        />
-      ) : (
-        <ul className="space-y-3">
-          {notices.map((notice) => (
-            <li
-              key={notice.id}
-              className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900">
-                      {notice.title}
-                    </span>
-                    {notice.priority === "important" && (
-                      <StatusBadge label="Wichtig" tone="orange" />
-                    )}
-                    {!notice.active && (
-                      <StatusBadge label="Abgeschaltet" tone="gray" />
-                    )}
+      {isAdmin && (
+        <SectionCard title="Alle Tagesinformationen">
+          {isLoading && notices.length === 0 ? (
+            <Loading fullPage={false} />
+          ) : noticesError ? null : notices.length === 0 ? (
+            <EmptyState
+              icon={<Megaphone className="h-6 w-6" />}
+              title="Noch keine Tagesinformationen"
+              description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Team -> Tagesinformationen."
+            />
+          ) : (
+            // Zeilen in EINER Karte statt einer Karte je Hinweis: die
+            // Verwaltung ist eine Liste, keine Kachelwand.
+            <ul className="divide-y divide-gray-100">
+              {notices.map((notice) => (
+                <li key={notice.id} className="py-4 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {notice.title}
+                        </span>
+                        {notice.priority === "important" && (
+                          <StatusBadge label="Wichtig" tone="orange" />
+                        )}
+                        {!notice.active && (
+                          <StatusBadge label="Abgeschaltet" tone="gray" />
+                        )}
+                      </div>
+                      {notice.body && (
+                        <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-gray-600">
+                          {notice.body}
+                        </p>
+                      )}
+                      <p className="mt-2 text-sm text-gray-500">
+                        {describeRecurrence(notice)} · ab{" "}
+                        {formatDate(notice.valid_from)}
+                        {notice.valid_until
+                          ? ` bis ${formatDate(notice.valid_until)}`
+                          : " (unbefristet)"}
+                      </p>
+                      {notice.requires_acknowledgement && (
+                        <p className="mt-1 text-sm text-gray-500">
+                          Kenntnisnahme verlangt ·{" "}
+                          {notice.acknowledged_count === 1
+                            ? "1 Person hat bestätigt"
+                            : `${notice.acknowledged_count} Personen haben bestätigt`}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Bearbeiten"
+                        onClick={() => {
+                          setEditing(notice);
+                          setModalOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Löschen"
+                        onClick={() => {
+                          setDeleting(notice);
+                          setDeleteError("");
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  {notice.body && (
-                    <p className="mt-1 text-sm leading-relaxed whitespace-pre-line text-gray-600">
-                      {notice.body}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-gray-500">
-                    {describeRecurrence(notice)} · ab{" "}
-                    {formatDate(notice.valid_from)}
-                    {notice.valid_until
-                      ? ` bis ${formatDate(notice.valid_until)}`
-                      : " (unbefristet)"}
-                  </p>
-                  {notice.requires_acknowledgement && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Kenntnisnahme verlangt ·{" "}
-                      {notice.acknowledged_count === 1
-                        ? "1 Person hat bestätigt"
-                        : `${notice.acknowledged_count} Personen haben bestätigt`}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-shrink-0 items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Bearbeiten"
-                    onClick={() => {
-                      setEditing(notice);
-                      setModalOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Löschen"
-                    onClick={() => {
-                      setDeleting(notice);
-                      setDeleteError("");
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       )}
-
-      <StaffNoticeModal
-        isOpen={modalOpen}
-        notice={editing}
-        onClose={() => setModalOpen(false)}
-        onSubmit={async (input) => {
-          try {
-            await save(input);
-            setListError("");
-          } catch (err) {
-            logger.error("staff_notice_save_failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            throw err;
-          }
-        }}
-      />
-
-      <ConfirmDeleteModal
-        isOpen={deleting !== null}
-        title="Tagesinformation löschen"
-        description={
-          deleting
-            ? `„${deleting.title}“ wird für alle entfernt. Bereits erfasste Kenntnisnahmen gehen mit verloren.`
-            : ""
-        }
-        gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
-        loading={deletePending}
-        error={deleteError}
-        onConfirm={confirmDelete}
-        onClose={() => setDeleting(null)}
-      />
-    </div>
+    </TenantPage>
   );
 }

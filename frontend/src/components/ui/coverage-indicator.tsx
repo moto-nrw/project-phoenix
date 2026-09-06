@@ -1,9 +1,7 @@
 /**
  * CoverageIndicator names the staffing state of a planned position: a status
  * dot plus an "Ist/Soll" number pair (or free-form text for aggregates like a
- * weekly-hours total). Anatomy and colors are fixed by
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2; do not
- * introduce new colors or shapes here.
+ * weekly-hours total). Keep the shared anatomy and colors consistent.
  *
  * The `state` prop is always derived by the caller from domain data (an open
  * `GapInstance`, a quittierte Lücke, a plain covered position, …).

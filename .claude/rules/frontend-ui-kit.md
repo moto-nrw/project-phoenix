@@ -15,26 +15,59 @@ Read this rule before frontend UI changes; the root entry point and `frontend/CL
 
 ## Source of truth
 
-| Concern | Location |
-|---|---|
-| UI components | `frontend/src/components/ui/` |
-| Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
-| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
+| Concern                          | Location                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| UI components                    | `frontend/src/components/ui/`                                               |
+| Header / list-page kit           | `frontend/src/components/ui/page-header/`                                   |
+| Semantic brand colors            | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in     |
 
 Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel — import every component from its own file.
+
+## Page scaffolding — one shell, no per-page layout
+
+**RULE: Every page under `frontend/src/app/[tenant]/(protected)` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** There are no exemptions — the dashboard, the profile page and the emergency list run through the same scaffold as every list. The exemption set in `tenant-page-scaffold.test.ts` is empty and may only be added to with reviewer approval recorded in the PR.
+
+`TenantPage` fixes the order of the parts so no page can decide it again:
+
+```
+Kopfkarte:  Titel  ..................................  Aktionen
+            Statuszeile (echte Zahlen der Seite)
+            Suche + Filter
+Reiter:     horizontale Seitenreiter
+Inhalt:     Karten im 24-px-Rhythmus, die letzte Fläche bis zur Unterkante
+```
+
+What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second `<main>`, a hand-written `<h1>`, a separate action row above or below the head, a row that only carries a counter or a single select, and a bespoke loading/empty/error branch. Those live in the scaffold.
+
+**The body fills the screen.** The last kit surface in the body grows to the bottom edge (`.moto-tenant-body` in `globals.css`; the shell hands a flex column down to the content wrapper), so an empty page, a one-row table and a thirty-row list share one outline instead of ending after 60 px with half a screen of bare dot pattern. Only a `section`/`div` surface grows, directly in the body or up to two wrappers deeper (page wrapper, `DataTable`), and every wrapper in between must itself be a flex column (`flex flex-col`); grids and clickable tiles never grow. Do not fake it per page with `min-h-*` — unwrap the block instead.
+
+**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal only.
+
+**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8).
+
+**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. A value switcher built from `ui/Tabs` is a violation, not a style choice: the ratchet `ui-kit/no-tabs-as-value-switcher` fails on it.
+
+**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure (it has `icon`, `href`, `loading`), `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-handrolled-surface` fails a page that spells the surface out again.
+
+**One empty-value glyph.** Where a table cell or a field has no value, it shows „–" (en dash). „—" was in use side by side with it, sometimes in the same table. Where there is room, say why the value is missing instead of printing a glyph.
+
+**Planning surfaces have no second head.** `PlanningContextBar` is the control band inside the head card (`searchSlot`), not a card of its own.
+
+The full conversion spec, including what to do when a page's head lives in a view component, is `frontend/src/components/ui/TENANT-PAGE-SPEC.md`.
 
 ## Study these first — canonical reference screens
 
 Prose cannot transfer taste, density, spacing judgment, or restraint. Examples can. **Before building or changing any UI, open the relevant file(s) below and match their structure, density, spacing, color use, component choice, and restraint.** These are the bar for "looks like the rest of the app."
 
-| Pattern | File | Why it's canonical |
-|---|---|---|
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
-| Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
-| Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
-| Card primitive | `frontend/src/components/ui/info-card.tsx` | the canonical card surface |
-| Table primitive | `frontend/src/components/ui/data-table.tsx` | the canonical table |
+| Pattern           | File                                                           | Why it's canonical                                                                                                                                          |
+| ----------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx`         | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational                                                                                |
+| Detail page       | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx`    | `ui/Tabs` + `detail-modal-components` field layout                                                                                                          |
+| Dense dashboard   | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
+| Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
+| Card primitive    | `frontend/src/components/ui/info-card.tsx`                     | the canonical card surface                                                                                                                                  |
+| Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
 
 Keep this list current: if a reference is deleted or substantially rewritten, replace it with the new canonical example.
 
@@ -115,19 +148,19 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: when the palette moves, a literal stays behind and silently drifts out of sync with the token beside it.
 
-| Semantic | Hex | `LOCATION_COLORS` key |
-|---|---|---|
-| Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
-| Brand blue | `#5080D8` | `OTHER_ROOM` |
-| Neutral gray (Zuhause) | `#6B7280` | `HOME` |
-| Orange (Schulhof) | `#F78C10` | `SCHOOLYARD` |
-| Magenta (Unterwegs) | `#D946EF` | `TRANSIT` |
-| Red (Krank / Fehler) | `#DC2626` | `SICK` / `DANGER` |
-| Amber (Warnung) | `#EAB308` | `WARNING` |
-| Purple (Entschuldigt) | `#7C3AED` | `EXCUSED` |
-| Cyan (Klassenfahrt) | `#0891B2` | `CLASS_TRIP` |
-| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL` |
-| Stone (Unbekannt) | `#78716C` | `UNKNOWN` |
+| Semantic                 | Hex       | `LOCATION_COLORS` key |
+| ------------------------ | --------- | --------------------- |
+| Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
+| Brand blue               | `#5080D8` | `OTHER_ROOM`          |
+| Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
+| Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
+| Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
+| Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |
+| Amber (Warnung)          | `#EAB308` | `WARNING`             |
+| Purple (Entschuldigt)    | `#7C3AED` | `EXCUSED`             |
+| Cyan (Klassenfahrt)      | `#0891B2` | `CLASS_TRIP`          |
+| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL`         |
+| Stone (Unbekannt)        | `#78716C` | `UNKNOWN`             |
 
 `SICK` and `DANGER` are the same hex on purpose — one names the child status,
 the other the error semantic. `WARNING` is the amber "needs attention but is
@@ -182,6 +215,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 ## Detection
 
 **CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on five drift patterns — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (hand-built card surfaces: unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element outside `ui/`, also when assembled across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). All five are hard-zero: the first production match fails. A deliberate non-card match (a white pill control, for example) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason repeated in the PR description; there is no baseline to grow. Test/stories files are exempt from the class-string rules.
+The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-handrolled-surface` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline).
 
 `moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow: `border-gray-200`, `bg-white`, `bg-white/95`, `backdrop-blur` and `shadow-lg` next to them are dead and get deleted. Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 
@@ -201,6 +235,8 @@ Code can be correct and the UI still feel wrong (spacing, density, decoration). 
 
 Apply before marking any UI work complete (and reviewers: before approving):
 
+- [ ] Tenant page renders `TenantPage` as its root; no own `max-w`/`mx-auto`/root padding/`<h1>`/action row
+- [ ] No mini-heading (kicker) above a page title; status line carries real figures, not an explanation
 - [ ] Reuses kit components; any new component is justified in the PR description
 - [ ] Colors come from `LOCATION_COLORS` / kit components — no generic Tailwind hues
 - [ ] Radius, spacing, and density match the canonical screens (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`)

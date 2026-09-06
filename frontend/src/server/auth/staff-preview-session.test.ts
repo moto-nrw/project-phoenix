@@ -1,3 +1,5 @@
+import { validateSessionToken } from "./token-validation";
+vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { tenantAuthConfig as authConfig } from "./tenant-config";
 import { _resetRefreshState } from "./shared";
@@ -109,6 +111,18 @@ async function startPreview(token: Record<string, unknown>) {
 describe("JWT callback — staff preview (#2893)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(validateSessionToken).mockImplementation(async (token) => {
+      try {
+        return {
+          exp: Math.floor(Date.now() / 1000) + 900,
+          ...JSON.parse(
+            Buffer.from(token.split(".")[1]!, "base64url").toString(),
+          ),
+        };
+      } catch {
+        return null;
+      }
+    });
     vi.stubGlobal("fetch", mockFetch);
     _resetRefreshState();
   });
@@ -116,6 +130,31 @@ describe("JWT callback — staff preview (#2893)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it("rejects backend-unverified preview injection without changing identity", async () => {
+    vi.mocked(validateSessionToken).mockResolvedValueOnce(null);
+    const token = adminToken();
+    const result = await startPreview(token);
+    expect(result.id).toBe("1");
+    expect(result.previewTargetAccountId).toBeUndefined();
+  });
+
+  it.each([{ acting_admin_id: 99 }, { tenant_id: 99 }, { id: 99 }])(
+    "binds preview to its verified admin, tenant and target",
+    async (overrides) => {
+      const token = adminToken();
+      const result = await callJwt(token, {
+        previewStart: {
+          accessToken: previewJwt(overrides),
+          expiresIn: 900,
+          targetAccountId: "42",
+          targetName: "Test",
+        },
+      });
+      expect(result?.id).toBe("1");
+      expect(result?.previewTargetAccountId).toBeUndefined();
+    },
+  );
 
   it("previewStart swaps onto the preview token and parks the admin state", async () => {
     const token = adminToken();

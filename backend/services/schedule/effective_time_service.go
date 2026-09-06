@@ -18,7 +18,6 @@ import (
 )
 
 type effectiveTimeEntity interface {
-	modelBase.Entity
 	modelBase.Validator
 	modelBase.TenantScoped
 }
@@ -39,8 +38,8 @@ type effectiveExceptionRepository[E effectiveTimeEntity] interface {
 	FindByIDForUpdate(context.Context, any) (E, error)
 	FindByStudentID(context.Context, int64) ([]E, error)
 	FindUpcomingByStudentID(context.Context, int64) ([]E, error)
-	FindByStudentIDAndDate(context.Context, int64, timezone.Date) (E, error)
-	FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]E, error)
+	FindByStudentIDAndDate(context.Context, int64, scheduleModel.Date) (E, error)
+	FindByStudentIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]E, error)
 	Create(context.Context, E) error
 	Update(context.Context, E) error
 	Delete(context.Context, any) error
@@ -50,8 +49,8 @@ type effectiveExceptionRepository[E effectiveTimeEntity] interface {
 type effectiveNoteRepository[N effectiveTimeEntity] interface {
 	FindByID(context.Context, any) (N, error)
 	FindByStudentID(context.Context, int64) ([]N, error)
-	FindByStudentIDAndDate(context.Context, int64, timezone.Date) ([]N, error)
-	FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]N, error)
+	FindByStudentIDAndDate(context.Context, int64, scheduleModel.Date) ([]N, error)
+	FindByStudentIDsAndDate(context.Context, []int64, scheduleModel.Date) ([]N, error)
 	Create(context.Context, N) error
 	Update(context.Context, N) error
 	Delete(context.Context, any) error
@@ -68,7 +67,7 @@ type effectiveScheduleFields struct {
 type effectiveExceptionFields struct {
 	ID                int64
 	StudentID         int64
-	Date              timezone.Date
+	Date              scheduleModel.Date
 	Time              *time.Time
 	Reason            *string
 	Source            string
@@ -312,7 +311,7 @@ func (c *effectiveTimeCore[S, E, N, D]) ExceptionForDate(
 	studentID int64,
 	date timezone.Date,
 ) (E, error) {
-	row, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, date)
+	row, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, scheduleModel.Date(date))
 	if err != nil {
 		var zero E
 		return zero, &ScheduleError{
@@ -470,7 +469,7 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateOrReclaimException(
 			result = c.domain.NewException(effectiveExceptionFields{
 				ID:        existingFields.ID,
 				StudentID: studentID,
-				Date:      date,
+				Date:      scheduleModel.Date(date),
 				Time:      value,
 				Reason:    reason,
 				Source:    scheduleModel.ExceptionSourceStaff,
@@ -483,7 +482,7 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateOrReclaimException(
 
 		result = c.domain.NewException(effectiveExceptionFields{
 			StudentID: studentID,
-			Date:      date,
+			Date:      scheduleModel.Date(date),
 			Time:      value,
 			Reason:    reason,
 			Source:    scheduleModel.ExceptionSourceStaff,
@@ -527,7 +526,7 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		if fields.StudentID != studentID {
 			return ErrCareExceptionWrongStudent
 		}
-		if fields.ExcusedFrom != nil && (date != fields.Date || clearValue) {
+		if fields.ExcusedFrom != nil && (scheduleModel.Date(date) != fields.Date || clearValue) {
 			return ErrCareExceptionContainsPartialAbsence
 		}
 		if fields.Source == scheduleModel.ExceptionSourceGuardian {
@@ -541,7 +540,7 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		}
 
 		fields.StudentID = studentID
-		fields.Date = date
+		fields.Date = scheduleModel.Date(date)
 		if fields.Time != nil {
 			normalized := timezone.NormalizeWallClock(*fields.Time)
 			fields.Time = &normalized
@@ -602,7 +601,7 @@ func (c *effectiveTimeCore[S, E, N, D]) DeleteException(
 	fields := c.domain.ExceptionFields(initial)
 	tenantID := tenant.FromContext(ctx)
 	return tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := LockCareExceptionDay(txCtx, c.db, fields.StudentID, fields.Date); err != nil {
+		if err := LockCareExceptionDay(txCtx, c.db, fields.StudentID, timezone.Date(fields.Date)); err != nil {
 			return err
 		}
 		// Re-read after taking the same lock used by partial-absence writes.
@@ -637,7 +636,7 @@ func (c *effectiveTimeCore[S, E, N, D]) DeleteAllExceptions(
 		// with partial creation and silently remove its provenance.
 		type candidate struct {
 			id   int64
-			date timezone.Date
+			date scheduleModel.Date
 		}
 		candidates := make([]candidate, 0, len(rows))
 		for _, row := range rows {
@@ -654,10 +653,10 @@ func (c *effectiveTimeCore[S, E, N, D]) DeleteAllExceptions(
 			return candidates[i].date.Before(candidates[j].date)
 		})
 
-		var lockedDate timezone.Date
+		var lockedDate scheduleModel.Date
 		for index, row := range candidates {
 			if index == 0 || row.date != lockedDate {
-				if err := LockCareExceptionDay(txCtx, c.db, studentID, row.date); err != nil {
+				if err := LockCareExceptionDay(txCtx, c.db, studentID, timezone.Date(row.date)); err != nil {
 					return err
 				}
 				lockedDate = row.date
@@ -729,7 +728,7 @@ func (c *effectiveTimeCore[S, E, N, D]) NotesForDate(
 	studentID int64,
 	date timezone.Date,
 ) ([]N, error) {
-	rows, err := c.notes.FindByStudentIDAndDate(ctx, studentID, date)
+	rows, err := c.notes.FindByStudentIDAndDate(ctx, studentID, scheduleModel.Date(date))
 	if err != nil {
 		return nil, &ScheduleError{
 			Op:  c.operation("get student %s notes for date"),
@@ -854,13 +853,13 @@ func (c *effectiveTimeCore[S, E, N, D]) EffectiveTimeForDateWithSchedule(
 	}
 
 	op := c.operation("get effective %s time")
-	exception, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, date)
+	exception, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, scheduleModel.Date(date))
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
 	c.applyScheduleAndException(result, scheduleRow, exception)
 
-	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, date)
+	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, scheduleModel.Date(date))
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
@@ -956,13 +955,13 @@ func (c *effectiveTimeCore[S, E, N, D]) BulkEffectiveTimesForDateWithSchedules(
 	}
 
 	op := c.operation("get bulk effective %s times")
-	exceptions, err := c.exceptions.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	exceptions, err := c.exceptions.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
 	exceptionMap := c.exceptionsByStudent(exceptions)
 
-	notes, err := c.notes.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	notes, err := c.notes.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}

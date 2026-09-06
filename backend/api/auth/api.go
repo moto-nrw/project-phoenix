@@ -103,6 +103,9 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth := jwt.MustNewTokenAuth()
 
+	// Token validation uses the general identity quota, not the password-login quota.
+	r.Post("/session/validate", rs.validateSession)
+
 	// Rate-limited public routes (brute-force protection)
 	r.Group(func(r chi.Router) {
 		if rs.authRateLimiter != nil {

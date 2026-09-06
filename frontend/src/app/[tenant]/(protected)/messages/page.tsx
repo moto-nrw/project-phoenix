@@ -3,10 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -19,7 +19,6 @@ import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { MessagesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
 
@@ -89,155 +88,141 @@ function MessagesInboxContent() {
   // immediately regardless — only the thread list skeletonizes.
   const showSkeleton = isLoading && !threads;
 
-  return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Nachrichten"
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: (
-                  <MotoConceptIcon concept="parentConversations" size={20} />
-                ),
-                count: filteredThreads.length,
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Person oder Kind suchen...",
-        }}
-      />
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Inbox.
+  const threadList: InboxThread[] = threads ?? [];
+  const unreadThreads = threadList.filter(
+    (thread) => thread.unread_count > 0,
+  ).length;
+  const inboxSummary = `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
 
-      {/* A single dropdown that filters on selection — same control and
-          behaviour on desktop and mobile, no separate apply step. */}
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-        <CustomSelect
-          ariaLabel="Nachrichten filtern"
-          value={onlyUnread ? "unread" : "all"}
-          onChange={(next) => setOnlyUnread(next === "unread")}
-          triggerClassName="moto-content-surface h-10 w-48 hover:border-gray-300"
-          options={[
+  const composeButton = messagingEnabled ? (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={() => setComposeOpen(true)}
+    >
+      Neue Nachricht
+    </Button>
+  ) : undefined;
+
+  // Der Fehler ersetzt den Inhalt nur, wenn nichts anzuzeigen ist. Liegt noch
+  // eine (möglicherweise veraltete) Liste vor, bleibt sie stehen und der
+  // Hinweis steht darüber.
+  const hasThreads = filteredThreads.length > 0;
+  const loadFailed = Boolean(error);
+  const filtersActive = searchTerm.trim().length > 0 || onlyUnread;
+  // Fehler- und Leerzustand ersetzen den Inhalt des Gerüsts. Solange das
+  // Verfassen-Fenster offen ist, muss der Inhalt gerendert werden, denn dort
+  // hängt das Fenster.
+  const bodyReplaced = !showSkeleton && !hasThreads && !composeOpen;
+
+  return (
+    <TenantPage
+      title="Nachrichten"
+      stats={inboxSummary}
+      statsLoading={showSkeleton}
+      actions={composeButton}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Person oder Kind suchen…",
+      }}
+      filters={[
+        {
+          id: "unread",
+          type: "dropdown",
+          label: "Nachrichten filtern",
+          value: onlyUnread ? "unread" : "all",
+          onChange: (next) => setOnlyUnread(next === "unread"),
+          options: [
             { value: "all", label: "Alle Nachrichten" },
             { value: "unread", label: "Nur ungelesen" },
-          ]}
-        />
-        {messagingEnabled && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setComposeOpen(true)}
-          >
-            Neue Nachricht
-          </Button>
+          ],
+        },
+      ]}
+      error={
+        bodyReplaced && loadFailed
+          ? "Nachrichten konnten nicht geladen werden."
+          : null
+      }
+      empty={
+        bodyReplaced && !loadFailed
+          ? {
+              icon: <MotoConceptIcon concept="parentConversations" size={48} />,
+              title: filtersActive
+                ? "Keine passenden Nachrichten"
+                : "Noch keine Nachrichten",
+              description: filtersActive
+                ? "Ändern Sie die Suche oder den Filter."
+                : messagingEnabled
+                  ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
+                  : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
+              action: filtersActive ? undefined : composeButton,
+            }
+          : null
+      }
+      // Der Ladezustand kommt aus dem Gerüst, nicht aus einem eigenen Skelett
+      // im Inhalt.
+      loading={showSkeleton}
+      overlays={
+        composeOpen ? (
+          <NewMessageModal
+            onClose={() => setComposeOpen(false)}
+            onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
+          />
+        ) : null
+      }
+    >
+      <>
+        {loadFailed && (
+          <Alert
+            type="error"
+            message="Nachrichten konnten nicht geladen werden."
+          />
         )}
-      </div>
 
-      {showSkeleton ? (
-        <MessagesSkeleton />
-      ) : (
-        <>
-          {error && (
-            <div className="mb-4">
-              <Alert
-                type="error"
-                message="Nachrichten konnten nicht geladen werden."
-              />
-            </div>
-          )}
+        <ul className="space-y-3">
+          {filteredThreads.map((thread) => {
+            const navigate = () => router.push(`/messages/${thread.thread_id}`);
 
-          {filteredThreads.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <MotoConceptIcon concept="parentConversations" size={48} />
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Noch keine Nachrichten
-                  </h3>
-                  <p className="text-gray-600">
-                    {messagingEnabled ? (
-                      <>
-                        Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
-                        <span className="font-medium text-gray-700">
-                          Neue Nachricht
-                        </span>{" "}
-                        können Sie selbst eine beginnen.
-                      </>
-                    ) : (
-                      "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
-                    )}
-                  </p>
-                </div>
-                {messagingEnabled && (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => setComposeOpen(true)}
-                  >
-                    Neue Nachricht
-                  </Button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {filteredThreads.map((thread) => {
-                const navigate = () =>
-                  router.push(`/messages/${thread.thread_id}`);
-
-                return (
-                  <li key={thread.thread_id}>
-                    <button
-                      type="button"
-                      onClick={navigate}
-                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <h3 className="truncate text-base font-semibold text-gray-900">
-                              {thread.guardian_name}
-                            </h3>
-                            <span className="truncate text-sm text-gray-500">
-                              {relationshipLabel(thread.relationship_type)} von{" "}
-                              {thread.student_name}
-                            </span>
-                            <UnreadBadge count={thread.unread_count} />
-                          </div>
-                          {thread.last_message_body && (
-                            <p className="mt-1 truncate text-sm text-gray-600">
-                              {thread.last_sender_kind === "staff" && (
-                                <span className="text-gray-500">Sie: </span>
-                              )}
-                              {thread.last_message_body}
-                            </p>
-                          )}
-                        </div>
-                        {thread.last_message_at && (
-                          <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                            {formatChatDateTime(thread.last_message_at)}
-                          </span>
-                        )}
+            return (
+              <li key={thread.thread_id}>
+                <TileCard onClick={navigate}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <h3 className="truncate text-base font-semibold text-gray-900">
+                          {thread.guardian_name}
+                        </h3>
+                        <span className="truncate text-sm text-gray-500">
+                          {relationshipLabel(thread.relationship_type)} von{" "}
+                          {thread.student_name}
+                        </span>
+                        <UnreadBadge count={thread.unread_count} />
                       </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </>
-      )}
-
-      {composeOpen && (
-        <NewMessageModal
-          onClose={() => setComposeOpen(false)}
-          onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
-        />
-      )}
-    </div>
+                      {thread.last_message_body && (
+                        <p className="mt-1 truncate text-sm text-gray-600">
+                          {thread.last_sender_kind === "staff" && (
+                            <span className="text-gray-500">Sie: </span>
+                          )}
+                          {thread.last_message_body}
+                        </p>
+                      )}
+                    </div>
+                    {thread.last_message_at && (
+                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                        {formatChatDateTime(thread.last_message_at)}
+                      </span>
+                    )}
+                  </div>
+                </TileCard>
+              </li>
+            );
+          })}
+        </ul>
+      </>
+    </TenantPage>
   );
 }
 

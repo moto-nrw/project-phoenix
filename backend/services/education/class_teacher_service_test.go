@@ -15,7 +15,7 @@ import (
 
 func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := educationSvc.NewService(
 		repos.Group,
 		repos.GroupTeacher,

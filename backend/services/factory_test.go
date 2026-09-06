@@ -33,7 +33,7 @@ func TestNewFactory(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NotNil(t, repos)
 
 	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
@@ -81,7 +81,7 @@ func TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t *t
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db), db, slog.Default(), testFactoryConfig())
+	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
 	_, err = factory.EnrollmentDeletion.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
@@ -92,7 +92,7 @@ func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	cfg := testFactoryConfig()
 	cfg.VAPIDPublicKey = "configured-without-the-other-required-values"
 
@@ -108,7 +108,7 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
@@ -122,7 +122,7 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = 500
@@ -138,7 +138,7 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = 72
@@ -154,7 +154,7 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
@@ -168,7 +168,7 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = 2000
@@ -184,7 +184,7 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = 60
@@ -200,7 +200,7 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.FrontendURL = "http://example.com/"
@@ -216,7 +216,7 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.FrontendURL = ""
@@ -230,7 +230,7 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 func TestNewFactory_PortalURLs_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	for _, tc := range []struct {
 		name, want string
@@ -255,7 +255,7 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.EmailFromName = "Test App"
@@ -288,7 +288,7 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = -10
@@ -304,7 +304,7 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = -10

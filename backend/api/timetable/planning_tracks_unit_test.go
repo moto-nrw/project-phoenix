@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -21,7 +20,7 @@ type planningTrackServiceStub struct {
 
 func (s *planningTrackServiceStub) ListPlanningTracks(context.Context) ([]*model.PlanningTrack, error) {
 	return []*model.PlanningTrack{{
-		Model: modelBase.Model{ID: 4}, Name: "Früh", Color: "#5080D8", SortOrder: 0,
+		Model: model.Model{ID: 4}, Name: "Früh", Color: "#5080D8", SortOrder: 0,
 	}}, nil
 }
 
@@ -32,7 +31,7 @@ func (s *planningTrackServiceStub) GetPlanningTrack(context.Context, int64) (*mo
 func (s *planningTrackServiceStub) CreatePlanningTrack(_ context.Context, input scheduleSvc.PlanningTrackInput) (*model.PlanningTrack, error) {
 	s.created = input
 	return &model.PlanningTrack{
-		Model: modelBase.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
+		Model: model.Model{ID: 5}, Name: input.Name, Color: input.Color, SortOrder: input.SortOrder,
 	}, nil
 }
 

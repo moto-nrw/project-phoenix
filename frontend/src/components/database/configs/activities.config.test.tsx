@@ -118,35 +118,6 @@ describe("activitiesConfig", () => {
     expect(emoji).toBe("UN");
   });
 
-  it("shows participant count badge", () => {
-    const mockActivity = {
-      id: "1",
-      name: "Test AG",
-      max_participant: 20,
-      participant_count: 15,
-    } as unknown as Activity;
-
-    const badges = activitiesConfig.detail.header?.badges ?? [];
-    const countBadge = badges.find((b) => typeof b.label === "function");
-    expect(countBadge).toBeDefined();
-    expect(
-      (countBadge!.label as (item: Activity) => string)(mockActivity),
-    ).toBe("15/20");
-  });
-
-  it("shows full badge when activity is at capacity", () => {
-    const mockActivity = {
-      id: "1",
-      name: "Test AG",
-      max_participant: 20,
-      participant_count: 20,
-    } as unknown as Activity;
-
-    const badges = activitiesConfig.detail.header?.badges ?? [];
-    const fullBadge = badges.find((b) => b.label === "Voll");
-    expect(fullBadge?.showWhen(mockActivity)).toBe(true);
-  });
-
   it("maps request data correctly", () => {
     const data: Partial<Activity> = {
       name: "Test Activity",

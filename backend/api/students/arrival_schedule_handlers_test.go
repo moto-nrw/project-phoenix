@@ -77,7 +77,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:       studentWithData.ID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &exceptionTime,
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
@@ -398,7 +398,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival reason"
 		guardian := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -457,7 +457,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		staffRow := &scheduleModel.StudentArrivalException{
 			StudentID:       chain.StudentID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &originalTime,
 			Reason:          &originalReason,
 			Source:          scheduleModel.ExceptionSourceStaff,
@@ -594,7 +594,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		originalReason := "Original reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:       student.ID,
-			ExceptionDate:   exceptionDate,
+			ExceptionDate:   scheduleModel.Date(exceptionDate),
 			ExpectedArrival: &exceptionTime,
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
@@ -634,7 +634,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
 			CreatedByGuardian: &chain.AccountID,
@@ -739,7 +739,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: exceptionDate,
+			ExceptionDate: scheduleModel.Date(exceptionDate),
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
@@ -768,7 +768,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		originalReason := "Parent arrival delete reason"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:         chain.StudentID,
-			ExceptionDate:     exceptionDate,
+			ExceptionDate:     scheduleModel.Date(exceptionDate),
 			ExpectedArrival:   &arrivalTime,
 			Reason:            &originalReason,
 			Source:            scheduleModel.ExceptionSourceGuardian,
@@ -953,7 +953,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 		noteDate := timezone.NewDate(2026, 4, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
@@ -1023,7 +1023,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 		noteDate := timezone.NewDate(2026, 6, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  noteDate,
+			NoteDate:  scheduleModel.Date(noteDate),
 			Content:   "To be deleted",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}

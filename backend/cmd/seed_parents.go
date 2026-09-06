@@ -114,7 +114,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	role, err := repos.Role.FindByName(ctx, "guardian")
 	if err != nil {

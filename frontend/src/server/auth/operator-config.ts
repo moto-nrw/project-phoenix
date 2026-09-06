@@ -10,6 +10,7 @@
  * BasePath: "/api/operator/auth"
  */
 
+import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
@@ -52,7 +53,11 @@ export const operatorAuthConfig = {
             logger.debug("handling operator internal token refresh", {});
           }
 
-          const payload = parseJwtPayload(creds.token);
+          const payload = await validateSessionToken(
+            creds.token,
+            "platform",
+            creds.refreshToken,
+          );
           if (!payload) return null;
 
           const email = payload.username ?? payload.email ?? "";

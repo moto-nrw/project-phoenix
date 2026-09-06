@@ -85,11 +85,11 @@ const coverByPath: Record<
 > = {
   ersteinrichtung: {
     label: "Setup Guide",
-    chips: ["Zugang", "Datenverwaltung", "Go-Live"],
+    chips: ["Zugang", "Stammdaten", "Go-Live"],
   },
   funktionen: {
     label: "App Guide",
-    chips: ["Aufsicht", "Suche", "Verwaltung"],
+    chips: ["Aufsicht", "Kinder", "Verwaltung"],
   },
   nfc: {
     label: "Tablet Guide",

@@ -23,7 +23,7 @@ import (
 // would have stored.
 func giveAccompaniedPlan(t *testing.T, db *bun.DB, ctx context.Context, studentID int64, days ...string) {
 	t.Helper()
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 
 	student, err := repo.FindByID(ctx, studentID)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
@@ -102,7 +102,7 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
@@ -137,7 +137,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
@@ -180,7 +180,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
@@ -224,7 +224,7 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
@@ -261,7 +261,7 @@ func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")

@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -85,11 +86,11 @@ func (s *service) courseSection(ctx context.Context, filters Filters, from, to, 
 		// nothing left to read, and the screen says so.
 		return nil, nil, totals, nil
 	}
-	instances, err := s.cfg.Courses.CourseInstances(ctx, from, to, today)
+	instances, err := s.cfg.Courses.CourseInstances(ctx, scheduleModel.Date(from), scheduleModel.Date(to), scheduleModel.Date(today))
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course instances: %w", err)
 	}
-	participation, err := s.cfg.Courses.CourseParticipation(ctx, from, to, today)
+	participation, err := s.cfg.Courses.CourseParticipation(ctx, scheduleModel.Date(from), scheduleModel.Date(to), scheduleModel.Date(today))
 	if err != nil {
 		return nil, nil, totals, fmt.Errorf("load course participation: %w", err)
 	}

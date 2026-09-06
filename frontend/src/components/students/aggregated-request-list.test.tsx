@@ -1,9 +1,10 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderComponent,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +20,8 @@ import {
   listEnrollmentChangeRequests,
   setFamilyProtection,
 } from "~/lib/change-request-list-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
 // Nur die Netzaufrufe ersetzen, den Rest des Moduls stehen lassen: die Liste
@@ -109,6 +112,9 @@ vi.mock("~/components/students/request-history-item", () => ({
     </div>
   ),
 }));
+
+const render = (ui: React.ReactNode) =>
+  renderComponent(ui, { wrapper: ToastProvider });
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockBulkApprove = vi.mocked(bulkApproveParentRequests);
@@ -392,9 +398,9 @@ describe("AggregatedRequestList", () => {
         "Alles geprüft",
       ),
     );
-    expect(
-      await screen.findByText("2 Anfragen wurden freigegeben."),
-    ).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "2 Anfragen wurden freigegeben.",
+    );
   });
 
   it("erklärt private Angaben und schaltet Familienschutz mit Begründung ein", async () => {
@@ -903,7 +909,7 @@ describe("AggregatedRequestList", () => {
     );
   });
 
-  it("entfernt eine entschiedene Zeile, zeigt den Hinweis und stößt das Badge an", async () => {
+  it("entfernt eine entschiedene Zeile, zeigt einen schließbaren Toast und stößt das Badge an", async () => {
     mockListOpen.mockResolvedValue({
       items: [openItem("master_data", "1"), openItem("excused", "4")],
     });
@@ -917,7 +923,13 @@ describe("AggregatedRequestList", () => {
 
     expect(screen.queryByText("master-item-1")).toBeNull();
     expect(screen.getByText("excused-item-4")).toBeInTheDocument();
-    expect(screen.getByText("Änderung übernommen")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Änderung übernommen");
+    expect(
+      within(screen.getByRole("status")).getByRole("button", {
+        name: "Schließen",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(refreshListener).toHaveBeenCalledTimes(1);
     // Der eigene Listener ist unterdrückt: kein zweiter Fetch durch das
     // selbst ausgelöste Event.

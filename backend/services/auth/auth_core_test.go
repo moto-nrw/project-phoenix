@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -47,7 +49,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 }
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
@@ -56,11 +58,30 @@ func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.A
 }
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(false))
-	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return &fixtureOwnedInvitationService{InvitationService: serviceFactory.Invitation, t: t, db: db}
+	t.Helper()
+	config := authTestFactoryConfig(false)
+	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
+	require.NoError(t, err)
+	repos, compositionErr := repositories.NewInvitationPersistence(db)
+	require.NoError(t, compositionErr)
+	service := auth.NewInvitationService(auth.InvitationServiceConfig{
+		TokenAuth:         signer,
+		InvitationRepo:    repos.InvitationToken,
+		AccountRepo:       repos.Account,
+		AccountTenantRepo: repos.AccountTenant,
+		RoleRepo:          repos.Role,
+		PermissionRepo:    repos.Permission,
+		AccountRoleRepo:   repos.AccountRole,
+		PersonRepo:        repos.Person,
+		StaffRepo:         repos.Staff, TeacherRepo: repos.Teacher,
+		StudentRepo: repos.Student,
+		SchoolRepo:  repos.School,
+		Mailer:      email.NewMockMailer(),
+		FrontendURL: config.FrontendURL, SchoolURL: config.SchoolURL,
+		InvitationExpiry: 48 * time.Hour, DB: db,
+	})
+	testpkg.SetTenantRuntime(t, service, db)
+	return &fixtureOwnedInvitationService{InvitationService: service, t: t, db: db}
 }
 
 type fixtureOwnedAuthService struct {

@@ -19,6 +19,8 @@ vi.mock("next-auth/react", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  // BackButton (via useTenantRouter) braucht useRouter.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 // Mock ToastContext
@@ -164,10 +166,12 @@ describe("StudentImportPage", () => {
     render(<StudentImportPage />);
 
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Format wählen")).toBeInTheDocument();
-    expect(screen.getByText("Vorlage herunterladen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Beispiel Geburtstag:/)).toBeInTheDocument();
   });
 
@@ -203,7 +207,9 @@ describe("StudentImportPage", () => {
 
     render(<StudentImportPage />);
 
-    const downloadButton = screen.getByText("Vorlage herunterladen");
+    const downloadButton = screen.getByRole("button", {
+      name: /Vorlage herunterladen/,
+    });
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
@@ -534,7 +540,9 @@ describe("StudentImportPage", () => {
 
     render(<StudentImportPage />);
 
-    const downloadButton = screen.getByText("Vorlage herunterladen");
+    const downloadButton = screen.getByRole("button", {
+      name: /Vorlage herunterladen/,
+    });
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
@@ -840,7 +848,9 @@ describe("StudentImportPage", () => {
 
     render(<StudentImportPage />);
 
-    const downloadButton = screen.getByText("Vorlage herunterladen");
+    const downloadButton = screen.getByRole("button", {
+      name: /Vorlage herunterladen/,
+    });
     fireEvent.click(downloadButton);
 
     await waitFor(() => {

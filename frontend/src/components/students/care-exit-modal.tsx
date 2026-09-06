@@ -9,7 +9,15 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { InfoCard } from "~/components/ui/info-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import {
   formatDate,
@@ -266,83 +274,97 @@ export function CareExitModal({
       : `Betreuung von ${ids.length} Kindern beenden`;
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      footer={footer}
-      isDismissDisabled={saving}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !saving) onClose();
+      }}
     >
-      <div className="space-y-4">
-        <WizardStepper steps={STEPS} current={step - 1} />
+      <SlideOverContent widthClass="sm:w-[640px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{title}</SlideOverTitle>
+            <SlideOverDescription>
+              {step === 1
+                ? "Schritt 1 von 2: Tag und Grund festlegen."
+                : "Schritt 2 von 2: Vorschau prüfen und bestätigen."}
+            </SlideOverDescription>
+          </div>
+          <SlideOverCloseButton disabled={saving} />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <WizardStepper steps={STEPS} current={step - 1} />
 
-        <p className="text-sm text-gray-600">
-          {completionId && !isCorrection
-            ? completionLastCareDay && completionLastCareDay >= todayISO()
-              ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
-              : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
-            : isCorrection
-              ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
-              : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
-        </p>
+          <p className="text-sm text-gray-600">
+            {completionId && !isCorrection
+              ? completionLastCareDay && completionLastCareDay >= todayISO()
+                ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
+                : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
+              : isCorrection
+                ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
+                : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
+          </p>
 
-        {error ? <Alert type="error" message={error} /> : null}
+          {error ? <Alert type="error" message={error} /> : null}
 
-        {step === 1 ? (
-          <div className="space-y-4">
-            <ISODatePicker
-              id="care-exit-last-day"
-              label="Letzter Betreuungstag"
-              value={lastCareDay}
-              onChange={setLastCareDay}
-              min={completionId ? undefined : todayISO()}
-              max={completionLastCareDay ?? undefined}
-              required
-            />
-            <div>
-              <label
-                id="care-exit-reason-label"
-                htmlFor="care-exit-reason"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                Grund
-              </label>
-              <CustomSelect
-                id="care-exit-reason"
-                value={reason}
-                options={REASON_OPTIONS}
-                onChange={(value) => {
-                  setReason(value as CareExitReason | "");
-                  if (value !== "other") setNote("");
-                }}
-                ariaLabelledBy="care-exit-reason-label"
+          {step === 1 ? (
+            <div className="space-y-4">
+              <ISODatePicker
+                id="care-exit-last-day"
+                label="Letzter Betreuungstag"
+                value={lastCareDay}
+                onChange={setLastCareDay}
+                min={completionId ? undefined : todayISO()}
+                max={completionLastCareDay ?? undefined}
                 required
               />
+              <div>
+                <label
+                  id="care-exit-reason-label"
+                  htmlFor="care-exit-reason"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Grund
+                </label>
+                <CustomSelect
+                  id="care-exit-reason"
+                  value={reason}
+                  options={REASON_OPTIONS}
+                  onChange={(value) => {
+                    setReason(value as CareExitReason | "");
+                    if (value !== "other") setNote("");
+                  }}
+                  ariaLabelledBy="care-exit-reason-label"
+                  required
+                />
+              </div>
+              {noteRequired ? (
+                <Input
+                  id="care-exit-note"
+                  label="Kurze Erklärung"
+                  value={note}
+                  maxLength={CARE_EXIT_NOTE_MAX_LENGTH}
+                  placeholder="Zum Beispiel: Wechsel in eine andere Betreuung"
+                  onChange={(event) => setNote(event.target.value)}
+                />
+              ) : null}
+              <p className="text-sm text-gray-500">
+                {ids.length === 1
+                  ? "Ein Kind ist ausgewählt."
+                  : `${ids.length} Kinder sind ausgewählt. Alle bekommen denselben Tag und denselben Grund.`}
+              </p>
             </div>
-            {noteRequired ? (
-              <Input
-                id="care-exit-note"
-                label="Kurze Erklärung"
-                value={note}
-                maxLength={CARE_EXIT_NOTE_MAX_LENGTH}
-                placeholder="Zum Beispiel: Wechsel in eine andere Betreuung"
-                onChange={(event) => setNote(event.target.value)}
-              />
-            ) : null}
-            <p className="text-sm text-gray-500">
-              {ids.length === 1
-                ? "Ein Kind ist ausgewählt."
-                : `${ids.length} Kinder sind ausgewählt. Alle bekommen denselben Tag und denselben Grund.`}
-            </p>
-          </div>
-        ) : null}
+          ) : null}
 
-        {step === 2 && preview ? (
-          <CareExitPreviewList preview={preview} />
-        ) : null}
-      </div>
-    </Modal>
+          {step === 2 && preview ? (
+            <CareExitPreviewList preview={preview} />
+          ) : null}
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

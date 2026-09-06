@@ -111,7 +111,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
   {
     kind: "link",
     key: "enroll",
-    href: "/parents/enroll",
+    href: "/parents/anmeldung",
     tKey: "enroll",
     concept: "enrollments",
   },

@@ -27,7 +27,7 @@ func (d dateSet) ClosingDayDates(context.Context, timezone.Date, timezone.Date) 
 
 type periodList []*scheduleModels.CalendarPeriod
 
-func (p periodList) FindActiveOverlappingByType(context.Context, string, timezone.Date, timezone.Date, int64) ([]*scheduleModels.CalendarPeriod, error) {
+func (p periodList) FindActiveOverlappingByType(context.Context, string, scheduleModels.Date, scheduleModels.Date, int64) ([]*scheduleModels.CalendarPeriod, error) {
 	return p, nil
 }
 
@@ -60,8 +60,8 @@ func TestCareDays_UnionOfExclusions(t *testing.T) {
 		Holidays:    dateSet{mon: true},
 		ClosingDays: dateSet{mon: true, timezone.NewDate(2026, 6, 9): true},
 		Periods: periodList{{
-			StartDate: timezone.NewDate(2026, 6, 13), // Saturday
-			EndDate:   timezone.NewDate(2026, 6, 15), // Monday
+			StartDate: scheduleModels.NewDate(2026, 6, 13), // Saturday
+			EndDate:   scheduleModels.NewDate(2026, 6, 15), // Monday
 		}},
 		Now: fixedNow,
 	}}
@@ -85,8 +85,8 @@ func TestCareDays_ClampsHolidayPeriodToWindow(t *testing.T) {
 	from, to := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 12)
 	svc := &service{cfg: Config{
 		Periods: periodList{{
-			StartDate: timezone.NewDate(1900, 1, 1),
-			EndDate:   timezone.NewDate(2100, 1, 1),
+			StartDate: scheduleModels.NewDate(1900, 1, 1),
+			EndDate:   scheduleModels.NewDate(2100, 1, 1),
 		}},
 		Now: fixedNow,
 	}}

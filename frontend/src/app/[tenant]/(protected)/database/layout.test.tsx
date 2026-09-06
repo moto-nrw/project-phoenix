@@ -68,7 +68,7 @@ describe("DatabaseLayout", () => {
     expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Du verfügst nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen.",
+        "Sie verfügen nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();

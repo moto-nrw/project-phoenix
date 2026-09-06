@@ -304,7 +304,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
 	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
-	deps.pickupService.byStudent[527] = &EffectivePickupTime{Date: deps.instanceRepo.byDate[0].Date, PickupTime: &pickup}
+	deps.pickupService.byStudent[527] = &EffectivePickupTime{Date: timezone.Date(deps.instanceRepo.byDate[0].Date), PickupTime: &pickup}
 
 	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
 		HorizonMinutes: 120,
@@ -588,7 +588,7 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 664, 489, 254, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.instanceRepo.byID[instanceID].Date = blockDate
+	deps.instanceRepo.byID[instanceID].Date = scheduleModel.Date(blockDate)
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
 		{StudentID: 548, Status: scheduleModel.AttendanceStatusExpected},
 		{StudentID: 549, Status: scheduleModel.AttendanceStatusExpected},
@@ -1953,7 +1953,7 @@ func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleM
 
 func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(start.Year(), start.Month(), start.Day()),
+		Date:      scheduleModel.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
@@ -2106,7 +2106,7 @@ func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id interface{}) (*sche
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
@@ -2155,7 +2155,7 @@ type fakeOpsInstanceStudentRepo struct {
 	parallelPresenceCall int
 }
 
-func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ timezone.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ scheduleModel.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
 	r.parallelPresenceCall++
 	if r.parallelPresenceErr != nil {
 		return nil, r.parallelPresenceErr

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -66,7 +65,7 @@ func clock(hour, minute int) time.Time {
 }
 
 func shift(id, staffID int64, date timezone.Date, from, to time.Time) *scheduleModel.StaffShift {
-	s := &scheduleModel.StaffShift{StaffID: staffID, Date: date, StartTime: from, EndTime: to}
+	s := &scheduleModel.StaffShift{StaffID: staffID, Date: scheduleModel.Date(date), StartTime: from, EndTime: to}
 	s.ID = id
 	return s
 }
@@ -618,9 +617,9 @@ func (s stubClosingDays) ClosingDaysInRange(context.Context, timezone.Date, time
 
 func closingRange(start, end timezone.Date, reason string) *scheduleModel.ClosingDay {
 	return &scheduleModel.ClosingDay{
-		Model:     base.Model{},
-		StartDate: start,
-		EndDate:   end,
+		Model:     scheduleModel.Model{},
+		StartDate: scheduleModel.Date(start),
+		EndDate:   scheduleModel.Date(end),
 		Reason:    reason,
 	}
 }

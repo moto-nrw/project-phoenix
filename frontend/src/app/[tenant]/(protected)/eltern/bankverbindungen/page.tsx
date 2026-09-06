@@ -4,11 +4,12 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Landmark, Lock } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import {
@@ -97,17 +98,15 @@ function BankverbindungenContent() {
     });
   }, [rows, searchValue, completeness]);
 
-  // The caption states how complete the list is rather than repeating the page
-  // name — two labels sharing the stem "Bankverbindung" would read as two
-  // different things. Once a search or filter narrows the list it says how much
-  // of it is on screen instead, so the number never contradicts the rows below.
-  const captionText = (() => {
-    if (isLoading) return "Liste wird geladen…";
-    if (visibleRows.length !== rows.length) {
-      return `${visibleRows.length} von ${rows.length} Kindern`;
-    }
-    return `${rows.length} Kinder, davon ${rows.length - missingCount} mit Bankverbindung`;
-  })();
+  // Statuszeile der Kopfkarte: wie vollständig die Liste ist. Der Tabellen-
+  // Untertitel sagt stattdessen, wie viel davon gerade zu sehen ist, sobald
+  // Suche oder Filter die Liste verkürzen — so widerspricht keine Zahl den
+  // Zeilen darunter.
+  const statusLine = `${rows.length} Kinder · ${rows.length - missingCount} mit Bankverbindung · ${missingCount} ohne`;
+  const captionText =
+    visibleRows.length !== rows.length
+      ? `${visibleRows.length} von ${rows.length} Kindern`
+      : undefined;
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -139,7 +138,7 @@ function BankverbindungenContent() {
       header: "Klasse",
       stacked: "meta",
       render: (row) => (
-        <span className="text-gray-600">{row.schoolClass || "—"}</span>
+        <span className="text-gray-600">{row.schoolClass || "–"}</span>
       ),
       sortValue: (row) => row.schoolClass,
     },
@@ -189,88 +188,85 @@ function BankverbindungenContent() {
 
   if (status !== "loading" && !canRead) {
     return (
-      <div className="p-4 sm:p-6">
-        <EmptyState
-          icon={<Lock className="h-12 w-12" />}
-          title="Kein Zugriff auf Bankverbindungen"
-          description="Sie brauchen dafür die Berechtigung „Bankverbindungen“. Bitte fragen Sie in der Schulleitung nach."
-        />
-      </div>
+      <TenantPage
+        title="Bankverbindungen"
+        stats="Kein Zugriff"
+        empty={{
+          icon: <Lock className="h-12 w-12" />,
+          title: "Kein Zugriff auf Bankverbindungen",
+          description:
+            "Sie brauchen dafür die Berechtigung „Bankverbindungen“. Bitte fragen Sie in der Schulleitung nach.",
+        }}
+      />
     );
   }
 
   return (
-    <div className="pb-10">
-      <PageHeaderWithSearch
-        title="Bankverbindungen"
-        concept="parents"
-        search={{
-          value: searchValue,
-          onChange: setSearchValue,
-          placeholder: "Kind, Klasse oder Kontoinhaber suchen",
-        }}
+    <TenantPage
+      title="Bankverbindungen"
+      stats={statusLine}
+      statsLoading={isLoading}
+      search={{
+        value: searchValue,
+        onChange: setSearchValue,
+        placeholder: "Kind, Klasse oder Kontoinhaber suchen",
+      }}
+      // Die Auswahl „Alle Kinder / Ohne IBAN“ filtert die Liste darunter und
+      // gehört deshalb in die Such- und Filterzeile, als Wertauswahl.
+      primaryAction={
+        <SegmentedControl<CompletenessFilter>
+          ariaLabel="Auswahl der angezeigten Kinder"
+          value={completeness}
+          onChange={setCompleteness}
+          items={[
+            { value: "all", label: `Alle Kinder (${rows.length})` },
+            { value: "missing", label: `Ohne IBAN (${missingCount})` },
+          ]}
+        />
+      }
+      actions={
+        <>
+          <SegmentedControl<PaymentExportFormat>
+            ariaLabel="Dateiformat des Exports"
+            value={format}
+            onChange={setFormat}
+            items={(Object.keys(FORMAT_LABELS) as PaymentExportFormat[]).map(
+              (key) => ({ value: key, label: FORMAT_LABELS[key] }),
+            )}
+          />
+          <Button
+            type="button"
+            size="md"
+            onClick={() => void handleExport()}
+            disabled={isExporting || rows.length === 0}
+          >
+            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+            {isExporting ? "Wird erstellt…" : "Herunterladen"}
+          </Button>
+        </>
+      }
+    >
+      <Alert
+        type="info"
+        message="Die IBAN tragen Sie beim Kind ein, im Reiter „Erziehungsberechtigte“. Die Datei enthält die ganzen IBANs und wird protokolliert. Bitte nicht per E-Mail weitergeben."
       />
 
-      <div className="space-y-4 px-4 sm:px-6">
-        <p className="max-w-3xl text-sm text-gray-600">
-          Von welchem Konto der Beitrag je Kind eingezogen wird. Die IBAN tragen
-          Sie beim Kind ein, im Reiter „Erziehungsberechtigte“.
-        </p>
-
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <SegmentedControl<CompletenessFilter>
-            ariaLabel="Auswahl der angezeigten Kinder"
-            value={completeness}
-            onChange={setCompleteness}
-            items={[
-              { value: "all", label: `Alle Kinder (${rows.length})` },
-              { value: "missing", label: `Ohne IBAN (${missingCount})` },
-            ]}
-          />
-
-          <div className="flex flex-wrap items-end gap-2">
-            <SegmentedControl<PaymentExportFormat>
-              ariaLabel="Dateiformat des Exports"
-              value={format}
-              onChange={setFormat}
-              items={(Object.keys(FORMAT_LABELS) as PaymentExportFormat[]).map(
-                (key) => ({ value: key, label: FORMAT_LABELS[key] }),
-              )}
-            />
-            <Button
-              type="button"
-              size="md"
-              onClick={() => void handleExport()}
-              disabled={isExporting || rows.length === 0}
-            >
-              <Download className="mr-1.5 h-4 w-4" aria-hidden />
-              {isExporting ? "Wird erstellt…" : "Herunterladen"}
-            </Button>
-          </div>
-        </div>
-
-        <p className="max-w-3xl text-xs text-gray-500">
-          Die Datei enthält die ganzen IBANs und wird protokolliert. Bitte nicht
-          per E-Mail weitergeben.
-        </p>
-
-        {/* A four-column table on a phone pushes the IBAN — the one value the
-            page exists for — off screen, so the kit table renders its stacked
-            phone layout below md. */}
-        <DataTable
-          columns={columns}
-          rows={visibleRows}
-          getRowKey={(row) => row.studentId}
-          isLoading={isLoading}
-          defaultSortKey="student"
-          caption={captionText}
-          pageSize={ROWS_PER_PAGE}
-          paginationResetKey={`${completeness}:${searchValue}`}
-          emptyState={emptyState}
-          stackedOnMobile
-        />
-      </div>
-    </div>
+      {/* A four-column table on a phone pushes the IBAN — the one value the
+          page exists for — off screen, so the kit table renders its stacked
+          phone layout below md. */}
+      <DataTable
+        columns={columns}
+        rows={visibleRows}
+        getRowKey={(row) => row.studentId}
+        isLoading={isLoading}
+        defaultSortKey="student"
+        caption={captionText}
+        pageSize={ROWS_PER_PAGE}
+        paginationResetKey={`${completeness}:${searchValue}`}
+        emptyState={emptyState}
+        stackedOnMobile
+      />
+    </TenantPage>
   );
 }
 

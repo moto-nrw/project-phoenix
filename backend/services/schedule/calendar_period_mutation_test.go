@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,12 +36,12 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	})
 	ctx := testpkg.TenantContext(tenantID)
 
-	repo := repositories.NewFactory(db).CalendarPeriod
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("Care-link-preflight-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(2026, time.August, 1),
-		EndDate:         timezone.NewDate(2027, time.July, 31),
+		StartDate:       scheduleModel.NewDate(2026, time.August, 1),
+		EndDate:         scheduleModel.NewDate(2027, time.July, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -63,8 +62,8 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	})
 
 	updated := *period
-	updated.StartDate = timezone.NewDate(2026, time.September, 1)
-	updated.EndDate = timezone.NewDate(2027, time.June, 30)
+	updated.StartDate = scheduleModel.NewDate(2026, time.September, 1)
+	updated.EndDate = scheduleModel.NewDate(2027, time.June, 30)
 	err := service.UpdatePeriod(ctx, &updated)
 	require.ErrorIs(t, err, scheduleModel.ErrCalendarPeriodCareOfferingConflict)
 

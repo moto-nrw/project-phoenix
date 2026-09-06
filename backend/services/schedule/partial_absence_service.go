@@ -83,7 +83,7 @@ func NewPartialAbsenceService(
 func (s *partialAbsenceService) List(
 	ctx context.Context, studentID int64, from, to timezone.Date,
 ) ([]*scheduleModel.StudentPickupException, error) {
-	rows, err := s.pickups.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	rows, err := s.pickups.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (s *partialAbsenceService) Create(
 			return err
 		}
 
-		existing, err := s.pickups.FindByStudentIDAndDate(txCtx, input.StudentID, input.Date)
+		existing, err := s.pickups.FindByStudentIDAndDate(txCtx, input.StudentID, scheduleModel.Date(input.Date))
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func (s *partialAbsenceService) Create(
 		} else {
 			result = &scheduleModel.StudentPickupException{
 				StudentID:             input.StudentID,
-				ExceptionDate:         input.Date,
+				ExceptionDate:         scheduleModel.Date(input.Date),
 				PickupTime:            &clock,
 				ExcusedFrom:           &clock,
 				ExcusedReason:         reason,
@@ -202,7 +202,7 @@ func (s *partialAbsenceService) Update(
 			}
 			return ErrPartialAbsenceNotFound
 		}
-		if row.StudentID != input.StudentID || row.ExceptionDate != input.Date {
+		if row.StudentID != input.StudentID || row.ExceptionDate != scheduleModel.Date(input.Date) {
 			return ErrPartialAbsenceWrongStudent
 		}
 		if row.ExcusedFrom == nil {
@@ -253,7 +253,7 @@ func (s *partialAbsenceService) Delete(ctx context.Context, exceptionID, student
 		if row.StudentID != studentID {
 			return ErrPartialAbsenceWrongStudent
 		}
-		if err := LockCareExceptionDay(txCtx, s.db, studentID, row.ExceptionDate); err != nil {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, timezone.Date(row.ExceptionDate)); err != nil {
 			return err
 		}
 		row, err = s.pickups.FindByID(txCtx, exceptionID)

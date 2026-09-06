@@ -14,9 +14,10 @@ import {
   UserMinus,
 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -55,6 +56,8 @@ import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -80,6 +83,7 @@ export default function StudentsPage() {
 }
 
 function StudentsPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
@@ -267,6 +271,23 @@ function StudentsPageContent() {
       .sort((a, b) => a.label.localeCompare(b.label));
   });
 
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Kinderliste.
+  const statusLine = useMemo(() => {
+    const students = studentsData ?? [];
+    const classes = new Set(
+      students.map((s) => s.school_class?.trim()).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(students.length)} ${students.length === 1 ? "Kind" : "Kinder"}`,
+    ];
+    if (classes > 0) {
+      parts.push(
+        `${formatCount(classes)} ${classes === 1 ? "Klasse" : "Klassen"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [studentsData]);
+
   const filteredStudents = useMemo(() => {
     const students = studentsData ?? [];
     let filtered = [...students];
@@ -362,7 +383,7 @@ function StudentsPageContent() {
     }) => {
       await createClassListEntry(input);
       toastSuccess(
-        "Klassenlisteneintrag angelegt — zu finden im Menü oben rechts unter Klassenliste",
+        "Klassenlisteneintrag angelegt, zu finden im Menü oben rechts unter Klassenliste",
       );
     },
     [toastSuccess],
@@ -495,7 +516,7 @@ function StudentsPageContent() {
   const canUpdateStudents = hasPermission(session, "users:update");
 
   // Kopfzeilen-Aktionen des Detailbereichs. "Betreuung beenden" steht neben
-  // "Löschen", weil beides dieselbe Berechtigung braucht — aber ein regulärer
+  // "Löschen", weil beides dieselbe Berechtigung braucht, aber ein regulärer
   // Austritt löscht nichts, deshalb ist er kein roter Knopf (#2487).
   const detailActions =
     selectedStudent && canDeleteStudents ? (
@@ -565,11 +586,188 @@ function StudentsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={errorMessage}
+      empty={
+        filteredStudents.length === 0
+          ? {
+              title:
+                searchTerm || groupFilter !== "all"
+                  ? "Keine Kinder gefunden"
+                  : "Keine Kinder vorhanden",
+              description:
+                searchTerm || groupFilter !== "all"
+                  ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse:
+                    // das Kind KANN es geben, es ist nur nicht mehr in
+                    // Betreuung (#2487).
+                    canDeleteStudents
+                    ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
+                    : "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie das erste Kind an, um mit der Betreuung zu starten.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.children.icon}
+                  tone={MOTO_CONCEPTS.children.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm ||
+                groupFilter !== "all" ||
+                !canCreateStudents ? undefined : (
+                  <DatabaseCreateAction
+                    label="Kind"
+                    ariaLabel="Kind anlegen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <StudentCreateModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreate={handleCreateStudent}
+            // Same gate as POST /api/class-list-entries (users:create) — without
+            // the permission the modal must not offer the "Nur Klassenliste" mode.
+            onCreateListEntry={
+              canCreateStudents ? handleCreateListEntry : undefined
+            }
+            groups={allGroups}
+          />
+
+          {careExitIds ? (
+            <CareExitModal
+              isOpen
+              studentIds={careExitIds}
+              plannedLastCareDay={careExitPlannedDay ?? undefined}
+              onClose={() => {
+                setCareExitIds(null);
+                setCareExitPlannedDay(null);
+              }}
+              onFinished={async () => {
+                setCareExitIds(null);
+                setCareExitPlannedDay(null);
+                finishSelection();
+                handleSelect(null);
+                await tenantMutate("database-students-list");
+              }}
+            />
+          ) : null}
+
+          {resumeTarget ? (
+            <CareResumeModal
+              isOpen
+              studentId={String(resumeTarget.id)}
+              displayName={studentsConfig.list.item.title(resumeTarget)}
+              onClose={() => setResumeTarget(null)}
+              onResumed={async () => {
+                setResumeTarget(null);
+                await tenantMutate("database-students-list");
+              }}
+            />
+          ) : null}
+
+          {deleteTarget ? (
+            <StudentDeletionModal
+              isOpen
+              studentId={String(deleteTarget.id)}
+              displayName={studentsConfig.list.item.title(deleteTarget)}
+              onClose={() => setDeleteTarget(null)}
+              onDeleted={handleStudentDeleted}
+            />
+          ) : null}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Kinder",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <>
+            {!isMobile ? (
+              <>
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STUDENTS_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+                <Link
+                  href={tenantPath("/database/students/import")}
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Importieren
+                </Link>
+              </>
+            ) : null}
+            {canUpdateStudents ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-pressed={selectionMode}
+                className={cn(
+                  "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
+                  selectionMode && "ring-gray-900 hover:ring-gray-900",
+                )}
+                onClick={() => {
+                  if (selectionMode) {
+                    finishSelection();
+                    return;
+                  }
+                  handleSelect(null);
+                  setSelectionMode(true);
+                }}
+              >
+                <ListChecks className="h-4 w-4" aria-hidden />
+                Auswählen
+              </Button>
+            ) : null}
+            <DatabaseCreateAction
+              label="Kinder"
+              ariaLabel="Kind erstellen"
+              onClick={() => setShowCreateModal(true)}
+            />
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                ...(hasPermission(session, "grade_transitions:read")
+                  ? [
+                      {
+                        label: "Jahrgangswechsel",
+                        icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/grade-transitions"),
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Klassenliste",
+                  icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list"),
+                  onClick: () => undefined,
+                },
+                ...(canDeleteStudents
+                  ? [
+                      {
+                        label: "Beendete Betreuungen",
+                        icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/students/ended-care"),
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Kinder" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -584,7 +782,7 @@ function StudentsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Kinder suchen...",
+            placeholder: "Kinder suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -592,94 +790,9 @@ function StudentsPageContent() {
             setSearchTerm("");
             setGroupFilter("all");
           }}
-          // Sekundäre Navigationsziele (Jahrgangswechsel, Klassenliste) liegen
-          // im Kebab-Menü: als vierter und fünfter Textbutton sprengten sie
-          // die Aktionszeile auf üblichen Laptop-Breiten (#2382 Review).
-          overflowMenu={[
-            ...(hasPermission(session, "grade_transitions:read")
-              ? [
-                  {
-                    label: "Jahrgangswechsel",
-                    icon: <GraduationCap className="h-4 w-4" aria-hidden />,
-                    href: "/database/grade-transitions",
-                    // Navigation only — OverflowMenu verlangt onClick auch bei href.
-                    onClick: () => undefined,
-                  },
-                ]
-              : []),
-            {
-              label: "Klassenliste",
-              icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-              href: "/database/students/class-list",
-              onClick: () => undefined,
-            },
-            ...(canDeleteStudents
-              ? [
-                  {
-                    label: "Beendete Betreuungen",
-                    icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                    href: "/database/students/ended-care",
-                    onClick: () => undefined,
-                  },
-                ]
-              : []),
-          ]}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <>
-                  <DatabaseGroupingToggle
-                    value={grouping}
-                    options={STUDENTS_GROUPING_OPTIONS}
-                    onChange={handleGroupingChange}
-                  />
-                  <Link
-                    href="/database/students/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
-                </>
-              ) : null}
-              {canUpdateStudents ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  aria-pressed={selectionMode}
-                  className={cn(
-                    "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
-                    selectionMode && "ring-gray-900 hover:ring-gray-900",
-                  )}
-                  onClick={() => {
-                    if (selectionMode) {
-                      finishSelection();
-                      return;
-                    }
-                    handleSelect(null);
-                    setSelectionMode(true);
-                  }}
-                >
-                  <ListChecks className="h-4 w-4" aria-hidden />
-                  Auswählen
-                </Button>
-              ) : null}
-              <DatabaseCreateAction
-                label="Kinder"
-                ariaLabel="Kind erstellen"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
-      </div>
-
-      {errorMessage ? (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-4 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{errorMessage}</p>
-        </div>
-      ) : null}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <StudentsMasterDetail
@@ -711,86 +824,6 @@ function StudentsPageContent() {
             }
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.children.icon}
-              tone={MOTO_CONCEPTS.children.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm || groupFilter !== "all"
-              ? "Keine Kinder gefunden"
-              : "Keine Kinder vorhanden"
-          }
-          description={
-            searchTerm || groupFilter !== "all"
-              ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse: das
-                // Kind KANN es geben, es ist nur nicht mehr in Betreuung
-                // (#2487).
-                canDeleteStudents
-                ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
-                : "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Kinder erstellt."
-          }
-        />
-      ) : null}
-
-      <StudentCreateModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateStudent}
-        // Same gate as POST /api/class-list-entries (users:create) — without
-        // the permission the modal must not offer the "Nur Klassenliste" mode.
-        onCreateListEntry={
-          canCreateStudents ? handleCreateListEntry : undefined
-        }
-        groups={allGroups}
-      />
-
-      {careExitIds ? (
-        <CareExitModal
-          isOpen
-          studentIds={careExitIds}
-          plannedLastCareDay={careExitPlannedDay ?? undefined}
-          onClose={() => {
-            setCareExitIds(null);
-            setCareExitPlannedDay(null);
-          }}
-          onFinished={async () => {
-            setCareExitIds(null);
-            setCareExitPlannedDay(null);
-            finishSelection();
-            handleSelect(null);
-            await tenantMutate("database-students-list");
-          }}
-        />
-      ) : null}
-
-      {resumeTarget ? (
-        <CareResumeModal
-          isOpen
-          studentId={String(resumeTarget.id)}
-          displayName={studentsConfig.list.item.title(resumeTarget)}
-          onClose={() => setResumeTarget(null)}
-          onResumed={async () => {
-            setResumeTarget(null);
-            await tenantMutate("database-students-list");
-          }}
-        />
-      ) : null}
-
-      {deleteTarget ? (
-        <StudentDeletionModal
-          isOpen
-          studentId={String(deleteTarget.id)}
-          displayName={studentsConfig.list.item.title(deleteTarget)}
-          onClose={() => setDeleteTarget(null)}
-          onDeleted={handleStudentDeleted}
-        />
       ) : null}
     </DatabasePageLayout>
   );

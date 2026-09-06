@@ -17,7 +17,7 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 
@@ -61,7 +61,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 

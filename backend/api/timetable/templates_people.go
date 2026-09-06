@@ -40,14 +40,14 @@ func (rs *Resource) templateRosterValidFrom(
 		return timezone.Date(""), err
 	}
 	if startDate != nil {
-		if startDate.Before(period.StartDate) || startDate.After(period.EndDate) {
+		if startDate.Before(timezone.Date(period.StartDate)) || startDate.After(timezone.Date(period.EndDate)) {
 			return timezone.Date(""), fmt.Errorf("%w (%s to %s)",
 				errTemplateStartDateOutsidePeriod,
 				period.StartDate.String(), period.EndDate.String())
 		}
 		return *startDate, nil
 	}
-	return period.StartDate, nil
+	return timezone.Date(period.StartDate), nil
 }
 
 func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err error) {

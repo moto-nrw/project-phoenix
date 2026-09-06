@@ -4,7 +4,6 @@ import (
 	"context"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -65,51 +64,23 @@ func (r personSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, g
 }
 
 func attachPlannedSupervisorPersons(ctx context.Context, query peopledirectory.Query, rows []*activitiesModels.SupervisorPlanned) error {
-	staff := make([]*usersModels.Staff, 0, len(rows))
+	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		if row != nil && row.Staff != nil {
-			staff = append(staff, row.Staff)
+		if row != nil && row.StaffPersonID > 0 {
+			personIDs = append(personIDs, row.StaffPersonID)
 		}
 	}
-	return attachStaffPersons(ctx, query, staff)
-}
-
-// personStudentEnrollmentRepository attaches Student.Person to the
-// enrollments of a group.
-type personStudentEnrollmentRepository struct {
-	activitiesModels.StudentEnrollmentRepository
-	persons peopledirectory.Query
-}
-
-func (r personStudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.StudentEnrollment, error) {
-	rows, err := r.StudentEnrollmentRepository.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	students := make([]*usersModels.Student, 0, len(rows))
-	for _, row := range rows {
-		if row != nil && row.Student != nil {
-			students = append(students, row.Student)
-		}
-	}
-	return rows, attachStudentPersons(ctx, r.persons, students)
-}
-
-// attachStudentPersons resolves Student.Person for every student row.
-// Students without a resolvable person keep a nil Person, matching the
-// previous LEFT JOIN.
-func attachStudentPersons(ctx context.Context, query peopledirectory.Query, students []*usersModels.Student) error {
-	ids := make([]int64, 0, len(students))
-	for _, student := range students {
-		ids = append(ids, student.PersonID)
-	}
-	persons, err := personsByID(ctx, query, ids)
+	persons, err := personsByID(ctx, query, personIDs)
 	if err != nil {
 		return err
 	}
-	for _, student := range students {
-		if person, found := persons[student.PersonID]; found {
-			student.Person = toLegacyPerson(person)
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		if person, found := persons[row.StaffPersonID]; found {
+			row.FirstName = person.FirstName
+			row.LastName = person.LastName
 		}
 	}
 	return nil

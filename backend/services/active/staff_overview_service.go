@@ -291,7 +291,7 @@ func (s *staffOverviewService) buildPrefetch(
 	if prefetch.adjustments, err = s.adjustmentRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
 		return nil, fmt.Errorf("failed to prefetch balance adjustments: %w", err)
 	}
-	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
+	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, scheduleModels.Date(from), scheduleModels.Date(to)); err != nil {
 		return nil, fmt.Errorf("failed to prefetch staff shifts: %w", err)
 	}
 	scheduleEntries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(from), workforceDate(to))
@@ -741,7 +741,8 @@ func (s *staffOverviewService) expectedClockedIn(
 	activeIDs map[int64]bool,
 	today timezone.Date,
 ) (int, error) {
-	shifts, err := s.shiftRepo.FindByDateRange(ctx, today, today)
+	shiftDate := scheduleModels.Date(today)
+	shifts, err := s.shiftRepo.FindByDateRange(ctx, shiftDate, shiftDate)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load today's shifts: %w", err)
 	}

@@ -179,7 +179,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).ActiveGroup
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups

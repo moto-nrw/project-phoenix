@@ -55,7 +55,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		before, err := service.GetDashboardAnalytics(ctx)
 		require.NoError(t, err)
 
-		statusRepo := repositories.NewFactory(db).StudentStatusDay
+		statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 		plannedExcusedStudent := testpkg.CreateTestStudent(t, db, "PlannedExcused", "Dashboard", "PE1")
 		legacyOverlapStudent := testpkg.CreateTestStudent(t, db, "LegacyOverlap", "Dashboard", "PE2")
 
@@ -152,7 +152,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "TenantA", "ClassTrip", "CTA")
 		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
 
-		statusRepo := repositories.NewFactory(db).StudentStatusDay
+		statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &activeModels.StudentStatusDay{
 			StudentID:  studentA.ID,

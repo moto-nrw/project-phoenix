@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"regexp"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // conflictAckFingerprintPattern matches the hex fingerprints produced by the
@@ -34,8 +32,8 @@ const MaxConflictAcksPerAccount = 500
 // This is per-user data state, NOT a tenant-wide setting: two admins of the
 // same school each dismiss their own banner entries.
 type TimetableConflictAck struct {
-	base.Model `bun:"schema:schedule,table:timetable_conflict_acks"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:timetable_conflict_acks"`
+	TenantModel
 
 	AccountID   int64  `bun:"account_id,notnull" json:"account_id"`
 	Fingerprint string `bun:"fingerprint,notnull" json:"fingerprint"`
@@ -64,7 +62,7 @@ func ValidConflictAckFingerprint(fingerprint string) bool {
 // WithTenantFilter path; the account scoping is an explicit parameter because
 // acks are per-user data, not per-tenant data.
 type TimetableConflictAckRepository interface {
-	base.Repository[*TimetableConflictAck]
+	repository[*TimetableConflictAck]
 
 	// ListFingerprintsByAccount returns every fingerprint the account has
 	// acknowledged in the current tenant.

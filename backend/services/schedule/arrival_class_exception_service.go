@@ -67,7 +67,7 @@ func (s *arrivalScheduleService) ListClassArrivalExceptions(
 	if class == "" {
 		return []*schedule.ClassArrivalException{}, nil
 	}
-	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, []string{class}, from, to)
+	rows, err := s.classExceptions.FindByClassesAndDateRange(ctx, []string{class}, schedule.Date(from), schedule.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: opListClassArrivalExceptions, Err: err}
 	}
@@ -98,7 +98,7 @@ func (s *arrivalScheduleService) UpsertClassArrivalException(
 
 	row := &schedule.ClassArrivalException{
 		SchoolClass: class,
-		Date:        input.Date,
+		Date:        schedule.Date(input.Date),
 		ArrivalTime: timezone.NormalizeWallClock(input.ArrivalTime),
 		Reason:      trimmedOptionalReason(input.Reason),
 		Origin:      cmp.Or(input.Origin, schedule.ClassArrivalExceptionOriginOGS),
@@ -128,7 +128,7 @@ func (s *arrivalScheduleService) DeleteClassArrivalException(
 	if date.Before(timezone.TodayDate()) {
 		return &ScheduleError{Op: opDeleteClassArrivalException, Err: ErrClassArrivalExceptionPastDate}
 	}
-	deleted, err := s.classExceptions.DeleteByClassAndDate(ctx, strings.TrimSpace(schoolClass), date)
+	deleted, err := s.classExceptions.DeleteByClassAndDate(ctx, strings.TrimSpace(schoolClass), schedule.Date(date))
 	if err != nil {
 		return &ScheduleError{Op: opDeleteClassArrivalException, Err: err}
 	}

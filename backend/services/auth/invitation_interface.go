@@ -39,21 +39,25 @@ type InvitationRequest struct {
 
 // UserRegistrationData captures the information supplied when accepting an invitation.
 type UserRegistrationData struct {
-	FirstName       string
-	LastName        string
-	Password        string
-	ConfirmPassword string
+	// OwnerAccessToken is a backend-signed session, never a client-supplied account ID.
+	OwnerAccessToken string
+	FirstName        string
+	LastName         string
+	Password         string
+	ConfirmPassword  string
 }
 
 // InvitationValidationResult represents the public-safe view of an invitation.
 type InvitationValidationResult struct {
-	Email            string    `json:"email"`
-	RoleName         string    `json:"role_name"`
-	FirstName        *string   `json:"first_name,omitempty"`
-	LastName         *string   `json:"last_name,omitempty"`
-	Position         *string   `json:"position,omitempty"`
-	CaregiverEnabled bool      `json:"caregiver_enabled"`
-	ExpiresAt        time.Time `json:"expires_at"`
+	TargetPortal         string    `json:"target_portal"`
+	RequiresAccountLogin bool      `json:"requires_account_login"`
+	Email                string    `json:"email"`
+	RoleName             string    `json:"role_name"`
+	FirstName            *string   `json:"first_name,omitempty"`
+	LastName             *string   `json:"last_name,omitempty"`
+	Position             *string   `json:"position,omitempty"`
+	CaregiverEnabled     bool      `json:"caregiver_enabled"`
+	ExpiresAt            time.Time `json:"expires_at"`
 }
 
 // InvitationService defines the operations for managing invitation workflows.

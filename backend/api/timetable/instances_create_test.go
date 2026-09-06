@@ -316,7 +316,7 @@ func setupDuplicateInstanceRoute(
 ) chi.Router {
 	t.Helper()
 
-	_, serviceFactory := testutil.SetupAPITest(t)
+	_, serviceFactory := testutil.SetupTimetableModule(t)
 	resource := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock),
 		InstanceService: serviceFactory.Instance,

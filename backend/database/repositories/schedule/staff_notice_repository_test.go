@@ -18,7 +18,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffNotice
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
@@ -75,7 +75,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffNotice
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")

@@ -81,7 +81,7 @@ function RetentionCell({ doc }: { readonly doc: StaffDocument }) {
       </span>
     );
   }
-  return <span className="text-xs text-gray-400">—</span>;
+  return <span className="text-xs text-gray-400">–</span>;
 }
 
 export function DokumenteTab({ staffId }: { readonly staffId: string }) {
@@ -278,7 +278,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   return (
     <div className="space-y-6">
       <SectionCard
-        kicker="Personalakte"
         title="Dokumente"
         description="Dateien zur Personalakte. Uploads und Löschungen werden im Änderungsprotokoll festgehalten; Aufbewahrungsfristen sind Hinweise, gelöscht wird nur manuell."
       >

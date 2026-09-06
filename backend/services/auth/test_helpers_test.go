@@ -745,6 +745,7 @@ func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, 
 	if !exists {
 		return sql.ErrNoRows
 	}
+	token.UpdatedAt = time.Now()
 	token.EmailRetryCount = retryCount
 	if sentAt != nil {
 		token.EmailSentAt = sentAt

@@ -30,6 +30,8 @@ interface BrandTenantSwitcherProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
+  /** Unterhalb dieser Breite nur das Logo zeigen, siehe `BrandLink`. */
+  readonly hideLabelBelow?: "md" | "lg";
 }
 
 /**
@@ -40,7 +42,7 @@ interface BrandTenantSwitcherProps {
  * the dropdown trigger (#2011), replacing the separate switcher element
  * that used to overflow the header on mobile.
  *
- * Switch flow (per spec 04-frontend.md):
+ * Switch flow:
  * 1. Call switchTenant(slug) to get new JWT tokens
  * 2. Update NextAuth session via signIn("credentials", { internalRefresh: true })
  * 3. Clear SWR cache to prevent stale cross-tenant data
@@ -51,6 +53,7 @@ export function BrandTenantSwitcher({
   isScrolled = false,
   href = "/dashboard",
   label,
+  hideLabelBelow,
 }: BrandTenantSwitcherProps) {
   // The tenant layout preloads the list on the server (#2973); without a
   // seed the list is fetched once the session is authenticated.
@@ -166,7 +169,14 @@ export function BrandTenantSwitcher({
 
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
-    return <BrandLink isScrolled={isScrolled} href={href} label={label} />;
+    return (
+      <BrandLink
+        isScrolled={isScrolled}
+        href={href}
+        label={label}
+        hideLabelBelow={hideLabelBelow}
+      />
+    );
   }
 
   // currentSlug comes from the URL, which is the tenant's subdomain — so
@@ -201,7 +211,15 @@ export function BrandTenantSwitcher({
         className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
       >
         <BrandLogo />
-        <span className={brandLabelClass(isScrolled, true)}>
+        <span
+          className={`${brandLabelClass(isScrolled, true)} ${
+            hideLabelBelow === "md"
+              ? "hidden md:inline-block"
+              : hideLabelBelow === "lg"
+                ? "hidden lg:inline-block"
+                : ""
+          }`}
+        >
           {displayLabel}
         </span>
         <svg

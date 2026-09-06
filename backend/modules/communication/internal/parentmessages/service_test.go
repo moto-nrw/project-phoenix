@@ -106,7 +106,7 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
@@ -161,7 +161,7 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 		Body:            body,
 	}
 	gm.SetTenantID(chain.TenantID)
-	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(testpkg.Ctx(t), gm))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage.Create(testpkg.Ctx(t), gm))
 	return gm
 }
 
@@ -305,16 +305,16 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	`, started.ThreadID, colleagueAccount.ID).Scan(context.Background(), &colleagueReadRows))
 	assert.Zero(t, colleagueReadRows, "team handling must not forge a colleague's personal read receipt")
 
-	allMessages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	allMessages, err := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	parentmessaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
+	parentmessaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	readRepo := repositories.NewFactory(f.db).ParentMessageRead
+	readRepo := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead
 	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
@@ -334,13 +334,13 @@ func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 0)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 
-	messages, err := repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "the rejected legacy reply must not be inserted")
 
 	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 999999999)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
-	messages, err = repositories.NewFactory(f.db).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err = repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "a reply with a foreign boundary must not be inserted")
 }
@@ -661,7 +661,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
 	// Rebuild the service with the feature OFF, same DB.
-	repos := repositories.NewFactory(f.db)
+	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	disabled := messaging.NewService(messaging.Config{
 		ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),

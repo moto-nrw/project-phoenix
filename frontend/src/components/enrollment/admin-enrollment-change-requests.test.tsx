@@ -27,6 +27,10 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: () => null,
+}));
+
 import { AdminEnrollmentChangeRequestDetail } from "./admin-enrollment-change-requests";
 import type { AdminEnrollmentChangeRequest } from "~/lib/enrollment-admin-api";
 

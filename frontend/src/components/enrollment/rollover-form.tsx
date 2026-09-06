@@ -16,12 +16,15 @@ import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge"
 import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { Alert } from "~/components/ui/alert";
-import { Checkbox } from "~/components/ui/checkbox";
-import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -78,9 +81,24 @@ interface Props {
   readonly source: Phase;
   readonly onCancel: () => void;
   readonly onSuccess: (result: RolloverResult) => void;
+  /**
+   * "page": das Formular ist die Seite und rendert das Seitengerüst
+   * (`TenantPage`) um die Formularkarte (eigene Route /rollover).
+   * "embedded" (Standard): das Formular steht unter einem fremden Seitenkopf
+   * (Anmeldephasen-Editor) und behält seinen eigenen Abschnittskopf.
+   */
+  readonly variant?: "page" | "embedded";
 }
 
-export function RolloverForm({ source, onCancel, onSuccess }: Props) {
+const ROLLOVER_DESCRIPTION =
+  "Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten Schritten.";
+
+export function RolloverForm({
+  source,
+  onCancel,
+  onSuccess,
+  variant = "embedded",
+}: Props) {
   const [draft, setDraft] = useState<RolloverInput>(() =>
     prefillFromSource(source),
   );
@@ -182,30 +200,31 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
     }
   };
 
-  return (
+  const title = `Anschlussphase für „${source.name}“ erstellen`;
+
+  // Statuszeile des Seitenkopfs: Quelle und die Vorschau, die das Formular
+  // ohnehin lädt.
+  const statusLine = [
+    `Quelle: ${source.name}`,
+    preview ? `${preview.carried_count} werden übernommen` : null,
+    preview ? `${preview.review_count} zu prüfen` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const form = (
     <form
       onSubmit={handleSubmit}
-      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+      className="moto-content-surface space-y-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
     >
-      <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Anschlussphase
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Anschlussphase für „{source.name}" erstellen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue
-          Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten
-          Schritten.
-        </p>
-      </header>
+      {variant === "embedded" ? (
+        <header className="border-b border-gray-100 pb-4">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          <p className="mt-1 text-sm text-gray-600">{ROLLOVER_DESCRIPTION}</p>
+        </header>
+      ) : null}
 
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
 
       {loadingPreview ? (
         <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
@@ -252,30 +271,16 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="block text-xs font-semibold text-gray-700">
-            Name der neuen Phase
-          </span>
-          <input
-            id="rollover-name"
-            type="text"
-            required
-            value={draft.name}
-            onChange={(e) => update("name", e.target.value)}
-            aria-invalid={nameError !== null}
-            aria-describedby={nameError ? "rollover-name-error" : undefined}
-            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              nameError !== null
-                ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
-                : "border-gray-200"
-            }`}
-          />
-          {nameError !== null && (
-            <p id="rollover-name-error" className="text-moto-red mt-1 text-xs">
-              {nameError}
-            </p>
-          )}
-        </label>
+        <Input
+          id="rollover-name"
+          label="Name der neuen Phase"
+          type="text"
+          controlSize="compact"
+          required
+          value={draft.name}
+          onChange={(e) => update("name", e.target.value)}
+          error={nameError ?? undefined}
+        />
         <label
           className="block"
           htmlFor="rollover-kind"
@@ -406,13 +411,13 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       </fieldset>
 
       <div className="space-y-2">
-        <RolloverCheckbox
+        <CheckboxCard
           checked={draft.rollover_bumps_grade ?? true}
           onChange={(checked) => update("rollover_bumps_grade", checked)}
           label="Klassenstufe automatisch um 1 erhöhen"
           hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
         />
-        <RolloverCheckbox
+        <CheckboxCard
           checked={draft.rollover_auto_approve}
           onChange={(checked) => update("rollover_auto_approve", checked)}
           label="Vorgemerkte Anmeldungen automatisch genehmigen"
@@ -421,52 +426,44 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
           disabled={submitting}
         >
           Abbrechen
-        </button>
-        <button
-          type="submit"
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-          disabled={submitting}
-        >
-          {submitting ? "Wird erstellt..." : "Anschlussphase erstellen"}
-        </button>
+        </Button>
+        <Button type="submit" variant="primary" size="md" disabled={submitting}>
+          {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
+        </Button>
       </div>
     </form>
   );
+
+  // "page": das Formular ist die Seite und trägt deshalb das Seitengerüst.
+  // "embedded": es steht unter einem fremden Seitenkopf und bleibt Inhalt.
+  if (variant === "page") {
+    return (
+      <TenantPage
+        title={title}
+        back
+        backHref="/enrollment-phases"
+        backLabel="Zurück zu den Anmeldephasen"
+        stats={statusLine}
+        statsLoading={loadingPreview}
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      >
+        {form}
+      </TenantPage>
+    );
+  }
+
+  return form;
 }
 
 const PREVIEW_REVIEW_REASON_LABELS: Record<string, string> = {
   grade_above_max: "Klassenstufe über der Höchstgrenze",
   no_grade_level: "Keine Klassenstufe hinterlegt",
 };
-
-function RolloverCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint: string;
-}>) {
-  return (
-    <ChoiceTile selected={checked} className="min-h-11">
-      <Checkbox
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span className="min-w-0 flex-1 leading-snug">
-        {label}
-        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
-      </span>
-    </ChoiceTile>
-  );
-}
