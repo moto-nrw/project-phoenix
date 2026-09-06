@@ -1,10 +1,8 @@
 // Package timetable — POST /api/timetable/instances handler.
 //
 // Creates a planned activity instance outside the materialization flow.
-// When activity_group_id is omitted the instance is purely spontaneous
-// (is_spontaneous=true server-side); when set it is bound to a template
-// for an extra date the materializer would not have emitted. Permission:
-// SchedulesManage.
+// The optional activity_group_id binds it to a template for an extra date the
+// materializer would not have emitted. Permission: SchedulesManage.
 package timetable
 
 import (
@@ -218,7 +216,6 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByCopy := createdBy
 		createdByPtr = &createdByCopy
 	}
-
 	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
 		Date:             parsed.date,
 		StartTime:        parsed.startTime,

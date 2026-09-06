@@ -374,6 +374,12 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	}
 }
 
+// NewAttendanceCorrectionRepository composes the append-only attendance trail
+// with the request-scoped audit runtime used by timetable corrections.
+func NewAttendanceCorrectionRepository(runtime audit.Runtime) auditModels.AttendanceCorrectionRepository {
+	return audit.NewAttendanceCorrectionRepository(runtime)
+}
+
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
 // adapters with compositions over the public owner capability.
 func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capability) {
