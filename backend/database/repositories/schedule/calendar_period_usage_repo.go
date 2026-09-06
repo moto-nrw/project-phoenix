@@ -15,8 +15,9 @@ import (
 // owner (#2666); this repository only reads the referencing planning tables,
 // so a period without references is simply absent from the result.
 type CalendarPeriodUsageRepository struct {
-	db         *bun.DB
-	enrollment EnrollmentPhaseQueries
+	db               *bun.DB
+	enrollment       EnrollmentPhaseQueries
+	countSupervisors func(context.Context) (map[int64]int, error)
 }
 
 type EnrollmentPhaseQueries interface {
@@ -24,11 +25,14 @@ type EnrollmentPhaseQueries interface {
 }
 
 // NewCalendarPeriodUsageRepository creates a new CalendarPeriodUsageRepository.
-func NewCalendarPeriodUsageRepository(db *bun.DB, enrollment EnrollmentPhaseQueries) *CalendarPeriodUsageRepository {
+func NewCalendarPeriodUsageRepository(db *bun.DB, enrollment EnrollmentPhaseQueries, countSupervisors func(context.Context) (map[int64]int, error)) *CalendarPeriodUsageRepository {
 	if enrollment == nil {
 		panic("calendar period usage: enrollment queries are required")
 	}
-	return &CalendarPeriodUsageRepository{db: db, enrollment: enrollment}
+	if countSupervisors == nil {
+		panic("calendar period usage: timetable supervisor query is required")
+	}
+	return &CalendarPeriodUsageRepository{db: db, enrollment: enrollment, countSupervisors: countSupervisors}
 }
 
 // UsageCounts returns, per calendar period of the current tenant, how many
@@ -68,17 +72,12 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 		WHERE se.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR se.tenant_id = ?)
 		GROUP BY se.calendar_period_id
 		UNION ALL
-		SELECT 'supervisor' AS source, sp.calendar_period_id, COUNT(*)::int AS count
-		FROM activities.supervisors AS sp
-		WHERE sp.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR sp.tenant_id = ?)
-		GROUP BY sp.calendar_period_id
-		UNION ALL
 		SELECT 'activity_instance' AS source, ai.calendar_period_id, COUNT(*)::int AS count
 		FROM schedule.activity_instances AS ai
 		WHERE ai.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR ai.tenant_id = ?)
 		GROUP BY ai.calendar_period_id
 	`, tenantID, tenantID, tenantID, tenantID,
-		tenantID, tenantID, tenantID, tenantID, tenantID, tenantID,
+		tenantID, tenantID, tenantID, tenantID,
 	).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -100,12 +99,19 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 			entry.Schedules += row.Count
 		case "student_enrollment":
 			entry.StudentEnrollments += row.Count
-		case "supervisor":
-			entry.Supervisors += row.Count
 		case "activity_instance":
 			entry.ActivityInstances += row.Count
 		}
 		usage[row.CalendarPeriodID] = entry
+	}
+	supervisors, err := r.countSupervisors(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
+	}
+	for id, count := range supervisors {
+		entry := usage[id]
+		entry.Supervisors = count
+		usage[id] = entry
 	}
 	return usage, nil
 }

@@ -82,7 +82,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences)
+	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)

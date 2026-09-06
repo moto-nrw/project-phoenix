@@ -9,7 +9,6 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/uptrace/bun"
@@ -38,7 +37,7 @@ func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Capability) {
 		return
 	}
 	f.schoolCalendarBound = true
-	f.bindSchoolCalendarAdapters(capability)
+	f.bindSchoolCalendarAdapters(capability, f.CalendarPeriod.(calendarPeriodCalendarRepository).usage)
 }
 
 // SchoolCalendar returns the capability the calendar adapters read through.
@@ -48,9 +47,9 @@ func (f *Factory) SchoolCalendar() schoolcalendar.Capability { return f.schoolCa
 // given capability. The raw activities and users repositories are reached
 // through their bind methods, so the binding survives the person, school and
 // group wrappers layered on top of them.
-func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability) {
+func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability, usage *scheduleRepo.CalendarPeriodUsageRepository) {
 	f.schoolCalendar = capability
-	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, scheduleRepo.NewCalendarPeriodUsageRepository(f.db, enrollmentCompose.New()))
+	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
 	if repo, ok := f.CareExitCleanup.(interface {

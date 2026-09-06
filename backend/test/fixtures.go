@@ -31,6 +31,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// CreateTestRoomCapacityError returns an opaque admission failure for transport
+// contract tests. The room belongs to the calling test's tenant.
+func CreateTestRoomCapacityError(tb testing.TB) error {
+	tb.Helper()
+	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
+	return &active.RoomCapacityError{
+		RoomID: room.ID, RoomName: room.Name,
+		CurrentOccupancy: 43, MaxCapacity: 43,
+	}
+}
+
 // SQL constants to avoid duplication
 const (
 	whereIDEquals                 = "id = ?"

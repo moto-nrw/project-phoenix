@@ -18,6 +18,30 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func TestScheduleService_ReadFailuresAreNotNotFound(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
+	start := time.Date(2027, time.January, 1, 0, 0, 0, 0, time.UTC)
+	frame := createTestDateframe(t, db, "Read failure", start, start.AddDate(0, 1, 0))
+	clock := testpkg.WallClock(9, 0)
+	end := testpkg.WallClock(10, 0)
+	timeframe := createTestTimeframe(t, db, clock, &end, true)
+	rule := &schedule.RecurrenceRule{Frequency: "daily", IntervalCount: 1}
+	require.NoError(t, service.CreateRecurrenceRule(ctx, rule))
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err := service.GetDateframe(cancelled, frame.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = service.GetTimeframe(cancelled, timeframe.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = service.GetRecurrenceRule(cancelled, rule.ID)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = service.GenerateEvents(cancelled, rule.ID, start, start)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 // setupScheduleService creates a schedule service with real database connection.
 func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 	t.Helper()
@@ -26,7 +50,8 @@ func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 	repoFactory.BindTimetable(timetabletest.New(t, db))
 
 	return scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
-		DateframeRepo: repoFactory.Dateframe, TimeframeRepo: repoFactory.Timeframe, RecurrenceRuleRepo: repoFactory.RecurrenceRule,
+		RecurrenceEvents: timetabletest.New(t, db),
+		DateframeRepo:    repoFactory.Dateframe, TimeframeRepo: repoFactory.Timeframe, RecurrenceRuleRepo: repoFactory.RecurrenceRule,
 	})
 }
 
@@ -415,7 +440,7 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 
 	t.Run("creates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Date(2026, time.September, 5, 8, 0, 0, 0, time.UTC)
+		startTime := testpkg.WallClock(9, 0)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := &schedule.Timeframe{
 			StartTime:   startTime,
@@ -476,7 +501,7 @@ func TestScheduleService_UpdateTimeframe(t *testing.T) {
 
 	t.Run("updates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Date(2026, time.September, 5, 8, 0, 0, 0, time.UTC)
+		startTime := testpkg.WallClock(9, 0)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, false)
 
@@ -539,6 +564,7 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 	lockCalls := 0
 	validationCalls := 0
 	service := scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
+		RecurrenceEvents:   timetabletest.New(t, db),
 		DateframeRepo:      repos.Dateframe,
 		TimeframeRepo:      repos.Timeframe,
 		RecurrenceRuleRepo: repos.RecurrenceRule,
@@ -578,6 +604,7 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 	assert.Equal(t, 2, validationCalls)
 
 	missingLockService := scheduleSvc.NewServiceWithConfig(scheduleSvc.ServiceConfig{
+		RecurrenceEvents:                    timetabletest.New(t, db),
 		DateframeRepo:                       repos.Dateframe,
 		TimeframeRepo:                       repos.Timeframe,
 		RecurrenceRuleRepo:                  repos.RecurrenceRule,

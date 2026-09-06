@@ -1,4 +1,4 @@
-package schedule
+package schedule_test
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +26,7 @@ func (q phaseCountQueries) PhaseCountsByCalendarPeriod(context.Context) (map[int
 func TestCalendarPeriodUsageRepository_EnrollmentFailurePropagates(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("enrollment read failed")
-	repo := NewCalendarPeriodUsageRepository(nil, phaseCountQueries{err: failure})
+	repo := scheduleRepo.NewCalendarPeriodUsageRepository(nil, phaseCountQueries{err: failure}, phaseCountQueries{}.PhaseCountsByCalendarPeriod)
 	_, err := repo.UsageCounts(context.Background())
 	require.ErrorIs(t, err, failure)
 }
@@ -33,9 +35,10 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
+	assignments := repositories.NewUnobservedTimetableDependencies(db).Capability
 	tenantID := testpkg.Tenant(t)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Mandant", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
-	repo := NewCalendarPeriodUsageRepository(db, phaseCountQueries{counts: map[int64]int{period.ID: 2}})
+	repo := scheduleRepo.NewCalendarPeriodUsageRepository(db, phaseCountQueries{counts: map[int64]int{period.ID: 2}}, assignments.CountPlannedSupervisorsByCalendarPeriod)
 	group := testpkg.CreateTestActivityGroup(t, db, "Mandanten-AG")
 	_, err := db.NewUpdate().TableExpr("activities.groups").
 		Set("calendar_period_id = ?", period.ID).

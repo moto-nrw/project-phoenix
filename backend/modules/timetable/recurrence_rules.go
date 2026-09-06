@@ -2,8 +2,15 @@ package timetable
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrInvalidRecurrenceRange = errors.New("invalid date range")
+
+func (m *Module) GenerateRecurrenceEvents(ctx context.Context, id int64, start, end time.Time) ([]time.Time, error) {
+	return m.engine.GenerateRecurrenceEvents(ctx, id, start, end)
+}
 
 type RecurrenceRule struct {
 	ID            int64      `json:"id"`
@@ -39,6 +46,7 @@ type RecurrenceRuleFilter struct {
 }
 
 type RecurrenceRuleQuery interface {
+	GenerateRecurrenceEvents(context.Context, int64, time.Time, time.Time) ([]time.Time, error)
 	FindRecurrenceRule(context.Context, int64) (RecurrenceRule, error)
 	ListRecurrenceRules(context.Context, RecurrenceRuleFilter) ([]RecurrenceRule, error)
 }

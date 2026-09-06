@@ -98,7 +98,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ResyncOfferingRoster:       resyncOfferingRoster,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
-		RecoveryRepo:               scheduleRepo.NewActivityRecoveryRepository(db),
+		RecoveryRepo:               repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent),
 		DB:                         db,
 		Today:                      today,
 	}
