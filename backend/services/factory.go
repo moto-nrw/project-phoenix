@@ -1445,9 +1445,9 @@ func newFactory(
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
 		Now:                now,
-		// E2E fixtures start future weekday instances. Dedicated unit tests
-		// construct the service with EnforceTimePolicy: true.
-		EnforceTimePolicy: cfg.AppEnv != "test",
+		// Development and test seed profiles create completed instances at the
+		// current clock time. Lifecycle policy remains covered by dedicated tests.
+		EnforceTimePolicy: enforceInstanceTimePolicy(cfg.AppEnv),
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -3206,6 +3206,11 @@ func newFactory(
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
+}
+
+func enforceInstanceTimePolicy(appEnv string) bool {
+	appEnv = strings.ToLower(strings.TrimSpace(appEnv))
+	return appEnv == "production" || appEnv == "staging"
 }
 
 func optionalClock(clocks []func() time.Time) func() time.Time {
