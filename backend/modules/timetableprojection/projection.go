@@ -74,7 +74,7 @@ func CourseGroupsForOfferings(
 		return nil, ErrInvalidTenantID
 	}
 	result := make(map[int64][]enrollmentModels.CourseGroup, len(offerings))
-	legacyToOffering := make(map[int64]int64, len(offerings))
+	legacyToOfferings := make(map[int64][]int64, len(offerings))
 	offeringIDs := make([]int64, 0, len(offerings))
 	legacyIDs := make([]int64, 0, len(offerings))
 	for _, offering := range offerings {
@@ -83,7 +83,9 @@ func CourseGroupsForOfferings(
 		}
 		offeringIDs = append(offeringIDs, offering.OfferingID)
 		if offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
-			legacyToOffering[*offering.ActivityGroupID] = offering.OfferingID
+			legacyToOfferings[*offering.ActivityGroupID] = append(
+				legacyToOfferings[*offering.ActivityGroupID], offering.OfferingID,
+			)
 			legacyIDs = append(legacyIDs, *offering.ActivityGroupID)
 		}
 	}
@@ -94,7 +96,6 @@ func CourseGroupsForOfferings(
 	query := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
 		Where(`"group".tenant_id = ?`, tenantID).
 		Where(`"group".type = ?`, activitiesModels.GroupTypeActivity).
-		Where(`"group".archived_at IS NULL`).
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			if len(legacyIDs) > 0 {
 				q = q.WhereOr(`"group".id IN (?)`, bun.List(legacyIDs))
@@ -113,11 +114,12 @@ func CourseGroupsForOfferings(
 		}
 		course := enrollmentModels.CourseGroup{
 			ID:                  group.ID,
+			Active:              group.ArchivedAt == nil,
 			ParticipantLimit:    group.ParticipantLimit(),
 			SourceGradeLevels:   append([]int(nil), group.SourceGradeLevels...),
 			SourceSchoolClasses: append([]string(nil), group.SourceSchoolClasses...),
 		}
-		if offeringID := legacyToOffering[group.ID]; offeringID > 0 {
+		for _, offeringID := range legacyToOfferings[group.ID] {
 			result[offeringID] = append(result[offeringID], course)
 		}
 		for _, offeringID := range group.SourceCareOfferingIDs {
@@ -160,6 +162,7 @@ func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs 
 		if group != nil {
 			locked = append(locked, enrollmentModels.CourseGroup{
 				ID:               group.ID,
+				Active:           true,
 				ParticipantLimit: group.ParticipantLimit(),
 			})
 		}

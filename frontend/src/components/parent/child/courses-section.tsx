@@ -166,7 +166,7 @@ export function CoursesSection({
           {courses.items.map((course) => (
             <li
               key={course.id}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 p-3"
+              className="moto-content-surface flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 shadow-sm"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">

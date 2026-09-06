@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -370,10 +371,10 @@ func TestMarkCourseDiffEntriesMarksOnlyEligibleDirectCourseAdditions(t *testing.
 		{OfferingID: 4, OldState: "not_booked", NewState: "booked"},
 	}
 	groups := map[int64][]enrollmentModels.CourseGroup{
-		1: {{ID: 10, SourceGradeLevels: []int{3}, SourceSchoolClasses: []string{"3A"}}},
-		2: {{ID: 20, SourceGradeLevels: []int{3}}},
-		3: {{ID: 30, SourceGradeLevels: []int{4}}},
-		4: {{ID: 40, SourceGradeLevels: []int{3}}},
+		1: {{ID: 10, Active: true, SourceGradeLevels: []int{3}, SourceSchoolClasses: []string{"3A"}}},
+		2: {{ID: 20, Active: true, SourceGradeLevels: []int{3}}},
+		3: {{ID: 30, Active: true, SourceGradeLevels: []int{4}}},
+		4: {{ID: 40, Active: true, SourceGradeLevels: []int{3}}},
 	}
 
 	markCourseDiffEntriesForGroups(entries, groups, catalog, map[int64]bool{1: true, 2: true, 3: true})
@@ -382,4 +383,44 @@ func TestMarkCourseDiffEntriesMarksOnlyEligibleDirectCourseAdditions(t *testing.
 	assert.False(t, entries[1].IsCourse, "removing a course is not a course request")
 	assert.False(t, entries[2].IsCourse, "the child does not match this course's source grade")
 	assert.False(t, entries[3].IsCourse, "automatic or otherwise unrequested additions are not course requests")
+}
+
+func TestActiveCourseGroupsForTargetRejectsArchivedCourse(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(3)
+	groups, hadCourseTarget := activeCourseGroupsForTarget([]enrollmentModels.CourseGroup{
+		{ID: 1, Active: false, SourceGradeLevels: []int{3}},
+		{ID: 2, Active: true, SourceGradeLevels: []int{4}},
+	}, &OfferingChangeCatalog{TargetGradeLevel: &grade})
+
+	assert.True(t, hadCourseTarget)
+	assert.Empty(t, groups, "approval must not treat an archived course as ordinary care")
+}
+
+func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+	rows := []*enrollmentModels.OfferingChangeRequest{
+		{ID: 11, RequestChildID: 101, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+		{ID: 12, RequestChildID: 102, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+		{ID: 13, RequestChildID: 103, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+		{ID: 14, RequestChildID: 104, CreatedAt: createdAt.Add(-time.Minute), Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+	}
+	gradeThree, gradeFour := int16(3), int16(4)
+	children := map[int64]*enrollmentModels.RequestChild{
+		101: {TargetGradeLevel: &gradeThree},
+		102: {TargetGradeLevel: &gradeThree},
+		103: {TargetGradeLevel: &gradeThree},
+		104: {TargetGradeLevel: &gradeFour},
+	}
+
+	position := courseWaitlistPositionFromRows(
+		rows, 7,
+		[]enrollmentModels.CourseGroup{{ID: 70, Active: true, SourceGradeLevels: []int{3}}},
+		rows[1], children, map[int64]map[int64]bool{},
+	)
+
+	assert.Equal(t, 2, position, "only the earlier same-target request precedes this one")
 }

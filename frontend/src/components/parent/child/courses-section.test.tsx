@@ -62,6 +62,12 @@ describe("CoursesSection", () => {
     renderSection();
 
     expect(await screen.findByText("Fußball")).toBeInTheDocument();
+    expect(screen.getByText("Fußball").closest("li")).toHaveClass(
+      "moto-content-surface",
+      "rounded-xl",
+      "border",
+      "shadow-sm",
+    );
     expect(screen.getByText("Noch 4 Plätze frei")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Anfragen" }),

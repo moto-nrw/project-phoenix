@@ -29,6 +29,7 @@ type CourseOfferingReference struct {
 // needs, never timetable domain objects or repositories.
 type CourseGroup struct {
 	ID                  int64
+	Active              bool
 	ParticipantLimit    *int
 	SourceGradeLevels   []int
 	SourceSchoolClasses []string

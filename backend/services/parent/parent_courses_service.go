@@ -98,9 +98,10 @@ func (s *service) RequestChildCourse(
 	return s.GetChildCourses(ctx, accountID, studentID)
 }
 
-// WithdrawChildCourseRequest takes back the caller's own open course request.
-// It stays available after the school switches courses off, so an outstanding
-// request can always be wound down.
+// WithdrawChildCourseRequest takes back the caller's own open course request
+// while course requests are enabled. When the school switches the feature off,
+// the section and its actions are intentionally hidden; the OGS can still
+// decide the outstanding request in the existing review queue.
 func (s *service) WithdrawChildCourseRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,

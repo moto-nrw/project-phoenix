@@ -27,7 +27,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -278,7 +277,7 @@ func (s *offeringChangeRequestService) courseGroups(
 	for offeringID, list := range projected {
 		seen := make(map[int64]bool, len(list))
 		for _, group := range list {
-			if seen[group.ID] || !courseGroupMatchesTarget(group, catalog) {
+			if seen[group.ID] || !group.Active || !courseGroupMatchesTarget(group, catalog) {
 				continue
 			}
 			seen[group.ID] = true
@@ -378,7 +377,7 @@ func markCourseDiffEntriesForGroups(
 			continue
 		}
 		for _, group := range groups[entry.OfferingID] {
-			if courseGroupMatchesTarget(group, catalog) {
+			if group.Active && courseGroupMatchesTarget(group, catalog) {
 				entry.IsCourse = true
 				break
 			}
@@ -556,7 +555,9 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 		if pending == nil {
 			continue
 		}
-		position, posErr := s.courseWaitlistPosition(ctx, course.OfferingID, pending.CreatedAt)
+		position, posErr := s.courseWaitlistPosition(
+			ctx, course.OfferingID, groupsByOffering[course.OfferingID], pending,
+		)
 		if posErr != nil {
 			return posErr
 		}
@@ -608,21 +609,39 @@ func (s *offeringChangeRequestService) courseOccupancy(
 }
 
 // courseWaitlistPosition is the child's rank in the queue for one course: how
-// many open requests for it were submitted no later than this one. The child's
-// own request counts, so the family that asked first reads "Platz 1".
+// many open requests for the same target group were submitted before this one.
+// The child's own request counts, so the family that asked first reads
+// "Platz 1".
 func (s *offeringChangeRequestService) courseWaitlistPosition(
 	ctx context.Context,
 	offeringID int64,
-	submittedAt time.Time,
+	groups []enrollmentModels.CourseGroup,
+	pending *enrollmentModels.OfferingChangeRequest,
 ) (int, error) {
 	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, modelBase.RequestQueueFilters{})
 	if err != nil {
 		return 0, fmt.Errorf("course request: list pending for waitlist: %w", err)
 	}
 	dates := make(map[int64]timezone.Date, len(rows))
+	childIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		if row != nil && !row.CreatedAt.After(submittedAt) && row.RequestChildID > 0 {
+		if row != nil && !courseRequestAfter(row, pending) && row.RequestChildID > 0 {
 			dates[row.RequestChildID] = row.EffectiveFrom
+			childIDs = append(childIDs, row.RequestChildID)
+		}
+	}
+	slices.Sort(childIDs)
+	childrenByID := make(map[int64]*enrollmentModels.RequestChild)
+	if courseGroupsHaveTargets(groups) {
+		children, childErr := s.RequestChildRepo.ListByIDs(ctx, slices.Compact(childIDs))
+		if childErr != nil {
+			return 0, fmt.Errorf("course request: load waitlist children: %w", childErr)
+		}
+		childrenByID = make(map[int64]*enrollmentModels.RequestChild, len(children))
+		for _, child := range children {
+			if child != nil {
+				childrenByID[child.ID] = child
+			}
 		}
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
@@ -639,21 +658,23 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 		}
 		bookedByChild[link.RequestChildID][link.CareOfferingID] = true
 	}
-	return courseWaitlistPositionFromRows(rows, offeringID, submittedAt, bookedByChild), nil
+	return courseWaitlistPositionFromRows(rows, offeringID, groups, pending, childrenByID, bookedByChild), nil
 }
 
 func courseWaitlistPositionFromRows(
 	rows []*enrollmentModels.OfferingChangeRequest,
 	offeringID int64,
-	submittedAt time.Time,
+	groups []enrollmentModels.CourseGroup,
+	pending *enrollmentModels.OfferingChangeRequest,
+	childrenByID map[int64]*enrollmentModels.RequestChild,
 	bookedByChild map[int64]map[int64]bool,
 ) int {
 	position := 0
 	for _, row := range rows {
-		if row == nil {
+		if row == nil || courseRequestAfter(row, pending) {
 			continue
 		}
-		if row.CreatedAt.After(submittedAt) {
+		if !courseGroupsMatchTarget(groups, childrenByID[row.RequestChildID]) {
 			continue
 		}
 		added, addedErr := courseWasAdded(row, offeringID, bookedByChild[row.RequestChildID])
@@ -667,6 +688,32 @@ func courseWaitlistPositionFromRows(
 		}
 	}
 	return max(position, 1)
+}
+
+func courseRequestAfter(row, pending *enrollmentModels.OfferingChangeRequest) bool {
+	if row == nil || pending == nil {
+		return true
+	}
+	return row.CreatedAt.After(pending.CreatedAt) ||
+		(row.CreatedAt.Equal(pending.CreatedAt) && row.ID > pending.ID)
+}
+
+func courseGroupsMatchTarget(groups []enrollmentModels.CourseGroup, child *enrollmentModels.RequestChild) bool {
+	if !courseGroupsHaveTargets(groups) {
+		return true
+	}
+	if child == nil {
+		return false
+	}
+	return slices.ContainsFunc(groups, func(group enrollmentModels.CourseGroup) bool {
+		return group.Active && courseGroupMatchesTarget(group, courseTargetCatalog(child))
+	})
+}
+
+func courseGroupsHaveTargets(groups []enrollmentModels.CourseGroup) bool {
+	return slices.ContainsFunc(groups, func(group enrollmentModels.CourseGroup) bool {
+		return len(group.SourceGradeLevels) > 0 || len(group.SourceSchoolClasses) > 0
+	})
 }
 
 // courseWasAdded distinguishes a course request from another offering change
@@ -708,11 +755,14 @@ func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	if child == nil {
 		return fmt.Errorf("course request: request child %d not found", requestChildID)
 	}
-	groups, err := s.offeringCourseGroups(ctx, offering, child.TargetGradeLevel, child.TargetSchoolClass)
+	groups, hadCourseTarget, err := s.offeringCourseGroups(ctx, offering, child.TargetGradeLevel, child.TargetSchoolClass)
 	if err != nil {
 		return err
 	}
 	if len(groups) == 0 {
+		if hadCourseTarget {
+			return fmt.Errorf("%w: %s", ErrOfferingChangeInvalid, offering.Name)
+		}
 		return nil
 	}
 	groups, err = s.lockCourseGroups(ctx, groups)
@@ -761,26 +811,38 @@ func (s *offeringChangeRequestService) offeringCourseGroups(
 	offering *enrollmentModels.CareOffering,
 	gradeLevel *int16,
 	schoolClass *string,
-) ([]enrollmentModels.CourseGroup, error) {
+) ([]enrollmentModels.CourseGroup, bool, error) {
 	projected, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, []enrollmentModels.CourseOfferingReference{{
 		OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
 	}})
 	if err != nil {
-		return nil, fmt.Errorf("course request: list course groups: %w", err)
+		return nil, false, fmt.Errorf("course request: list course groups: %w", err)
 	}
 	catalog := &OfferingChangeCatalog{TargetGradeLevel: gradeLevel}
 	if schoolClass != nil {
 		catalog.TargetSchoolClass = *schoolClass
 	}
-	groups := make([]enrollmentModels.CourseGroup, 0, len(projected[offering.ID]))
-	seen := make(map[int64]bool, len(projected[offering.ID]))
-	for _, group := range projected[offering.ID] {
+	groups, hadCourseTarget := activeCourseGroupsForTarget(projected[offering.ID], catalog)
+	return groups, hadCourseTarget, nil
+}
+
+func activeCourseGroupsForTarget(
+	projected []enrollmentModels.CourseGroup,
+	catalog *OfferingChangeCatalog,
+) ([]enrollmentModels.CourseGroup, bool) {
+	groups := make([]enrollmentModels.CourseGroup, 0, len(projected))
+	hadCourseTarget := false
+	seen := make(map[int64]bool, len(projected))
+	for _, group := range projected {
 		if !seen[group.ID] && courseGroupMatchesTarget(group, catalog) {
 			seen[group.ID] = true
-			groups = append(groups, group)
+			hadCourseTarget = true
+			if group.Active {
+				groups = append(groups, group)
+			}
 		}
 	}
-	return groups, nil
+	return groups, hadCourseTarget
 }
 
 func (s *offeringChangeRequestService) CreateCourseRequest(
