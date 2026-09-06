@@ -29,10 +29,33 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
+
+// CourseProjectionReader is the consumer-owned port for the timetable facts
+// that course requests need. Its production adapter reaches the tenant-safe
+// timetable projection; it never exposes timetable repositories to enrollment.
+type CourseProjectionReader interface {
+	CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error)
+	LockCourseGroups(context.Context, []int64) ([]enrollmentModels.CourseGroup, error)
+	CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, int64) (map[int64]int, error)
+}
+
+// CourseOfferingReference and CourseGroup keep the timetable projection's
+// enrollment read contract at the workflow boundary. Composition must use
+// these aliases instead of reaching into the legacy enrollment model package.
+type CourseOfferingReference = enrollmentModels.CourseOfferingReference
+type CourseGroup = enrollmentModels.CourseGroup
+
+func (s *offeringChangeRequestService) courseProjection() (CourseProjectionReader, error) {
+	reader, ok := s.ImpactRepo.(CourseProjectionReader)
+	if !ok {
+		return nil, fmt.Errorf("course request: timetable projection is required")
+	}
+	return reader, nil
+}
 
 var (
 	// ErrCourseRequestsDisabled means the school has parent course requests
@@ -255,8 +278,12 @@ func (s *offeringChangeRequestService) courseGroups(
 	offeringIDs []int64,
 ) (map[int64][]enrollmentModels.CourseGroup, error) {
 	groups := make(map[int64][]enrollmentModels.CourseGroup, len(offeringIDs))
-	if s.ImpactRepo == nil || len(offeringIDs) == 0 {
+	if len(offeringIDs) == 0 {
 		return groups, nil
+	}
+	projection, err := s.courseProjection()
+	if err != nil {
+		return nil, err
 	}
 	wanted := make(map[int64]bool, len(offeringIDs))
 	for _, offeringID := range offeringIDs {
@@ -270,7 +297,7 @@ func (s *offeringChangeRequestService) courseGroups(
 			})
 		}
 	}
-	projected, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, references)
+	projected, err := projection.CourseGroupsForOfferings(ctx, references)
 	if err != nil {
 		return nil, fmt.Errorf("course request: list course groups: %w", err)
 	}
@@ -334,8 +361,12 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	catalog *OfferingChangeCatalog,
 	requested []OfferingChangeSelection,
 ) error {
-	if s.ImpactRepo == nil || len(entries) == 0 || catalog == nil {
+	if len(entries) == 0 || catalog == nil {
 		return nil
+	}
+	projection, err := s.courseProjection()
+	if err != nil {
+		return err
 	}
 	requestedIDs := make(map[int64]bool, len(requested))
 	for _, selection := range requested {
@@ -357,7 +388,7 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	if len(references) == 0 {
 		return nil
 	}
-	groups, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, references)
+	groups, err := projection.CourseGroupsForOfferings(ctx, references)
 	if err != nil {
 		return fmt.Errorf("offering change: mark course diff lines: %w", err)
 	}
@@ -598,10 +629,11 @@ func (s *offeringChangeRequestService) courseOccupancy(
 	onDate timezone.Date,
 	excludeStudentID int64,
 ) (map[int64]int, error) {
-	if s.ImpactRepo == nil {
-		return map[int64]int{}, nil
+	projection, err := s.courseProjection()
+	if err != nil {
+		return nil, err
 	}
-	counts, err := s.ImpactRepo.CountActiveCourseEnrollments(ctx, groupIDs, onDate, excludeStudentID)
+	counts, err := projection.CountActiveCourseEnrollments(ctx, groupIDs, onDate, excludeStudentID)
 	if err != nil {
 		return nil, fmt.Errorf("course request: count course rosters: %w", err)
 	}
@@ -618,22 +650,22 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 	groups []enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
 ) (int, error) {
-	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, modelBase.RequestQueueFilters{})
+	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, enrollmentModels.OfferingChangeQueueFilters{})
 	if err != nil {
 		return 0, fmt.Errorf("course request: list pending for waitlist: %w", err)
 	}
 	dates := make(map[int64]timezone.Date, len(rows))
 	childIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		if row != nil && !courseRequestAfter(row, pending) && row.RequestChildID > 0 {
-			dates[row.RequestChildID] = row.EffectiveFrom
+		if row != nil && row.ID != pending.ID && !courseRequestAfter(row, pending) && row.RequestChildID > 0 {
+			dates[row.RequestChildID] = timezone.Date(row.EffectiveFrom)
 			childIDs = append(childIDs, row.RequestChildID)
 		}
 	}
 	slices.Sort(childIDs)
 	childrenByID := make(map[int64]*enrollmentModels.RequestChild)
 	if courseGroupsHaveTargets(groups) {
-		children, childErr := s.RequestChildRepo.ListByIDs(ctx, slices.Compact(childIDs))
+		children, childErr := offeringChildrenByID(ctx, s.Children, slices.Compact(childIDs))
 		if childErr != nil {
 			return 0, fmt.Errorf("course request: load waitlist children: %w", childErr)
 		}
@@ -644,9 +676,17 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 			}
 		}
 	}
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
-	if err != nil {
-		return 0, fmt.Errorf("course request: load current offerings for waitlist: %w", err)
+	current := make([]*enrollmentModels.RequestChildOffering, 0)
+	if len(dates) > 0 {
+		ownerDates := make(map[int64]enrollmentOwner.Date, len(dates))
+		for childID, date := range dates {
+			ownerDates[childID] = enrollmentOwner.Date(date)
+		}
+		values, currentErr := s.Children.RequestChildOfferingsAtDates(ctx, ownerDates)
+		if currentErr != nil {
+			return 0, fmt.Errorf("course request: load current offerings for waitlist: %w", currentErr)
+		}
+		current = legacyOfferingSelections(values)
 	}
 	bookedByChild := make(map[int64]map[int64]bool, len(dates))
 	for _, link := range current {
@@ -745,10 +785,13 @@ func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	offering *enrollmentModels.CareOffering,
 	effectiveFrom timezone.Date,
 ) error {
-	if offering == nil || s.ImpactRepo == nil {
+	if offering == nil {
 		return nil
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	if _, err := s.courseProjection(); err != nil {
+		return err
+	}
+	child, err := offeringChildByID(ctx, s.Children, requestChildID)
 	if err != nil {
 		return fmt.Errorf("course request: load request child: %w", err)
 	}
@@ -798,7 +841,11 @@ func (s *offeringChangeRequestService) lockCourseGroups(
 	}
 	slices.Sort(ids)
 	ids = slices.Compact(ids)
-	locked, err := s.ImpactRepo.LockCourseGroups(ctx, ids)
+	projection, err := s.courseProjection()
+	if err != nil {
+		return nil, err
+	}
+	locked, err := projection.LockCourseGroups(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("course request: lock course capacity: %w", err)
 	}
@@ -812,7 +859,11 @@ func (s *offeringChangeRequestService) offeringCourseGroups(
 	gradeLevel *int16,
 	schoolClass *string,
 ) ([]enrollmentModels.CourseGroup, bool, error) {
-	projected, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, []enrollmentModels.CourseOfferingReference{{
+	projection, err := s.courseProjection()
+	if err != nil {
+		return nil, false, err
+	}
+	projected, err := projection.CourseGroupsForOfferings(ctx, []enrollmentModels.CourseOfferingReference{{
 		OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
 	}})
 	if err != nil {

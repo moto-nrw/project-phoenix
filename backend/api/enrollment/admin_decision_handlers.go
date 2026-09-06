@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -89,7 +91,7 @@ type AdminRequestSchemaLegalBlock struct {
 
 // AdminRequestSchemaField is the slim form-field shape the admin UI
 // needs to render parent-submitted answers with their original label
-// + target hint. Mirrors enrollmentModels.FormField but stringified
+// + target hint. Mirrors capability.FormField but stringified
 // + tagged for JSON.
 type AdminRequestSchemaField struct {
 	Key            string                          `json:"key"`
@@ -100,7 +102,7 @@ type AdminRequestSchemaField struct {
 	Options        []AdminRequestSchemaFieldOption `json:"options,omitempty"`
 }
 
-// AdminRequestSchemaFieldOption mirrors enrollmentModels.FormFieldOption
+// AdminRequestSchemaFieldOption mirrors capability.FormFieldOption
 // so the admin renderer can turn a stored value (e.g. "picked_up")
 // back into its human-readable label (e.g. "Wird abgeholt").
 type AdminRequestSchemaFieldOption struct {
@@ -211,7 +213,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ID:                strconv.FormatInt(c.ID, 10),
 			FirstName:         c.FirstName,
 			LastName:          c.LastName,
-			DateOfBirth:       c.DateOfBirth.String(),
+			DateOfBirth:       string(c.DateOfBirth),
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
 			Status:            c.Status,
@@ -416,10 +418,10 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 	return out
 }
 
-func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
+func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
 	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
 	for _, f := range fs.Fields {
-		if f.Type == enrollmentModels.FormFieldInfo {
+		if f.Type == capability.FormFieldInfo {
 			continue
 		}
 		opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
@@ -635,7 +637,7 @@ func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChil
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
 		LastName:          child.LastName,
-		DateOfBirth:       child.DateOfBirth.String(),
+		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
 		Status:            child.Status,

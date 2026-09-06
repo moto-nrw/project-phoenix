@@ -76,7 +76,7 @@ type autoTriggerRow struct {
 }
 
 type offeringChangeRow struct {
-	bun.BaseModel               `bun:"table:offering_change_requests,alias:offering_change_request"`
+	bun.BaseModel               `bun:"table:enrollment.offering_change_requests,alias:offering_change_request"`
 	ID                          int64           `bun:"id,pk,autoincrement"`
 	TenantID                    int64           `bun:"tenant_id,notnull"`
 	CreatedAt                   time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`

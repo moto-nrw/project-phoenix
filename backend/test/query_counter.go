@@ -28,6 +28,7 @@ type QueryCounter struct {
 	scope              uint64
 	rowsAffected       int64
 	statementsWithRows int
+	writeRowsAffected  int64
 }
 
 type queryCounterContextKey struct{}
@@ -106,7 +107,21 @@ func (c *QueryCounter) AfterQuery(ctx context.Context, event *bun.QueryEvent) {
 	c.mu.Lock()
 	c.rowsAffected += rows
 	c.statementsWithRows++
+	if event.Err == nil {
+		switch event.Operation() {
+		case "INSERT", "UPDATE", "DELETE", "MERGE":
+			c.writeRowsAffected += rows
+		}
+	}
 	c.mu.Unlock()
+}
+
+// WriteRows returns driver-reported rows affected by successful DML statements.
+// It excludes SELECTs, but includes writes later rolled back by the transaction.
+func (c *QueryCounter) WriteRows() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.writeRowsAffected
 }
 
 // Rows returns driver-reported rows and the number of statements with a known
@@ -129,6 +144,7 @@ func (c *QueryCounter) Reset() {
 	c.queries = nil
 	c.rowsAffected = 0
 	c.statementsWithRows = 0
+	c.writeRowsAffected = 0
 	c.mu.Unlock()
 }
 

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -111,13 +113,13 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 
 	mock := &mockRolloverService{
 		createResult: &enrollmentService.RolloverResult{
-			Phase: &enrollmentModels.Phase{
+			Phase: &capability.Phase{
 				Name:             "Schuljahr 2027",
-				Kind:             enrollmentModels.PhaseKindSchoolYear,
-				ServiceStartDate: timezone.NewDate(2027, 9, 1),
-				ServiceEndDate:   timezone.NewDate(2028, 7, 31),
+				Kind:             capability.PhaseKindSchoolYear,
+				ServiceStartDate: "2027-09-01",
+				ServiceEndDate:   "2028-07-31",
 				IsActive:         true,
-				CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+				CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 			},
 			SourceChildCount: 5,
 			RolledCount:      4,
@@ -127,7 +129,7 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 			EnqueuedEmails:   3,
 		},
 	}
-	mock.createResult.Phase.SetTenantID(testpkg.Tenant(t))
+	mock.createResult.Phase.TenantID = testpkg.Tenant(t)
 	router := buildRolloverRouter(mock)
 
 	body := map[string]any{
@@ -154,7 +156,7 @@ func TestCreateRolloverHandler_PassesBumpsGradeFalseThrough(t *testing.T) {
 
 	mock := &mockRolloverService{
 		createResult: &enrollmentService.RolloverResult{
-			Phase:          &enrollmentModels.Phase{Name: "h"},
+			Phase:          &capability.Phase{Name: "h"},
 			ReviewByReason: map[string]int{},
 		},
 	}

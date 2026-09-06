@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -23,7 +26,7 @@ type calendarPeriodValidationFixture struct {
 	db       *bun.DB
 	tenantID int64
 	ctx      context.Context
-	phase    *enrollmentModels.Phase
+	phase    *phaseFixture.Phase
 	service  enrollmentService.CareOfferingService
 }
 
@@ -35,26 +38,26 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	ctx := tenant.WithTenantID(testpkg.Ctx(t), tenantID)
 	repos := testRepositories(t, db)
 
-	phase := &enrollmentModels.Phase{
+	phase := &phaseFixture.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, time.September, 1),
-		ServiceEndDate:   timezone.NewDate(2027, time.July, 31),
+		ServiceStartDate: phaseFixture.Date(timezone.NewDate(2026, time.September, 1)),
+		ServiceEndDate:   phaseFixture.Date(timezone.NewDate(2027, time.July, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(tenantID)
-	require.NoError(t, repos.Phase.Create(ctx, phase))
+	phase.TenantID = tenantID
+	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repos.Enrollment(), phase))
 
 	service := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
-		Repo:                     repos.CareOffering,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		ActivityScheduleRepo:     repos.ActivitySchedule,
-		CalendarPeriodRepo:       repos.CalendarPeriod,
-		TimeframeRepo:            repos.Timeframe,
-		ActivityExceptionRepo:    repos.ActivityException,
-		PhaseRepo:                repos.Phase,
+		Repo:                  repos.CareOffering,
+		Bookings:              repos.Enrollment(),
+		ActivityGroupRepo:     repos.ActivityGroup,
+		ActivityScheduleRepo:  repos.ActivitySchedule,
+		CalendarPeriodRepo:    repos.CalendarPeriod,
+		TimeframeRepo:         repos.Timeframe,
+		ActivityExceptionRepo: repos.ActivityException,
+		Phases:                repos.Enrollment(),
 	})
 
 	return &calendarPeriodValidationFixture{
@@ -141,7 +144,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
 	}
-	offering.SetTenantID(f.tenantID)
+	offering.TenantID = f.tenantID
 	created, err := f.service.Create(f.ctx, offering)
 	require.NoError(t, err)
 	return group, created
@@ -175,12 +178,12 @@ func (f *calendarPeriodValidationFixture) selectOfferingForSubmittedChild(
 		RETURNING id
 	`, f.tenantID, requestID).Scan(f.ctx, &childID))
 
-	row := &enrollmentModels.RequestChildOffering{
+	row := &capability.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon"},
 	}
-	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).RequestChildOffering.Create(f.ctx, row))
+	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).Enrollment().InsertRequestChildOffering(f.ctx, row))
 }
 
 func (f *calendarPeriodValidationFixture) validator(
@@ -221,7 +224,7 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	fixture.createLinkedTemplate(t, &period.ID, nil)
 
 	replacement := *period
-	replacement.EndDate = scheduleModels.Date(fixture.phase.ServiceEndDate.AddDays(-1))
+	replacement.EndDate = scheduleModels.Date(timezone.Date(fixture.phase.ServiceEndDate).AddDays(-1))
 
 	err := fixture.validate(t, period.ID, &replacement)
 	require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodCareOfferingConflict)

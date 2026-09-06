@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+
+	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -13,9 +16,10 @@ import (
 var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
 
 type bookingConsistencyRepository struct {
-	runtime  Runtime
-	students StudentDirectory
-	carePlan CareOfferingDirectory
+	runtime    Runtime
+	students   StudentDirectory
+	carePlan   CareOfferingDirectory
+	enrollment EnrollmentQueries
 }
 
 // CareOfferingProjection is the narrow owner data this audit needs.
@@ -36,8 +40,15 @@ type CareOfferingDirectory interface {
 	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
 }
 
-func NewBookingConsistencyRepository(runtime Runtime) auditModel.BookingConsistencyRepository {
-	return &bookingConsistencyRepository{runtime: requireRuntime(runtime)}
+type EnrollmentQueries interface {
+	ApprovedBookings(context.Context) ([]enrollment.ApprovedBooking, error)
+}
+
+func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries) auditModel.BookingConsistencyRepository {
+	if enrollment == nil {
+		panic("booking consistency audit requires Enrollment queries")
+	}
+	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment}
 }
 
 // BindStudentDirectory installs the People Directory the audit resolves the
@@ -73,7 +84,15 @@ func (r *bookingConsistencyRepository) Audit(
 	if tenantID <= 0 {
 		return nil, errBookingConsistencyTenantRequired
 	}
-	alumni, err := r.approvedAlumniStudentIDs(ctx, tenantID)
+	bookings, err := r.enrollment.ApprovedBookings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedBookings, err := json.Marshal(bookings)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking audit projection: %w", err)
+	}
+	alumni, err := r.approvedAlumniStudentIDs(ctx, bookings)
 	if err != nil {
 		return nil, err
 	}
@@ -92,29 +111,21 @@ WITH params AS (
 		available_days jsonb, is_active boolean, is_required boolean,
 		counts_as_care boolean, pickup_times jsonb
 	)
+), approved_bookings AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS booking(
+  request_child_id bigint, student_id bigint, phase_id bigint, tenant_id bigint,
+  service_start_date date, service_end_date date, care_offering_selection_mode text
+ )
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
 	CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6)) AS day_offset(day)
 ), approved_students AS (
-	SELECT
-		request_child.id AS request_child_id,
-		COALESCE(request_child.created_student_id, request_child.matched_student_id) AS student_id,
-		phase.id AS phase_id,
-		phase.service_start_date,
-		phase.service_end_date,
-		request_child.tenant_id
-	FROM enrollment.request_children AS request_child
-	INNER JOIN enrollment.requests AS request
-		ON request.tenant_id = request_child.tenant_id
-		AND request.id = request_child.request_id
-	INNER JOIN enrollment.phases AS phase
-		ON phase.tenant_id = request.tenant_id
-		AND phase.id = request.phase_id
-	INNER JOIN params ON params.tenant_id = request_child.tenant_id
-	WHERE request_child.status = 'approved'
-		AND COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NOT NULL
-		AND NOT (COALESCE(request_child.created_student_id, request_child.matched_student_id) = ANY(params.alumni_student_ids))
+ SELECT booking.*
+ FROM approved_bookings AS booking
+ INNER JOIN params ON params.tenant_id = booking.tenant_id
+ WHERE booking.student_id IS NOT NULL
+ AND NOT (booking.student_id = ANY(params.alumni_student_ids))
 ), care_inputs AS (
 	SELECT
 		approved_students.student_id,
@@ -174,65 +185,56 @@ WITH params AS (
 	GROUP BY student_id, date
 ), approved_without_offering AS (
 	SELECT
-		phase.care_offering_selection_mode,
+		booking.care_offering_selection_mode,
 		EXISTS (
 			SELECT 1
 			FROM care_offerings AS required_offering
-			WHERE required_offering.tenant_id = phase.tenant_id
-				AND required_offering.phase_id = phase.id
+			WHERE required_offering.tenant_id = booking.tenant_id
+				AND required_offering.phase_id = booking.phase_id
 				AND required_offering.is_active = TRUE
 				AND required_offering.is_required = TRUE
 				AND NOT COALESCE((
 					SELECT range_agg(daterange(
-						GREATEST(COALESCE(required_link.valid_from, phase.service_start_date), phase.service_start_date),
-						LEAST(COALESCE(required_link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						GREATEST(COALESCE(required_link.valid_from, booking.service_start_date), booking.service_start_date),
+						LEAST(COALESCE(required_link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
-					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
+					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
 					FROM enrollment.request_child_offerings AS required_link
-					WHERE required_link.tenant_id = request_child.tenant_id
-						AND required_link.request_child_id = request_child.id
+					WHERE required_link.tenant_id = booking.tenant_id
+						AND required_link.request_child_id = booking.request_child_id
 						AND required_link.care_offering_id = required_offering.id
-						AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_end_date)
-						AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_start_date)
+						AND (required_link.valid_from IS NULL OR required_link.valid_from <= booking.service_end_date)
+						AND (required_link.valid_until IS NULL OR required_link.valid_until > booking.service_start_date)
 				), FALSE)
 		) AS missing_required_offering,
 		EXISTS (
 			SELECT 1
 			FROM care_offerings AS care_offering
-			WHERE care_offering.tenant_id = phase.tenant_id
-				AND care_offering.phase_id = phase.id
+			WHERE care_offering.tenant_id = booking.tenant_id
+				AND care_offering.phase_id = booking.phase_id
 				AND care_offering.is_active = TRUE
 				AND care_offering.is_required = FALSE
 				AND care_offering.counts_as_care = TRUE
 				AND COALESCE((
 					SELECT range_agg(daterange(
-						GREATEST(COALESCE(link.valid_from, phase.service_start_date), phase.service_start_date),
-						LEAST(COALESCE(link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						GREATEST(COALESCE(link.valid_from, booking.service_start_date), booking.service_start_date),
+						LEAST(COALESCE(link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
-					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
+					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
 					FROM enrollment.request_child_offerings AS link
-					WHERE link.tenant_id = request_child.tenant_id
-						AND link.request_child_id = request_child.id
+					WHERE link.tenant_id = booking.tenant_id
+						AND link.request_child_id = booking.request_child_id
 						AND link.care_offering_id = care_offering.id
-						AND (link.valid_from IS NULL OR link.valid_from <= phase.service_end_date)
-						AND (link.valid_until IS NULL OR link.valid_until > phase.service_start_date)
+						AND (link.valid_from IS NULL OR link.valid_from <= booking.service_end_date)
+						AND (link.valid_until IS NULL OR link.valid_until > booking.service_start_date)
 				), FALSE)
 		) AS has_choosable_offering
-	FROM enrollment.request_children AS request_child
-	INNER JOIN enrollment.requests AS request
-		ON request.tenant_id = request_child.tenant_id
-		AND request.id = request_child.request_id
-	INNER JOIN enrollment.phases AS phase
-		ON phase.tenant_id = request.tenant_id
-		AND phase.id = request.phase_id
-	INNER JOIN params ON params.tenant_id = request_child.tenant_id
-	WHERE request_child.status = 'approved'
-		AND (
-			COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NULL
-			OR NOT (COALESCE(request_child.created_student_id, request_child.matched_student_id) = ANY(params.alumni_student_ids))
-		)
-		AND phase.service_start_date <= params.audit_date + 6
-		AND phase.service_end_date >= params.audit_date
+
+ FROM approved_bookings AS booking
+ INNER JOIN params ON params.tenant_id = booking.tenant_id
+ WHERE (booking.student_id IS NULL OR NOT (booking.student_id = ANY(params.alumni_student_ids)))
+ AND booking.service_start_date <= params.audit_date + 6
+ AND booking.service_end_date >= params.audit_date
 )
 SELECT
 	params.tenant_id,
@@ -249,7 +251,7 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`, tenantID, auditDate, pgdialect.Array(alumni), offerings).Scan(ctx, report)
+`, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings)).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}
@@ -272,24 +274,28 @@ func (r *bookingConsistencyRepository) careOfferingProjection(ctx context.Contex
 }
 
 // approvedAlumniStudentIDs names the graduates among the tenant's approved
-// request children. The ids come from enrollment rows this owner reads; the
+// request children. The ids come from the Enrollment projection; the
 // lifecycle status comes from the People Directory.
-func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, tenantID int64) ([]int64, error) {
+func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, bookings []enrollment.ApprovedBooking) ([]int64, error) {
 	if r.students == nil {
 		return nil, errStudentDirectoryRequired
 	}
-	var studentIDs []int64
-	err := runtimeDB(ctx, r.runtime).NewRaw(`
-SELECT DISTINCT COALESCE(request_child.created_student_id, request_child.matched_student_id) AS student_id
-FROM enrollment.request_children AS request_child
-WHERE request_child.tenant_id = ?
-	AND request_child.status = 'approved'
-	AND COALESCE(request_child.created_student_id, request_child.matched_student_id) IS NOT NULL
-ORDER BY student_id
-`, tenantID).Scan(ctx, &studentIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list approved students for tenant %d: %w", tenantID, err)
+
+	studentIDs := make([]int64, 0, len(bookings))
+	seen := make(map[int64]struct{}, len(bookings))
+	for _, booking := range bookings {
+		if booking.StudentID == nil {
+			continue
+		}
+		id := *booking.StudentID
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		studentIDs = append(studentIDs, id)
 	}
+	slices.Sort(studentIDs)
+
 	alumni := []int64{}
 	if len(studentIDs) == 0 {
 		return alumni, nil
