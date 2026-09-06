@@ -243,7 +243,8 @@
     "installError": "moto konnte nicht installiert werden. Bitte versuchen Sie es erneut.",
     "understood": "Verstanden",
     "closeGuide": "Anleitung schließen",
-    "close": "Dialog schließen"
+    "close": "Dialog schließen",
+    "introStaff": "Schalten Sie Benachrichtigungen ein. moto meldet sich dann bei wichtigen Ereignissen, auch wenn die App geschlossen ist."
   },
   "pushNotifications": {
     "title": "Benachrichtigungen auf diesem Gerät",
@@ -272,7 +273,18 @@
     "sendTest": "Testbenachrichtigung senden",
     "testing": "Wird gesendet …",
     "testSent": "Testbenachrichtigung wurde gesendet.",
-    "testError": "Die Testbenachrichtigung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+    "testError": "Die Testbenachrichtigung konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
+    "statusInstallLabel": "moto als App geöffnet",
+    "statusInstallYes": "Ja",
+    "statusInstallNo": "Nein",
+    "statusPermissionLabel": "moto darf Sie benachrichtigen",
+    "statusPermissionYes": "Ja",
+    "statusPermissionNo": "Noch nicht",
+    "statusPermissionBlocked": "Blockiert",
+    "restart": "Einrichtung erneut starten",
+    "installOffer": "Sie können moto auf diesem Gerät installieren. moto öffnet sich dann wie eine App, ohne Browserleiste.",
+    "installOfferAction": "moto installieren",
+    "installNotNeeded": "Auf diesem Gerät ist das nicht nötig. Benachrichtigungen kommen auch im Browser an."
   },
   "parentSettings": {
     "eyebrow": "Ihr Konto",

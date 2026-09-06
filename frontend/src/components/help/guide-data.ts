@@ -2419,8 +2419,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
-          "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
-          "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "Nach dem Anmelden fragt moto einmal von selbst nach. Der Dialog führt durch die fehlenden Schritte: erst installieren, dann erlauben.",
+          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät` über `Einrichtung erneut starten`.",
+          "Die Karte zeigt oben, wie es auf diesem Gerät steht: ob moto als App geöffnet ist und ob moto benachrichtigen darf.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
           "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",

@@ -15,6 +15,7 @@ const pushApi = vi.hoisted(() => ({
 const pwaInstall = vi.hoisted(() => ({
   canPromptInstall: vi.fn(),
   isAndroidDevice: vi.fn(),
+  isDesktopDevice: vi.fn(),
   isSamsungInternet: vi.fn(),
   isInstallationCompleted: vi.fn(),
   subscribeInstallPrompt: vi.fn(() => () => undefined),
@@ -23,10 +24,15 @@ const pwaInstall = vi.hoisted(() => ({
 const notificationApi = vi.hoisted(() => ({
   sendTestNotification: vi.fn(),
 }));
+const shellAuth = vi.hoisted(() => ({ useShellAuthSafe: vi.fn() }));
 
 vi.mock("~/lib/push-api", () => pushApi);
 vi.mock("~/lib/pwa-install-prompt", () => pwaInstall);
 vi.mock("~/lib/notification-api", () => notificationApi);
+vi.mock("~/components/notifications/notification-setup-dialog", () => ({
+  NotificationSetupDialog: () => <div data-testid="setup-dialog" />,
+}));
+vi.mock("~/lib/shell-auth-context", () => shellAuth);
 
 function stubNotificationPermission(permission: NotificationPermission) {
   vi.stubGlobal("Notification", { permission });
@@ -43,10 +49,15 @@ describe("PushNotificationSection", () => {
     pushApi.verifyPushConfiguration.mockResolvedValue(undefined);
     pwaInstall.canPromptInstall.mockReturnValue(false);
     pwaInstall.isAndroidDevice.mockReturnValue(false);
+    pwaInstall.isDesktopDevice.mockReturnValue(false);
     pwaInstall.isSamsungInternet.mockReturnValue(false);
     pwaInstall.isInstallationCompleted.mockReturnValue(false);
     pwaInstall.triggerInstallPrompt.mockResolvedValue("accepted");
     notificationApi.sendTestNotification.mockResolvedValue(undefined);
+    shellAuth.useShellAuthSafe.mockReturnValue({
+      status: "authenticated",
+      user: { id: "42" },
+    });
     stubNotificationPermission("default");
   });
 
@@ -381,5 +392,91 @@ describe("PushNotificationSection", () => {
         "Ihre Schule hat Benachrichtigungen derzeit deaktiviert.",
       ),
     ).toBeInTheDocument();
+  });
+  // #2831: die Karte beantwortet die beiden Fragen, die niemand am Gerät
+  // selbst beantworten kann, und startet die Einrichtung neu.
+  it("shows install and permission state for this device", async () => {
+    stubNotificationPermission("granted");
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(
+      await screen.findByText("moto als App geöffnet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nein")).toBeInTheDocument();
+    expect(
+      screen.getByText("moto darf Sie benachrichtigen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ja")).toBeInTheDocument();
+  });
+
+  it("marks a blocked browser permission as blocked", async () => {
+    stubNotificationPermission("denied");
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(await screen.findByText("Blockiert")).toBeInTheDocument();
+  });
+
+  it("guides staff through Android installation too, not only parents", async () => {
+    pwaInstall.isAndroidDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(
+      await screen.findByRole("button", { name: "App installieren" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers installation on a desktop browser that can install", async () => {
+    pwaInstall.isDesktopDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "moto installieren" }),
+    );
+    await waitFor(() =>
+      expect(pwaInstall.triggerInstallPrompt).toHaveBeenCalledOnce(),
+    );
+  });
+
+  it("keeps the desktop offer away from an installed app", async () => {
+    pwaInstall.isDesktopDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+    pushApi.isStandaloneApp.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    await screen.findByText("moto als App geöffnet");
+    expect(
+      screen.queryByRole("button", { name: "moto installieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restarts the guided setup from the card", async () => {
+    render(<PushNotificationSection portal="tenant" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Einrichtung erneut starten" }),
+    );
+
+    expect(await screen.findByTestId("setup-dialog")).toBeInTheDocument();
+  });
+
+  it("hides the restart button without a known account", async () => {
+    shellAuth.useShellAuthSafe.mockReturnValue(undefined);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    await screen.findByText("moto als App geöffnet");
+    expect(
+      screen.queryByRole("button", { name: "Einrichtung erneut starten" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ import {
   createChromeIntentUrl,
   dismissInstallHint,
   isAndroidDevice,
+  isIosDevice,
   isInstallHintEligible,
   isInstallationCompleted,
   isSamsungInternet,
@@ -19,17 +20,15 @@ import {
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
 
-export { isAndroidDevice, isSamsungInternet } from "~/lib/pwa-install-prompt";
+export {
+  isAndroidDevice,
+  isIosDevice,
+  isSamsungInternet,
+} from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PwaInstallHint" });
 
 export type InstallPlatform = "ios" | "android" | "samsung";
-
-/** True on iPhone/iPad (iPadOS reports itself as MacIntel with touch). */
-export function isIosDevice(nav: Navigator): boolean {
-  if (/iphone|ipad|ipod/i.test(nav.userAgent)) return true;
-  return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
-}
 
 /** True only in Safari, where the iOS home-screen action is available. */
 export function isIosSafari(nav: Navigator): boolean {

@@ -40,6 +40,27 @@ export function isAndroidDevice(nav: Navigator): boolean {
   );
 }
 
+/**
+ * True on iPhone/iPad, in ANY browser. Since iOS 16.4 the home-screen action
+ * exists in Safari, Chrome, Edge, Firefox and Orion alike, so the manual
+ * instruction is right for all of them; `beforeinstallprompt` exists in none.
+ * iPadOS reports itself as MacIntel with touch points.
+ */
+export function isIosDevice(nav: Navigator): boolean {
+  if (/iphone|ipad|ipod/i.test(nav.userAgent)) return true;
+  return nav.platform === "MacIntel" && nav.maxTouchPoints > 1;
+}
+
+/**
+ * True on a desktop browser that can install web apps. Desktop Chromium fires
+ * `beforeinstallprompt` just like Android does, so the same one-tap install
+ * works there — it was previously thrown away, leaving office computers with
+ * no install path at all.
+ */
+export function isDesktopDevice(nav: Navigator): boolean {
+  return !isAndroidDevice(nav) && !isIosDevice(nav);
+}
+
 /** True for Samsung Internet, whose install prompt currently creates an old WebAPK. */
 export function isSamsungInternet(nav: Navigator): boolean {
   return isAndroidDevice(nav) && /SamsungBrowser\//i.test(nav.userAgent);
@@ -91,6 +112,10 @@ const PUBLIC_PARENT_PATHS = [
   "/enroll/status",
 ] as const;
 
+// Das Schul-Portal hat dieselbe Vorbedingung wie die anderen: ohne
+// Home-Bildschirm keine Benachrichtigungen auf iPhone und iPad (#2831).
+const PUBLIC_SCHOOL_PATHS = ["/login", "/invite", "/reset-password"] as const;
+
 function notify(): void {
   for (const subscriber of subscribers) subscriber();
 }
@@ -141,6 +166,23 @@ function isCurrentProtectedParentPath(): boolean {
   );
 }
 
+function isCurrentSchoolInstallHost(): boolean {
+  const configuredHost = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
+  if (!configuredHost) {
+    throw new Error("NEXT_PUBLIC_SCHOOL_HOSTNAME is not set.");
+  }
+  const hostname = new URL(`http://${configuredHost}`).hostname;
+  return window.location.hostname.toLowerCase() === hostname.toLowerCase();
+}
+
+function isCurrentProtectedSchoolPath(): boolean {
+  const pathname = window.location.pathname.replace(/^\/school(?=\/|$)/, "");
+  return !PUBLIC_SCHOOL_PATHS.some(
+    (publicPath) =>
+      pathname === publicPath || pathname.startsWith(`${publicPath}/`),
+  );
+}
+
 function isCurrentParentSettingsPath(): boolean {
   return (
     window.location.pathname.replace(/^\/parents(?=\/|$)/, "") === "/settings"
@@ -156,17 +198,25 @@ function canCaptureInstallPrompt(): boolean {
   if (isCurrentParentInstallHost()) {
     return isCurrentProtectedParentPath() && isInstallHintEligible(window);
   }
+  if (isCurrentSchoolInstallHost()) {
+    return isCurrentProtectedSchoolPath() && isInstallHintEligible(window);
+  }
   return false;
 }
 
 function isCurrentInstallHost(): boolean {
-  return isCurrentTenantInstallHost() || isCurrentParentInstallHost();
+  return (
+    isCurrentTenantInstallHost() ||
+    isCurrentParentInstallHost() ||
+    isCurrentSchoolInstallHost()
+  );
 }
 
 // Samsung Internet has a replacement only in the tenant-wide hint and the
 // parent settings section. On every other route leave its native prompt alone.
 function canSuppressSamsungInstallPrompt(): boolean {
   if (isCurrentTenantInstallHost()) return canCaptureInstallPrompt();
+  if (isCurrentSchoolInstallHost()) return canCaptureInstallPrompt();
   return isCurrentParentInstallHost() && isCurrentParentSettingsPath();
 }
 
@@ -214,7 +264,8 @@ export function dismissInstallHint(win: Window): void {
 
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
-    if (!isAndroidDevice(window.navigator)) {
+    if (isIosDevice(window.navigator)) {
+      // Safari never fires this event; nothing to capture, nothing to suppress.
       return;
     }
     if (isSamsungInternet(window.navigator)) {
@@ -228,7 +279,7 @@ if (typeof window !== "undefined") {
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    if (!isCurrentInstallHost() || !isAndroidDevice(window.navigator)) {
+    if (!isCurrentInstallHost() || isIosDevice(window.navigator)) {
       return;
     }
     deferredPrompt = null;

@@ -243,7 +243,8 @@
     "installError": "moto could not be installed. Please try again.",
     "understood": "Got it",
     "closeGuide": "Close guide",
-    "close": "Close dialog"
+    "close": "Close dialog",
+    "introStaff": "Turn on notifications. moto will then tell you about important events, even when the app is closed."
   },
   "pushNotifications": {
     "title": "Notifications on this device",
@@ -272,7 +273,18 @@
     "sendTest": "Send test notification",
     "testing": "Sending …",
     "testSent": "Test notification sent.",
-    "testError": "The test notification could not be sent. Please try again."
+    "testError": "The test notification could not be sent. Please try again.",
+    "statusInstallLabel": "moto opened as an app",
+    "statusInstallYes": "Yes",
+    "statusInstallNo": "No",
+    "statusPermissionLabel": "moto may notify you",
+    "statusPermissionYes": "Yes",
+    "statusPermissionNo": "Not yet",
+    "statusPermissionBlocked": "Blocked",
+    "restart": "Start setup again",
+    "installOffer": "You can install moto on this device. moto then opens like an app, without the browser bar.",
+    "installOfferAction": "Install moto",
+    "installNotNeeded": "On this device that is not needed. Notifications also arrive in the browser."
   },
   "parentSettings": {
     "eyebrow": "Your account",

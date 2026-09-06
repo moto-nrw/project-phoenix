@@ -243,7 +243,8 @@
     "installError": "moto nuk mund të instalohej. Provoni përsëri.",
     "understood": "E kuptova",
     "closeGuide": "Mbyll udhëzuesin",
-    "close": "Mbyll dialogun"
+    "close": "Mbyll dialogun",
+    "introStaff": "Aktivizoni njoftimet. Atëherë moto ju njofton për ngjarje të rëndësishme, edhe kur aplikacioni është i mbyllur."
   },
   "pushNotifications": {
     "title": "Njoftimet në këtë pajisje",
@@ -272,7 +273,18 @@
     "sendTest": "Dërgo njoftim provë",
     "testing": "Po dërgohet …",
     "testSent": "Njoftimi provë u dërgua.",
-    "testError": "Njoftimi provë nuk mund të dërgohej. Provoni përsëri."
+    "testError": "Njoftimi provë nuk mund të dërgohej. Provoni përsëri.",
+    "statusInstallLabel": "moto i hapur si aplikacion",
+    "statusInstallYes": "Po",
+    "statusInstallNo": "Jo",
+    "statusPermissionLabel": "moto mund t'ju njoftojë",
+    "statusPermissionYes": "Po",
+    "statusPermissionNo": "Ende jo",
+    "statusPermissionBlocked": "E bllokuar",
+    "restart": "Nisni përsëri konfigurimin",
+    "installOffer": "Mund ta instaloni moto në këtë pajisje. Atëherë moto hapet si aplikacion, pa shiritin e shfletuesit.",
+    "installOfferAction": "Instalo moto",
+    "installNotNeeded": "Në këtë pajisje kjo nuk është e nevojshme. Njoftimet vijnë edhe në shfletues."
   },
   "parentSettings": {
     "eyebrow": "Llogaria juaj",
