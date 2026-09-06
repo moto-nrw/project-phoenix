@@ -896,6 +896,7 @@ body {
   inset-inline: 0;
   top: 0;
   z-index: 60;
+  pointer-events: none;
   height: 3px;
   background-color: var(--color-moto-green);
   transform-origin: left center;

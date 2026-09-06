@@ -124,8 +124,9 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Data-driven status pill (raw hex) | `StatusDotBadge` | `~/components/ui/status-dot-badge` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
-| Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). Plain `next/link` stays right for links inside page content. | `~/components/ui/nav-link` |
-| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink` meldet den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
+| Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
+| Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
+| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |

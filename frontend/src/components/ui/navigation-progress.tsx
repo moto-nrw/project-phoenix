@@ -249,6 +249,17 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
+  useEffect(() => {
+    window.m = (href) => {
+      const target = navigationTarget(href);
+      if (target === null || target === currentUrl()) return;
+      store.startLinkNavigation(target);
+    };
+
+    return () => {
+      delete window.m;
+    };
+  }, [store]);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und

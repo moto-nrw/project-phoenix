@@ -5,6 +5,7 @@ import {
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import NextLink from "next/link";
 import Link from "./navigation-link";
+import { ButtonLink } from "./button";
 import { useContext, type MouseEvent, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -137,6 +138,41 @@ describe("NavigationProgress", () => {
     );
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("tracks a ButtonLink before its loading boundary renders", () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <ButtonLink href="/calendar-periods">Planungszeiträume</ButtonLink>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(screen.getByTestId("navigation-progress")).toHaveClass(
+      "moto-nav-progress",
+    );
+    expect(screen.queryByLabelText("Lädt...")).toBeNull();
+  });
+
+  it("cancels ButtonLink progress when onNavigate blocks the link", () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <ButtonLink
+          href="/calendar-periods"
+          onNavigate={(event) => event.preventDefault()}
+        >
+          Planungszeiträume
+        </ButtonLink>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("does not start progress when a Link click is cancelled", () => {
