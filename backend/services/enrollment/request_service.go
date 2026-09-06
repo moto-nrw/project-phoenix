@@ -2834,24 +2834,29 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 		req.CustomData = patch.CustomData
 	}
 
-	// Same hidden-answer sanitizing as Submit: an edit must not be able to
-	// (re)introduce a value for a guardian field the parent couldn't see.
-	// Children aren't edited here, so only the guardian scope is filtered.
-	var schema *enrollmentCapability.FormSchema
-	if req.SchemaID != nil {
-		if loaded, schemaErr := s.intakeSchema(ctx, *req.SchemaID); schemaErr == nil {
+	tenantID := req.TenantID
+	if tenant.IsAdminTx(ctx) {
+		// The public token lookup uses an admin transaction. Start a separate
+		// tenant transaction rather than reusing its unscoped database role.
+		ctx = tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+	}
+	tenantCtx := tenant.WithTenantID(ctx, tenantID)
+	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var schema *enrollmentCapability.FormSchema
+		if req.SchemaID != nil {
+			loaded, schemaErr := s.intakeSchema(txCtx, *req.SchemaID)
+			if schemaErr != nil {
+				return fmt.Errorf("edit: load pinned schema: %w", schemaErr)
+			}
 			schema = loaded
+			// Only guardian answers are editable here. Filter hidden and
+			// unknown fields against the request's immutable schema.
 			byKey := buildFieldsByKey(schema)
 			req.CustomData = sanitizeVisibleAnswers(
 				schema, false, req.CustomData,
 				fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey},
 			)
 		}
-	}
-
-	tenantID := req.TenantID
-	tenantCtx := tenant.WithTenantID(ctx, tenantID)
-	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Same consent-key allowlist as Submit. Resolved inside the tenant
 		// tx because the settings fallback needs the per-tenant override.
 		if patch.ConsentFlags != nil {

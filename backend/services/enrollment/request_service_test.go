@@ -3448,3 +3448,75 @@ func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
 	require.Len(t, retried.Children, 1)
 	assertRows(1)
 }
+
+func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	owner, ok := env.config.Catalog.(*enrollmentCapability.Module)
+	require.True(t, ok)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{Owner: owner})
+	schema, err := schemaSvc.CreateSchemaWithLegal(ctx, "Admin edit schema", []enrollmentCapability.FormField{
+		{Key: "show_details", Label: "Show details", Type: enrollmentCapability.FormFieldBoolean},
+		{Key: "details", Label: "Details", Type: enrollmentCapability.FormFieldText, SortOrder: 1,
+			VisibleWhen: &enrollmentCapability.VisibilityCondition{
+				Source: enrollmentCapability.ConditionSourceField, Field: "show_details",
+				Operator: enrollmentCapability.ConditionOpEquals, Value: true,
+			}},
+	}, env.creatorID, enrollmentCapability.CoreRequirements{}, []enrollmentCapability.FormLegalBlock{
+		{Key: "custom_permission", Kind: enrollmentCapability.LegalBlockKindConsent,
+			Title: "Permission", Label: "I agree", Enabled: true},
+	})
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, owner.UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+
+	// Change the phase after submission: edits must still use the pinned version.
+	env.phase.FormSchemaID = &env.schemaID
+	require.NoError(t, owner.UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
+	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.Zero(t, tenant.FromContext(adminCtx))
+		return env.svc.Edit(adminCtx, result.Request.StatusToken, enrollmentService.EditPatch{
+			CustomData:   map[string]any{"show_details": false, "details": "hidden", "unknown": "injected"},
+			ConsentFlags: map[string]any{"custom_permission": true, "photo": true, "unknown": true},
+		})
+	})
+	require.NoError(t, err)
+	stored, _, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"show_details": false}, stored.CustomData)
+	assert.Equal(t, map[string]any{"custom_permission": true}, stored.ConsentFlags)
+}
+
+type failingEditSchemaCatalog struct {
+	enrollmentService.IntakeCatalog
+	err error
+}
+
+func (c failingEditSchemaCatalog) Schema(context.Context, int64) (*enrollmentCapability.FormSchema, error) {
+	return nil, c.err
+}
+
+func TestRequestService_Edit_AdminContextPropagatesSchemaFailure(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	lookupErr := errors.New("schema lookup failed")
+	config := env.config
+	config.Catalog = failingEditSchemaCatalog{IntakeCatalog: config.Catalog, err: lookupErr}
+	svc := enrollmentService.NewRequestService(config)
+	name := "Changed"
+	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return svc.Edit(adminCtx, result.Request.StatusToken, enrollmentService.EditPatch{GuardianFirstName: &name})
+	})
+	require.ErrorIs(t, err, lookupErr)
+	stored, _, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, result.Request.GuardianFirstName, stored.GuardianFirstName)
+}
