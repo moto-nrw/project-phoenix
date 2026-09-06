@@ -42,6 +42,7 @@ export interface NavigationProgressStore {
   readonly isPending: () => boolean;
   readonly isFallbackSuppressed: () => boolean;
   readonly suppressFallback: () => void;
+  readonly restoreFallback: () => void;
   readonly startNavigation: (target: string) => number;
   readonly startLinkNavigation: (target: string) => number;
   readonly startHistory: (target: string) => void;
@@ -70,16 +71,27 @@ function createStore(): NavigationProgressStore {
   };
   const isPending = () =>
     pendingNavigations.length > 0 || pendingHistoryNavigation !== null;
-  const isFallbackSuppressed = () => fallbackSuppressed;
+  const isFallbackSuppressed = () => fallbackSuppressed || isPending();
   const suppressFallback = () => {
     if (fallbackSuppressed) return;
     fallbackSuppressed = true;
     notify();
   };
+  const restoreFallback = () => {
+    if (!fallbackSuppressed) return;
+    fallbackSuppressed = false;
+    if (!isPending()) notify();
+  };
   const update = (change: () => void) => {
     const wasPending = isPending();
+    const wasFallbackSuppressed = isFallbackSuppressed();
     change();
-    if (wasPending !== isPending()) notify();
+    if (
+      wasPending !== isPending() ||
+      wasFallbackSuppressed !== isFallbackSuppressed()
+    ) {
+      notify();
+    }
   };
   const clearNavigations = () => {
     for (const navigation of pendingNavigations) {
@@ -94,7 +106,6 @@ function createStore(): NavigationProgressStore {
     }
   };
   const startNavigation = (target: string) => {
-    suppressFallback();
     if (pendingLinkNavigation?.target === target) {
       return pendingLinkNavigation.id;
     }
@@ -132,6 +143,7 @@ function createStore(): NavigationProgressStore {
     isPending,
     isFallbackSuppressed,
     suppressFallback,
+    restoreFallback,
     startNavigation,
     startLinkNavigation: (target) => {
       const id = startNavigation(target);
@@ -144,7 +156,6 @@ function createStore(): NavigationProgressStore {
       return id;
     },
     startHistory: (target) => {
-      suppressFallback();
       // Verlaufwechsel haben ein eindeutiges Ziel. Bei mehreren schnellen
       // Back-/Forward-Ereignissen darf ein verspäteter Zwischen-Commit nicht
       // den Balken für das zuletzt angeforderte Ziel beenden.
@@ -270,15 +281,15 @@ function NavigationProgressRouter({
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
   useEffect(() => {
-    // Native next/link instances dispatch through the router themselves and
-    // therefore do not pass through our Router wrapper. The capture phase is
-    // early enough to hide the generic fallback before Next renders it. It
-    // deliberately does not start progress: NavigationLink remains the sole
-    // source of link-progress entries.
+    // Die Capture-Phase blendet die generische Ladehülle aus, bevor Next sie
+    // rendern kann. Der tatsächliche Fortschrittsvorgang startet danach über
+    // den bereitgestellten Router. Wird der Klick von einem eigenen Handler
+    // abgebrochen, setzt die Mikroaufgabe die frühe Unterdrückung zurück.
     const handleLinkClick = (event: MouseEvent) => {
       const target = linkNavigationTarget(event);
       if (target !== null && target !== currentUrl()) {
         store.suppressFallback();
+        queueMicrotask(store.restoreFallback);
       }
     };
     document.addEventListener("click", handleLinkClick, true);

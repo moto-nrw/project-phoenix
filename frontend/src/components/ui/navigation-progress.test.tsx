@@ -25,33 +25,52 @@ const router = vi.hoisted(
     }) satisfies RouterMock,
 );
 
-vi.mock("next/link", () => ({
-  default: ({
-    children,
-    href,
-    onClick,
-    onNavigate,
-    ...rest
-  }: {
-    children?: React.ReactNode;
-    href: string;
-    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
-    onNavigate?: (event: { preventDefault: () => void }) => void;
-  }) => (
-    <a
-      href={href}
-      {...rest}
-      onClick={(event) => {
-        onClick?.(event);
-        if (event.defaultPrevented) return;
-        event.preventDefault();
-        onNavigate?.({ preventDefault: () => undefined });
-      }}
-    >
-      {children}
-    </a>
-  ),
-}));
+vi.mock("next/link", async () => {
+  const { AppRouterContext } =
+    await import("next/dist/shared/lib/app-router-context.shared-runtime");
+  const { useContext } = await import("react");
+
+  return {
+    default: ({
+      children,
+      href,
+      onClick,
+      onNavigate,
+      ...rest
+    }: {
+      children?: React.ReactNode;
+      href: string;
+      onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+      onNavigate?: (event: { preventDefault: () => void }) => void;
+    }) => {
+      const router = useContext(AppRouterContext) as AppRouterInstance | null;
+
+      return (
+        <a
+          href={href}
+          {...rest}
+          onClick={(event) => {
+            onClick?.(event);
+            if (event.defaultPrevented) return;
+
+            let cancelled = false;
+            onNavigate?.({
+              preventDefault: () => {
+                cancelled = true;
+              },
+            });
+            if (cancelled) return;
+
+            event.preventDefault();
+            router?.push(href);
+          }}
+        >
+          {children}
+        </a>
+      );
+    },
+  };
+});
 
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
@@ -384,7 +403,7 @@ describe("NavigationProgress", () => {
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("suppresses the fallback before a native content link commits", () => {
+  it("tracks a native content link before its loading boundary renders", () => {
     renderShell(
       <>
         <ProtectedLoading />
@@ -395,11 +414,11 @@ describe("NavigationProgress", () => {
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
-    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("suppresses the fallback before a native query link commits", () => {
+  it("tracks a native query link before its loading boundary renders", () => {
     navigateTo("/calendar-periods?view=week");
     renderShell(
       <>
@@ -411,8 +430,28 @@ describe("NavigationProgress", () => {
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
     fireEvent.click(screen.getByRole("link", { name: "Monatsansicht" }));
 
-    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
+  });
+
+  it("restores the fallback after a cancelled native link click", async () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <NextLink
+          href="/calendar-periods"
+          onClick={(event) => event.preventDefault()}
+        >
+          Planungszeiträume
+        </NextLink>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+    await act(async () => {});
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("does not show progress when router.back cannot traverse history", () => {
