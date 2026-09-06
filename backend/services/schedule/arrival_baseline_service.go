@@ -104,7 +104,7 @@ type arrivalBaselineService struct {
 	students        users.StudentRepository
 	classTimes      educationModel.ClassArrivalTimeRepository
 	classExceptions scheduleModel.ClassArrivalExceptionRepository
-	links           enrollmentModel.RequestChildOfferingRepository
+	links           ApprovedBookingReader
 	offerings       enrollmentModel.CareOfferingRepository
 	settings        config.SettingsService
 }
@@ -117,7 +117,7 @@ func NewArrivalBaselineService(
 	students users.StudentRepository,
 	classTimes educationModel.ClassArrivalTimeRepository,
 	classExceptions scheduleModel.ClassArrivalExceptionRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) ArrivalBaselineReader {

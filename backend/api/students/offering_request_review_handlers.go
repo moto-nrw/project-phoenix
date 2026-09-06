@@ -131,7 +131,7 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 		StudentID:      strconv.FormatInt(row.StudentID, 10),
 		StudentName:    item.StudentName,
 		Status:         row.Status,
-		EffectiveFrom:  row.EffectiveFrom.String(),
+		EffectiveFrom:  timezone.Date(row.EffectiveFrom).String(),
 		Diff:           diff,
 		Reason:         row.DecisionReason,
 		FullWithdrawal: item.FullWithdrawal,
@@ -144,7 +144,7 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 	if !item.LatestEffectiveFrom.IsZero() {
 		resp.LatestEffectiveFrom = item.LatestEffectiveFrom.String()
 	}
-	if !item.RequestedEffectiveFrom.IsZero() && item.RequestedEffectiveFrom != row.EffectiveFrom {
+	if !item.RequestedEffectiveFrom.IsZero() && item.RequestedEffectiveFrom != timezone.Date(row.EffectiveFrom) {
 		resp.RequestedEffectiveFrom = item.RequestedEffectiveFrom.String()
 	}
 	if len(unchanged) > 0 {

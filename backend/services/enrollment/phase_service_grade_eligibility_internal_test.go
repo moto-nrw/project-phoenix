@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // gradeCollectionSettingsStub answers the two collection toggles

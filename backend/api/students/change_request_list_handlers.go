@@ -591,13 +591,13 @@ func offeringPendingRow(item *enrollmentService.OfferingChangeView) aggregatedRo
 		studentName:          item.StudentName,
 		status:               item.Request.Status,
 		version:              item.Request.UpdatedAt,
-		urgentToday:          !item.Request.EffectiveFrom.After(timezone.TodayDate()),
+		urgentToday:          !timezone.Date(item.Request.EffectiveFrom).After(timezone.TodayDate()),
 		bulkIneligibleReason: userService.BulkIneligibleSingleOnly,
 		bulkIneligibleText:   "Angebote müssen einzeln geprüft werden.",
 		conflictKeys:         offeringConflictKeys(item),
 		data:                 toOfferingRequestResponse(item),
 	}
-	markPast(&row, item.Request.EffectiveFrom)
+	markPast(&row, timezone.Date(item.Request.EffectiveFrom))
 	return row
 }
 

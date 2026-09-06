@@ -1,15 +1,16 @@
 package enrollment_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
@@ -22,10 +23,15 @@ func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 	largeID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-large", 8, enrollmentModels.ChildStatusSubmitted, nil)
 	counter := testpkg.CaptureQueries(t, env.db)
 	run := func(requestID int64) []string {
-		counter.Reset()
-		_, err := env.decision.ListChildOfferings(ctx, requestID)
+		var queries []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			_, err := env.decision.ListChildOfferings(txCtx, requestID)
+			queries = counter.Operation("SELECT")
+			return err
+		})
 		require.NoError(t, err)
-		return counter.Operation("SELECT")
+		return queries
 	}
 	small, large := run(smallID), run(largeID)
 	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
@@ -45,10 +51,15 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	lister := env.decision.(enrollmentService.OfferingSourceOptionLister)
 	counter := testpkg.CaptureQueries(t, env.db)
 	run := func() []string {
-		counter.Reset()
-		_, err := lister.ListOfferingSourceOptions(ctx, nil)
+		var queries []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			_, err := lister.ListOfferingSourceOptions(txCtx, nil)
+			queries = counter.Operation("SELECT")
+			return err
+		})
 		require.NoError(t, err)
-		return counter.Operation("SELECT")
+		return queries
 	}
 	small := run()
 	for i := 3; i < 8; i++ {
@@ -69,10 +80,15 @@ func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
 	createBudgetReviewRows(t, env, 3)
 	counter := testpkg.CaptureQueries(t, env.db)
 	run := func() []string {
-		counter.Reset()
-		_, err := env.rolloverSvc.ListReviewQueue(ctx, env.sourcePhase.ID)
+		var queries []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			_, err := env.rolloverSvc.ListReviewQueue(txCtx, env.sourcePhase.ID)
+			queries = counter.Operation("SELECT")
+			return err
+		})
 		require.NoError(t, err)
-		return counter.Operation("SELECT")
+		return queries
 	}
 	small := run()
 	createBudgetReviewRows(t, env, 5)
@@ -97,7 +113,7 @@ func createBudgetRequest(
 		GuardianEmail: prefix + "@example.test", ConsentFlags: map[string]any{}, CustomData: map[string]any{},
 		SubmissionSource: enrollmentModels.RequestSourcePublic, SourceMetadata: map[string]any{}, StatusToken: prefix,
 	}
-	require.NoError(t, env.repos.Request.Create(testpkg.Ctx(t), request))
+	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(testpkg.Ctx(t), env.repos.Enrollment(), request))
 	for i := range childCount {
 		createBudgetRequestChild(t, env, request.ID, prefix, i, status, sourceChildID)
 	}
@@ -116,10 +132,10 @@ func createBudgetRequestChild(
 	t.Helper()
 	child := &enrollmentModels.RequestChild{
 		RequestID: requestID, FirstName: fmt.Sprintf("Child%d", sortOrder), LastName: prefix,
-		DateOfBirth: timezone.NewDate(2018, 4, 15), CustomData: map[string]any{}, Status: status,
+		DateOfBirth: "2018-04-15", CustomData: map[string]any{}, Status: status,
 		ActivationMode: enrollmentModels.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,
 	}
-	require.NoError(t, env.repos.RequestChild.Create(testpkg.Ctx(t), child))
+	require.NoError(t, enrollmentService.InsertOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), child))
 }
 
 func createBudgetReviewRows(t *testing.T, env *rolloverTestEnv, count int) {
@@ -127,7 +143,7 @@ func createBudgetReviewRows(t *testing.T, env *rolloverTestEnv, count int) {
 	for i := range count {
 		prefix := fmt.Sprintf("review-%d-%d", count, i)
 		sourceRequestID := createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-source", 1, enrollmentModels.ChildStatusApproved, nil)
-		sources, err := env.repos.RequestChild.ListByRequestID(testpkg.Ctx(t), sourceRequestID)
+		sources, err := enrollmentService.ReadOwnerRequestChildrenForTest(testpkg.Ctx(t), env.repos.Enrollment(), sourceRequestID)
 		require.NoError(t, err)
 		require.Len(t, sources, 1)
 		sourceID := sources[0].ID

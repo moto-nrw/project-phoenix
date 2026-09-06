@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )

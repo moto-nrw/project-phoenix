@@ -93,7 +93,7 @@ func newCareFixture(t *testing.T) *careFixture {
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)

@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,11 +17,11 @@ import (
 // publishable while the grade-level collection setting is off — the rule
 // would silently never restrict anyone.
 
-func singleModeSchemaFields() []enrollmentModels.FormField {
-	return []enrollmentModels.FormField{{
+func singleModeSchemaFields() []enrollmentCapability.FormField {
+	return []enrollmentCapability.FormField{{
 		Key: "heimwege", Label: "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		AppliesToCh: true, Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        enrollmentCapability.FormFieldWeekdayMultiMode,
+		AppliesToCh: true, Target: enrollmentCapability.TargetStudentAllowedDepartureModes,
 		SingleModeGrades: []int{1},
 	}}
 }
@@ -62,10 +63,10 @@ func TestEnsureSingleModeGradesCollectable_SkipsWithoutRule(t *testing.T) {
 		},
 	}
 	s := &formSchemaService{settings: settings}
-	fields := []enrollmentModels.FormField{{
+	fields := []enrollmentCapability.FormField{{
 		Key: "heimwege", Label: "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		AppliesToCh: true, Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        enrollmentCapability.FormFieldWeekdayMultiMode,
+		AppliesToCh: true, Target: enrollmentCapability.TargetStudentAllowedDepartureModes,
 	}}
 	assert.NoError(t, s.ensureSingleModeGradesCollectable(context.Background(), fields))
 }

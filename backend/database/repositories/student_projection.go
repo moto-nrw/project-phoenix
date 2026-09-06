@@ -7,7 +7,6 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -24,12 +23,7 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	if repo, ok := f.ActiveVisit.(*activeRepo.VisitRepository); ok {
 		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
-	if repo, ok := f.RequestChildOffering.(*enrollmentRepo.RequestChildOfferingRepository); ok {
-		repo.BindStudentDirectory(enrollmentStudentDirectory{students})
-	}
-	if repo, ok := f.PhaseExpiry.(*enrollmentRepo.PhaseExpiryRepository); ok {
-		repo.BindStudentDirectory(enrollmentStudentDirectory{students})
-	}
+
 	if repo, ok := f.ParentChild.(*parentRepo.ChildRepository); ok {
 		repo.BindStudentDirectory(parentStudentDirectory{students})
 	}
@@ -134,29 +128,6 @@ func (d auditStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64
 		result = append(result, auditRepo.DirectoryStudent{ID: student.ID, Alumnus: student.IsAlumnus()})
 	}
 	return result, nil
-}
-
-type enrollmentStudentDirectory struct{ students peopledirectory.StudentQuery }
-
-func (d enrollmentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]enrollmentRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	return toEnrollmentStudents(students), err
-}
-
-func (d enrollmentStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentRepo.DirectoryStudent, error) {
-	students, err := d.students.ListEnrolledStudents(ctx)
-	return toEnrollmentStudents(students), err
-}
-
-func toEnrollmentStudents(students []peopledirectory.Student) []enrollmentRepo.DirectoryStudent {
-	result := make([]enrollmentRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, enrollmentRepo.DirectoryStudent{
-			ID: student.ID, SchoolClass: student.SchoolClass, Status: student.Status, Alumnus: student.IsAlumnus(),
-			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
-		})
-	}
-	return result
 }
 
 type parentStudentDirectory struct{ students peopledirectory.StudentQuery }
