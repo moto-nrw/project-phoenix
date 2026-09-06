@@ -243,7 +243,13 @@ function isCurrentProtectedInstallPortal(): boolean {
   if (isCurrentTenantInstallHost()) return isCurrentProtectedTenantPath();
   if (isCurrentParentInstallHost()) return isCurrentProtectedParentPath();
   if (isCurrentSchoolInstallHost()) return isCurrentProtectedSchoolPath();
-  return currentPathTenantSlug() !== null;
+  const tenantSlug = currentPathTenantSlug();
+  if (!tenantSlug) return false;
+  const pathname = window.location.pathname.slice(tenantSlug.length + 1) || "/";
+  return !PUBLIC_TENANT_PATHS.some((publicPath) => {
+    if (publicPath === "/") return pathname === publicPath;
+    return pathname === publicPath || pathname.startsWith(`${publicPath}/`);
+  });
 }
 
 // Never suppress Chrome unless the replacement card can actually render, or the
