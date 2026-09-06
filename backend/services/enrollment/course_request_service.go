@@ -907,6 +907,7 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 	requestChildID int64,
 	offerings []*enrollmentModels.CareOffering,
 	from, until timezone.Date,
+	pending *enrollmentModels.OfferingChangeRequest,
 ) error {
 	if len(offerings) == 0 {
 		return nil
@@ -964,6 +965,15 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 		lockedByID[group.ID] = group
 		groupIDs = append(groupIDs, group.ID)
 	}
+	if pending != nil {
+		position, positionErr := s.courseWaitlistPosition(ctx, nil, allGroups, groupsByOffering, pending)
+		if positionErr != nil {
+			return positionErr
+		}
+		if err := assertCourseRequestQueuePosition(position); err != nil {
+			return err
+		}
+	}
 	taken, err := s.courseOccupancy(ctx, groupIDs, from, until, studentID)
 	if err != nil {
 		return err
@@ -983,6 +993,16 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 		}
 	}
 	return nil
+}
+
+// assertCourseRequestQueuePosition keeps a seat for the oldest pending
+// request. It runs while the shared course-group locks are held, so another
+// approval cannot overtake the queue between the check and materialization.
+func assertCourseRequestQueuePosition(position int) error {
+	if position <= 1 {
+		return nil
+	}
+	return fmt.Errorf("%w: an older course request is pending", ErrOfferingChangeCapacityFull)
 }
 
 // lockCourseGroups serializes every approval that can consume the same AG

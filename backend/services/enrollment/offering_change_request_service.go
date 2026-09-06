@@ -1927,7 +1927,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	// The preview is what the office decides from, so it has to fail on
 	// everything the approval would fail on — at the same date (#2484).
 	if err := s.assertApplicableAt(
-		ctx, diff.phase, row.StudentID, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
+		ctx, row, diff.phase, row.StudentID, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
 	); err != nil {
 		return nil, err
 	}
@@ -2272,7 +2272,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.assertApplicableAt(ctx, phase, row.StudentID, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
+	if err := s.assertApplicableAt(ctx, row, phase, row.StudentID, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
 		return nil, err
 	}
 	completeWithdrawal, err := s.completeWithdrawalAt(
@@ -2388,6 +2388,7 @@ func confirmedEffectiveFrom(
 // preview that shows a switch is a switch the approval can actually make.
 func (s *offeringChangeRequestService) assertApplicableAt(
 	ctx context.Context,
+	pending *enrollmentModels.OfferingChangeRequest,
 	phase *enrollmentOwner.Phase,
 	studentID int64,
 	requestChildID int64,
@@ -2399,7 +2400,7 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections, allowCompleteWithdrawal); err != nil {
 		return err
 	}
-	return s.assertCapacityAvailable(ctx, phase, studentID, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
+	return s.assertCapacityAvailable(ctx, phase, studentID, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal, pending)
 }
 
 func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date {
@@ -2429,6 +2430,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
 	allowCompleteWithdrawal bool,
+	pending *enrollmentModels.OfferingChangeRequest,
 ) error {
 	current, err := readOwnerOfferingSelections(ctx, s.Children, requestChildID, effectiveFrom)
 	if err != nil {
@@ -2472,7 +2474,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	// Resolve every course group before acquiring any course lock. Each batch is
 	// ordered by group id, so approvals touching overlapping offerings cannot
 	// deadlock while each waits for the other's later group lock.
-	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom, phaseEndExclusive); err != nil {
+	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom, phaseEndExclusive, pending); err != nil {
 		return err
 	}
 	for _, offeringID := range replacementOfferingIDs {

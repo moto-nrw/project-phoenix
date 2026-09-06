@@ -511,6 +511,13 @@ func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
 	assert.Equal(t, 2, position, "the earlier request through another offering reaches the same course group")
 }
 
+func TestCourseRequestQueuePositionRequiresTheOldestRequest(t *testing.T) {
+	t.Parallel()
+
+	assert.NoError(t, assertCourseRequestQueuePosition(1))
+	assert.ErrorIs(t, assertCourseRequestQueuePosition(2), ErrOfferingChangeCapacityFull)
+}
+
 func TestCourseGroupsForCompetingRequestsLoadsUnavailableOffering(t *testing.T) {
 	t.Parallel()
 

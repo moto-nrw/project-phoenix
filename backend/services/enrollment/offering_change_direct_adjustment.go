@@ -149,7 +149,7 @@ func (s *offeringChangeRequestService) directMaterializedSelections(
 	}
 	if checkCapacity {
 		if err := s.assertCapacityAvailable(
-			ctx, scope.phase, input.StudentID, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
+			ctx, scope.phase, input.StudentID, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative, nil,
 		); err != nil {
 			return nil, nil, err
 		}
