@@ -1,6 +1,14 @@
 "use client";
 
-import { NotificationSetupDialog } from "~/components/notifications/notification-setup-dialog";
+import dynamic from "next/dynamic";
+
+const NotificationSetupDialog = dynamic(
+  () =>
+    import("~/components/notifications/notification-setup-dialog").then(
+      (module) => module.NotificationSetupDialog,
+    ),
+  { ssr: false },
+);
 
 /**
  * Der Einrichtungs-Dialog des Elternportals.

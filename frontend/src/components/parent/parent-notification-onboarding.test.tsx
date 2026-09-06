@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import { ParentNotificationOnboarding } from "./parent-notification-onboarding";
 
@@ -42,6 +42,10 @@ vi.mock("~/lib/pwa-install-prompt", () => ({
   subscribeInstallPrompt: () => () => undefined,
   triggerInstallPrompt: mocks.triggerInstallPrompt,
 }));
+
+beforeAll(async () => {
+  await import("~/components/notifications/notification-setup-dialog");
+});
 
 function renderOnboarding() {
   return render(

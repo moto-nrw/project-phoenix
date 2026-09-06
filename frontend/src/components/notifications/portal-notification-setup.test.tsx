@@ -18,7 +18,7 @@ describe("PortalNotificationSetup", () => {
     vi.clearAllMocks();
   });
 
-  it("binds the guided setup to the signed-in account of its portal", () => {
+  it("binds the guided setup to the signed-in account of its portal", async () => {
     shellAuth.useShellAuthSafe.mockReturnValue({
       status: "authenticated",
       user: { id: "42" },
@@ -26,7 +26,7 @@ describe("PortalNotificationSetup", () => {
 
     render(<PortalNotificationSetup portal="school" />);
 
-    expect(screen.getByTestId("setup-dialog")).toBeInTheDocument();
+    expect(await screen.findByTestId("setup-dialog")).toBeInTheDocument();
     expect(dialog.NotificationSetupDialog).toHaveBeenCalledWith(
       expect.objectContaining({ portal: "school", accountId: "42" }),
     );

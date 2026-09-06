@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { PushInstallSteps } from "~/components/settings/push-install-steps";
@@ -9,7 +10,6 @@ import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
-import { NotificationSetupDialog } from "~/components/notifications/notification-setup-dialog";
 import { createLogger } from "~/lib/logger";
 import { sendTestNotification } from "~/lib/notification-api";
 import {
@@ -34,6 +34,14 @@ import {
 } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PushNotificationSection" });
+
+const NotificationSetupDialog = dynamic(
+  () =>
+    import("~/components/notifications/notification-setup-dialog").then(
+      (module) => module.NotificationSetupDialog,
+    ),
+  { ssr: false },
+);
 
 interface PushNotificationSectionProps {
   readonly portal?: PushPortal;

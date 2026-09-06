@@ -1,8 +1,16 @@
 "use client";
 
-import { NotificationSetupDialog } from "~/components/notifications/notification-setup-dialog";
+import dynamic from "next/dynamic";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import type { PushPortal } from "~/lib/push-api";
+
+const NotificationSetupDialog = dynamic(
+  () =>
+    import("~/components/notifications/notification-setup-dialog").then(
+      (module) => module.NotificationSetupDialog,
+    ),
+  { ssr: false },
+);
 
 /**
  * Hängt den geführten Einstieg an die Sitzung des jeweiligen Portals (#2831).
