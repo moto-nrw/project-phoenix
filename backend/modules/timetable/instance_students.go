@@ -186,6 +186,9 @@ func (p AttendanceFieldPatch) HasChanges() bool {
 }
 
 type InstanceStudentQuery interface {
+	ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error)
+	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, error)
+	CountStudentAssignments(context.Context, int64) (int, error)
 	FindInstanceStudent(context.Context, int64) (InstanceStudent, error)
 	ListInstanceStudents(context.Context, InstanceStudentFilter) ([]InstanceStudent, error)
 	CountNonAbsentInstanceStudents(context.Context, []int64) (map[int64]int, error)
@@ -198,6 +201,12 @@ type InstanceStudentQuery interface {
 }
 
 type InstanceStudentCommand interface {
+	LockInstanceStudentAssignments(context.Context, int64) error
+	RestoreInstanceStudentAttendance(context.Context, int64, []CompletionAttendance) error
+	LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error
+	ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []InstanceStudent) error
+	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, error)
+	DeleteStudentAssignments(context.Context, int64) (int64, error)
 	CreateInstanceStudent(context.Context, InstanceStudentInput) (InstanceStudent, error)
 	UpdateInstanceStudent(context.Context, int64, InstanceStudentInput) (InstanceStudent, error)
 	DeleteInstanceStudent(context.Context, int64) error

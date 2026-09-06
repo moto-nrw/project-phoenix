@@ -76,7 +76,7 @@ func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	return calendarSvc.NewService(calendarTestConfig(db))
 }
 
-func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarSvc.OutboxEnqueuer) calendarSvc.Service {
+func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarSvc.OutboxEnqueuer) calendarSvc.FullService {
 	t.Helper()
 	cfg := calendarTestConfig(db)
 	cfg.Outbox = outbox

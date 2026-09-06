@@ -162,6 +162,9 @@ type ScheduleCapability interface {
 }
 
 type Query interface {
+	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error)
+	CourseInstances(context.Context, string, string, string) ([]CourseInstanceRow, error)
+	CourseParticipation(context.Context, string, string, string) ([]CourseParticipationRow, error)
 	ScheduleQuery
 	PlannedSupervisorQuery
 	StudentEnrollmentQuery
@@ -193,6 +196,7 @@ type Query interface {
 }
 
 type Command interface {
+	CareExitRosterCommand
 	ScheduleCommand
 	PlannedSupervisorCommand
 	StudentEnrollmentCommand

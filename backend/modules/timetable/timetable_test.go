@@ -12,6 +12,8 @@ import (
 )
 
 type recordingEngine struct {
+	timetable.RecurrenceRuleQuery
+	timetable.CareExitRosterCommand
 	create     timetable.CreateCategory
 	update     timetable.UpdateCategory
 	group      timetable.GroupInput
@@ -27,6 +29,65 @@ type recordingEngine struct {
 }
 
 func (e *recordingEngine) BindCarePlan(timetable.CarePlanDirectory) { e.calls++ }
+
+func (e *recordingEngine) CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) LockInstanceStudentAssignments(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+func (e *recordingEngine) RestoreInstanceStudentAttendance(context.Context, int64, []timetable.CompletionAttendance) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) CourseInstances(context.Context, string, string, string) ([]timetable.CourseInstanceRow, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) CourseParticipation(context.Context, string, string, string) ([]timetable.CourseParticipationRow, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) CountStudentAssignments(ctx context.Context, studentID int64) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) DeleteStudentAssignments(ctx context.Context, studentID int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []timetable.InstanceStudent) error {
+	e.calls++
+	return nil
+}
 
 func (e *recordingEngine) ArchivePlannedInstanceStudents(context.Context, int64, []int64, string, time.Time) (int, error) {
 	e.calls++

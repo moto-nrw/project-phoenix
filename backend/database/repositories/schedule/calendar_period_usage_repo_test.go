@@ -1,10 +1,12 @@
-package schedule
+package schedule_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +17,8 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewCalendarPeriodUsageRepository(db)
+	assignments := repositories.NewUnobservedTimetableDependencies(db).Capability
+	repo := scheduleRepo.NewCalendarPeriodUsageRepository(db, assignments.CountPlannedSupervisorsByCalendarPeriod)
 	tenantID := testpkg.Tenant(t)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Mandant", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
 	group := testpkg.CreateTestActivityGroup(t, db, "Mandanten-AG")

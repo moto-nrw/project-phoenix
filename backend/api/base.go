@@ -40,7 +40,6 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
@@ -54,6 +53,7 @@ import (
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
@@ -609,7 +609,7 @@ type API struct {
 	MealPlan         *mealplanAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Display          *displayAPI.Resource
-	Schedules        *schedulesAPI.Resource
+	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
 	IoT              *iotAPI.Resource
@@ -1189,7 +1189,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
-	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
+	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, repoFactory.FormSchema.HasLegalDocumentReference, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
@@ -1259,7 +1259,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
-	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
