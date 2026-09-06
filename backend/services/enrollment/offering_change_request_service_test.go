@@ -45,6 +45,7 @@ func newOfferingChangeServiceForTestWithCareRepo(
 ) enrollmentService.OfferingChangeRequestService {
 	t.Helper()
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = true
+	env.settings.boolValues[configModel.KeyEnrollmentParentCourseRequestsEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentOfferingChangesLeadDays] = "14"
 	return enrollmentService.NewOfferingChangeRequestService(enrollmentService.OfferingChangeRequestServiceConfig{
 		ChangeRepo:               env.repos.OfferingChangeRequest,
@@ -56,6 +57,8 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		StudentRepo:              env.repos.Student,
 		PersonRepo:               env.repos.Person,
 		CareWithdrawalRepo:       env.repos.CareWithdrawal,
+		ActivityGroupRepo:        env.repos.ActivityGroup,
+		StudentEnrollmentRepo:    env.repos.StudentEnrollment,
 		ImpactRepo:               env.repos.OfferingChangeImpact,
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,
@@ -149,6 +152,40 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 	}
 	assert.Contains(t, labels, fx.oldOffering.Name, "dropped offering must appear in the diff")
 	assert.Contains(t, labels, fx.newOffering.Name, "added offering must appear in the diff")
+}
+
+func TestCourseCatalogQueryBudget(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
+	group := testpkg.CreateTestActivityGroup(t, env.db, "CourseCatalogBudget")
+	group.Type = activitiesModels.GroupTypeActivity
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, group))
+	zero := 0
+	createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &group.ID
+		o.Capacity = &zero
+		o.SortOrder = 203
+	})
+	courses, err := svc.CourseCatalog(ctx, fx.studentID, env.creatorID)
+	require.NoError(t, err)
+	require.Len(t, courses.Items, 1)
+	_, err = svc.CreateCourseRequest(ctx, enrollmentService.CreateCourseRequestInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, OfferingID: courses.Items[0].OfferingID,
+	})
+	require.NoError(t, err)
+
+	counter := testpkg.CaptureQueries(t, env.db)
+	catalog, err := svc.CourseCatalog(ctx, fx.studentID, env.creatorID)
+	require.NoError(t, err)
+	require.NotEmpty(t, catalog.Items)
+	assert.True(t, catalog.Items[0].Waitlisted)
+	t.Logf("course catalog issued %d queries", counter.Total())
+	testpkg.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {

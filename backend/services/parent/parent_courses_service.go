@@ -68,10 +68,16 @@ func (s *service) RequestChildCourse(
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrCourseRequestsDisabled
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		_, createErr := s.OfferingChanges.CreateCourseRequest(txCtx, enrollmentSvc.CreateCourseRequestInput{
 			StudentID:  studentID,
 			AccountID:  accountID,
@@ -99,7 +105,7 @@ func (s *service) WithdrawChildCourseRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}

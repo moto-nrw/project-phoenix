@@ -1,6 +1,8 @@
 package enrollment
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +10,34 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
+
+type courseSettingsStub struct {
+	values map[string]bool
+	err    error
+}
+
+func TestCourseRequestsEnabledReturnsSettingsFailure(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("settings unavailable")
+	svc := &offeringChangeRequestService{OfferingChangeRequestServiceConfig: OfferingChangeRequestServiceConfig{
+		Settings: courseSettingsStub{err: want},
+	}}
+
+	_, err := svc.courseRequestsEnabled(context.Background())
+	require.ErrorIs(t, err, want)
+}
+
+func (s courseSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return s.values[key], nil
+}
+
+func (courseSettingsStub) ResolveString(context.Context, string) (string, error) {
+	return "", nil
+}
 
 // TestEffectiveCourseCapacity pins the rule the school actually maintains:
 // both limits count, and the stricter one decides (#3075).
@@ -146,6 +176,22 @@ func TestAddedCourseIDs(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, added)
 	})
+}
+
+func TestCourseWasAdded(t *testing.T) {
+	t.Parallel()
+
+	row := &enrollmentModels.OfferingChangeRequest{
+		Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 2}, {OfferingID: 5}}),
+	}
+
+	added, err := courseWasAdded(row, 2, map[int64]bool{5: true})
+	require.NoError(t, err)
+	assert.True(t, added)
+
+	retained, err := courseWasAdded(row, 5, map[int64]bool{5: true})
+	require.NoError(t, err)
+	assert.False(t, retained, "a care change that keeps a booked course is not queued")
 }
 
 // TestCourseSelectionsWith proves the payload stays a COMPLETE selection: the

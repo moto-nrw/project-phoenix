@@ -1619,7 +1619,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
-		if err := s.markCourseDiffEntries(ctx, entries); err != nil {
+		if err := s.markCourseDiffEntries(ctx, entries, offeringsByID); err != nil {
 			return nil, err
 		}
 		review := reviews[row.ID]
@@ -2890,7 +2890,7 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	diff := materializedDecisionDiffFromSides(
 		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
 	)
-	if err := s.markCourseDiffEntries(ctx, diff.entries); err != nil {
+	if err := s.markCourseDiffEntries(ctx, diff.entries, offeringByID); err != nil {
 		return nil, err
 	}
 	return diff, nil
@@ -3128,10 +3128,8 @@ func offeringDiffEntry(
 	requestedByID map[int64]OfferingChangeSelection,
 ) (OfferingChangeDiffEntry, bool) {
 	name := ""
-	isCourse := false
 	if offering != nil {
 		name = offering.Name
-		isCourse = offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0
 	}
 	if name == "" {
 		name = fmt.Sprintf("Angebot %d", id)
@@ -3156,7 +3154,7 @@ func offeringDiffEntry(
 		OldDays:    oldDays,
 		NewState:   newState,
 		NewDays:    newDays,
-		IsCourse:   isCourse,
+		IsCourse:   false,
 	}, changed
 }
 

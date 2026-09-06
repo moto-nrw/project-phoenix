@@ -79,6 +79,7 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[s
 		"guardians.parent_can_remove":                   true,
 		"enrollment.require_captcha":                    false,
 		"enrollment.offering_changes_enabled":           true,
+		"enrollment.parent_course_requests_enabled":     true,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {

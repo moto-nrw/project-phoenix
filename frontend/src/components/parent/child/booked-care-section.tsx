@@ -174,7 +174,7 @@ export function BookedCareSection({
   const pending =
     pendingRequest &&
     pendingRequest.diff.length > 0 &&
-    pendingRequest.diff.every((line) => line.is_course === true)
+    pendingRequest.diff.some((line) => line.is_course === true)
       ? undefined
       : pendingRequest;
   const decision = offerings?.last_decision;

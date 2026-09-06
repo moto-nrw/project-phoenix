@@ -138,9 +138,7 @@ func (s *offeringChangeRequestService) courseRequestsEnabled(ctx context.Context
 	}
 	enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentParentCourseRequestsEnabled)
 	if err != nil {
-		// Fail closed: a school that never switched this on must not start
-		// collecting course requests because a lookup failed.
-		return false, nil
+		return false, fmt.Errorf("course request: resolve enabled setting: %w", err)
 	}
 	return enabled, nil
 }
@@ -300,25 +298,38 @@ func (s *offeringChangeRequestService) courseGroups(
 	return groups, nil
 }
 
-// markCourseDiffEntries flags the diff lines that are about a Kurs. The entry
-// builder already knows the legacy link on the offering; the link a Regeltermin
-// declares itself (#2137) needs one lookup, which is why it happens here in one
-// batch rather than per line.
+// markCourseDiffEntries flags the diff lines that are about a Kurs. Both the
+// legacy offering link and the Regeltermin source link are resolved in bounded
+// batch queries and then checked with the catalog's course predicate.
 func (s *offeringChangeRequestService) markCourseDiffEntries(
 	ctx context.Context,
 	entries []OfferingChangeDiffEntry,
+	offerings map[int64]*enrollmentModels.CareOffering,
 ) error {
 	if s.ActivityGroupRepo == nil || len(entries) == 0 {
 		return nil
 	}
 	offeringIDs := make([]int64, 0, len(entries))
+	groupIDs := make([]int64, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsCourse {
-			offeringIDs = append(offeringIDs, entry.OfferingID)
+		offeringIDs = append(offeringIDs, entry.OfferingID)
+		if offering := offerings[entry.OfferingID]; offering != nil &&
+			offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
+			groupIDs = append(groupIDs, *offering.ActivityGroupID)
 		}
 	}
 	if len(offeringIDs) == 0 {
 		return nil
+	}
+	groups, err := s.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return fmt.Errorf("offering change: load legacy course groups: %w", err)
+	}
+	groupsByID := make(map[int64]*activitiesModels.Group, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			groupsByID[group.ID] = group
+		}
 	}
 	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
 	if err != nil {
@@ -334,7 +345,10 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 		}
 	}
 	for i := range entries {
-		if courses[entries[i].OfferingID] {
+		offering := offerings[entries[i].OfferingID]
+		legacyCourse := offering != nil && offering.ActivityGroupID != nil &&
+			isCourseGroup(groupsByID[*offering.ActivityGroupID])
+		if legacyCourse || courses[entries[i].OfferingID] {
 			entries[i].IsCourse = true
 		}
 	}
@@ -521,25 +535,73 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 	if err != nil {
 		return 0, fmt.Errorf("course request: list pending for waitlist: %w", err)
 	}
+	dates := make(map[int64]timezone.Date, len(rows))
+	for _, row := range rows {
+		if row != nil && !row.CreatedAt.After(submittedAt) && row.RequestChildID > 0 {
+			dates[row.RequestChildID] = row.EffectiveFrom
+		}
+	}
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDates(ctx, dates)
+	if err != nil {
+		return 0, fmt.Errorf("course request: load current offerings for waitlist: %w", err)
+	}
+	bookedByChild := make(map[int64]map[int64]bool, len(dates))
+	for _, link := range current {
+		if link == nil {
+			continue
+		}
+		if bookedByChild[link.RequestChildID] == nil {
+			bookedByChild[link.RequestChildID] = make(map[int64]bool)
+		}
+		bookedByChild[link.RequestChildID][link.CareOfferingID] = true
+	}
+	return courseWaitlistPositionFromRows(rows, offeringID, submittedAt, bookedByChild), nil
+}
+
+func courseWaitlistPositionFromRows(
+	rows []*enrollmentModels.OfferingChangeRequest,
+	offeringID int64,
+	submittedAt time.Time,
+	bookedByChild map[int64]map[int64]bool,
+) int {
 	position := 0
 	for _, row := range rows {
+		if row == nil {
+			continue
+		}
 		if row.CreatedAt.After(submittedAt) {
 			continue
 		}
-		selections, decodeErr := selectionsFromPayload(row.Payload)
-		if decodeErr != nil {
+		added, addedErr := courseWasAdded(row, offeringID, bookedByChild[row.RequestChildID])
+		if addedErr != nil {
 			// A payload we cannot read is not evidence of a competing course
 			// request; it is a row the review queue will surface anyway.
 			continue
 		}
-		for _, selection := range selections {
-			if selection.OfferingID == offeringID {
-				position++
-				break
-			}
+		if added {
+			position++
 		}
 	}
-	return max(position, 1), nil
+	return max(position, 1)
+}
+
+// courseWasAdded distinguishes a course request from another offering change
+// whose complete desired selection merely retains an already booked course.
+func courseWasAdded(
+	row *enrollmentModels.OfferingChangeRequest,
+	offeringID int64,
+	booked map[int64]bool,
+) (bool, error) {
+	selections, err := selectionsFromPayload(row.Payload)
+	if err != nil {
+		return false, err
+	}
+	for _, selection := range selections {
+		if selection.OfferingID == offeringID {
+			return !booked[offeringID], nil
+		}
+	}
+	return false, nil
 }
 
 // assertCourseCapacityAvailable refuses an approval that would put one more

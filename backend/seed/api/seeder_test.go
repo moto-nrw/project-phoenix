@@ -68,6 +68,8 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 
 	assert.Equal(t, false, settings["enrollment.require_captcha"])
 	assert.Equal(t, false, seen["enrollment.require_captcha"])
+	assert.Equal(t, true, settings["enrollment.parent_course_requests_enabled"])
+	assert.Equal(t, true, seen["enrollment.parent_course_requests_enabled"])
 }
 
 func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
