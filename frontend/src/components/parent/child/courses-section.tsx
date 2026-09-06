@@ -8,6 +8,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -57,6 +58,7 @@ export function CoursesSection({
   const [loadFailed, setLoadFailed] = useState(false);
   const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [note, setNote] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,6 +144,7 @@ export function CoursesSection({
 
   const requestable =
     courses.enabled &&
+    (courses.can_request ?? true) &&
     !careEnded &&
     !courses.other_request_pending &&
     !courses.pending_request_id;
@@ -193,7 +196,7 @@ export function CoursesSection({
                   busy={busyCourseId === course.id}
                   onRequest={() =>
                     void runAction(course.id, () =>
-                      requestChildCourse(studentId, course.id),
+                      requestChildCourse(studentId, course.id, note),
                     )
                   }
                   onWithdraw={() =>
@@ -204,6 +207,7 @@ export function CoursesSection({
                       ),
                     )
                   }
+                  careEnded={careEnded}
                 />
               </div>
             </li>
@@ -213,6 +217,13 @@ export function CoursesSection({
 
       {courses.other_request_pending ? (
         <p className="text-sm text-gray-500">{t("courses.otherRequest")}</p>
+      ) : null}
+      {courses.reason_required && requestable ? (
+        <Textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          required
+        />
       ) : null}
       {courses.items.length > 0 && courses.effective_from ? (
         <p className="text-sm text-gray-500">
@@ -273,6 +284,7 @@ function CourseAction({
   busy,
   onRequest,
   onWithdraw,
+  careEnded,
 }: Readonly<{
   course: CourseItem;
   courses: ChildCourses;
@@ -280,11 +292,16 @@ function CourseAction({
   busy: boolean;
   onRequest: () => void;
   onWithdraw: () => void;
+  careEnded: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
   if (course.booked) return null;
   if (course.requested) {
-    if (!courses.pending_submitted_by_self || !courses.pending_request_id) {
+    if (
+      careEnded ||
+      !courses.pending_submitted_by_self ||
+      !courses.pending_request_id
+    ) {
       return null;
     }
     return (

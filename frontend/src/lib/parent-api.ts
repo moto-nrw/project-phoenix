@@ -1653,6 +1653,8 @@ export interface CourseItem {
 /** The Kurse section of a child. Empty with a reason when switched off. */
 export interface ChildCourses {
   readonly enabled: boolean;
+  readonly can_request?: boolean;
+  readonly reason_required?: boolean;
   readonly disabled_reason?: CoursesDisabledReason;
   readonly phase_name?: string;
   /** Date a new request would take effect on (YYYY-MM-DD). */

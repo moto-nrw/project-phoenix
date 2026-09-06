@@ -15,7 +15,9 @@ import (
 // carries a reason whenever the school has no course requests, so the portal
 // can explain instead of showing a list nobody can act on.
 type CoursesResponse struct {
-	Enabled bool `json:"enabled"`
+	Enabled        bool `json:"enabled"`
+	CanRequest     bool `json:"can_request"`
+	ReasonRequired bool `json:"reason_required"`
 	// DisabledReason is a stable identifier (school_disabled, no_enrollment,
 	// no_courses, no_permission) the portal turns into German copy.
 	DisabledReason string `json:"disabled_reason,omitempty"`
@@ -57,6 +59,8 @@ type CourseRequestBody struct {
 func toCoursesResponse(catalog *enrollmentService.CourseCatalog) CoursesResponse {
 	resp := CoursesResponse{
 		Enabled:                catalog.Enabled,
+		CanRequest:             catalog.CanRequest,
+		ReasonRequired:         catalog.ReasonRequired,
 		DisabledReason:         catalog.DisabledReason,
 		PhaseName:              catalog.PhaseName,
 		PendingSubmittedBySelf: catalog.PendingSubmittedBySelf,

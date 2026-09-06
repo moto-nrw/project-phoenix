@@ -124,6 +124,8 @@ type CourseCatalog struct {
 	// a new course request — and the section has to say so instead of offering
 	// a button that cannot work.
 	OtherRequestPending bool
+	CanRequest          bool
+	ReasonRequired      bool
 	Items               []CourseCatalogItem
 }
 
@@ -672,6 +674,9 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 			dates[row.RequestChildID] = timezone.Date(row.EffectiveFrom)
 			childIDs = append(childIDs, row.RequestChildID)
 		}
+	}
+	if pending != nil && pending.RequestChildID > 0 {
+		childIDs = append(childIDs, pending.RequestChildID)
 	}
 	slices.Sort(childIDs)
 	childrenByID := make(map[int64]*RequestChild)

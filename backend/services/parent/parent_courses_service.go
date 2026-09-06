@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -49,6 +50,8 @@ func (s *service) GetChildCourses(
 			return resolveErr
 		}
 		catalog = resolved
+		catalog.CanRequest = child.hasPermission(authorize.GuardianPermissionEnrollmentSubmit)
+		catalog.ReasonRequired = s.guardianReasonRequired(txCtx, child.tenantID)
 		return nil
 	})
 	if txErr != nil {
@@ -70,6 +73,9 @@ func (s *service) RequestChildCourse(
 	}
 	if err := child.requireCareRunning(); err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(note) == "" && s.guardianReasonRequired(ctx, child.tenantID) {
+		return nil, ErrEmptyNote
 	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrCourseRequestsDisabled
