@@ -160,9 +160,11 @@ export function AttendanceCorrectionModal({
       const correction = {
         reason: trimmedReason,
         ...(status !== slot.status ? { status } : {}),
-        ...(substatus !== (slot.substatus ?? "")
-          ? { substatus: substatus === "" ? null : substatus }
-          : {}),
+        ...(status === "expected" && status !== slot.status
+          ? { substatus: null }
+          : substatus !== (slot.substatus ?? "")
+            ? { substatus: substatus === "" ? null : substatus }
+            : {}),
         ...(note !== (slot.note ?? "")
           ? { note: note.trim() === "" ? null : note.trim() }
           : {}),
@@ -268,7 +270,19 @@ export function AttendanceCorrectionModal({
             options={[...SUBSTATUS_OPTIONS]}
             onChange={setSubstatus}
             labelId="correction-substatus-label"
+            ariaDescribedBy={
+              status === "expected" ? "correction-substatus-help" : undefined
+            }
+            disabled={status === "expected"}
           />
+          {status === "expected" ? (
+            <p
+              id="correction-substatus-help"
+              className="mt-1 text-xs text-gray-500"
+            >
+              Bei „Erwartet“ ist kein Hinweis möglich.
+            </p>
+          ) : null}
         </div>
 
         <div>

@@ -24,7 +24,7 @@ describe("AttendanceCorrectionModal", () => {
     );
   });
 
-  it("clears the substatus when expected attendance is selected", async () => {
+  it("clears and disables substatus when expected attendance is selected", async () => {
     render(
       <AttendanceCorrectionModal
         isOpen
@@ -38,6 +38,52 @@ describe("AttendanceCorrectionModal", () => {
           endTime: "15:00",
           status: "present",
           substatus: "late",
+          note: null,
+        }}
+        onCorrected={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Anwesenheit" }));
+    fireEvent.click(screen.getByRole("option", { name: "Erwartet" }));
+    expect(screen.getByRole("combobox", { name: "Hinweis" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Grund der Korrektur/), {
+      target: { value: "Status korrigieren" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/timetable/instances/instance-1/students/student-1/correction",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    const correctionCall = vi
+      .mocked(global.fetch)
+      .mock.calls.find(([, options]) => options?.method === "POST");
+    expect(correctionCall).toBeDefined();
+    expect(JSON.parse(String(correctionCall?.[1]?.body))).toEqual({
+      reason: "Status korrigieren",
+      status: "expected",
+      substatus: null,
+    });
+  });
+
+  it("sends an explicit substatus clear when attendance becomes expected", async () => {
+    render(
+      <AttendanceCorrectionModal
+        isOpen
+        onClose={vi.fn()}
+        studentId="student-1"
+        slot={{
+          instanceId: "instance-1",
+          title: "Bastelstunde",
+          date: "2026-09-07",
+          startTime: "14:00",
+          endTime: "15:00",
+          status: "present",
+          substatus: null,
           note: null,
         }}
         onCorrected={vi.fn()}
