@@ -156,6 +156,7 @@ func offeringDiffResponse(entry enrollmentService.OfferingChangeDiffEntry) Offer
 		OldDays:  append([]string{}, entry.OldDays...),
 		NewState: entry.NewState,
 		NewDays:  append([]string{}, entry.NewDays...),
+		IsCourse: entry.IsCourse,
 	}
 	if len(entry.NewAutomaticDays) > 0 {
 		resp.NewAutomaticDays = append([]string{}, entry.NewAutomaticDays...)
@@ -247,6 +248,10 @@ type OfferingDiffResponse struct {
 	// AutoTriggerNames names the selected offerings that triggered the
 	// rule-specific share, so the portal can say WHY those days appeared.
 	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
+	// IsCourse marks a line about a Kurs. The parents portal owns courses in
+	// its own section (#3075) and must not show the same request twice, in two
+	// different wordings, with two different buttons.
+	IsCourse bool `json:"is_course,omitempty"`
 }
 
 // OfferingCatalogResponse is the selectable catalog for the request modal.

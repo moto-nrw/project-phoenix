@@ -1454,6 +1454,8 @@ interface OfferingDiffLine {
   readonly new_rule_days?: string[];
   /** Names of the selected offerings whose rule added new_rule_days. */
   readonly auto_trigger_names?: string[];
+  /** True for a Kurs. The Kurse section owns those lines (#3075). */
+  readonly is_course?: boolean;
 }
 
 /** The child's open offering change request. */
@@ -1621,6 +1623,76 @@ export async function updateOfferingChangeRequest(
   return putJson<ChildCareOfferings>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}`,
     { ...body, expected_version: expectedVersion },
+  );
+}
+
+// --- Kurse (AG requests through the offering path, #3075) ---
+
+/** Why a school shows no courses. Mirrors the backend identifiers. */
+type CoursesDisabledReason =
+  "school_disabled" | "no_enrollment" | "no_courses" | "no_permission";
+
+/** One course a family can see for their child. */
+export interface CourseItem {
+  readonly id: string;
+  readonly activity_group_id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** Canonical day keys ("mon" … "sun") the course runs on. */
+  readonly available_days: string[];
+  /** Effective participant limit; absent means unlimited. */
+  readonly capacity?: number;
+  readonly free_slots?: number;
+  readonly booked: boolean;
+  readonly requested: boolean;
+  /** A requested course that was full when it was asked for. */
+  readonly waitlisted: boolean;
+  readonly waitlist_position?: number;
+}
+
+/** The Kurse section of a child. Empty with a reason when switched off. */
+export interface ChildCourses {
+  readonly enabled: boolean;
+  readonly disabled_reason?: CoursesDisabledReason;
+  readonly phase_name?: string;
+  /** Date a new request would take effect on (YYYY-MM-DD). */
+  readonly effective_from?: string;
+  readonly pending_request_id?: string;
+  readonly pending_submitted_by_self: boolean;
+  /** An open care-offering request blocks a new course request. */
+  readonly other_request_pending: boolean;
+  readonly items: CourseItem[];
+}
+
+/** Returns the school's courses with this child's state. */
+export async function getChildCourses(
+  studentId: string,
+): Promise<ChildCourses> {
+  return getJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses`,
+  );
+}
+
+/** Asks the OGS for one course. It takes effect only after their approval. */
+export async function requestChildCourse(
+  studentId: string,
+  courseId: string,
+  note?: string,
+): Promise<ChildCourses> {
+  return postJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses/requests`,
+    { course_id: courseId, note: note ?? "" },
+  );
+}
+
+/** Takes back the guardian's own open course request. */
+export async function withdrawChildCourseRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCourses> {
+  return postJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
   );
 }
 

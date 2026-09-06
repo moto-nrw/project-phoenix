@@ -1419,6 +1419,25 @@
       "6": "Sat",
       "7": "Sun"
     },
+    "courses": {
+      "title": "Courses",
+      "description": "Courses at the OGS. A request only counts once the OGS confirms it.",
+      "request": "Request",
+      "withdraw": "Take back request",
+      "booked": "Taking part",
+      "requested": "Requested",
+      "waitlist": "Waiting list, place {position}",
+      "full": "Full",
+      "fullWaitlistHint": "Full. A request goes on the waiting list.",
+      "freeSlotOne": "1 place left",
+      "freeSlots": "{count} places left",
+      "effectiveFrom": "A course can start on {date} at the earliest.",
+      "otherRequest": "You already have an open request about care. Please wait for the answer.",
+      "needsEnrollment": "You can request courses once your child is registered.",
+      "noCourses": "There are no courses at the moment.",
+      "loadError": "The courses could not be loaded.",
+      "actionError": "That did not work. Please try again."
+    },
     "careSchedule": {
       "arrival": "Arrival time",
       "pickup": "Pick-up time",

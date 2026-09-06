@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -122,6 +123,9 @@ type OfferingChangeCatalogItem struct {
 	// but keeps an already-selected offering selectable.
 	Capacity  *int
 	FreeSlots *int
+	// ActivityGroupID is set when the offering is bound to an AG — the shape a
+	// Kurs has (#3075). Nil for plain care offerings.
+	ActivityGroupID *int64
 }
 
 // OfferingChangeCatalog is everything the parent modal needs.
@@ -165,6 +169,10 @@ type OfferingChangeDiffEntry struct {
 	// ones staff may override per request (#2370).
 	AutoTriggerIDs   []int64
 	AutoTriggerNames []string
+	// IsCourse marks a line about a Kurs — a care offering bound to an AG
+	// (#3075). The staff review card labels those so a course request reads as
+	// one instead of as an ordinary care change.
+	IsCourse bool
 }
 
 // OfferingChangeHistoryItem is one decided request for the staff history. The
@@ -363,6 +371,11 @@ type DecideOfferingChangeInput struct {
 // OfferingChangeRequestService is the lifecycle contract. Every method runs
 // inside a tenant transaction opened by its caller.
 type OfferingChangeRequestService interface {
+	// CourseRequestService is the parents-portal Kurse surface (#3075). It is
+	// part of this contract rather than a second one because a course request
+	// IS an offering change request; see course_request_service.go.
+	CourseRequestService
+
 	// Catalog returns the offerings a guardian may choose from for this child.
 	Catalog(ctx context.Context, studentID int64) (*OfferingChangeCatalog, error)
 	// CatalogAt returns the offerings and booking state at a chosen effective
@@ -425,6 +438,11 @@ type OfferingChangeRequestServiceConfig struct {
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
 	CareWithdrawalRepo       usersModels.CareWithdrawalCompletionRepository
+	// ActivityGroupRepo and StudentEnrollmentRepo answer the course side of a
+	// capacity question (#3075): a Kurs is a care offering bound to an AG, and
+	// the AG carries its own Teilnehmergrenze and its own roster.
+	ActivityGroupRepo     activitiesModels.GroupRepository
+	StudentEnrollmentRepo activitiesModels.StudentEnrollmentRepository
 	// OfferingAdjustmentRepo backs the direct-correction feed of the central
 	// history (#2436); the same append-only log the decision service writes.
 	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
@@ -806,6 +824,7 @@ func (s *offeringChangeRequestService) catalogItem(
 		IncludesHoliday: offering.IncludesHolidayCare,
 		CountsAsCare:    offering.CountsAsCare,
 		PickupTimes:     maps.Clone(offering.PickupTimes),
+		ActivityGroupID: offering.ActivityGroupID,
 	}
 	if offering.Description != nil {
 		item.Description = *offering.Description
@@ -1595,15 +1614,14 @@ func (s *offeringChangeRequestService) pendingReviews(
 		entries := make([]OfferingChangeDiffEntry, 0, len(ids))
 		changedByOfferingID := make(map[int64]bool, len(ids))
 		for _, id := range ids {
-			name := ""
-			if offering := offeringsByID[id]; offering != nil {
-				name = offering.Name
-			}
-			entry, changed := offeringDiffEntry(id, name, currentByID[id], requestedByID)
+			entry, changed := offeringDiffEntry(id, offeringsByID[id], currentByID[id], requestedByID)
 			changedByOfferingID[id] = changed
 			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
+		if err := s.markCourseDiffEntries(ctx, entries); err != nil {
+			return nil, err
+		}
 		review := reviews[row.ID]
 		if review == nil {
 			continue
@@ -2394,6 +2412,13 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
 			continue
 		}
+		// A Kurs carries a second limit: the AG's Teilnehmergrenze, measured
+		// against its actual roster (#3075). Both limits are maintained by the
+		// school, so the stricter one decides; an approval must not silently
+		// overbook the AG because only the offering had room.
+		if err := s.assertCourseCapacityAvailable(ctx, offering, effectiveFrom); err != nil {
+			return err
+		}
 		if offering.Capacity == nil {
 			continue
 		}
@@ -2862,9 +2887,13 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	if err != nil {
 		return nil, err
 	}
-	return materializedDecisionDiffFromSides(
+	diff := materializedDecisionDiffFromSides(
 		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
-	), nil
+	)
+	if err := s.markCourseDiffEntries(ctx, diff.entries); err != nil {
+		return nil, err
+	}
+	return diff, nil
 }
 
 func materializedDecisionDiff(
@@ -2905,11 +2934,7 @@ func offeringDiffEntries(
 ) []OfferingChangeDiffEntry {
 	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
 	for _, id := range ids {
-		name := ""
-		if offering := offeringByID[id]; offering != nil {
-			name = offering.Name
-		}
-		entry, changed := offeringDiffEntry(id, name, currentByID[id], requestedByID)
+		entry, changed := offeringDiffEntry(id, offeringByID[id], currentByID[id], requestedByID)
 		if !changed {
 			continue
 		}
@@ -3098,10 +3123,16 @@ func daysOverlap(left, right []string) bool {
 
 func offeringDiffEntry(
 	id int64,
-	name string,
+	offering *enrollmentModels.CareOffering,
 	current *enrollmentModels.RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) (OfferingChangeDiffEntry, bool) {
+	name := ""
+	isCourse := false
+	if offering != nil {
+		name = offering.Name
+		isCourse = offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0
+	}
 	if name == "" {
 		name = fmt.Sprintf("Angebot %d", id)
 	}
@@ -3125,6 +3156,7 @@ func offeringDiffEntry(
 		OldDays:    oldDays,
 		NewState:   newState,
 		NewDays:    newDays,
+		IsCourse:   isCourse,
 	}, changed
 }
 

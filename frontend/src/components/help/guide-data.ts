@@ -837,6 +837,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Haben Sie sich vertan, öffnen Sie die Zeile in der `Historie` und tippen auf `Entscheidung korrigieren`. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
           "Ob eine Begründung Pflicht ist, legen Sie unter `Einstellungen` > `Elternportal` fest. Ablehnen verlangt immer eine Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
+          "Kursanfragen der Eltern stehen in derselben Liste. In der Zeile steht dann `Kurs`. Sie entscheiden sie wie jede andere Anfrage. Erst mit Ihrer Freigabe ist das Kind im Kurs.",
+          "War der Kurs beim Anfragen voll, steht das Kind in der Eltern-App auf der Warteliste. Die Anfrage bleibt hier offen, bis Sie sie entscheiden. Wird ein Platz frei, geben Sie die Anfrage frei.",
+          "Kursanfragen schalten Sie unter `Einstellungen` > `Anmeldung` frei. Der Schalter heißt `Kursanfragen durch Eltern erlauben` und ist zuerst aus. Er erscheint erst, wenn Anfragen zu Betreuungsangeboten eingeschaltet sind.",
         ],
         callout: {
           title: "Was wird direkt übernommen?",

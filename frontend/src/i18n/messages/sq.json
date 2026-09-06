@@ -1419,6 +1419,25 @@
       "6": "Sht",
       "7": "Die"
     },
+    "courses": {
+      "title": "Kurset",
+      "description": "Kurset e OGS-së. Një kërkesë vlen vetëm pasi OGS-ja ta konfirmojë.",
+      "request": "Kërko",
+      "withdraw": "Tërhiq kërkesën",
+      "booked": "Merr pjesë",
+      "requested": "Kërkuar",
+      "waitlist": "Listë pritjeje, vendi {position}",
+      "full": "Plot",
+      "fullWaitlistHint": "Plot. Kërkesa shkon në listën e pritjes.",
+      "freeSlotOne": "1 vend i lirë",
+      "freeSlots": "{count} vende të lira",
+      "effectiveFrom": "Një kurs mund të fillojë më së shpejti më {date}.",
+      "otherRequest": "Ju keni tashmë një kërkesë të hapur për kujdesin. Ju lutemi prisni përgjigjen.",
+      "needsEnrollment": "Kurset mund t'i kërkoni sapo fëmija juaj të jetë regjistruar.",
+      "noCourses": "Për momentin nuk ka kurse.",
+      "loadError": "Kurset nuk u ngarkuan dot.",
+      "actionError": "Fatkeqësisht nuk funksionoi. Ju lutemi provoni sërish."
+    },
     "careSchedule": {
       "arrival": "Ora e mbërritjes",
       "pickup": "Ora e marrjes",

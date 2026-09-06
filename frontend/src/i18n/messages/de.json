@@ -1419,6 +1419,25 @@
       "6": "Sa",
       "7": "So"
     },
+    "courses": {
+      "title": "Kurse",
+      "description": "Kurse der OGS. Eine Anfrage gilt erst, wenn die OGS sie bestätigt.",
+      "request": "Anfragen",
+      "withdraw": "Anfrage zurücknehmen",
+      "booked": "Dabei",
+      "requested": "Angefragt",
+      "waitlist": "Warteliste, Platz {position}",
+      "full": "Voll",
+      "fullWaitlistHint": "Voll. Eine Anfrage kommt auf die Warteliste.",
+      "freeSlotOne": "Noch 1 Platz frei",
+      "freeSlots": "Noch {count} Plätze frei",
+      "effectiveFrom": "Ein Kurs beginnt frühestens am {date}.",
+      "otherRequest": "Sie haben schon eine offene Anfrage zur Betreuung. Bitte warten Sie die Antwort ab.",
+      "needsEnrollment": "Kurse können Sie anfragen, sobald Ihr Kind angemeldet ist.",
+      "noCourses": "Zurzeit gibt es keine Kurse.",
+      "loadError": "Die Kurse konnten nicht geladen werden.",
+      "actionError": "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
+    },
     "careSchedule": {
       "arrival": "Ankunftszeit",
       "pickup": "Abholzeit",

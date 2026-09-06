@@ -167,7 +167,16 @@ export function BookedCareSection({
     );
   }
 
-  const pending = offerings?.pending_request;
+  // Eine Kursanfrage gehört in den Abschnitt "Kurse" (#3075). Stünde sie
+  // auch hier, sähe die Familie denselben Vorgang zweimal, in zwei
+  // Formulierungen und mit zwei verschiedenen Knöpfen.
+  const pendingRequest = offerings?.pending_request;
+  const pending =
+    pendingRequest &&
+    pendingRequest.diff.length > 0 &&
+    pendingRequest.diff.every((line) => line.is_course === true)
+      ? undefined
+      : pendingRequest;
   const decision = offerings?.last_decision;
   const hasScheduledCare =
     schedule?.weekdays.some((weekday) => weekday.status === "scheduled") ??

@@ -431,6 +431,11 @@ export function OfferingRequestReviewItem({
                 className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
               >
                 <span className="text-xs text-gray-500">{entry.label}: </span>
+                {/* Eine Kursanfrage sieht sonst aus wie jede andere
+                    Angebotsänderung (#3075). */}
+                {entry.is_course && (
+                  <StatusBadge tone="green" label="Kurs" showDot={false} />
+                )}
                 {entry.automatic && (
                   <StatusBadge
                     tone="blue"

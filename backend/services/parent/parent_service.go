@@ -321,6 +321,15 @@ type Service interface {
 	// change feature being switched on.
 	GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error)
 
+	// GetChildCourses lists the school's courses (AGs reached through a care
+	// offering) with the child's state, and RequestChildCourse /
+	// WithdrawChildCourseRequest are the family's two actions on them (#3075).
+	// Both need parent_portal.request.submit; the read reports a missing
+	// permission as a named reason instead of an error.
+	GetChildCourses(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.CourseCatalog, error)
+	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*enrollmentSvc.CourseCatalog, error)
+	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*enrollmentSvc.CourseCatalog, error)
+
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
 	// guardian's read/ack state. Cross-tenant; broadcast (#1669).

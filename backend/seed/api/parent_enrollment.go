@@ -241,6 +241,12 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 	if err := seedOfferingPlanningTemplate(rt, offerings["mittagessen"]); err != nil {
 		return state, err
 	}
+	if err := seedCourseTemplate(rt, "Fußball-AG", 3, offerings["ag-fussball"], 12); err != nil {
+		return state, err
+	}
+	if err := seedCourseTemplate(rt, "Theater-AG", 4, offerings["ag-theater"], 1); err != nil {
+		return state, err
+	}
 	state.Offerings = offerings
 
 	type enrollmentSubmission struct {
@@ -272,9 +278,14 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 	}
 	submissions := []enrollmentSubmission{
+		// Lea belegt den einzigen Platz der Theater-AG. Dadurch zeigt die
+		// Eltern-App bei den anderen Familien einen vollen Kurs — und eine
+		// Anfrage dort landet auf der Warteliste (#3075).
 		seedSubmission("public", "Lea", "Sommer", "2019-04-18", 1,
 			"Daniela", "Sommer", "daniela.sommer@example.test", "approved-3-days",
-			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+			// Der Kurs steht ohne Tagesauswahl in der Liste: seine Tage legt
+			// die Schule fest (days_of_week_mode "fixed").
+			[]string{"ogs-ganztag", "mittagessen", "ag-theater"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
 			}, "approved", "Demo-Zusage: drei Betreuungstage"),
@@ -653,6 +664,37 @@ func seedOfferingPlanningTemplate(rt *Runtime, offeringID int64) error {
 	return nil
 }
 
+// seedCourseTemplate makes one demo AG a Kurs in the sense of #3075: an
+// activity Regeltermin fed by a care offering. Without it the Kurse section of
+// the parents app is empty on every dev machine and nobody reviews it. The
+// demo seeds two, one with room and one already full, so both states — a plain
+// request and a waiting-list place — are visible without setting anything up.
+func seedCourseTemplate(rt *Runtime, name string, weekday int, offeringID int64, maxParticipants int) error {
+	if rt.FixedSeeder == nil || offeringID == 0 {
+		return fmt.Errorf("course template prerequisites not available")
+	}
+	roomID := rt.FixedSeeder.roomIDs["Sporthalle"]
+	categoryID := seedAnyCategoryID(rt)
+	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
+	if roomID == 0 || categoryID == 0 || len(staffIDs) == 0 {
+		return fmt.Errorf("course template references not available")
+	}
+	today := todaySeedDate()
+	_, err := rt.Client.Post("/api/timetable/templates", map[string]any{
+		"name": name, "type": "activity", "list_kind": "activity",
+		"target_group_type": "angebot", "source_care_offering_ids": []int64{offeringID},
+		"weekdays": []int{weekday}, "start_time": "14:00", "end_time": "15:00",
+		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
+		"max_participants": maxParticipants,
+		"staff_ids":        staffIDs[:1], "primary_staff_id": staffIDs[0],
+		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
+	})
+	if err != nil {
+		return fmt.Errorf("create course template %s: %w", name, err)
+	}
+	return nil
+}
+
 func publicEnrollmentSeedHeaders(index int) map[string]string {
 	return map[string]string{
 		"X-Forwarded-For": fmt.Sprintf("198.51.100.%d", 10+index),
@@ -728,6 +770,11 @@ func demoCareOfferings() []seedCareOffering {
 		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
 		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
+		// Die Demo-Kurse (#3075): Angebote, die an einer AG hängen. Zwei davon,
+		// damit die Eltern-App beide Zustände zeigt — einer mit freien Plätzen,
+		// einer voll, der eine Anfrage auf die Warteliste setzt.
+		{key: "ag-fussball", name: "Fußball-AG", description: "Mittwochs auf dem Sportplatz", daysMode: "fixed", days: []string{"wed"}, capacity: intPtr(12), sort: 50},
+		{key: "ag-theater", name: "Theater-AG", description: "Donnerstags in der Aula", daysMode: "fixed", days: []string{"thu"}, capacity: intPtr(1), sort: 51},
 	}
 }
 

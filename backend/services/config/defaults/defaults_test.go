@@ -1839,3 +1839,25 @@ func TestParentRequestReasonPolicySetting(t *testing.T) {
 	assert.Contains(t, values, config.ReasonPolicyStaff)
 	assert.Contains(t, values, config.ReasonPolicyBoth)
 }
+
+// TestParentCourseRequestsSetting pins the two promises of #3075: no school
+// gets parent course requests unhandled, and the switch is visibly tied to the
+// change-request machinery it runs on.
+func TestParentCourseRequestsSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyEnrollmentParentCourseRequestsEnabled)
+	require.NotNil(t, def, "enrollment.parent_course_requests_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "no school gets course requests unasked")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "enrollment", def.Tab)
+	assert.Equal(t, "betreuungsangebote", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.DependsOn, "a course request is an offering change request")
+	assert.Equal(t, config.KeyEnrollmentOfferingChangesEnabled, def.DependsOn.Key)
+
+	parent := config.GetDefinition(config.KeyEnrollmentOfferingChangesEnabled)
+	require.NotNil(t, parent)
+	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
+}

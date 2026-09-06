@@ -275,6 +275,12 @@ type StudentEnrollmentRepository interface {
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
 
+	// CountActiveByGroupIDs is the roster size of each group on a given day —
+	// the occupancy a participant limit is measured against. It answers for
+	// every requested group in one query and omits groups without a single
+	// active row, so a caller reads a missing key as zero.
+	CountActiveByGroupIDs(ctx context.Context, groupIDs []int64, onDate Date) (map[int64]int, error)
+
 	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
 	// materialized during the same approval as requestChildID but predate the
 	// explicit provenance column. The group list keeps the operation bounded to

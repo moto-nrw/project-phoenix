@@ -114,6 +114,46 @@ func (r timetableStudentEnrollmentRepository) FindActiveByStudentIDs(ctx context
 	return rows, nil
 }
 
+func (r timetableStudentEnrollmentRepository) CountActiveByGroupIDs(
+	ctx context.Context,
+	groupIDs []int64,
+	onDate activitiesModels.StudentEnrollmentDate,
+) (map[int64]int, error) {
+	if len(groupIDs) == 0 {
+		return map[int64]int{}, nil
+	}
+	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{
+		ActivityGroupIDs: groupIDs,
+	}, "count active enrollments by group IDs")
+	if err != nil {
+		return nil, err
+	}
+	// The interval filter runs here rather than through ActiveOn: that option
+	// also narrows to the weekday of the given date, which would report a
+	// Monday-only child as absent from the roster on a Tuesday. A seat is held
+	// for the whole week, so the roster counts each student once.
+	seen := make(map[int64]map[int64]struct{}, len(groupIDs))
+	for _, row := range rows {
+		if row.ValidFrom.String() > onDate.String() {
+			continue
+		}
+		if row.ValidUntil != nil && row.ValidUntil.String() <= onDate.String() {
+			continue
+		}
+		students := seen[row.ActivityGroupID]
+		if students == nil {
+			students = make(map[int64]struct{})
+			seen[row.ActivityGroupID] = students
+		}
+		students[row.StudentID] = struct{}{}
+	}
+	counts := make(map[int64]int, len(seen))
+	for groupID, students := range seen {
+		counts[groupID] = len(students)
+	}
+	return counts, nil
+}
+
 func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.StudentEnrollment, error) {
 	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: []int64{groupID}, OrderByValidFrom: true}, "find by group ID")
 	if err != nil || len(rows) == 0 {
