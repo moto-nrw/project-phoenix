@@ -19,7 +19,6 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -286,7 +285,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			ArrivalExceptions: scheduleRepos.ArrivalException,
 			PickupBaselines: scheduletest.NewPickupBaselineService(
 				scheduleRepos.PickupSchedule,
-				newBoundRequestChildOfferingRepository(db),
+				newApprovedOfferingProjection(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
 			PickupExceptions:  scheduleRepos.PickupException,
@@ -295,7 +294,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 		PickupExceptionRepo: scheduleRepos.PickupException,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepos.PickupSchedule,
-			newBoundRequestChildOfferingRepository(db),
+			newApprovedOfferingProjection(db),
 			carePlanTest.CareOfferingRepository(db),
 		),
 		StudentRepo:        usersRepo.NewStudentRepository(db),
@@ -311,7 +310,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 			nil,
 			scheduletest.NewPickupBaselineService(
 				scheduleRepos.PickupSchedule,
-				newBoundRequestChildOfferingRepository(db),
+				newApprovedOfferingProjection(db),
 				carePlanTest.CareOfferingRepository(db),
 			),
 			db,
@@ -2962,49 +2961,6 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	assert.Equal(t, 0, result.Counters.Missing)
 }
 
-type legacyEnrollmentStudentDirectory struct {
-	students userModels.StudentRepository
-}
-
-func (d legacyEnrollmentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]enrollmentRepo.DirectoryStudent, error) {
-	byID, err := d.students.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]enrollmentRepo.DirectoryStudent, 0, len(byID))
-	for _, student := range byID {
-		result = append(result, toEnrollmentDirectoryStudent(student))
-	}
-	return result, nil
-}
-
-func (d legacyEnrollmentStudentDirectory) ListEnrolledStudents(ctx context.Context) ([]enrollmentRepo.DirectoryStudent, error) {
-	students, err := d.students.List(ctx, map[string]any{})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]enrollmentRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		if !student.IsAlumnus() {
-			result = append(result, toEnrollmentDirectoryStudent(student))
-		}
-	}
-	return result, nil
-}
-
-func toEnrollmentDirectoryStudent(student *userModels.Student) enrollmentRepo.DirectoryStudent {
-	row := enrollmentRepo.DirectoryStudent{
-		ID: student.ID, SchoolClass: student.SchoolClass, Status: string(student.Status), Alumnus: student.IsAlumnus(),
-	}
-	if student.EnrolledFrom != nil {
-		row.EnrolledFrom = student.EnrolledFrom.String()
-	}
-	if student.EnrolledUntil != nil {
-		row.EnrolledUntil = student.EnrolledUntil.String()
-	}
-	return row
-}
-
 type slotListInstanceStudents struct {
 	repository timetabletest.InstanceStudents
 }
@@ -3058,8 +3014,10 @@ func (slotListTestTB) Helper() {}
 
 func (slotListTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
-func newBoundRequestChildOfferingRepository(db *bun.DB) *enrollmentRepo.RequestChildOfferingRepository {
-	repo := enrollmentRepo.NewRequestChildOfferingRepository(db).(*enrollmentRepo.RequestChildOfferingRepository)
-	repo.BindStudentDirectory(legacyEnrollmentStudentDirectory{students: usersRepo.NewStudentRepository(db)})
-	return repo
+func newApprovedOfferingProjection(db *bun.DB) scheduleSvc.ApprovedBookingReader {
+	projection, err := slotlisttest.NewApprovedOfferingProjection(db)
+	if err != nil {
+		panic(err)
+	}
+	return projection
 }

@@ -8,33 +8,35 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
-func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
+func TestOwnerOffering_CountMaxActiveByCareOfferingInRange_IncludesFutureBookings(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	futureFrom := from.AddDays(30)
 	until := from.AddDays(90)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidFrom:      &futureFrom,
+			ValidFrom:      offeringDatePointer(futureFrom),
 		})
 	}))
 
 	var activeToday, peak int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		activeToday, err = repo.CountActiveByCareOfferingOnDate(ctx, offeringID, from)
+		activeToday, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(from.AddDays(1)))
 		if err != nil {
 			return err
 		}
-		peak, err = repo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, from, until)
+		peak, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
@@ -42,15 +44,16 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRange_Incl
 	assert.Equal(t, 1, peak, "a future booking must reserve its later capacity")
 }
 
-func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
+func TestOwnerOffering_CountMaxActiveByCareOfferingInRangeExcludingRequestChild_ExcludesReplacedIntervals(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
 		})
@@ -59,9 +62,14 @@ func TestRequestChildOfferingRepository_CountMaxActiveByCareOfferingInRangeExclu
 	var peak int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		peak, err = repo.CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx, offeringID, childID, from, until)
+		peak, err = repo.OfferingCapacityPeak(ctx, offeringID, []int64{childID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
 	assert.Zero(t, peak, "the replacing child's old interval must not consume a second slot")
+}
+
+func offeringDatePointer(date timezone.Date) *owner.Date {
+	value := owner.Date(date)
+	return &value
 }

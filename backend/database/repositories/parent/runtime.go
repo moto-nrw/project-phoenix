@@ -15,8 +15,6 @@ type Runtime interface {
 // RuntimeFunc adapts composition-root database resolution.
 type RuntimeFunc func(context.Context) bun.IDB
 
-type calendarDate string
-
 func (f RuntimeFunc) DB(ctx context.Context) bun.IDB { return f(ctx) }
 
 func requireRuntime(runtime Runtime) Runtime {

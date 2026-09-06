@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +20,10 @@ import (
 func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	openName := uniquePhaseName("audienceOpen")
 	newStudentsName := uniquePhaseName("audienceNew")
 	linkedName := uniquePhaseName("audienceLinked")
@@ -24,25 +31,25 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
-	pOpen := makeValidPhase(openName)
+	pOpen := makeOwnerEligibilityPhase(openName)
 	pOpen.Audience = enrollmentModels.PhaseAudienceOpen
 
-	pNew := makeValidPhase(newStudentsName)
+	pNew := makeOwnerEligibilityPhase(newStudentsName)
 	pNew.Audience = enrollmentModels.PhaseAudienceNewStudents
 
-	pLinked := makeValidPhase(linkedName)
+	pLinked := makeOwnerEligibilityPhase(linkedName)
 	pLinked.Audience = enrollmentModels.PhaseAudienceLinkedParents
 
-	for _, p := range []*enrollmentModels.Phase{pOpen, pNew, pLinked} {
+	for _, p := range []*capability.Phase{pOpen, pNew, pLinked} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, p)
+			return repo.InsertPhase(ctx, p)
 		}))
 	}
 
-	var list []*enrollmentModels.Phase
+	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListPublicOpen(ctx, now)
+		list, lErr = enrollmentCompose.New().PublicOpenPhases(ctx, now)
 		return lErr
 	}))
 
@@ -63,29 +70,32 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	openName := uniquePhaseName("audienceOpenB")
 	existingName := uniquePhaseName("audienceExisting")
 	defer wipePhases(db, tenantID, openName, existingName)
 
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
-	pOpen := makeValidPhase(openName)
+	pOpen := makeOwnerEligibilityPhase(openName)
 	pOpen.Audience = enrollmentModels.PhaseAudienceOpen
 
-	pExisting := makeValidPhase(existingName)
+	pExisting := makeOwnerEligibilityPhase(existingName)
 	pExisting.Audience = enrollmentModels.PhaseAudienceExistingStudents
 
-	for _, p := range []*enrollmentModels.Phase{pOpen, pExisting} {
+	for _, p := range []*capability.Phase{pOpen, pExisting} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, p)
+			return repo.InsertPhase(ctx, p)
 		}))
 	}
 
-	var list []*enrollmentModels.Phase
+	var list []*capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListPublicOpen(ctx, now)
+		list, lErr = enrollmentCompose.New().PublicOpenPhases(ctx, now)
 		return lErr
 	}))
 
@@ -103,11 +113,14 @@ func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T
 func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	name := uniquePhaseName("eligibilityRoundtrip")
 	defer wipePhases(db, tenantID, name)
 
-	p := makeValidPhase(name)
+	p := makeOwnerEligibilityPhase(name)
 	p.Audience = enrollmentModels.PhaseAudienceNewStudents
 	// Eligible classes must also be offered by the phase (#1663), so seed the
 	// pick list with every class the eligibility list (and the later update)
@@ -116,13 +129,13 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 	p.EligibleSchoolClasses = []string{"2a", "3b"}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, p)
+		return repo.InsertPhase(ctx, p)
 	}))
 
-	var loaded *enrollmentModels.Phase
+	var loaded *capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fErr error
-		loaded, fErr = repo.FindByID(ctx, p.ID)
+		loaded, fErr = repo.Phase(ctx, p.ID)
 		return fErr
 	}))
 	assert.Equal(t, enrollmentModels.PhaseAudienceNewStudents, loaded.Audience)
@@ -133,13 +146,13 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 	loaded.Audience = enrollmentModels.PhaseAudienceLinkedParents
 	loaded.EligibleSchoolClasses = []string{"4c"}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Update(ctx, loaded)
+		return repo.UpdatePhase(ctx, loaded)
 	}))
 
-	var reloaded *enrollmentModels.Phase
+	var reloaded *capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fErr error
-		reloaded, fErr = repo.FindByID(ctx, loaded.ID)
+		reloaded, fErr = repo.Phase(ctx, loaded.ID)
 		return fErr
 	}))
 	assert.Equal(t, enrollmentModels.PhaseAudienceLinkedParents, reloaded.Audience)
@@ -152,34 +165,37 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 func TestPhaseRepository_EligibleGradeLevelsRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	name := uniquePhaseName("gradeEligibilityRoundtrip")
 	defer wipePhases(db, tenantID, name)
 
-	p := makeValidPhase(name)
+	p := makeOwnerEligibilityPhase(name)
 	p.EligibleGradeLevels = []int{3, 4}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, p)
+		return repo.InsertPhase(ctx, p)
 	}))
 
-	var loaded *enrollmentModels.Phase
+	var loaded *capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fErr error
-		loaded, fErr = repo.FindByID(ctx, p.ID)
+		loaded, fErr = repo.Phase(ctx, p.ID)
 		return fErr
 	}))
 	assert.Equal(t, []int{3, 4}, loaded.EligibleGradeLevels)
 
 	loaded.EligibleGradeLevels = []int{1}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Update(ctx, loaded)
+		return repo.UpdatePhase(ctx, loaded)
 	}))
 
-	var reloaded *enrollmentModels.Phase
+	var reloaded *capability.Phase
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fErr error
-		reloaded, fErr = repo.FindByID(ctx, loaded.ID)
+		reloaded, fErr = repo.Phase(ctx, loaded.ID)
 		return fErr
 	}))
 	assert.Equal(t, []int{1}, reloaded.EligibleGradeLevels,
@@ -188,46 +204,49 @@ func TestPhaseRepository_EligibleGradeLevelsRoundtrip(t *testing.T) {
 
 // Backs the settings guard that refuses to disable grade-level collection
 // while a phase would then reject every submission (#1663).
-func TestPhaseRepository_ExistsActiveWithEligibleGradeLevels(t *testing.T) {
+func TestEnrollment_HasActiveGradeRestrictedPhase(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	unrestrictedName := uniquePhaseName("gradeGuardUnrestricted")
 	inactiveName := uniquePhaseName("gradeGuardInactive")
 	activeName := uniquePhaseName("gradeGuardActive")
 	defer wipePhases(db, tenantID, unrestrictedName, inactiveName, activeName)
 
-	unrestricted := makeValidPhase(unrestrictedName)
+	unrestricted := makeOwnerEligibilityPhase(unrestrictedName)
 	unrestricted.IsActive = true
 
-	inactive := makeValidPhase(inactiveName)
+	inactive := makeOwnerEligibilityPhase(inactiveName)
 	inactive.IsActive = false
 	inactive.EligibleGradeLevels = []int{2}
 
-	for _, p := range []*enrollmentModels.Phase{unrestricted, inactive} {
+	for _, p := range []*capability.Phase{unrestricted, inactive} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, p)
+			return repo.InsertPhase(ctx, p)
 		}))
 	}
 
 	var exists bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = repo.ExistsActiveWithEligibleGradeLevels(ctx)
+		exists, eErr = enrollmentCompose.New().HasActiveGradeRestrictedPhase(ctx)
 		return eErr
 	}))
 	assert.False(t, exists, "an unrestricted or inactive phase must not block the toggle")
 
-	active := makeValidPhase(activeName)
+	active := makeOwnerEligibilityPhase(activeName)
 	active.IsActive = true
 	active.EligibleGradeLevels = []int{3}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, active)
+		return repo.InsertPhase(ctx, active)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var eErr error
-		exists, eErr = repo.ExistsActiveWithEligibleGradeLevels(ctx)
+		exists, eErr = enrollmentCompose.New().HasActiveGradeRestrictedPhase(ctx)
 		return eErr
 	}))
 	assert.True(t, exists, "an active grade-restricted phase must block the toggle")
@@ -235,59 +254,70 @@ func TestPhaseRepository_ExistsActiveWithEligibleGradeLevels(t *testing.T) {
 
 // Backs the settings guard that refuses to LOWER enrollment.grade_level_max
 // below a grade an active phase already restricts itself to (#1663).
-func TestPhaseRepository_MaxActiveEligibleGradeLevel(t *testing.T) {
+func TestEnrollment_MaxActivePhaseGrade(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID := setupPhaseRepoTest(t)
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	repo := enrollmentCompose.New()
 	unrestrictedName := uniquePhaseName("gradeCapUnrestricted")
 	inactiveName := uniquePhaseName("gradeCapInactive")
 	activeName := uniquePhaseName("gradeCapActive")
 	lowerName := uniquePhaseName("gradeCapLower")
 	defer wipePhases(db, tenantID, unrestrictedName, inactiveName, activeName, lowerName)
 
-	unrestricted := makeValidPhase(unrestrictedName)
+	unrestricted := makeOwnerEligibilityPhase(unrestrictedName)
 	unrestricted.IsActive = true
 
 	// An inactive phase restricted to a HIGH grade must not pin the cap — only
 	// live phases can be broken by lowering it.
-	inactive := makeValidPhase(inactiveName)
+	inactive := makeOwnerEligibilityPhase(inactiveName)
 	inactive.IsActive = false
 	inactive.EligibleGradeLevels = []int{9}
 
-	for _, p := range []*enrollmentModels.Phase{unrestricted, inactive} {
+	for _, p := range []*capability.Phase{unrestricted, inactive} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, p)
+			return repo.InsertPhase(ctx, p)
 		}))
 	}
 
 	var highest int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var mErr error
-		highest, mErr = repo.MaxActiveEligibleGradeLevel(ctx)
+		highest, mErr = enrollmentCompose.New().MaxActivePhaseGrade(ctx)
 		return mErr
 	}))
 	assert.Equal(t, 0, highest, "no active restriction means the cap is unconstrained")
 
 	// Two active restricted phases: the MAX across both (and across each list's
 	// entries) is what the guard must see.
-	active := makeValidPhase(activeName)
+	active := makeOwnerEligibilityPhase(activeName)
 	active.IsActive = true
 	active.EligibleGradeLevels = []int{2, 4}
 
-	lower := makeValidPhase(lowerName)
+	lower := makeOwnerEligibilityPhase(lowerName)
 	lower.IsActive = true
 	lower.EligibleGradeLevels = []int{3}
 
-	for _, p := range []*enrollmentModels.Phase{active, lower} {
+	for _, p := range []*capability.Phase{active, lower} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, p)
+			return repo.InsertPhase(ctx, p)
 		}))
 	}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var mErr error
-		highest, mErr = repo.MaxActiveEligibleGradeLevel(ctx)
+		highest, mErr = enrollmentCompose.New().MaxActivePhaseGrade(ctx)
 		return mErr
 	}))
 	assert.Equal(t, 4, highest, "the guard needs the highest grade across every active phase")
+}
+
+func makeOwnerEligibilityPhase(name string) *capability.Phase {
+	return &capability.Phase{
+		Name: name, Kind: enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: capability.Date("2026-09-01"), ServiceEndDate: capability.Date("2027-07-31"),
+		IsActive: true, CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+	}
 }

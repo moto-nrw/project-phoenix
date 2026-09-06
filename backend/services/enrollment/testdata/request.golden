@@ -1,0 +1,16 @@
+{
+  "id": 9007199254740993,
+  "tenant_id": 42,
+  "created_at": "0001-01-01T00:00:00Z",
+  "updated_at": "0001-01-01T00:00:00Z",
+  "phase_id": 17,
+  "guardian_first_name": "Anna",
+  "guardian_last_name": "Beispiel",
+  "guardian_email": "anna@example.test",
+  "consent_flags": {"photo": false},
+  "custom_data": {"answer": "yes", "count": 3},
+  "submission_source": "",
+  "source_metadata": {},
+  "status_token": "fixture-token",
+  "submitted_at": "2026-09-05T10:00:00Z"
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,11 +30,8 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	phaseNamePrefix := "phase-" + t.Name()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo:             repoFactory.Phase,
-		RequestRepo:      repoFactory.Request,
-		RequestChildRepo: repoFactory.RequestChild,
+		Owner:            repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
-		FormSchemaRepo:   repoFactory.FormSchema,
 		DB:               db,
 		Logger:           slog.Default(),
 	})
@@ -58,16 +56,16 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	return svc, repoFactory, db, cleanup
 }
 
-func minimalPhase(t *testing.T, suffix string) *enrollmentModels.Phase {
-	p := &enrollmentModels.Phase{
+func minimalPhase(t *testing.T, suffix string) *enrollmentOwner.Phase {
+	p := &enrollmentOwner.Phase{
 		Name:             "phase-" + suffix,
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		Kind:             enrollmentOwner.PhaseKindSchoolYear,
+		ServiceStartDate: enrollmentOwner.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentOwner.Date(timezone.NewDate(2027, 7, 31)),
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: enrollmentOwner.PhaseCareOverflowWaitlist,
 	}
-	p.SetTenantID(testpkg.Tenant(t))
+	p.TenantID = testpkg.Tenant(t)
 	return p
 }
 
@@ -81,7 +79,7 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.NotZero(t, created.ID)
-	assert.Equal(t, enrollmentModels.PhaseKindSchoolYear, created.Kind)
+	assert.Equal(t, enrollmentOwner.PhaseKindSchoolYear, created.Kind)
 	assert.True(t, created.IsActive)
 }
 
@@ -93,8 +91,8 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	bad := minimalPhase(t, t.Name())
-	bad.ServiceStartDate = timezone.NewDate(2027, 9, 1)
-	bad.ServiceEndDate = timezone.NewDate(2026, 7, 31)
+	bad.ServiceStartDate = enrollmentOwner.Date(timezone.NewDate(2027, 9, 1))
+	bad.ServiceEndDate = enrollmentOwner.Date(timezone.NewDate(2026, 7, 31))
 
 	_, err := svc.Create(ctx, bad)
 	require.Error(t, err, "service_end_date < service_start_date must be rejected")
@@ -159,14 +157,14 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 
 	created.Name = "phase-" + t.Name() + "-renamed"
 	created.IsActive = false
-	created.CareOverflowMode = enrollmentModels.PhaseCareOverflowReject
+	created.CareOverflowMode = enrollmentOwner.PhaseCareOverflowReject
 	require.NoError(t, svc.Update(ctx, created))
 
 	refreshed, err := svc.GetByID(ctx, created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
-	assert.Equal(t, enrollmentModels.PhaseCareOverflowReject, refreshed.CareOverflowMode)
+	assert.Equal(t, enrollmentOwner.PhaseCareOverflowReject, refreshed.CareOverflowMode)
 }
 
 func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
@@ -182,11 +180,8 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 	lockCalls := 0
 	validatorCalls := 0
 	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo:             repoFactory.Phase,
-		RequestRepo:      repoFactory.Request,
-		RequestChildRepo: repoFactory.RequestChild,
+		Owner:            repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
-		FormSchemaRepo:   repoFactory.FormSchema,
 		LockTemplateRecurrence: func(context.Context) error {
 			lockCalls++
 			return nil
@@ -194,11 +189,11 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 		ValidateCareOfferingPhaseChange: func(
 			_ context.Context,
 			phaseID int64,
-			replacement *enrollmentModels.Phase,
+			replacement *enrollmentOwner.Phase,
 		) error {
 			validatorCalls++
 			assert.Equal(t, created.ID, phaseID)
-			assert.Equal(t, originalEnd.AddDays(7), replacement.ServiceEndDate)
+			assert.Equal(t, enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7)), enrollmentOwner.Date(replacement.ServiceEndDate))
 			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentModels.ErrCareOfferingInvalid)
 		},
 		DB:     db,
@@ -210,13 +205,13 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 		"metadata-only changes must not be rejected by unrelated legacy care-offering state")
 	assert.Zero(t, validatorCalls)
 
-	created.ServiceEndDate = originalEnd.AddDays(7)
+	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(originalEnd).AddDays(7))
 	err = guardedService.Update(ctx, created)
 	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict)
 	assert.Equal(t, 2, lockCalls)
 	assert.Equal(t, 1, validatorCalls)
 
-	stored, findErr := repoFactory.Phase.FindByID(ctx, created.ID)
+	stored, findErr := repoFactory.Enrollment().Phase(ctx, created.ID)
 	require.NoError(t, findErr)
 	assert.Equal(t, originalEnd, stored.ServiceEndDate,
 		"a rejected service-window expansion must not be persisted")
@@ -268,11 +263,8 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 
 	resyncer := &recordingSourcedTemplateResyncer{}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo:                   repoFactory.Phase,
-		RequestRepo:            repoFactory.Request,
-		RequestChildRepo:       repoFactory.RequestChild,
+		Owner:                  repoFactory.Enrollment(),
 		CareOfferingRepo:       repoFactory.CareOffering,
-		FormSchemaRepo:         repoFactory.FormSchema,
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -286,7 +278,7 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 	assert.Empty(t, resyncer.offeringIDs,
 		"metadata-only updates must not resync sourced templates")
 
-	created.ServiceEndDate = created.ServiceEndDate.AddDays(7)
+	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(7))
 	require.NoError(t, svc.Update(ctx, created))
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs,
 		"a service-window change must resync every template sourcing the phase's offerings")
@@ -323,11 +315,8 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 		err: fmt.Errorf("offering roster resync: template 7: %w", scheduleService.ErrOfferingSourceInvalid),
 	}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo:                   repoFactory.Phase,
-		RequestRepo:            repoFactory.Request,
-		RequestChildRepo:       repoFactory.RequestChild,
+		Owner:                  repoFactory.Enrollment(),
 		CareOfferingRepo:       repoFactory.CareOffering,
-		FormSchemaRepo:         repoFactory.FormSchema,
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		DB:                     db,
 		Logger:                 slog.Default(),
@@ -336,7 +325,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	require.True(t, ok, "phase service must accept the sourced-template resyncer")
 	binder.SetSourcedTemplateResyncer(resyncer)
 
-	created.ServiceEndDate = created.ServiceEndDate.AddDays(7)
+	created.ServiceEndDate = enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(7))
 	err = svc.Update(ctx, created)
 	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict,
 		"an incompatible sourced template must reject the window change, not be skipped")
@@ -344,6 +333,16 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs)
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written phase row via the ambient-transaction rollback marker")
+	persisted, err := baseService.GetByID(testpkg.Ctx(t), created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentOwner.Date(timezone.Date(created.ServiceEndDate).AddDays(-7)), persisted.ServiceEndDate,
+		"a standalone update must roll back the phase when sourced-template resync fails")
+	resyncer.err = nil
+	require.NoError(t, svc.Update(testpkg.Ctx(t), created))
+	persisted, err = baseService.GetByID(testpkg.Ctx(t), created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, created.ServiceEndDate, persisted.ServiceEndDate,
+		"retry must commit the requested window after the resync failure is resolved")
 }
 
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
@@ -437,7 +436,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 		"phase-" + t.Name() + "-open-inactive": {},
 		"phase-" + t.Name() + "-closed-window": {},
 	}
-	matching := make([]*enrollmentModels.Phase, 0, len(open))
+	matching := make([]*enrollmentOwner.Phase, 0, len(open))
 	for _, phase := range open {
 		if _, ok := testPhaseNames[phase.Name]; ok {
 			matching = append(matching, phase)
@@ -466,7 +465,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
@@ -509,25 +508,25 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		StatusToken:       "test-token-" + t.Name(),
 		SubmittedAt:       time.Now(),
 	}
-	req.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.Request.Create(ctx, req))
+	req.TenantID = testpkg.Tenant(t)
+	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
 	child := &enrollmentModels.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Kept",
 		LastName:         "Child",
-		DateOfBirth:      timezone.NewDate(2019, 5, 1),
+		DateOfBirth:      "2019-05-01",
 		CreatedStudentID: &student.ID,
 	}
-	child.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
+	child.TenantID = testpkg.Tenant(t)
+	require.NoError(t, enrollmentService.InsertOwnerChildForTest(ctx, repoFactory.Enrollment(), child))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
 		"phase with enrollment requests must be deletable")
 
 	_, err = svc.GetByID(ctx, phase.ID)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
-	reqCount, err := repoFactory.Request.CountByPhaseID(ctx, phase.ID)
+	reqCount, err := repoFactory.Enrollment().CountPhaseRequests(ctx, phase.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, reqCount, "requests must cascade away with the phase")
 
@@ -565,7 +564,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	req := &enrollmentModels.Request{
@@ -576,18 +575,18 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		StatusToken:       "impact-token-" + t.Name(),
 		SubmittedAt:       time.Now(),
 	}
-	req.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.Request.Create(ctx, req))
+	req.TenantID = testpkg.Tenant(t)
+	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
 	child := &enrollmentModels.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Impact",
 		LastName:         "Child",
-		DateOfBirth:      timezone.NewDate(2019, 5, 1),
+		DateOfBirth:      "2019-05-01",
 		CreatedStudentID: &student.ID,
 	}
-	child.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
+	child.TenantID = testpkg.Tenant(t)
+	require.NoError(t, enrollmentService.InsertOwnerChildForTest(ctx, repoFactory.Enrollment(), child))
 
 	impact, err := svc.DeleteImpact(ctx, phase.ID)
 	require.NoError(t, err)
@@ -629,7 +628,7 @@ func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
 
 	repoErr := errors.New("database unavailable")
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo: findByIDErrorPhaseRepo{err: repoErr},
+		Owner: findByIDErrorPhaseRepo{err: repoErr},
 	})
 
 	_, err := svc.GetByID(context.Background(), 123)
@@ -640,11 +639,11 @@ func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
 }
 
 type findByIDErrorPhaseRepo struct {
-	enrollmentModels.PhaseRepository
+	enrollmentService.PhaseOwner
 	err error
 }
 
-func (r findByIDErrorPhaseRepo) FindByID(context.Context, int64) (*enrollmentModels.Phase, error) {
+func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentOwner.Phase, error) {
 	return nil, r.err
 }
 
@@ -654,11 +653,8 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 	t.Helper()
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-		Repo:             repoFactory.Phase,
-		RequestRepo:      repoFactory.Request,
-		RequestChildRepo: repoFactory.RequestChild,
+		Owner:            repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
-		FormSchemaRepo:   repoFactory.FormSchema,
 		CalendarPeriods: scheduleService.NewCalendarPeriodServiceWithConfig(scheduleService.CalendarPeriodServiceConfig{
 			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
 		}),

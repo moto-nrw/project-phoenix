@@ -89,9 +89,13 @@ type PickupBaselineReader interface {
 	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 }
 
+type ApprovedBookingReader interface {
+	ListApprovedByStudentIDsInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*enrollmentModel.ApprovedOfferingChild, error)
+}
+
 type pickupBaselineService struct {
 	weekly    scheduleModel.StudentPickupScheduleRepository
-	links     enrollmentModel.RequestChildOfferingRepository
+	links     ApprovedBookingReader
 	offerings enrollmentModel.CareOfferingRepository
 	settings  config.SettingsService
 }
@@ -100,7 +104,7 @@ type pickupBaselineService struct {
 // at the pickup projection boundary.
 func NewPickupBaselineServiceWithSettings(
 	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) PickupBaselineReader {
@@ -112,7 +116,7 @@ func NewPickupBaselineServiceWithSettings(
 
 func newPickupBaselineService(
 	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) PickupBaselineReader {
@@ -392,8 +396,8 @@ func projectedOfferingPickup(
 
 func offeringLinkCovers(link *enrollmentModel.RequestChildOffering, date timezone.Date) bool {
 	return link != nil &&
-		(link.ValidFrom == nil || !date.Before(*link.ValidFrom)) &&
-		(link.ValidUntil == nil || date.Before(*link.ValidUntil))
+		(link.ValidFrom == nil || !date.Before(timezone.Date(*link.ValidFrom))) &&
+		(link.ValidUntil == nil || date.Before(timezone.Date(*link.ValidUntil)))
 }
 
 func uniquePositiveStudentIDs(ids []int64) []int64 {

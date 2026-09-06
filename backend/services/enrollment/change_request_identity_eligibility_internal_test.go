@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +28,7 @@ func identityEligibilityChild(id int64, firstName string) *enrollmentModels.Requ
 	child := &enrollmentModels.RequestChild{
 		FirstName:   firstName,
 		LastName:    "Müller",
-		DateOfBirth: timezone.NewDate(2019, 4, 12),
+		DateOfBirth: "2019-04-12",
 	}
 	child.ID = id
 	return child
@@ -48,7 +50,7 @@ func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdenti
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
 	children := []*enrollmentModels.RequestChild{
 		identityEligibilityChild(11, "Anna"),
 		identityEligibilityChild(12, "Ben"),
@@ -74,7 +76,7 @@ func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *tes
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
@@ -90,7 +92,7 @@ func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownI
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(false)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceExistingStudents}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceExistingStudents}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
@@ -106,7 +108,7 @@ func TestValidateChangedChildIdentityEligibility_OtherAudiencesPass(t *testing.T
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceOpen}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceOpen}
 	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,

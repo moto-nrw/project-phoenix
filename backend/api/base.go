@@ -1184,14 +1184,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,
 		db,
-		repoFactory.FormSchema,
+		repoFactory.Enrollment(),
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
-	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.FormSchema.HasLegalDocumentReference, db)
+	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{

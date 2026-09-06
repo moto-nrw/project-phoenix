@@ -17,7 +17,7 @@ import (
 // The embedded interface panics on any other call, flagging an unintended
 // dependency.
 type stubMatchLockRequestRepo struct {
-	enrollmentModels.RequestRepository
+	ChangeRequestIntakeRequests
 	lockErr       error
 	lockedPhases  []int64
 	has           bool
@@ -43,7 +43,7 @@ func TestGuardMatchedStudentUnique_NilPinNoOps(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: true}
-	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Requests: repo}}
 
 	err := svc.guardMatchedStudentUnique(context.Background(), 42, nil, 0, 0)
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestGuardMatchedStudentUnique_CollisionRejected(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: true}
-	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Requests: repo}}
 
 	pin := int64(555)
 	err := svc.guardMatchedStudentUnique(context.Background(), 42, &pin, 0, 1)
@@ -72,7 +72,7 @@ func TestGuardMatchedStudentUnique_NoCollisionPasses(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: false}
-	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Requests: repo}}
 
 	pin := int64(777)
 	err := svc.guardMatchedStudentUnique(context.Background(), 9, &pin, 0, 0)
@@ -85,7 +85,7 @@ func TestGuardMatchedStudentUnique_LockErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{lockErr: errors.New("boom")}
-	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Requests: repo}}
 
 	pin := int64(1)
 	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)
@@ -100,7 +100,7 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{hasErr: errors.New("boom")}
-	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Requests: repo}}
 
 	pin := int64(1)
 	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)
@@ -117,7 +117,7 @@ func TestSameSubmittedIdentity(t *testing.T) {
 	existing := &enrollmentModels.RequestChild{
 		FirstName:   "Anna",
 		LastName:    "Müller",
-		DateOfBirth: timezone.NewDate(2019, 4, 12),
+		DateOfBirth: "2019-04-12",
 	}
 
 	t.Run("unchanged identity matches (case/space-insensitive)", func(t *testing.T) {

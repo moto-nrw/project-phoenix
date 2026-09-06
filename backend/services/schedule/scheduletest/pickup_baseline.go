@@ -65,7 +65,7 @@ func (f FixedPickupBaseline) HasBookedOfferingPickupForWeekday(_ context.Context
 // NewPickupBaselineService builds the legacy-mode test projection.
 func NewPickupBaselineService(
 	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links schedule.ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 ) schedule.PickupBaselineReader {
 	return schedule.NewPickupBaselineServiceWithSettings(weekly, links, offerings, &configtest.Mock{})

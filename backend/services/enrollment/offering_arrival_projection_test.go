@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,7 +34,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 		env.repos.Student,
 		env.repos.ClassArrivalTime,
 		env.repos.ClassArrivalException,
-		env.repos.RequestChildOffering,
+		approvedOfferingTestProjection(env.repos),
 		env.repos.CareOffering,
 		bookingModeSettings(authoritative),
 	)
@@ -65,7 +67,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		ArrivalExceptions: env.repos.StudentArrivalException,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		PickupExceptions:  env.repos.StudentPickupException,
@@ -76,7 +78,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) scheduleService.PickupBaselineReader {
 	return scheduleService.NewPickupBaselineServiceWithSettings(
 		env.repos.StudentPickupSchedule,
-		env.repos.RequestChildOffering,
+		approvedOfferingTestProjection(env.repos),
 		env.repos.CareOffering,
 		bookingModeSettings(authoritative),
 	)
@@ -116,7 +118,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 		IsActive:       true,
 		CountsAsCare:   true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
 	return offering
 }
@@ -241,13 +243,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	secondMonday := firstMonday.AddDays(7)
 
 	// Abmeldung: the booking stops at the second Monday (half-open window).
-	_, err := env.db.NewUpdate().
-		Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
-		Set("valid_until = ?", secondMonday).
-		Where(`"request_child_offering".request_child_id = ?`, childID).
-		Where(`"request_child_offering".care_offering_id = ?`, offering.ID).
-		Exec(ctx)
+	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(secondMonday), nil)
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)

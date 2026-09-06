@@ -3,7 +3,9 @@ package parent
 import (
 	"context"
 	"fmt"
-	"time"
+	"slices"
+
+	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -12,6 +14,7 @@ import (
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
 type EnrollablePhaseRepository struct {
 	runtime   Runtime
+	phases    PhaseQueries
 	students  StudentDirectory
 	guardians GuardianDirectory
 }
@@ -53,8 +56,15 @@ func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]D
 }
 
 // NewEnrollablePhaseRepository wires a fresh repository.
-func NewEnrollablePhaseRepository(runtime Runtime) parentModels.EnrollablePhaseRepository {
-	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime)}
+type PhaseQueries interface {
+	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
+}
+
+func NewEnrollablePhaseRepository(runtime Runtime, phases PhaseQueries) parentModels.EnrollablePhaseRepository {
+	if phases == nil {
+		panic("parent: enrollment phase queries are required")
+	}
+	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime), phases: phases}
 }
 
 // guardianGuard is the per-school guardian evidence the picker and the
@@ -70,14 +80,17 @@ type guardianGuard struct {
 
 // guardianGuards resolves the guard per tenant from the account's links at
 // the schools where it holds an ACTIVE auth.account_tenants mapping.
-func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountID int64) (map[int64]*guardianGuard, error) {
-	links, err := activeGuardianLinks(ctx, r.runtime, r.guardians, accountID)
+func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountID int64, activeTenants map[int64]struct{}) (map[int64]*guardianGuard, error) {
+	links, err := guardianLinksByAccount(ctx, r.guardians, accountID)
 	if err != nil {
 		return nil, err
 	}
 	guards := make(map[int64]*guardianGuard)
 	seen := make(map[int64]map[int64]struct{})
 	for _, link := range links {
+		if _, active := activeTenants[link.TenantID]; !active {
+			continue
+		}
 		guard := guards[link.TenantID]
 		if guard == nil {
 			guard = &guardianGuard{}
@@ -102,9 +115,8 @@ func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountI
 // the account is eligible for.
 //
 // "Open" = phase.is_active AND now BETWEEN enrollment_open_at and
-// enrollment_close_at (treating NULL bounds as open-ended). The query
-// uses the parent's account_id to LEFT JOIN against account_tenants
-// so each row carries an already_linked flag.
+// enrollment_close_at (treating NULL bounds as open-ended). Enrollment supplies
+// the candidates; active account memberships determine the already_linked flag.
 //
 // Hidden schools (platform.schools.hidden) are excluded from cross-school
 // discovery the same way the public tenant listing excludes them: an
@@ -156,9 +168,8 @@ func (r *EnrollablePhaseRepository) guardianGuards(ctx context.Context, accountI
 // either. Genuinely new-school applicants (no guardian rows at all) still see
 // open phases.
 //
-// The guardian rows belong to the People Directory (#2663): the phase query
-// carries only the phase and membership columns, the guardian guard is
-// resolved through the directory inside the same admin transaction.
+// Guardian rows belong to the People Directory (#2663). Phase candidates,
+// memberships, and guardian evidence share the caller's admin transaction.
 //
 // Cross-tenant query — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
@@ -166,51 +177,27 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
 
-	type row struct {
-		SchoolID          int64        `bun:"school_id"`
-		PhaseID           int64        `bun:"phase_id"`
-		PhaseName         string       `bun:"phase_name"`
-		PhaseKind         string       `bun:"phase_kind"`
-		ServiceStartDate  calendarDate `bun:"service_start_date"`
-		ServiceEndDate    calendarDate `bun:"service_end_date"`
-		EnrollmentOpenAt  *time.Time   `bun:"enrollment_open_at"`
-		EnrollmentCloseAt *time.Time   `bun:"enrollment_close_at"`
-		AlreadyLinked     bool         `bun:"already_linked"`
-		Audience          string       `bun:"audience"`
+	rows, err := r.phases.OpenPhaseCandidates(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	// The caller applies the enrollment master switch through the settings
-	// platform's typed query seam. This repository owns only the care-plan
-	// projection and must not read config.setting_values directly.
-	const query = `
-		SELECT
-			ph.tenant_id  AS school_id,
-			ph.id         AS phase_id,
-			ph.name       AS phase_name,
-			ph.kind       AS phase_kind,
-			ph.service_start_date AS service_start_date,
-			ph.service_end_date   AS service_end_date,
-			ph.enrollment_open_at  AS enrollment_open_at,
-			ph.enrollment_close_at AS enrollment_close_at,
-			ph.audience   AS audience,
-			(at.account_id IS NOT NULL) AS already_linked
-		FROM enrollment.phases AS ph
-		LEFT JOIN auth.account_tenants AS at
-			ON at.tenant_id  = ph.tenant_id
-			AND at.account_id = ?
-			AND at.status     = 'active'
-		WHERE ph.is_active = TRUE
-		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
-		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
-		ORDER BY already_linked DESC, ph.service_start_date
-	`
-
-	var rows []row
-	if err := runtimeDB(ctx, r.runtime).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
+	activeTenants, err := activeMappingTenants(ctx, r.runtime, accountID)
+	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
+	slices.SortStableFunc(rows, func(a, b *enrollment.Phase) int {
+		_, aLinked := activeTenants[a.TenantID]
+		_, bLinked := activeTenants[b.TenantID]
+		if aLinked && !bLinked {
+			return -1
+		}
+		if !aLinked && bLinked {
+			return 1
+		}
+		return 0
+	})
 
-	guards, err := r.guardianGuards(ctx, accountID)
+	guards, err := r.guardianGuards(ctx, accountID, activeTenants)
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
@@ -226,7 +213,8 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 
 	out := make([]*parentModels.EnrollablePhase, 0, len(rows))
 	for _, rr := range rows {
-		guard := guards[rr.SchoolID]
+		_, alreadyLinked := activeTenants[rr.TenantID]
+		guard := guards[rr.TenantID]
 		if guard == nil {
 			guard = &guardianGuard{}
 		}
@@ -234,19 +222,19 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			continue
 		}
 		out = append(out, &parentModels.EnrollablePhase{
-			SchoolID:          rr.SchoolID,
-			PhaseID:           rr.PhaseID,
-			PhaseName:         rr.PhaseName,
-			PhaseKind:         rr.PhaseKind,
+			SchoolID:          rr.TenantID,
+			PhaseID:           rr.ID,
+			PhaseName:         rr.Name,
+			PhaseKind:         rr.Kind,
 			ServiceStartDate:  careplan.Date(rr.ServiceStartDate),
 			ServiceEndDate:    careplan.Date(rr.ServiceEndDate),
 			EnrollmentOpenAt:  rr.EnrollmentOpenAt,
 			EnrollmentCloseAt: rr.EnrollmentCloseAt,
-			AlreadyLinked:     rr.AlreadyLinked,
+			AlreadyLinked:     alreadyLinked,
 			Audience:          rr.Audience,
 			HasFamilyLink:     guard.hasFamilyLink,
 
-			EnrolledSubmitPersonIDs: r.enrolledSubmitPersonIDs(students, rr.SchoolID, guard.submitStudentIDs),
+			EnrolledSubmitPersonIDs: r.enrolledSubmitPersonIDs(students, rr.TenantID, guard.submitStudentIDs),
 		})
 	}
 	return out, nil

@@ -16,24 +16,34 @@ import (
 // so a period without references is simply absent from the result.
 type CalendarPeriodUsageRepository struct {
 	db               *bun.DB
+	enrollment       EnrollmentPhaseQueries
 	countSupervisors func(context.Context) (map[int64]int, error)
 }
 
+type EnrollmentPhaseQueries interface {
+	PhaseCountsByCalendarPeriod(context.Context) (map[int64]int, error)
+}
+
 // NewCalendarPeriodUsageRepository creates a new CalendarPeriodUsageRepository.
-func NewCalendarPeriodUsageRepository(db *bun.DB, countSupervisors func(context.Context) (map[int64]int, error)) *CalendarPeriodUsageRepository {
+func NewCalendarPeriodUsageRepository(db *bun.DB, enrollment EnrollmentPhaseQueries, countSupervisors func(context.Context) (map[int64]int, error)) *CalendarPeriodUsageRepository {
+	if enrollment == nil {
+		panic("calendar period usage: enrollment queries are required")
+	}
 	if countSupervisors == nil {
 		panic("calendar period usage: timetable supervisor query is required")
 	}
-	return &CalendarPeriodUsageRepository{db: db, countSupervisors: countSupervisors}
+	return &CalendarPeriodUsageRepository{db: db, enrollment: enrollment, countSupervisors: countSupervisors}
 }
 
 // UsageCounts returns, per calendar period of the current tenant, how many
 // rows reference it through nullable calendar_period_id FKs. Periods without
-// references are omitted from the map. One UNION ALL keeps this a single
-// round-trip; the explicit tenant predicate keeps counts per tenant even when
-// the caller is a superuser test connection, and is skipped without a tenant
-// in context exactly like the former tenant filter.
+// references are omitted from the map. Enrollment supplies its own phase
+// references; the remaining planning references share one SQL query.
 func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	phaseCounts, err := r.enrollment.PhaseCountsByCalendarPeriod(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
+	}
 	var rows []struct {
 		Source           string `bun:"source"`
 		CalendarPeriodID int64  `bun:"calendar_period_id"`
@@ -46,12 +56,7 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 	} else if id := tenant.FromContext(ctx); id > 0 {
 		tenantID = &id
 	}
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT 'phase' AS source, p.calendar_period_id, COUNT(*)::int AS count
-		FROM enrollment.phases AS p
-		WHERE p.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR p.tenant_id = ?)
-		GROUP BY p.calendar_period_id
-		UNION ALL
+	err = base.GetDB(ctx, r.db).NewRaw(`
 		SELECT 'activity_group' AS source, g.calendar_period_id, COUNT(*)::int AS count
 		FROM activities.groups AS g
 		WHERE g.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR g.tenant_id = ?)
@@ -71,7 +76,7 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 		FROM schedule.activity_instances AS ai
 		WHERE ai.calendar_period_id IS NOT NULL AND (?::BIGINT IS NULL OR ai.tenant_id = ?)
 		GROUP BY ai.calendar_period_id
-	`, tenantID, tenantID, tenantID, tenantID, tenantID, tenantID,
+	`, tenantID, tenantID, tenantID, tenantID,
 		tenantID, tenantID, tenantID, tenantID,
 	).Scan(ctx, &rows)
 	if err != nil {
@@ -82,11 +87,12 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 	}
 
 	usage := make(map[int64]schedule.CalendarPeriodUsage, len(rows))
+	for id, count := range phaseCounts {
+		usage[id] = schedule.CalendarPeriodUsage{EnrollmentPhases: count}
+	}
 	for _, row := range rows {
 		entry := usage[row.CalendarPeriodID]
 		switch row.Source {
-		case "phase":
-			entry.EnrollmentPhases += row.Count
 		case "activity_group":
 			entry.ActivityGroups += row.Count
 		case "schedule":
