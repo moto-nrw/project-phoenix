@@ -86,7 +86,8 @@ export function PushNotificationSection({
   );
 
   const refresh = useCallback(async () => {
-    if (!isPushSupported()) {
+    const needsIosInstall = needsIOSInstall();
+    if (!needsIosInstall && !isPushSupported()) {
       setInstalled(null);
       setPermission(null);
       setState("unsupported");
@@ -95,8 +96,10 @@ export function PushNotificationSection({
     // Beide Fragen, die niemand am Gerät selbst beantworten kann: läuft moto
     // als App, und darf moto überhaupt benachrichtigen (#2831).
     setInstalled(isStandaloneApp() || installationCompleted || installAccepted);
-    setPermission(Notification.permission);
-    if (needsIOSInstall()) {
+    setPermission(
+      typeof Notification === "undefined" ? null : Notification.permission,
+    );
+    if (needsIosInstall) {
       try {
         await verifyPushConfiguration(portal);
         setState("needs-install-ios");

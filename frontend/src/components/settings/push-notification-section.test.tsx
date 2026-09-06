@@ -83,8 +83,9 @@ describe("PushNotificationSection", () => {
     ).toHaveClass("text-sm", "leading-6");
   });
 
-  it("shows the iOS install hint when the push API is missing in a Safari tab", async () => {
+  it("shows the iOS install hint before checking generic push support", async () => {
     pushApi.needsIOSInstall.mockReturnValue(true);
+    pushApi.isPushSupported.mockReturnValue(false);
     render(<PushNotificationSection />);
     expect(await screen.findByText(/Zum Home-Bildschirm/)).toBeInTheDocument();
     expect(screen.getByText(/Auf iPhone und iPad funktionieren/)).toHaveClass(

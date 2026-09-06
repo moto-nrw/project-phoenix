@@ -69,7 +69,7 @@ describe("ProtectedLayout", () => {
     expect(provider).toContainElement(shell);
   });
 
-  it("renders the install hint with the real translation provider", async () => {
+  it("uses only the guided notification setup on a mobile device", async () => {
     vi.stubGlobal("navigator", {
       userAgent: IPHONE_UA,
       platform: "iPhone",
@@ -93,7 +93,7 @@ describe("ProtectedLayout", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "moto als App nutzen" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "moto als App nutzen" }),
+    ).not.toBeInTheDocument();
   });
 });

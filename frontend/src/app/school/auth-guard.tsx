@@ -8,7 +8,6 @@ import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SchoolShell } from "~/components/school/shell/school-shell";
 import { SchoolRealtimeBridge } from "~/components/school/school-realtime-bridge";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
-import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
 import { PortalNotificationSetup } from "~/components/notifications/portal-notification-setup";
 import { schoolPath } from "~/lib/school-url";
 
@@ -78,10 +77,6 @@ export function SchoolAuthGuard({
         <ShellIntlProvider>
           <SchoolRealtimeBridge />
           <SchoolShell>{children}</SchoolShell>
-          {/* Auf iPhone und iPad kommen Benachrichtigungen nur an, wenn moto
-              vom Home-Bildschirm läuft. Das Schul-Portal sagt das jetzt
-              genauso wie die beiden anderen Portale (#2831). */}
-          <PwaInstallHint />
           <PortalNotificationSetup portal="school" />
         </ShellIntlProvider>
       </BreadcrumbProvider>
