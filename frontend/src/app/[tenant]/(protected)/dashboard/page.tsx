@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";

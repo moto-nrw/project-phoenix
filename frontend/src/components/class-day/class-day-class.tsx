@@ -8,13 +8,13 @@
 // jedes Kind kommt genau einmal vor.
 
 import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -195,13 +195,13 @@ export function ClassDayClass({
       }
     >
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <Link
+        <NavigationLink
           href={schoolPath(classDayOverviewPath(dateISO))}
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Alle Klassen
-        </Link>
+        </NavigationLink>
 
         <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {schoolClass && (
