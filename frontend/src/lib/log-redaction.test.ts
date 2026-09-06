@@ -163,6 +163,16 @@ describe("redactSensitiveLogData", () => {
     );
   });
 
+  it("redacts parent-request feed capability tokens", () => {
+    expect(
+      redactSensitiveLogString(
+        "GET /api/request-feed/frontend-secret; proxy=/public/request-feed/backend-secret",
+      ),
+    ).toBe(
+      "GET /api/request-feed/[REDACTED] proxy=/public/request-feed/[REDACTED]",
+    );
+  });
+
   it("redacts complete quoted credential values with spaces and escapes", () => {
     expect(
       redactSensitiveLogString(

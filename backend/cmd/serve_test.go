@@ -114,20 +114,21 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
-func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
+func TestScrubSentryEvent_RedactsFeedTokens(t *testing.T) {
 	t.Parallel()
-	const token = "supersecretcapabilitytoken123456"
+	const calendarToken = "supersecretcalendarcapability123"
+	const requestToken = "supersecretrequestcapability456"
 	event := &sentry.Event{
-		Message:     "GET /public/calendar/" + token + " failed",
-		Transaction: "/public/calendar/" + token,
+		Message:     "GET /public/calendar/" + calendarToken + " then /public/request-feed/" + requestToken + " failed",
+		Transaction: "/public/request-feed/" + requestToken,
 		Request: &sentry.Request{
-			URL:         "https://api.example/public/calendar/" + token,
+			URL:         "https://api.example/public/request-feed/" + requestToken,
 			QueryString: "",
 		},
 		Breadcrumbs: []*sentry.Breadcrumb{
 			{
-				Message: "request /public/calendar/" + token,
-				Data:    map[string]any{"url": "https://api.example/public/calendar/" + token},
+				Message: "request /public/calendar/" + calendarToken,
+				Data:    map[string]any{"url": "https://api.example/public/request-feed/" + requestToken},
 			},
 		},
 	}
@@ -135,15 +136,16 @@ func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
 	scrubbed := scrubSentryEvent(event)
 
 	// The capability token must not survive anywhere the SDK captured the path.
-	assert.NotContains(t, scrubbed.Message, token)
-	assert.NotContains(t, scrubbed.Transaction, token)
+	assert.NotContains(t, scrubbed.Message, calendarToken)
+	assert.NotContains(t, scrubbed.Message, requestToken)
+	assert.NotContains(t, scrubbed.Transaction, requestToken)
 	require.NotNil(t, scrubbed.Request)
-	assert.NotContains(t, scrubbed.Request.URL, token)
+	assert.NotContains(t, scrubbed.Request.URL, requestToken)
 	assert.Contains(t, scrubbed.Request.URL, "[REDACTED]")
 	require.Len(t, scrubbed.Breadcrumbs, 1)
-	assert.NotContains(t, scrubbed.Breadcrumbs[0].Message, token)
+	assert.NotContains(t, scrubbed.Breadcrumbs[0].Message, calendarToken)
 	if url, ok := scrubbed.Breadcrumbs[0].Data["url"].(string); ok {
-		assert.NotContains(t, url, token)
+		assert.NotContains(t, url, requestToken)
 	}
 }
 

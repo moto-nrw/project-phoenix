@@ -188,6 +188,30 @@ describe("scrubEvent", () => {
     );
   });
 
+  it("redacts request-feed tokens from frontend and backend paths", () => {
+    const result = scrubEvent(
+      makeEvent({
+        request: {
+          url: "https://school.test/api/request-feed/frontend-secret",
+        },
+        transaction: "GET /api/request-feed/frontend-secret",
+        breadcrumbs: [
+          {
+            message: "fetch /public/request-feed/backend-secret",
+          },
+        ],
+      }),
+    );
+
+    expect(result?.request?.url).toBe(
+      "https://school.test/api/request-feed/[REDACTED]",
+    );
+    expect(result?.transaction).toBe("GET /api/request-feed/[REDACTED]");
+    expect(result?.breadcrumbs?.[0]?.message).toBe(
+      "fetch /public/request-feed/[REDACTED]",
+    );
+  });
+
   it("leaves non-feed URLs untouched", () => {
     const event = makeEvent({
       request: { url: "https://parents.test/api/children/5" },
