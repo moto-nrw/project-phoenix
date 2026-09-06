@@ -406,7 +406,9 @@ describe("NavigationProgress", () => {
         <ProtectedLoading />
         <NextLink
           href="/calendar-periods"
-          onClick={(event) => event.preventDefault()}
+          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+            event.preventDefault()
+          }
         >
           Planungszeiträume
         </NextLink>
