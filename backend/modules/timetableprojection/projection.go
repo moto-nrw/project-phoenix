@@ -169,7 +169,8 @@ func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs 
 
 // CountActiveCourseEnrollments returns the roster occupancy at a date. A seat
 // is held for the full enrollment window, independently of individual days.
-func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, onDate timezone.Date) (map[int64]int, error) {
+// excludeStudentID omits an existing seat of the child currently being checked.
+func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, onDate timezone.Date, excludeStudentID int64) (map[int64]int, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -185,7 +186,8 @@ func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int6
 		FROM activities.student_enrollments
 		WHERE tenant_id = ? AND activity_group_id IN (?)
 		  AND valid_from <= ? AND (valid_until IS NULL OR valid_until > ?)
-		GROUP BY activity_group_id`, tenantID, bun.List(groupIDs), onDate, onDate).Scan(ctx, &rows)
+		  AND (? = 0 OR student_id <> ?)
+		GROUP BY activity_group_id`, tenantID, bun.List(groupIDs), onDate, onDate, excludeStudentID, excludeStudentID).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: count active course enrollments: %w", err)
 	}

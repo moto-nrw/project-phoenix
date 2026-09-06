@@ -147,7 +147,7 @@ func (s *offeringChangeRequestService) directMaterializedSelections(
 	}
 	if checkCapacity {
 		if err := s.assertCapacityAvailable(
-			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
+			ctx, scope.phase, input.StudentID, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -179,6 +179,7 @@ func (s *offeringChangeRequestService) directOfferingDiff(
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(selected))
 	diff, err := s.buildDecisionDiff(
 		ctx, input.ExcludedAutoOfferingIDs, current, base, selected, ids, currentByID, requestedByID,
+		scope.catalog, input.Selections,
 	)
 	if err != nil {
 		return nil, nil, err

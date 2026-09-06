@@ -1621,7 +1621,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
-		if err := s.markCourseDiffEntries(ctx, entries, offeringsByID); err != nil {
+		if err := s.markCourseDiffEntries(ctx, entries, offeringsByID, courseTargetCatalog(child), requested); err != nil {
 			return nil, err
 		}
 		review := reviews[row.ID]
@@ -1879,7 +1879,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	// The preview is what the office decides from, so it has to fail on
 	// everything the approval would fail on — at the same date (#2484).
 	if err := s.assertApplicableAt(
-		ctx, diff.phase, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
+		ctx, diff.phase, row.StudentID, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
 	); err != nil {
 		return nil, err
 	}
@@ -2222,7 +2222,7 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
+	if err := s.assertApplicableAt(ctx, phase, row.StudentID, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
 		return nil, err
 	}
 	completeWithdrawal, err := s.completeWithdrawalAt(
@@ -2339,6 +2339,7 @@ func confirmedEffectiveFrom(
 func (s *offeringChangeRequestService) assertApplicableAt(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
+	studentID int64,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2348,7 +2349,7 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections, allowCompleteWithdrawal); err != nil {
 		return err
 	}
-	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
+	return s.assertCapacityAvailable(ctx, phase, studentID, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
 }
 
 func appliedOfferingChangeDate(effectiveFrom, today timezone.Date) timezone.Date {
@@ -2372,6 +2373,7 @@ func appliedOfferingChangeDateForPhase(effectiveFrom, today timezone.Date, phase
 func (s *offeringChangeRequestService) assertCapacityAvailable(
 	ctx context.Context,
 	phase *enrollmentModels.Phase,
+	studentID int64,
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
@@ -2418,7 +2420,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		// against its actual roster (#3075). Both limits are maintained by the
 		// school, so the stricter one decides; an approval must not silently
 		// overbook the AG because only the offering had room.
-		if err := s.assertCourseCapacityAvailable(ctx, requestChildID, offering, effectiveFrom); err != nil {
+		if err := s.assertCourseCapacityAvailable(ctx, studentID, requestChildID, offering, effectiveFrom); err != nil {
 			return err
 		}
 		if offering.Capacity == nil {
@@ -2748,6 +2750,7 @@ type offeringDecisionDiff struct {
 
 type offeringDecisionMaterialization struct {
 	row       *enrollmentModels.OfferingChangeRequest
+	child     *enrollmentModels.RequestChild
 	base      []materializedOfferingSelection
 	selected  []materializedOfferingSelection
 	phase     *enrollmentModels.Phase
@@ -2778,6 +2781,7 @@ func (s *offeringChangeRequestService) decisionDiff(
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
 	diff, err := s.buildDecisionDiff(
 		ctx, excludedIDs, current, materialization.base, materialization.selected, ids, currentByID, requestedByID,
+		courseTargetCatalog(materialization.child), materialization.requested,
 	)
 	if err != nil {
 		return nil, err
@@ -2795,7 +2799,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	effectiveFrom *timezone.Date,
 ) (*offeringDecisionMaterialization, error) {
 	rowCopy := *row
-	requested, phase, err := s.decisionRequestContext(ctx, &rowCopy)
+	requested, child, phase, err := s.decisionRequestContext(ctx, &rowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -2812,7 +2816,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 		return nil, err
 	}
 	result := &offeringDecisionMaterialization{
-		row: &rowCopy, base: base, selected: base, phase: phase, requested: requested,
+		row: &rowCopy, child: child, base: base, selected: base, phase: phase, requested: requested,
 	}
 	excluded := offeringIDSet(excludedIDs)
 	if len(excluded) == 0 {
@@ -2830,24 +2834,24 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 func (s *offeringChangeRequestService) decisionRequestContext(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
-) ([]OfferingChangeSelection, *enrollmentModels.Phase, error) {
+) ([]OfferingChangeSelection, *enrollmentModels.RequestChild, *enrollmentModels.Phase, error) {
 	requested, err := selectionsFromPayload(row.Payload)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
 	if err != nil || child == nil {
-		return nil, nil, fmt.Errorf("offering change: load request child for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load request child for diff: %w", err)
 	}
 	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
 	if err != nil || request == nil {
-		return nil, nil, fmt.Errorf("offering change: load request for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load request for diff: %w", err)
 	}
 	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
 	if err != nil || phase == nil {
-		return nil, nil, fmt.Errorf("offering change: load phase for diff: %w", err)
+		return nil, nil, nil, fmt.Errorf("offering change: load phase for diff: %w", err)
 	}
-	return requested, phase, nil
+	return requested, child, phase, nil
 }
 
 func offeringIDSet(ids []int64) map[int64]bool {
@@ -2878,6 +2882,8 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	ids []int64,
 	currentByID map[int64]*enrollmentModels.RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
+	courseCatalog *OfferingChangeCatalog,
+	requested []OfferingChangeSelection,
 ) (*offeringDecisionDiff, error) {
 	offeringIDs := appendMissingOfferingIDs(ids, base)
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
@@ -2892,7 +2898,7 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	diff := materializedDecisionDiffFromSides(
 		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
 	)
-	if err := s.markCourseDiffEntries(ctx, diff.entries, offeringByID); err != nil {
+	if err := s.markCourseDiffEntries(ctx, diff.entries, offeringByID, courseCatalog, requested); err != nil {
 		return nil, err
 	}
 	return diff, nil

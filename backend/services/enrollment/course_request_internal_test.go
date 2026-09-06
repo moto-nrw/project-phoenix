@@ -324,3 +324,62 @@ func TestCourseCatalogEntry(t *testing.T) {
 	_, err = courseCatalogEntry(catalog, groups, 404)
 	assert.ErrorIs(t, err, ErrCourseNotFound)
 }
+
+func TestIsCourseOnlyRequestRejectsMixedCareChanges(t *testing.T) {
+	t.Parallel()
+
+	catalog := &OfferingChangeCatalog{Items: []OfferingChangeCatalogItem{
+		{
+			OfferingID: 1, Selected: true,
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			SelectedDays:   []string{"mon", "tue"},
+		},
+		{OfferingID: 2},
+	}}
+
+	pure := &enrollmentModels.OfferingChangeRequest{
+		Payload: payloadFromSelections([]OfferingChangeSelection{
+			{OfferingID: 1, SelectedDays: []string{"mon", "tue"}},
+			{OfferingID: 2},
+		}),
+	}
+	isPure, err := isCourseOnlyRequest(pure, catalog, []int64{2})
+	require.NoError(t, err)
+	assert.True(t, isPure)
+
+	mixed := &enrollmentModels.OfferingChangeRequest{
+		Payload: payloadFromSelections([]OfferingChangeSelection{
+			{OfferingID: 1, SelectedDays: []string{"mon"}},
+			{OfferingID: 2},
+		}),
+	}
+	isPure, err = isCourseOnlyRequest(mixed, catalog, []int64{2})
+	require.NoError(t, err)
+	assert.False(t, isPure, "withdrawing it as a course request would discard the care change")
+}
+
+func TestMarkCourseDiffEntriesMarksOnlyEligibleDirectCourseAdditions(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(3)
+	catalog := &OfferingChangeCatalog{TargetGradeLevel: &grade, TargetSchoolClass: "3a"}
+	entries := []OfferingChangeDiffEntry{
+		{OfferingID: 1, OldState: "not_booked", NewState: "booked"},
+		{OfferingID: 2, OldState: "booked", NewState: "removed"},
+		{OfferingID: 3, OldState: "not_booked", NewState: "booked"},
+		{OfferingID: 4, OldState: "not_booked", NewState: "booked"},
+	}
+	groups := map[int64][]enrollmentModels.CourseGroup{
+		1: {{ID: 10, SourceGradeLevels: []int{3}, SourceSchoolClasses: []string{"3A"}}},
+		2: {{ID: 20, SourceGradeLevels: []int{3}}},
+		3: {{ID: 30, SourceGradeLevels: []int{4}}},
+		4: {{ID: 40, SourceGradeLevels: []int{3}}},
+	}
+
+	markCourseDiffEntriesForGroups(entries, groups, catalog, map[int64]bool{1: true, 2: true, 3: true})
+
+	assert.True(t, entries[0].IsCourse)
+	assert.False(t, entries[1].IsCourse, "removing a course is not a course request")
+	assert.False(t, entries[2].IsCourse, "the child does not match this course's source grade")
+	assert.False(t, entries[3].IsCourse, "automatic or otherwise unrequested additions are not course requests")
+}

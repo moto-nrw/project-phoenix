@@ -45,5 +45,5 @@ type OfferingChangeImpactRepository interface {
 	) ([]ManualPlanningOccurrence, error)
 	CourseGroupsForOfferings(ctx context.Context, offerings []CourseOfferingReference) (map[int64][]CourseGroup, error)
 	LockCourseGroups(ctx context.Context, groupIDs []int64) ([]CourseGroup, error)
-	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, onDate timezone.Date) (map[int64]int, error)
+	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, onDate timezone.Date, excludeStudentID int64) (map[int64]int, error)
 }

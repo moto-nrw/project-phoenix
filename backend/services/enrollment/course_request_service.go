@@ -175,7 +175,7 @@ func (s *offeringChangeRequestService) CourseCatalog(
 		view.DisabledReason = CourseRequestsReasonNoCourses
 		return view, nil
 	}
-	pending, isCourseRequest, err := s.pendingCourseRequest(ctx, studentID, courses)
+	pending, isCourseRequest, err := s.pendingCourseRequest(ctx, studentID, catalog, courses)
 	if err != nil {
 		return nil, err
 	}
@@ -312,19 +312,41 @@ func courseGroupMatchesTarget(group enrollmentModels.CourseGroup, catalog *Offer
 	return false
 }
 
-// markCourseDiffEntries flags the diff lines that are about a Kurs. Both the
-// legacy offering link and the Regeltermin source link are resolved in bounded
-// batch queries and then checked with the catalog's course predicate.
+func courseTargetCatalog(child *enrollmentModels.RequestChild) *OfferingChangeCatalog {
+	catalog := &OfferingChangeCatalog{}
+	if child == nil {
+		return catalog
+	}
+	catalog.TargetGradeLevel = child.TargetGradeLevel
+	if child.TargetSchoolClass != nil {
+		catalog.TargetSchoolClass = *child.TargetSchoolClass
+	}
+	return catalog
+}
+
+// markCourseDiffEntries flags direct additions of a course the child may
+// actually attend. Both the legacy offering link and the Regeltermin source
+// link are resolved in bounded batch queries and then checked with the
+// catalog's course predicate.
 func (s *offeringChangeRequestService) markCourseDiffEntries(
 	ctx context.Context,
 	entries []OfferingChangeDiffEntry,
 	offerings map[int64]*enrollmentModels.CareOffering,
+	catalog *OfferingChangeCatalog,
+	requested []OfferingChangeSelection,
 ) error {
-	if s.ImpactRepo == nil || len(entries) == 0 {
+	if s.ImpactRepo == nil || len(entries) == 0 || catalog == nil {
 		return nil
+	}
+	requestedIDs := make(map[int64]bool, len(requested))
+	for _, selection := range requested {
+		requestedIDs[selection.OfferingID] = true
 	}
 	references := make([]enrollmentModels.CourseOfferingReference, 0, len(entries))
 	for _, entry := range entries {
+		if entry.OldState != "not_booked" || entry.NewState != "booked" || !requestedIDs[entry.OfferingID] {
+			continue
+		}
 		offering := offerings[entry.OfferingID]
 		if offering == nil {
 			continue
@@ -340,12 +362,28 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	if err != nil {
 		return fmt.Errorf("offering change: mark course diff lines: %w", err)
 	}
+	markCourseDiffEntriesForGroups(entries, groups, catalog, requestedIDs)
+	return nil
+}
+
+func markCourseDiffEntriesForGroups(
+	entries []OfferingChangeDiffEntry,
+	groups map[int64][]enrollmentModels.CourseGroup,
+	catalog *OfferingChangeCatalog,
+	requestedIDs map[int64]bool,
+) {
 	for i := range entries {
-		if len(groups[entries[i].OfferingID]) > 0 {
-			entries[i].IsCourse = true
+		entry := &entries[i]
+		if entry.OldState != "not_booked" || entry.NewState != "booked" || !requestedIDs[entry.OfferingID] {
+			continue
+		}
+		for _, group := range groups[entry.OfferingID] {
+			if courseGroupMatchesTarget(group, catalog) {
+				entry.IsCourse = true
+				break
+			}
 		}
 	}
-	return nil
 }
 
 // courseGroupIDs is the id-only projection the catalog and the create path
@@ -367,6 +405,7 @@ func courseGroupIDs(groups map[int64][]enrollmentModels.CourseGroup) map[int64][
 func (s *offeringChangeRequestService) pendingCourseRequest(
 	ctx context.Context,
 	studentID int64,
+	catalog *OfferingChangeCatalog,
 	courses []CourseCatalogItem,
 ) (*enrollmentModels.OfferingChangeRequest, bool, error) {
 	pending, err := s.ChangeRepo.GetPendingForStudent(ctx, studentID)
@@ -380,6 +419,16 @@ func (s *offeringChangeRequestService) pendingCourseRequest(
 	if err != nil {
 		return nil, false, err
 	}
+	if len(added) == 0 {
+		return pending, false, nil
+	}
+	pure, err := isCourseOnlyRequest(pending, catalog, added)
+	if err != nil {
+		return nil, false, err
+	}
+	if !pure {
+		return pending, false, nil
+	}
 	requested := make(map[int64]bool, len(added))
 	for _, offeringID := range added {
 		requested[offeringID] = true
@@ -388,6 +437,55 @@ func (s *offeringChangeRequestService) pendingCourseRequest(
 		courses[i].Requested = requested[courses[i].OfferingID]
 	}
 	return pending, len(added) > 0, nil
+}
+
+// isCourseOnlyRequest verifies that a complete selection changes nothing but
+// adding courses. A course withdrawal acts on the whole offering-change row,
+// so mixed care and course requests must stay in the care flow.
+func isCourseOnlyRequest(
+	request *enrollmentModels.OfferingChangeRequest,
+	catalog *OfferingChangeCatalog,
+	addedCourseIDs []int64,
+) (bool, error) {
+	if catalog == nil || len(addedCourseIDs) == 0 {
+		return false, nil
+	}
+	selections, err := selectionsFromPayload(request.Payload)
+	if err != nil {
+		return false, err
+	}
+	selected := make(map[int64]OfferingChangeSelection, len(selections))
+	for _, selection := range selections {
+		selected[selection.OfferingID] = selection
+	}
+	added := make(map[int64]bool, len(addedCourseIDs))
+	for _, offeringID := range addedCourseIDs {
+		added[offeringID] = true
+	}
+	known := make(map[int64]bool, len(catalog.Items))
+	for _, item := range catalog.Items {
+		known[item.OfferingID] = true
+		selection, requested := selected[item.OfferingID]
+		if item.Automatic {
+			continue
+		}
+		if !item.Selected && requested && added[item.OfferingID] {
+			continue
+		}
+		if item.Selected != requested {
+			return false, nil
+		}
+		if requested && item.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice &&
+			!slices.Equal(canonicalDays(item.SelectedDays), canonicalDays(selection.SelectedDays)) {
+			return false, nil
+		}
+	}
+	for offeringID := range selected {
+		if !known[offeringID] {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // addedCourseIDs is the set of courses a request adds on top of what the child
@@ -428,7 +526,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 			groupIDs = append(groupIDs, group.ID)
 		}
 	}
-	taken, err := s.courseOccupancy(ctx, groupIDs, catalog.EarliestEffectiveFrom)
+	taken, err := s.courseOccupancy(ctx, groupIDs, catalog.EarliestEffectiveFrom, 0)
 	if err != nil {
 		return err
 	}
@@ -497,11 +595,12 @@ func (s *offeringChangeRequestService) courseOccupancy(
 	ctx context.Context,
 	groupIDs []int64,
 	onDate timezone.Date,
+	excludeStudentID int64,
 ) (map[int64]int, error) {
 	if s.ImpactRepo == nil {
 		return map[int64]int{}, nil
 	}
-	counts, err := s.ImpactRepo.CountActiveCourseEnrollments(ctx, groupIDs, onDate)
+	counts, err := s.ImpactRepo.CountActiveCourseEnrollments(ctx, groupIDs, onDate, excludeStudentID)
 	if err != nil {
 		return nil, fmt.Errorf("course request: count course rosters: %w", err)
 	}
@@ -594,6 +693,7 @@ func courseWasAdded(
 // an AG without a Teilnehmergrenze.
 func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	ctx context.Context,
+	studentID int64,
 	requestChildID int64,
 	offering *enrollmentModels.CareOffering,
 	effectiveFrom timezone.Date,
@@ -623,7 +723,7 @@ func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
 	}
-	taken, err := s.courseOccupancy(ctx, groupIDs, effectiveFrom)
+	taken, err := s.courseOccupancy(ctx, groupIDs, effectiveFrom, studentID)
 	if err != nil {
 		return err
 	}
@@ -801,7 +901,11 @@ func (s *offeringChangeRequestService) WithdrawCourseRequest(
 	if err != nil {
 		return err
 	}
-	if len(added) == 0 {
+	pure, err := isCourseOnlyRequest(row, catalog, added)
+	if err != nil {
+		return err
+	}
+	if !pure {
 		// Withdrawing here would silently drop a care-offering change the
 		// family made somewhere else. That request is edited where it was made.
 		return ErrCourseRequestNotOwn

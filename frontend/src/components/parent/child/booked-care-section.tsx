@@ -167,14 +167,15 @@ export function BookedCareSection({
     );
   }
 
-  // Eine Kursanfrage gehört in den Abschnitt "Kurse" (#3075). Stünde sie
-  // auch hier, sähe die Familie denselben Vorgang zweimal, in zwei
-  // Formulierungen und mit zwei verschiedenen Knöpfen.
+  // Eine reine Kursanfrage gehört in den Abschnitt "Kurse" (#3075). Bei
+  // einer gemischten Anfrage bleibt der gesamte Vorgang hier: Die Rücknahme
+  // einer Kursanfrage zieht die ganze Änderungsanfrage zurück und darf keine
+  // Betreuungsänderung der Familie verbergen.
   const pendingRequest = offerings?.pending_request;
   const pending =
     pendingRequest &&
     pendingRequest.diff.length > 0 &&
-    pendingRequest.diff.some((line) => line.is_course === true)
+    pendingRequest.diff.every((line) => line.is_course === true)
       ? undefined
       : pendingRequest;
   const decision = offerings?.last_decision;

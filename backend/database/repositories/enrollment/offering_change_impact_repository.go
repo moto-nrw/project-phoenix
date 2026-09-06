@@ -63,8 +63,9 @@ func (r *OfferingChangeImpactRepository) CountActiveCourseEnrollments(
 	ctx context.Context,
 	groupIDs []int64,
 	onDate timezone.Date,
+	excludeStudentID int64,
 ) (map[int64]int, error) {
 	return timetableprojection.CountActiveCourseEnrollments(
-		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, onDate,
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, onDate, excludeStudentID,
 	)
 }

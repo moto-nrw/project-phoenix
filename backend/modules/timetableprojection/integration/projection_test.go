@@ -33,7 +33,7 @@ func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun
 			return timetableprojection.LockCourseGroups(ctx, db, tenantID, ids)
 		},
 		"course occupancy": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date)
+			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, 0)
 		},
 		"manual planning": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
@@ -112,7 +112,7 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, locked)
 	assert.Empty(t, locked)
-	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4))
+	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4), 0)
 	require.NoError(t, err)
 	assert.NotNil(t, courseCounts)
 	assert.Empty(t, courseCounts)
@@ -201,4 +201,29 @@ func TestPlannedRosterPreviewCountsRestorableBaseline(t *testing.T) {
 	counts, err = timetableprojection.CountPlannedRosterAfter(ctx, tx, otherTenant, []int64{student.ID}, after, string(payload))
 	require.NoError(t, err)
 	assert.Empty(t, counts)
+}
+
+func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActivityGroup(t, db, "Course occupancy")
+	approving := testpkg.CreateTestStudent(t, db, "Already", "Enrolled", "3a")
+	other := testpkg.CreateTestStudent(t, db, "Other", "Enrolled", "3a")
+	date := timezone.NewDate(2026, 9, 4)
+	for _, student := range []int64{approving.ID, other.ID} {
+		_, err := db.NewRaw(`
+			INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
+			VALUES (?, ?, ?, ?)
+		`, testpkg.Tenant(t), student, group.ID, date).Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	counts, err := timetableprojection.CountActiveCourseEnrollments(
+		ctx, db, testpkg.Tenant(t), []int64{group.ID}, date, approving.ID,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]int{group.ID: 1}, counts)
 }
