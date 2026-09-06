@@ -372,22 +372,22 @@ func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, targ
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	field := enrollmentModels.FormField{
+	field := capability.FormField{
 		Key:         key,
 		Label:       "Schedule",
-		Type:        enrollmentModels.FormFieldWeekdaySchedule,
+		Type:        capability.FormFieldWeekdaySchedule,
 		AppliesToCh: true,
 		Target:      target,
 		SortOrder:   0,
 	}
-	if target == enrollmentModels.TargetSchedulePickup {
+	if target == capability.TargetSchedulePickup {
 		field.AllowedTimes = []string{
 			"07:45",
 			"14:45",
 			"16:00",
 		}
 	}
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung", []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung", []capability.FormField{
 		field,
 	}, env.creatorID)
 	require.NoError(t, err)
@@ -395,7 +395,7 @@ func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, targ
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 }
 
-func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name string, fields []enrollmentModels.FormField) {
+func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name string, fields []capability.FormField) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	schema := &capability.FormSchema{
@@ -424,11 +424,11 @@ func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
-		Type:        enrollmentModels.FormFieldContactList,
-		Target:      enrollmentModels.TargetStudentContacts,
+		Type:        capability.FormFieldContactList,
+		Target:      capability.TargetStudentContacts,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -1503,11 +1503,11 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
-		Type:        enrollmentModels.FormFieldContactList,
-		Target:      enrollmentModels.TargetStudentContacts,
+		Type:        capability.FormFieldContactList,
+		Target:      capability.TargetStudentContacts,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -1760,11 +1760,11 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []capability.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
-		Type:        enrollmentModels.FormFieldContactList,
-		Target:      enrollmentModels.TargetStudentContacts,
+		Type:        capability.FormFieldContactList,
+		Target:      capability.TargetStudentContacts,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -1843,11 +1843,11 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []capability.FormField{{
 		Key:         "departure",
 		Label:       "Geh- und Abholregelung",
-		Type:        enrollmentModels.FormFieldWeekdayMode,
-		Target:      enrollmentModels.TargetStudentDeparture,
+		Type:        capability.FormFieldWeekdayMode,
+		Target:      capability.TargetStudentDeparture,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -1911,11 +1911,11 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        capability.FormFieldWeekdayMultiMode,
+		Target:      capability.TargetStudentAllowedDepartureModes,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -1941,7 +1941,7 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 			CustomData: map[string]any{
 				"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
 				// Reserved coupled key carrying the free-text companion note.
-				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+				capability.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
 			},
 		}},
 	})
@@ -1982,11 +1982,11 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []capability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        capability.FormFieldWeekdayMultiMode,
+		Target:      capability.TargetStudentAllowedDepartureModes,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -2012,7 +2012,7 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 			CustomData: map[string]any{
 				// No accompanied day, yet a companion note rides along.
 				"allowed_modes": map[string]any{"mon": []any{"bus"}},
-				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+				capability.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
 			},
 		}},
 	})
@@ -2055,9 +2055,9 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 		Name:      "legacy-dup-departure",
 		Version:   1,
 		CreatedBy: env.creatorID,
-		Fields: []enrollmentModels.FormField{
-			{Key: "modes_a", Label: "Erlaubte Heimwege", Type: enrollmentModels.FormFieldWeekdayMultiMode, Target: enrollmentModels.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
-			{Key: "modes_b", Label: "Heimwege (Kopie)", Type: enrollmentModels.FormFieldWeekdayMultiMode, Target: enrollmentModels.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
+		Fields: []capability.FormField{
+			{Key: "modes_a", Label: "Erlaubte Heimwege", Type: capability.FormFieldWeekdayMultiMode, Target: capability.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
+			{Key: "modes_b", Label: "Heimwege (Kopie)", Type: capability.FormFieldWeekdayMultiMode, Target: capability.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
 		},
 	}
 	schema.TenantID = testpkg.Tenant(t)
@@ -2094,7 +2094,7 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 				// field must NOT erase the accompanied mode from the earlier one.
 				"modes_a": map[string]any{"mon": []any{"accompanied"}},
 				"modes_b": map[string]any{"mon": []any{"bus"}},
-				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+				capability.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
 			},
 		}},
 	})
@@ -2345,7 +2345,7 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
 	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-schedule-author@example.com", "Anna", "Pickup", map[string]any{
@@ -2377,7 +2377,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-sync@example.com", "Anna", "PickupSync", map[string]any{
@@ -2422,16 +2422,16 @@ func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []enrollmentModels.FormField{
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []capability.FormField{
 		{
 			Key: "pickup_visible", Label: "Abholzeiten",
-			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
-			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 0,
+			Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: capability.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 0,
 		},
 		{
 			Key: "pickup_hidden", Label: "Abholzeiten alt",
-			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
-			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 1,
+			Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: capability.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 1,
 		},
 	})
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -2473,16 +2473,16 @@ func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []enrollmentModels.FormField{
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []capability.FormField{
 		{
 			Key: "arrival_visible", Label: "Ankunftszeiten",
-			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
-			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 0,
+			Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: capability.TargetScheduleArrival, SortOrder: 0,
 		},
 		{
 			Key: "arrival_hidden", Label: "Ankunftszeiten alt",
-			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
-			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 1,
+			Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: capability.TargetScheduleArrival, SortOrder: 1,
 		},
 	})
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -2524,16 +2524,16 @@ func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmit
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []enrollmentModels.FormField{
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []capability.FormField{
 		{
 			Key: "health_visible", Label: "Gesundheit",
-			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
-			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 0,
+			Type: capability.FormFieldTextarea, AppliesToCh: true,
+			Target: capability.TargetStudentHealthInfo, SortOrder: 0,
 		},
 		{
 			Key: "health_hidden", Label: "Gesundheit alt",
-			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
-			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 1,
+			Type: capability.FormFieldTextarea, AppliesToCh: true,
+			Target: capability.TargetStudentHealthInfo, SortOrder: 1,
 		},
 	})
 
@@ -2571,12 +2571,12 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []enrollmentModels.FormField{{
+	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []capability.FormField{{
 		Key:         "health_info",
 		Label:       "Gesundheit",
-		Type:        enrollmentModels.FormFieldTextarea,
+		Type:        capability.FormFieldTextarea,
 		AppliesToCh: true,
-		Target:      enrollmentModels.TargetStudentHealthInfo,
+		Target:      capability.TargetStudentHealthInfo,
 		SortOrder:   0,
 	}})
 
@@ -2624,21 +2624,21 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []enrollmentModels.FormField{
+	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []capability.FormField{
 		{
 			Key:         "health_info",
 			Label:       "Gesundheit",
-			Type:        enrollmentModels.FormFieldTextarea,
+			Type:        capability.FormFieldTextarea,
 			AppliesToCh: true,
-			Target:      enrollmentModels.TargetStudentHealthInfo,
+			Target:      capability.TargetStudentHealthInfo,
 			SortOrder:   0,
 		},
 		{
 			Key:          "pickup_times",
 			Label:        "Abholzeiten",
-			Type:         enrollmentModels.FormFieldWeekdaySchedule,
+			Type:         capability.FormFieldWeekdaySchedule,
 			AppliesToCh:  true,
-			Target:       enrollmentModels.TargetSchedulePickup,
+			Target:       capability.TargetSchedulePickup,
 			AllowedTimes: []string{"14:45"},
 			SortOrder:    1,
 		},
@@ -2698,7 +2698,7 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishDecisionScheduleSchema(t, env, "arrival_times", enrollmentModels.TargetScheduleArrival)
+	publishDecisionScheduleSchema(t, env, "arrival_times", capability.TargetScheduleArrival)
 	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-schedule-author@example.com", "Anna", "Arrival", map[string]any{
@@ -2730,7 +2730,7 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
 	reviewerAccount := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff")
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-no-staff@example.com", "Anna", "NoStaff", map[string]any{
@@ -2769,7 +2769,7 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 
 	// A pickup-schedule form field so approval takes the ReplaceSchedules
 	// delete-then-reinsert path.
-	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
 
 	// The already-enrolled student, carrying a live pickup schedule row.
 	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")

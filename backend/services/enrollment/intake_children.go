@@ -182,9 +182,9 @@ func intakeChildInput(r *enrollmentModels.RequestChild) (*capability.RequestChil
 		return nil, nil
 	}
 	result := &capability.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason}
-	result.DateOfBirth = r.DateOfBirth
+	result.DateOfBirth = capability.Date(r.DateOfBirth.String())
 	if r.ActivateOn != nil {
-		date := *r.ActivateOn
+		date := capability.Date(r.ActivateOn.String())
 		result.ActivateOn = &date
 	}
 	data, err := json.Marshal(r.CustomData)
@@ -222,14 +222,13 @@ func intakeChildValue(r *capability.RequestChild) (*enrollmentModels.RequestChil
 	if err != nil {
 		return nil, err
 	}
-	result.DateOfBirth = capability.Date(dob.String())
+	result.DateOfBirth = dob
 	if r.ActivateOn != nil {
 		date, err := timezone.ParseDate(string(*r.ActivateOn))
 		if err != nil {
 			return nil, err
 		}
-		ownerDate := capability.Date(date.String())
-		result.ActivateOn = &ownerDate
+		result.ActivateOn = &date
 	}
 	if len(r.CustomData) > 0 {
 		if err := json.Unmarshal(r.CustomData, &result.CustomData); err != nil {

@@ -110,8 +110,8 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Owner:  repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
 

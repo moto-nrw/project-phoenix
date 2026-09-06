@@ -3,7 +3,6 @@ package enrollment
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -12,7 +11,7 @@ import (
 // repointing in the caller transaction, or opens one for standalone callers.
 type transactionalFormSchemaService struct{ FormSchemaService }
 
-func (s *transactionalFormSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*capability.FormSchema, error) {
+func (s *transactionalFormSchemaService) CreateSchema(ctx context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	var result *capability.FormSchema
 	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		var operationErr error
@@ -25,7 +24,7 @@ func (s *transactionalFormSchemaService) CreateSchema(ctx context.Context, name 
 	return result, nil
 }
 
-func (s *transactionalFormSchemaService) CreateSchemaWithLegal(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*capability.FormSchema, error) {
+func (s *transactionalFormSchemaService) CreateSchemaWithLegal(ctx context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements capability.CoreRequirements, legalBlocks []capability.FormLegalBlock) (*capability.FormSchema, error) {
 	var result *capability.FormSchema
 	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		var operationErr error
@@ -38,7 +37,7 @@ func (s *transactionalFormSchemaService) CreateSchemaWithLegal(ctx context.Conte
 	return result, nil
 }
 
-func (s *transactionalFormSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*capability.FormSchema, error) {
+func (s *transactionalFormSchemaService) UpdateSchema(ctx context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	var result *capability.FormSchema
 	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		var operationErr error
@@ -51,7 +50,7 @@ func (s *transactionalFormSchemaService) UpdateSchema(ctx context.Context, id in
 	return result, nil
 }
 
-func (s *transactionalFormSchemaService) UpdateSchemaWithLegal(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*capability.FormSchema, error) {
+func (s *transactionalFormSchemaService) UpdateSchemaWithLegal(ctx context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements *capability.CoreRequirements, legalBlocks *[]capability.FormLegalBlock) (*capability.FormSchema, error) {
 	var result *capability.FormSchema
 	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		var operationErr error

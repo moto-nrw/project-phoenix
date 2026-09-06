@@ -1,23 +1,19 @@
 package enrollment
 
-import (
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-)
-
 const (
-	PhaseKindSchoolYear                  = capability.PhaseKindSchoolYear
-	PhaseKindHoliday                     = capability.PhaseKindHoliday
-	PhaseKindCustom                      = capability.PhaseKindCustom
-	PhaseCareOverflowWaitlist            = capability.PhaseCareOverflowWaitlist
-	PhaseCareOverflowReject              = capability.PhaseCareOverflowReject
-	PhaseCareOverflowAllow               = capability.PhaseCareOverflowAllow
-	PhaseCareOfferingSelectionOptional   = capability.PhaseCareOfferingSelectionOptional
-	PhaseCareOfferingSelectionAtLeastOne = capability.PhaseCareOfferingSelectionAtLeastOne
-	PhaseCareOfferingSelectionExactlyOne = capability.PhaseCareOfferingSelectionExactlyOne
-	PhaseRolloverModeOptIn               = capability.PhaseRolloverModeOptIn
-	PhaseRolloverModeOptOut              = capability.PhaseRolloverModeOptOut
-	PhaseAudienceOpen                    = capability.PhaseAudienceOpen
-	PhaseAudienceNewStudents             = capability.PhaseAudienceNewStudents
-	PhaseAudienceExistingStudents        = capability.PhaseAudienceExistingStudents
-	PhaseAudienceLinkedParents           = capability.PhaseAudienceLinkedParents
+	PhaseKindSchoolYear                  = "school_year"
+	PhaseKindHoliday                     = "holiday"
+	PhaseKindCustom                      = "custom"
+	PhaseCareOverflowWaitlist            = "waitlist"
+	PhaseCareOverflowReject              = "reject"
+	PhaseCareOverflowAllow               = "allow"
+	PhaseCareOfferingSelectionOptional   = "optional"
+	PhaseCareOfferingSelectionAtLeastOne = "at_least_one"
+	PhaseCareOfferingSelectionExactlyOne = "exactly_one"
+	PhaseRolloverModeOptIn               = "opt_in"
+	PhaseRolloverModeOptOut              = "opt_out"
+	PhaseAudienceOpen                    = "open"
+	PhaseAudienceNewStudents             = "new_students"
+	PhaseAudienceExistingStudents        = "existing_students"
+	PhaseAudienceLinkedParents           = "linked_parents"
 )

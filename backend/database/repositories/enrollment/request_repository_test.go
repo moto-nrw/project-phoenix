@@ -256,7 +256,7 @@ func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
 	var list []*capability.Request
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, enrollmentModels.RequestListFilters{})
+		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{})
 		return lErr
 	})
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 	var list []*capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
+		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{PhaseID: phaseID})
 		return lErr
 	}))
 
@@ -334,7 +334,7 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 	var list []*capability.Request
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = enrollmentCompose.New().AdminRequests(ctx, enrollmentModels.RequestListFilters{
+		list, lErr = enrollmentCompose.New().AdminRequests(ctx, capability.RequestListFilters{
 			ChildStatus: enrollmentModels.ChildStatusWaitlisted,
 		})
 		return lErr
@@ -369,11 +369,11 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 
 	// Re-submit attempt — same email (different case + whitespace),
 	// same child name (different case + whitespace) → MUST match.
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  anna@example.TEST  ",
-			[]enrollmentModels.DuplicateChildKey{{FirstName: "LARA", LastName: " beispiel "}}, 0)
+			[]capability.DuplicateChildKey{{FirstName: "LARA", LastName: " beispiel "}}, 0)
 		return dErr
 	})
 	require.NoError(t, err)
@@ -400,11 +400,11 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 		insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", status)
 	}
 
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "anna@example.test",
-			[]enrollmentModels.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
+			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
 	assert.Empty(t, dupes, "withdrawn + rejected statuses MUST NOT block re-submission")
@@ -426,11 +426,11 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 	}))
 	insertRequestChild(t, db, tenantID, r.ID, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted)
 
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "bert@example.test",
-			[]enrollmentModels.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
+			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
 	assert.Empty(t, dupes, "different guardian email MUST NOT be flagged as duplicate")
@@ -452,11 +452,11 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 
 	// Different phase id → fresh submission must be allowed.
 	otherPhaseID := phaseID + 99_999_999 // synthetic, no row → 0 matches expected
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, otherPhaseID, "anna@example.test",
-			[]enrollmentModels.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
+			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	}))
 	assert.Empty(t, dupes, "different phase MUST NOT be flagged as duplicate")
@@ -477,11 +477,11 @@ func TestRequestRepository_FindActiveDuplicate_EmptyEmailIsNotADuplicate(t *test
 	t.Parallel()
 
 	db, _, tenantID, phaseID := setupRequestRepoTest(t)
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "  ",
-			[]enrollmentModels.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
+			[]capability.DuplicateChildKey{{FirstName: "Lara", LastName: "Beispiel"}}, 0)
 		return dErr
 	})
 	require.NoError(t, err)
@@ -492,7 +492,7 @@ func TestRequestRepository_FindActiveDuplicate_EmptyChildListIsNotADuplicate(t *
 	t.Parallel()
 
 	db, _, tenantID, phaseID := setupRequestRepoTest(t)
-	var dupes []enrollmentModels.DuplicateChildKey
+	var dupes []capability.DuplicateChildKey
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var dErr error
 		dupes, dErr = enrollmentCompose.New().ActiveDuplicateChildren(ctx, phaseID, "a@b.c", nil, 0)

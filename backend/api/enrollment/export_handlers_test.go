@@ -83,11 +83,11 @@ func TestParsePhaseExportRequest(t *testing.T) {
 // a select with an option label, consents, and an offering.
 func sampleExport() *enrollmentService.PhaseExport {
 	schema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Hinweise", Type: enrollmentModels.FormFieldText, SortOrder: 1},
-			{Key: "bus", Label: "Buskind", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
-			{Key: "meal", Label: "Essen", Type: enrollmentModels.FormFieldSelect, AppliesToCh: true, SortOrder: 2,
-				Options: []enrollmentModels.FormFieldOption{{Label: "Vegetarisch", Value: "veg"}}},
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Hinweise", Type: capability.FormFieldText, SortOrder: 1},
+			{Key: "bus", Label: "Buskind", Type: capability.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
+			{Key: "meal", Label: "Essen", Type: capability.FormFieldSelect, AppliesToCh: true, SortOrder: 2,
+				Options: []capability.FormFieldOption{{Label: "Vegetarisch", Value: "veg"}}},
 		},
 	}
 	schema.ID = 50
@@ -217,7 +217,7 @@ func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
 	t.Parallel()
 
 	data := sampleExport()
-	data.Rows[0].Children[0].Child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
+	data.Rows[0].Children[0].Child.CustomData[capability.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
 
 	doc := buildPhaseExportTable(data, "Anmeldungen – Test", "")
 
@@ -637,14 +637,14 @@ func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
 	t.Parallel()
 
 	oldSchema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Alter Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Alter Name", Type: capability.FormFieldText, SortOrder: 1},
 		},
 	}
 	oldSchema.ID = 10
 	newSchema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Neuer Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Neuer Name", Type: capability.FormFieldText, SortOrder: 1},
 		},
 	}
 	newSchema.ID = 20
@@ -1030,7 +1030,7 @@ func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
 func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	field := capability.FormField{Type: capability.FormFieldWeekdaySchedule}
 	// Keys deliberately out of order + one empty day, to prove fixed
 	// Mo–Fr ordering and that unset days are skipped.
 	raw := map[string]any{"thu": "08:00", "mon": "07:30", "tue": ""}
@@ -1043,7 +1043,7 @@ func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
 func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
+	field := capability.FormField{Type: capability.FormFieldPhoneList}
 	raw := []any{
 		map[string]any{"phone_number": "0151-1", "phone_type": "mobile", "is_primary": true},
 		map[string]any{"phone_number": "0541-2", "phone_type": "home", "label": "Oma"},
@@ -1058,7 +1058,7 @@ func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
 func TestFormatCustomValue_ContactList_FlagsAreVisible(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
+	field := capability.FormField{Type: capability.FormFieldContactList}
 	raw := []any{
 		map[string]any{
 			"first_name":           "Otto",
@@ -1084,7 +1084,7 @@ func TestFormatCustomValue_Composite_FallsBackOnGarbage(t *testing.T) {
 
 	// A value that doesn't match the expected shape must not be dropped —
 	// it falls back to the generic stringifier rather than rendering "".
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	field := capability.FormField{Type: capability.FormFieldWeekdaySchedule}
 	if got := formatCustomValue(field, "ganztags"); got != "ganztags" {
 		t.Errorf("garbage fallback = %q, want %q", got, "ganztags")
 	}

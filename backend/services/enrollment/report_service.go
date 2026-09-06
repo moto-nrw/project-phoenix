@@ -390,7 +390,7 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
-	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
+	requests, err := listReportRequests(ctx, s.Requests, capability.RequestListFilters{PhaseID: filters.PhaseID})
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list requests: %w", err)
 	}
@@ -733,7 +733,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	var children []*enrollmentModels.RequestChild
 	requestGuardiansByID := map[int64][]*capability.RequestGuardian{}
 	if len(studentIDs) > 0 {
-		requests, err = listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{
+		requests, err = listReportRequests(ctx, s.Requests, capability.RequestListFilters{
 			PhaseID:           filters.PhaseID,
 			CreatedStudentIDs: studentIDs,
 		})
@@ -887,7 +887,7 @@ func validateCareUsageFilters(filters CareUsageFilters) error {
 	if filters.DayCount != nil && (*filters.DayCount < 0 || *filters.DayCount > 7) {
 		return fmt.Errorf("%w: day_count must be between 0 and 7", ErrReportInvalidFilter)
 	}
-	if filters.Weekday != "" && !enrollmentModels.ValidWeekdays[filters.Weekday] {
+	if filters.Weekday != "" && !capability.ValidWeekdays[filters.Weekday] {
 		return fmt.Errorf("%w: weekday must be one of mon/tue/wed/thu/fri", ErrReportInvalidFilter)
 	}
 	if filters.PickupTime != "" {
@@ -1385,7 +1385,7 @@ func classRosterRow(
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d pickup schedule: %w", enrollment.child.ID, err)
 	}
-	arrivalByDay, err := careUsageScheduleByTarget(enrollment.request, enrollment.child, schemas, enrollmentModels.TargetScheduleArrival)
+	arrivalByDay, err := careUsageScheduleByTarget(enrollment.request, enrollment.child, schemas, capability.TargetScheduleArrival)
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d arrival schedule: %w", enrollment.child.ID, err)
 	}
@@ -1722,7 +1722,7 @@ func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollm
 			continue
 		}
 		switch field.Target {
-		case enrollmentModels.TargetStudentAllowedDepartureModes:
+		case capability.TargetStudentAllowedDepartureModes:
 			modes, err := decodeAllowedDepartureModes(raw)
 			if err != nil {
 				return nil, nil, nil, false, fmt.Errorf("%s: %w", field.Key, err)
@@ -1731,7 +1731,7 @@ func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollm
 				modes = (*explicitAllowed).Merge(modes)
 			}
 			explicitAllowed = &modes
-		case enrollmentModels.TargetStudentDeparture:
+		case capability.TargetStudentDeparture:
 			days, err := decodeDepartureDays(raw)
 			if err != nil {
 				return nil, nil, nil, false, fmt.Errorf("%s: %w", field.Key, err)
@@ -1740,14 +1740,14 @@ func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollm
 				days = (*explicitDeparture).Merge(days)
 			}
 			explicitDeparture = &days
-		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
+		case capability.TargetStudentBusDays, capability.TargetStudentBus:
 			days, err := decodeBusDays(raw)
 			if err != nil {
 				return nil, nil, nil, false, fmt.Errorf("%s: %w", field.Key, err)
 			}
 			legacyBus = days
 			hasLegacy = true
-		case enrollmentModels.TargetStudentPickupStatus:
+		case capability.TargetStudentPickupStatus:
 			days, err := decodePickupDays(raw)
 			if err != nil {
 				return nil, nil, nil, false, fmt.Errorf("%s: %w", field.Key, err)
@@ -1773,8 +1773,8 @@ func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollm
 	return nil, nil, note, false, nil
 }
 
-func classRosterDepartureFields(schema *capability.FormSchema) []enrollmentModels.FormField {
-	fields := make([]enrollmentModels.FormField, 0)
+func classRosterDepartureFields(schema *capability.FormSchema) []capability.FormField {
+	fields := make([]capability.FormField, 0)
 	if schema == nil {
 		return fields
 	}
@@ -1783,11 +1783,11 @@ func classRosterDepartureFields(schema *capability.FormSchema) []enrollmentModel
 			continue
 		}
 		switch field.Target {
-		case enrollmentModels.TargetStudentAllowedDepartureModes,
-			enrollmentModels.TargetStudentDeparture,
-			enrollmentModels.TargetStudentBusDays,
-			enrollmentModels.TargetStudentBus,
-			enrollmentModels.TargetStudentPickupStatus:
+		case capability.TargetStudentAllowedDepartureModes,
+			capability.TargetStudentDeparture,
+			capability.TargetStudentBusDays,
+			capability.TargetStudentBus,
+			capability.TargetStudentPickupStatus:
 			fields = append(fields, field)
 		}
 	}
@@ -1797,7 +1797,7 @@ func classRosterDepartureFields(schema *capability.FormSchema) []enrollmentModel
 	return fields
 }
 
-func classRosterFieldValue(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, field enrollmentModels.FormField) any {
+func classRosterFieldValue(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, field capability.FormField) any {
 	if field.AppliesToCh {
 		if child == nil || child.CustomData == nil {
 			return nil
@@ -1814,7 +1814,7 @@ func classRosterCompanionNote(child *enrollmentModels.RequestChild) *string {
 	if child == nil || child.CustomData == nil {
 		return nil
 	}
-	note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote]))
+	note := strings.TrimSpace(stringValue(child.CustomData[capability.TargetStudentDepartureCompanionNote]))
 	if note == "" {
 		return nil
 	}
@@ -1903,7 +1903,7 @@ func classRosterFormatDepartureByDay(allowed userModels.AllowedDepartureModes, f
 }
 
 func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema) (map[string]string, error) {
-	return careUsageScheduleByTarget(req, child, schemas, enrollmentModels.TargetSchedulePickup)
+	return careUsageScheduleByTarget(req, child, schemas, capability.TargetSchedulePickup)
 }
 
 func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema, target string) (map[string]string, error) {
@@ -1936,14 +1936,14 @@ func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentM
 	return out, nil
 }
 
-func careUsageScheduleFields(schema *capability.FormSchema, target string) []enrollmentModels.FormField {
+func careUsageScheduleFields(schema *capability.FormSchema, target string) []capability.FormField {
 	if schema == nil {
 		return nil
 	}
-	fields := make([]enrollmentModels.FormField, 0)
+	fields := make([]capability.FormField, 0)
 	for _, field := range schema.Fields {
 		if field.Target != target ||
-			field.Type != enrollmentModels.FormFieldWeekdaySchedule {
+			field.Type != capability.FormFieldWeekdaySchedule {
 			continue
 		}
 		fields = append(fields, field)
@@ -1954,8 +1954,8 @@ func careUsageScheduleFields(schema *capability.FormSchema, target string) []enr
 	return fields
 }
 
-func decodeCareUsageWeekdaySchedule(raw any) (enrollmentModels.WeekdaySchedule, error) {
-	var schedule enrollmentModels.WeekdaySchedule
+func decodeCareUsageWeekdaySchedule(raw any) (capability.WeekdaySchedule, error) {
+	var schedule capability.WeekdaySchedule
 	encoded, err := json.Marshal(raw)
 	if err != nil {
 		return nil, err
@@ -1964,7 +1964,7 @@ func decodeCareUsageWeekdaySchedule(raw any) (enrollmentModels.WeekdaySchedule, 
 		return nil, err
 	}
 	if schedule == nil {
-		schedule = enrollmentModels.WeekdaySchedule{}
+		schedule = capability.WeekdaySchedule{}
 	}
 	if err := schedule.Validate(); err != nil {
 		return nil, err

@@ -3,7 +3,7 @@ package enrollment
 import (
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"encoding/json"
 )
 
 // Request is the legacy service value for one parent submission. The
@@ -37,14 +37,14 @@ type Request struct {
 	// what a stored request "accepted". Not part of the request API yet
 	// (deliberate, like DecisionNotificationMode) — admin-facing display
 	// is a follow-up.
-	LegalBlocksSnapshot []capability.LegalBlocksSnapshotEntry `json:"-"`
-	CustomData          map[string]any                        `json:"custom_data"`
-	SubmissionSource    string                                `json:"submission_source"`
-	SourceMetadata      map[string]any                        `json:"source_metadata"`
-	StatusToken         string                                `json:"status_token"`
-	StatusTokenExpires  *time.Time                            `json:"status_token_expires,omitempty"`
-	SubmittedAt         time.Time                             `json:"submitted_at"`
-	WithdrawnAt         *time.Time                            `json:"withdrawn_at,omitempty"`
+	LegalBlocksSnapshot []LegalBlocksSnapshotEntry `json:"-"`
+	CustomData          map[string]any             `json:"custom_data"`
+	SubmissionSource    string                     `json:"submission_source"`
+	SourceMetadata      map[string]any             `json:"source_metadata"`
+	StatusToken         string                     `json:"status_token"`
+	StatusTokenExpires  *time.Time                 `json:"status_token_expires,omitempty"`
+	SubmittedAt         time.Time                  `json:"submitted_at"`
+	WithdrawnAt         *time.Time                 `json:"withdrawn_at,omitempty"`
 
 	// DecisionNotificationMode is pinned when the first parent-notifiable
 	// decision is made. It is internal state, not part of the request API.
@@ -59,36 +59,42 @@ type Request struct {
 // KEEP IN SYNC with the consent_flags object built in
 // frontend/src/components/enrollment/enrollment-form.tsx.
 const (
-	ConsentKeyAGB            = capability.ConsentKeyAGB
-	ConsentKeyDataProcessing = capability.ConsentKeyDataProcessing
-	ConsentKeyEmailContact   = capability.ConsentKeyEmailContact
-	ConsentKeyPhoto          = capability.ConsentKeyPhoto
+	ConsentKeyAGB            = "agb"
+	ConsentKeyDataProcessing = "data_processing"
+	ConsentKeyEmailContact   = "email_contact"
+	ConsentKeyPhoto          = "photo"
 )
 
 // RequestStatus values - derived, not stored. Documented here as the
 // canonical source for the derivation logic the request service applies.
 const (
-	RequestStatusSubmitted   = capability.RequestStatusSubmitted   // every child still submitted
-	RequestStatusUnderReview = capability.RequestStatusUnderReview // at least one child under_review, no decisions yet
-	RequestStatusPartial     = capability.RequestStatusPartial     // some children decided, others pending
-	RequestStatusFinalized   = capability.RequestStatusFinalized   // all children in a terminal status
-	RequestStatusWithdrawn   = capability.RequestStatusWithdrawn   // request withdrawn (withdrawn_at set)
+	RequestStatusSubmitted   = "submitted"    // every child still submitted
+	RequestStatusUnderReview = "under_review" // at least one child under_review, no decisions yet
+	RequestStatusPartial     = "partial"      // some children decided, others pending
+	RequestStatusFinalized   = "finalized"    // all children in a terminal status
+	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
 )
 
 const (
-	RequestSourcePublic      = capability.RequestSourcePublic
-	RequestSourceLateInvite  = capability.RequestSourceLateInvite
-	RequestSourceAdminManual = capability.RequestSourceAdminManual
+	RequestSourcePublic      = "public"
+	RequestSourceLateInvite  = "late_invite"
+	RequestSourceAdminManual = "admin_manual"
 )
 
-// RequestListFilters narrows the admin list query. Zero-value fields
-// are ignored. ChildStatus matches when ANY child of the request
-// carries the given status - handy for "show me everything still
-// awaiting a decision".
-type RequestListFilters = capability.RequestListFilters
+// LegalBlockSnapshot preserves the wording shown with a legacy submission.
+type LegalBlockSnapshot struct {
+	Key      string `json:"key"`
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	Label    string `json:"label"`
+	Text     string `json:"text"`
+	Required bool   `json:"required"`
+	Source   string `json:"source,omitempty"`
+}
 
-// DuplicateChildKey identifies one (first_name, last_name) pair the
-// caller wants to dedup against existing enrollments in a phase.
-// Comparison is case-insensitive, with leading/trailing whitespace
-// trimmed at the SQL layer.
-type DuplicateChildKey = capability.DuplicateChildKey
+// LegalBlocksSnapshotEntry preserves one submission's consent evidence.
+type LegalBlocksSnapshotEntry struct {
+	SnapshotAt   time.Time            `json:"snapshot_at"`
+	Blocks       []LegalBlockSnapshot `json:"blocks"`
+	ConsentFlags json.RawMessage      `json:"consent_flags"`
+}

@@ -672,9 +672,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// Build the dedup key list once; the actual check + insert happens
 	// inside the write tx below, after we've taken an advisory lock to
 	// serialize concurrent submits for the same (phase, email).
-	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(req.Children))
+	dupKeys := make([]enrollmentCapability.DuplicateChildKey, 0, len(req.Children))
 	for _, c := range req.Children {
-		dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{
+		dupKeys = append(dupKeys, enrollmentCapability.DuplicateChildKey{
 			FirstName: c.FirstName,
 			LastName:  c.LastName,
 		})
@@ -913,7 +913,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			StatusToken:        statusToken,
 			StatusTokenExpires: &statusExpiresAt,
 			SubmittedAt:        time.Now(),
-			LegalBlocksSnapshot: []enrollmentCapability.LegalBlocksSnapshotEntry{
+			LegalBlocksSnapshot: []enrollmentModels.LegalBlocksSnapshotEntry{
 				snapshotEntry,
 			},
 		}
@@ -955,7 +955,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				RequestID:         request.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
-				DateOfBirth:       enrollmentCapability.Date(child.DateOfBirth),
+				DateOfBirth:       child.DateOfBirth,
 				TargetGradeLevel:  child.TargetGradeLevel,
 				TargetSchoolClass: child.TargetSchoolClass,
 				CustomData:        child.CustomData,
@@ -2465,9 +2465,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			return err
 		}
 
-		dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(editReq.Children))
+		dupKeys := make([]enrollmentCapability.DuplicateChildKey, 0, len(editReq.Children))
 		for _, c := range editReq.Children {
-			dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
+			dupKeys = append(dupKeys, enrollmentCapability.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
 		}
 		dupes, dupErr := s.Requests.ActiveDuplicateChildren(txCtx, phase.ID, req.GuardianEmail, dupKeys, 0)
 		if dupErr != nil {
@@ -2528,7 +2528,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				RequestID:         req.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
-				DateOfBirth:       enrollmentCapability.Date(child.DateOfBirth),
+				DateOfBirth:       child.DateOfBirth,
 				TargetGradeLevel:  child.TargetGradeLevel,
 				TargetSchoolClass: child.TargetSchoolClass,
 				CustomData:        child.CustomData,
@@ -2756,7 +2756,7 @@ func validateRolloverEditIdentity(existing []*enrollmentModels.RequestChild, inc
 		next := incoming[i]
 		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
 			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
-			enrollmentCapability.Date(next.DateOfBirth) != child.DateOfBirth {
+			next.DateOfBirth != child.DateOfBirth {
 			return ErrEditNotAllowed
 		}
 	}
@@ -3556,7 +3556,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Text:      agbText,
 			Required:  true,
 			SortOrder: 10,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    enrollmentCapability.LegalBlockSourceStandard,
 		})
 	}
 	if texts.DSGVOEnabled && texts.DSGVO != "" {
@@ -3568,7 +3568,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Text:      texts.DSGVO,
 			Required:  true,
 			SortOrder: 20,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    enrollmentCapability.LegalBlockSourceStandard,
 		})
 	}
 	if texts.PhotoEnabled && texts.Photo != "" {
@@ -3580,7 +3580,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Text:      texts.Photo,
 			Required:  false,
 			SortOrder: 30,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    enrollmentCapability.LegalBlockSourceStandard,
 		})
 	}
 	if texts.EmailContactEnabled && texts.EmailContact != "" {
@@ -3592,7 +3592,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Text:      texts.EmailContact,
 			Required:  false,
 			SortOrder: 40,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    enrollmentCapability.LegalBlockSourceStandard,
 		})
 	}
 	return blocks
@@ -3634,7 +3634,7 @@ func PublicEnrollmentLegalDocumentURL(storedURL string) string {
 	return storedURL
 }
 
-func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []LegalBlock {
+func buildTemplateLegalBlocks(configured []enrollmentCapability.FormLegalBlock) []LegalBlock {
 	blocks := make([]LegalBlock, 0, len(configured))
 	for _, block := range configured {
 		if !block.Enabled {
@@ -3659,9 +3659,9 @@ func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []Le
 	return blocks
 }
 
-func templateLegalBlockText(block enrollmentModels.FormLegalBlock) string {
+func templateLegalBlockText(block enrollmentCapability.FormLegalBlock) string {
 	if block.Key == enrollmentModels.ConsentKeyAGB &&
-		block.DisplayMode == enrollmentModels.LegalBlockDisplayModePDF &&
+		block.DisplayMode == enrollmentCapability.LegalBlockDisplayModePDF &&
 		strings.TrimSpace(block.DocumentURL) != "" {
 		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", PublicEnrollmentLegalDocumentURL(block.DocumentURL))
 	}
@@ -3720,10 +3720,10 @@ func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schem
 // no other versioning, and Request.ConsentFlags is overwritten on edit,
 // so this entry is the only reliable record of the wording the family
 // saw and the answers they gave at that moment.
-func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time.Time) (enrollmentCapability.LegalBlocksSnapshotEntry, error) {
-	snapshot := make([]enrollmentCapability.LegalBlockSnapshot, 0, len(blocks))
+func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time.Time) (enrollmentModels.LegalBlocksSnapshotEntry, error) {
+	snapshot := make([]enrollmentModels.LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
-		snapshot = append(snapshot, enrollmentCapability.LegalBlockSnapshot{
+		snapshot = append(snapshot, enrollmentModels.LegalBlockSnapshot{
 			Key:      block.Key,
 			Kind:     block.Kind,
 			Title:    block.Title,
@@ -3739,9 +3739,9 @@ func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time
 	}
 	frozenFlags, err := json.Marshal(flags)
 	if err != nil {
-		return enrollmentCapability.LegalBlocksSnapshotEntry{}, err
+		return enrollmentModels.LegalBlocksSnapshotEntry{}, err
 	}
-	return enrollmentCapability.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
+	return enrollmentModels.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
 }
 
 // requiredConsentKeys extracts the keys the parent must accept from the

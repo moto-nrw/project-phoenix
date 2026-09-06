@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -56,20 +55,20 @@ type mockFormSchemaService struct {
 	listResult      []*capability.FormSchema
 	listErr         error
 	createName      string
-	createFields    []enrollmentModels.FormField
+	createFields    []capability.FormField
 	createCreatedBy int64
-	createCore      enrollmentModels.CoreRequirements
+	createCore      capability.CoreRequirements
 	createCoreSet   bool
-	createLegal     []enrollmentModels.FormLegalBlock
+	createLegal     []capability.FormLegalBlock
 	createLegalSet  bool
 	createResult    *capability.FormSchema
 	createErr       error
 	updateID        int64
-	updateFields    []enrollmentModels.FormField
+	updateFields    []capability.FormField
 	updateUpdatedBy int64
-	updateCore      enrollmentModels.CoreRequirements
+	updateCore      capability.CoreRequirements
 	updateCoreSet   bool
-	updateLegal     []enrollmentModels.FormLegalBlock
+	updateLegal     []capability.FormLegalBlock
 	updateLegalSet  bool
 	updateResult    *capability.FormSchema
 	updateErr       error
@@ -98,7 +97,7 @@ func (m *mockFormSchemaService) GetByID(_ context.Context, id int64) (*capabilit
 func (m *mockFormSchemaService) ListVersions(_ context.Context) ([]*capability.FormSchema, error) {
 	return m.listResult, m.listErr
 }
-func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	m.createName = name
 	m.createFields = fields
 	m.createCreatedBy = createdBy
@@ -108,7 +107,7 @@ func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fie
 	}
 	return m.createResult, m.createErr
 }
-func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name string, fields []capability.FormField, createdBy int64, coreRequirements capability.CoreRequirements, legalBlocks []capability.FormLegalBlock) (*capability.FormSchema, error) {
 	m.createName = name
 	m.createFields = fields
 	m.createCreatedBy = createdBy
@@ -118,7 +117,7 @@ func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name st
 	m.createLegalSet = true
 	return m.createResult, m.createErr
 }
-func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements ...capability.CoreRequirements) (*capability.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
 	m.updateUpdatedBy = updatedBy
@@ -128,7 +127,7 @@ func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields
 	}
 	return m.updateResult, m.updateErr
 }
-func (m *mockFormSchemaService) UpdateSchemaWithLegal(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*capability.FormSchema, error) {
+func (m *mockFormSchemaService) UpdateSchemaWithLegal(_ context.Context, id int64, fields []capability.FormField, updatedBy int64, coreRequirements *capability.CoreRequirements, legalBlocks *[]capability.FormLegalBlock) (*capability.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
 	m.updateUpdatedBy = updatedBy
@@ -204,8 +203,8 @@ func makeFormSchema(id int64, name string, version int) *capability.FormSchema {
 		Version:   version,
 		IsActive:  true,
 		CreatedBy: 4321,
-		Fields: []enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		Fields: []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 		},
 	}
 }
@@ -517,7 +516,7 @@ func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.NotNil(t, mock.publishVersionInput.CoreRequirements,
 		"present core_requirements, even when sparse, must be forwarded so admins can change the matrix")
-	assert.True(t, mock.publishVersionInput.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone))
+	assert.True(t, mock.publishVersionInput.CoreRequirements.Required(capability.CoreRequirementGuardianPhone))
 }
 
 func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {

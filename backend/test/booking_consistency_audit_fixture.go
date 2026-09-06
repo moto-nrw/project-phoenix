@@ -39,7 +39,7 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 		RequestChildID: bookedChild.child.ID,
 		CareOfferingID: offering.ID,
 		SelectedDays:   []string{"mon", "tue"},
-		ValidFrom:      (*enrollmentOwner.Date)(&auditDate),
+		ValidFrom:      &auditDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), link)
 
@@ -120,7 +120,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	arrivalLink := &enrollmentModel.RequestChildOffering{
-		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&auditDate),
+		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
 	arrivalException := &scheduleModel.StudentArrivalException{
@@ -138,7 +138,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	futureDate := auditDate.AddDays(1)
 	futureLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&futureDate),
+		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), futureLink)
 
@@ -165,12 +165,12 @@ func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	phaseEndExclusive := timezone.Date(child.phase.ServiceEndDate).AddDays(1)
 	firstLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&auditDate), ValidUntil: (*enrollmentOwner.Date)(&splitDate),
+		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), firstLink)
 	secondLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&splitDate), ValidUntil: (*enrollmentOwner.Date)(&phaseEndExclusive),
+		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), secondLink)
 	arrival := &scheduleModel.StudentArrivalSchedule{

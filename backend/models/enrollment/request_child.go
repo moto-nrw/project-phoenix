@@ -3,7 +3,7 @@ package enrollment
 import (
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Per-child status values matching the column CHECK constraint.
@@ -20,29 +20,29 @@ import (
 //     above max, missing grade level, etc). Never resolved by the
 //     deadline worker — admin must decide via the review queue.
 const (
-	ChildStatusSubmitted          = capability.ChildStatusSubmitted
-	ChildStatusUnderReview        = capability.ChildStatusUnderReview
-	ChildStatusApproved           = capability.ChildStatusApproved
-	ChildStatusWaitlisted         = capability.ChildStatusWaitlisted
-	ChildStatusRejected           = capability.ChildStatusRejected
-	ChildStatusWithdrawn          = capability.ChildStatusWithdrawn
-	ChildStatusPendingRenewal     = capability.ChildStatusPendingRenewal
-	ChildStatusAutoRenewed        = capability.ChildStatusAutoRenewed
-	ChildStatusPendingAdminReview = capability.ChildStatusPendingAdminReview
+	ChildStatusSubmitted          = "submitted"
+	ChildStatusUnderReview        = "under_review"
+	ChildStatusApproved           = "approved"
+	ChildStatusWaitlisted         = "waitlisted"
+	ChildStatusRejected           = "rejected"
+	ChildStatusWithdrawn          = "withdrawn"
+	ChildStatusPendingRenewal     = "pending_renewal"
+	ChildStatusAutoRenewed        = "auto_renewed"
+	ChildStatusPendingAdminReview = "pending_admin_review"
 )
 
 // ReviewReason codes set when a rollover row lands in
 // pending_admin_review. Free text would be tempting but a constant
 // set lets the frontend show localised labels without parsing.
 const (
-	ReviewReasonGradeAboveMax = capability.ReviewReasonGradeAboveMax
-	ReviewReasonNoGradeLevel  = capability.ReviewReasonNoGradeLevel
+	ReviewReasonGradeAboveMax = "grade_above_max"
+	ReviewReasonNoGradeLevel  = "no_grade_level"
 )
 
 // Activation mode values matching the column CHECK constraint.
 const (
-	ChildActivationImmediate = capability.ChildActivationImmediate
-	ChildActivationScheduled = capability.ChildActivationScheduled
+	ChildActivationImmediate = "immediate"
+	ChildActivationScheduled = "scheduled"
 )
 
 // RequestChild is the legacy service value for a child in a parent submission.
@@ -50,30 +50,30 @@ const (
 // independently; the parent request's overall status is derived from the
 // per-child set (see Request.RequestStatus* constants).
 type RequestChild struct {
-	ID               int64           `json:"id"`
-	TenantID         int64           `json:"tenant_id"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
-	RequestID        int64           `json:"request_id"`
-	FirstName        string          `json:"first_name"`
-	LastName         string          `json:"last_name"`
-	DateOfBirth      capability.Date `json:"date_of_birth"`
-	TargetGradeLevel *int16          `json:"target_grade_level,omitempty"`
+	ID               int64         `json:"id"`
+	TenantID         int64         `json:"tenant_id"`
+	CreatedAt        time.Time     `json:"created_at"`
+	UpdatedAt        time.Time     `json:"updated_at"`
+	RequestID        int64         `json:"request_id"`
+	FirstName        string        `json:"first_name"`
+	LastName         string        `json:"last_name"`
+	DateOfBirth      timezone.Date `json:"date_of_birth"`
+	TargetGradeLevel *int16        `json:"target_grade_level,omitempty"`
 	// TargetSchoolClass is the concrete future class (e.g. "2a") chosen at
 	// enrollment (migration 1.15.172, issue #1833). NULL/empty means
 	// grade-only ("Klasse offen"); on approval a non-empty value lands
 	// verbatim in users.students.school_class, otherwise the grade-derived
 	// fallback is used. Only collected for grade >= 2 when the tenant
 	// setting enrollment.collect_school_class is on.
-	TargetSchoolClass *string          `json:"target_school_class,omitempty"`
-	CustomData        map[string]any   `json:"custom_data"`
-	Status            string           `json:"status"`
-	StatusReason      *string          `json:"status_reason,omitempty"`
-	ActivationMode    string           `json:"activation_mode"`
-	ActivateOn        *capability.Date `json:"activate_on,omitempty"`
-	ReviewedAt        *time.Time       `json:"reviewed_at,omitempty"`
-	ReviewedBy        *int64           `json:"reviewed_by,omitempty"`
-	CreatedStudentID  *int64           `json:"created_student_id,omitempty"`
+	TargetSchoolClass *string        `json:"target_school_class,omitempty"`
+	CustomData        map[string]any `json:"custom_data"`
+	Status            string         `json:"status"`
+	StatusReason      *string        `json:"status_reason,omitempty"`
+	ActivationMode    string         `json:"activation_mode"`
+	ActivateOn        *timezone.Date `json:"activate_on,omitempty"`
+	ReviewedAt        *time.Time     `json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64         `json:"reviewed_by,omitempty"`
+	CreatedStudentID  *int64         `json:"created_student_id,omitempty"`
 	// MatchedStudentID (migration 1.15.221) — set only for existing_students
 	// phases: the already-enrolled student this child was matched to at
 	// submission (unambiguous name+birthday lookup). On approval the decision

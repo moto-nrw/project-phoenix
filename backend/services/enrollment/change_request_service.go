@@ -387,7 +387,7 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 	}
 	child.FirstName = corrected.FirstName
 	child.LastName = corrected.LastName
-	child.DateOfBirth = capability.Date(corrected.DateOfBirth)
+	child.DateOfBirth = corrected.DateOfBirth
 	child.TargetGradeLevel = corrected.TargetGradeLevel
 	child.TargetSchoolClass = corrected.TargetSchoolClass
 	if err := updateIntakeChild(ctx, s.Children, child); err != nil {
@@ -1476,7 +1476,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 		existing.FirstName = strings.TrimSpace(next.FirstName)
 		existing.LastName = strings.TrimSpace(next.LastName)
-		existing.DateOfBirth = capability.Date(next.DateOfBirth)
+		existing.DateOfBirth = next.DateOfBirth
 		existing.TargetGradeLevel = next.TargetGradeLevel
 		existing.TargetSchoolClass = next.TargetSchoolClass
 		existing.CustomData = next.CustomData
@@ -1840,9 +1840,9 @@ func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Co
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
 
-	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(prepared.Children))
+	dupKeys := make([]capability.DuplicateChildKey, 0, len(prepared.Children))
 	for _, child := range prepared.Children {
-		dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{
+		dupKeys = append(dupKeys, capability.DuplicateChildKey{
 			FirstName: child.FirstName,
 			LastName:  child.LastName,
 		})

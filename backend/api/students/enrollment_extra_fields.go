@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"time"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -133,10 +135,10 @@ func (rs *Resource) logEnrollmentSchemaLoadFailure(schemaID int64, err error) {
 // enrollmentExtraFieldsFromSchema maps the child-applicable, populated fields of
 // a form schema to their response shape. Info blocks and fields not applicable
 // to children are skipped, as are keys absent from (or nil in) customData.
-func enrollmentExtraFieldsFromSchema(fields []enrollmentModels.FormField, customData map[string]any) []StudentEnrollmentExtraField {
+func enrollmentExtraFieldsFromSchema(fields []enrollmentCapability.FormField, customData map[string]any) []StudentEnrollmentExtraField {
 	out := make([]StudentEnrollmentExtraField, 0, len(fields))
 	for _, field := range fields {
-		if !field.AppliesToCh || field.Type == enrollmentModels.FormFieldInfo {
+		if !field.AppliesToCh || field.Type == enrollmentCapability.FormFieldInfo {
 			continue
 		}
 		value, ok := customData[field.Key]
@@ -155,7 +157,7 @@ func enrollmentExtraFieldsFromSchema(fields []enrollmentModels.FormField, custom
 	return out
 }
 
-func enrollmentExtraFieldOptions(fieldOptions []enrollmentModels.FormFieldOption) []StudentEnrollmentExtraFieldOption {
+func enrollmentExtraFieldOptions(fieldOptions []enrollmentCapability.FormFieldOption) []StudentEnrollmentExtraFieldOption {
 	options := make([]StudentEnrollmentExtraFieldOption, 0, len(fieldOptions))
 	for _, option := range fieldOptions {
 		options = append(options, StudentEnrollmentExtraFieldOption{

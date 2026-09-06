@@ -49,11 +49,11 @@ func writeOwnerOfferingSelections(ctx context.Context, writer OfferingSelectionW
 		selection.CreatedAt, selection.UpdatedAt = value.CreatedAt, value.UpdatedAt
 		selection.RequestChildID = value.RequestChildID
 		if value.ValidFrom != nil {
-			date := *value.ValidFrom
+			date := timezone.Date(*value.ValidFrom)
 			selection.ValidFrom = &date
 		}
 		if value.ValidUntil != nil {
-			date := *value.ValidUntil
+			date := timezone.Date(*value.ValidUntil)
 			selection.ValidUntil = &date
 		}
 	}
@@ -102,11 +102,11 @@ func legacyOfferingSelections(values []*owner.RequestChildOffering) []*legacy.Re
 		selection.ID, selection.TenantID = value.ID, value.TenantID
 		selection.CreatedAt, selection.UpdatedAt = value.CreatedAt, value.UpdatedAt
 		if value.ValidFrom != nil {
-			date := *value.ValidFrom
+			date := timezone.Date(*value.ValidFrom)
 			selection.ValidFrom = &date
 		}
 		if value.ValidUntil != nil {
-			date := *value.ValidUntil
+			date := timezone.Date(*value.ValidUntil)
 			selection.ValidUntil = &date
 		}
 		selections[index] = selection

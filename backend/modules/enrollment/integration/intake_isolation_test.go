@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -135,5 +136,38 @@ func TestIntakeCommandsAndRLSPreserveTenantIsolation(t *testing.T) {
 		currentRequest, err := module.RequestByID(ctx, request.ID, false)
 		require.NoError(t, err)
 		require.Equal(t, "Fixture", currentRequest.GuardianFirstName)
+	}
+}
+
+func TestIntakeTimestampDefaults(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	owner := enrollmentCompose.New()
+	phase := &enrollment.Phase{Name: "Timestamp defaults", ServiceStartDate: "2030-08-01", ServiceEndDate: "2031-07-31"}
+	require.NoError(t, owner.InsertPhase(ctx, phase))
+	before := time.Now().Add(-time.Second)
+	request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "Fixture", GuardianLastName: "Guardian", GuardianEmail: "timestamps@example.test", StatusToken: "timestamp-defaults"}
+	require.NoError(t, owner.InsertRequest(ctx, request))
+	child := &enrollment.RequestChild{RequestID: request.ID, FirstName: "Fixture", LastName: "Child", DateOfBirth: "2023-03-26"}
+	require.NoError(t, owner.InsertChild(ctx, child))
+	guardian := &enrollment.RequestGuardian{RequestID: request.ID, FirstName: "Second", LastName: "Guardian"}
+	require.NoError(t, owner.CreateRequestGuardian(ctx, guardian))
+	storedRequest, err := owner.RequestByID(ctx, request.ID, false)
+	require.NoError(t, err)
+	storedChild, err := owner.ChildByID(ctx, child.ID)
+	require.NoError(t, err)
+	storedGuardians, err := owner.RequestGuardians(ctx, []int64{request.ID})
+	require.NoError(t, err)
+	require.Len(t, storedGuardians, 1)
+	after := time.Now().Add(time.Second)
+	for name, timestamps := range map[string][]time.Time{
+		"request":  {request.CreatedAt, request.UpdatedAt, storedRequest.CreatedAt, storedRequest.UpdatedAt},
+		"child":    {child.CreatedAt, child.UpdatedAt, storedChild.CreatedAt, storedChild.UpdatedAt},
+		"guardian": {guardian.CreatedAt, guardian.UpdatedAt, storedGuardians[0].CreatedAt, storedGuardians[0].UpdatedAt},
+	} {
+		for _, timestamp := range timestamps {
+			require.True(t, timestamp.After(before) && timestamp.Before(after), "%s timestamp %s must fall within the insertion window", name, timestamp)
+		}
 	}
 }

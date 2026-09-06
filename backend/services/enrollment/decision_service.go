@@ -495,7 +495,7 @@ func (s *decisionService) todayDate() timezone.Date {
 }
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
-	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{
+	requests, err := listReportRequests(ctx, s.Requests, capability.RequestListFilters{
 		PhaseID:          filters.PhaseID,
 		ChildStatus:      filters.ChildStatus,
 		CreatedStudentID: 0,
@@ -519,7 +519,7 @@ func (s *decisionService) ListByStudent(ctx context.Context, studentID int64) ([
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
-	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{
+	requests, err := listReportRequests(ctx, s.Requests, capability.RequestListFilters{
 		CreatedStudentID: studentID,
 	})
 	if err != nil {
@@ -807,7 +807,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		return nil, fmt.Errorf("decision: export: phase_id required")
 	}
 
-	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{PhaseID: phaseID})
+	requests, err := listReportRequests(ctx, s.Requests, capability.RequestListFilters{PhaseID: phaseID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export list requests: %w", err)
 	}
@@ -920,7 +920,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, err)
 	}
 
-	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
+	requests, err := listReportRequests(ctx, s.Requests, capability.RequestListFilters{CreatedStudentID: studentID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student list requests: %w", err)
 	}
@@ -2602,7 +2602,7 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	if raw == nil {
 		return out, nil
 	}
-	var entries []enrollmentModels.ContactEntry
+	var entries []capability.ContactEntry
 	if err := decodeStructured(raw, &entries); err != nil {
 		return out, nil
 	}
@@ -3896,7 +3896,7 @@ func (s *decisionService) applyTargetedFields(
 		}
 
 		switch field.Target {
-		case enrollmentModels.TargetStudentHealthInfo:
+		case capability.TargetStudentHealthInfo:
 			if str := stringValue(raw); str != "" {
 				student.HealthInfo = &str
 				studentDirty = true
@@ -3904,7 +3904,7 @@ func (s *decisionService) applyTargetedFields(
 				student.HealthInfo = nil
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentExtraInfo:
+		case capability.TargetStudentExtraInfo:
 			if str := stringValue(raw); str != "" {
 				student.ExtraInfo = &str
 				studentDirty = true
@@ -3912,7 +3912,7 @@ func (s *decisionService) applyTargetedFields(
 				student.ExtraInfo = nil
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentDeparture:
+		case capability.TargetStudentDeparture:
 			if raw == nil {
 				student.AllowedDepartureModes = users.AllowedDepartureModes{}
 				student.DepartureDays = users.DepartureDays{}
@@ -3933,7 +3933,7 @@ func (s *decisionService) applyTargetedFields(
 				explicitDeparture = &days
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentAllowedDepartureModes:
+		case capability.TargetStudentAllowedDepartureModes:
 			if raw == nil {
 				student.AllowedDepartureModes = users.AllowedDepartureModes{}
 				student.DepartureDays = users.DepartureDays{}
@@ -3950,7 +3950,7 @@ func (s *decisionService) applyTargetedFields(
 				explicitAllowedDeparture = &modes
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
+		case capability.TargetStudentBusDays, capability.TargetStudentBus:
 			if raw == nil {
 				student.BusDays = users.BusDays{}
 				studentDirty = true
@@ -3960,7 +3960,7 @@ func (s *decisionService) applyTargetedFields(
 				student.BusDays = days
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentPickupStatus:
+		case capability.TargetStudentPickupStatus:
 			if raw == nil {
 				student.PickupDays = users.PickupDays{}
 				studentDirty = true
@@ -3970,7 +3970,7 @@ func (s *decisionService) applyTargetedFields(
 				student.PickupDays = days
 				studentDirty = true
 			}
-		case enrollmentModels.TargetSchedulePickup:
+		case capability.TargetSchedulePickup:
 			// Student lock BEFORE the weekly rewrite — the shared first lock of
 			// every care-day writer — so the auto-excusal resync after the loop
 			// keeps the student → care-day lock order (#2360 review).
@@ -3997,7 +3997,7 @@ func (s *decisionService) applyTargetedFields(
 			} else {
 				pickupScheduleChanged = true
 			}
-		case enrollmentModels.TargetScheduleArrival:
+		case capability.TargetScheduleArrival:
 			if replaceSchedules && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
 				arrivalScheduleDeleted = true
 				if err := s.ArrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
@@ -4011,7 +4011,7 @@ func (s *decisionService) applyTargetedFields(
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, false); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
-		case enrollmentModels.TargetStudentContacts:
+		case capability.TargetStudentContacts:
 			oldContactIDs := map[int64]bool{}
 			if options.Replace {
 				var err error
@@ -4151,7 +4151,7 @@ func (s *decisionService) applyTargetedFields(
 	// unbounded TEXT).
 	if child != nil && child.CustomData != nil &&
 		student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) {
-		if note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])); note != "" {
+		if note := strings.TrimSpace(stringValue(child.CustomData[capability.TargetStudentDepartureCompanionNote])); note != "" {
 			note = strutil.TruncateRunes(note, users.MaxDepartureCompanionNoteLen, "")
 			student.DepartureCompanionNote = &note
 			studentDirty = true
@@ -4222,7 +4222,7 @@ func targetedFieldHasMeaningfulValue(target string, raw any) bool {
 		return false
 	}
 	switch target {
-	case enrollmentModels.TargetStudentHealthInfo, enrollmentModels.TargetStudentExtraInfo:
+	case capability.TargetStudentHealthInfo, capability.TargetStudentExtraInfo:
 		return strings.TrimSpace(stringValue(raw)) != ""
 	default:
 		return structuredTargetValueHasEntries(raw)
@@ -4255,7 +4255,7 @@ func structuredTargetValueHasEntries(raw any) bool {
 // decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
 // alone/bus/pickup) into the unified per-weekday departure model.
 func decodeDepartureDays(raw any) (users.DepartureDays, error) {
-	var modes enrollmentModels.WeekdayMode
+	var modes capability.WeekdayMode
 	if err := decodeStructured(raw, &modes); err != nil {
 		return nil, fmt.Errorf("decode weekday_mode: %w", err)
 	}
@@ -4265,11 +4265,11 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 	out := users.DepartureDays{}
 	for day, mode := range modes {
 		switch mode {
-		case enrollmentModels.WeekdayModeBus:
+		case capability.WeekdayModeBus:
 			out[day] = users.DepartureBus
-		case enrollmentModels.WeekdayModePickup:
+		case capability.WeekdayModePickup:
 			out[day] = users.DeparturePickup
-		case enrollmentModels.WeekdayModeAccompanied:
+		case capability.WeekdayModeAccompanied:
 			out[day] = users.DepartureAccompanied
 		}
 	}
@@ -4277,7 +4277,7 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 }
 
 func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
-	var modes enrollmentModels.WeekdayMultiMode
+	var modes capability.WeekdayMultiMode
 	if err := decodeStructured(raw, &modes); err != nil {
 		return nil, fmt.Errorf("decode weekday_multi_mode: %w", err)
 	}
@@ -4288,13 +4288,13 @@ func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
 	for day, rawModes := range modes {
 		for _, mode := range rawModes {
 			switch mode {
-			case enrollmentModels.WeekdayModeAlone:
+			case capability.WeekdayModeAlone:
 				out[day] = append(out[day], users.DepartureAlone)
-			case enrollmentModels.WeekdayModeBus:
+			case capability.WeekdayModeBus:
 				out[day] = append(out[day], users.DepartureBus)
-			case enrollmentModels.WeekdayModePickup:
+			case capability.WeekdayModePickup:
 				out[day] = append(out[day], users.DeparturePickup)
-			case enrollmentModels.WeekdayModeAccompanied:
+			case capability.WeekdayModeAccompanied:
 				out[day] = append(out[day], users.DepartureAccompanied)
 			}
 		}
@@ -4314,7 +4314,7 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 // their divergent legacy branches (bool flag vs pickup answer string)
 // stay with each decoder.
 func decodeWeekdayBooleanDays[M ~map[string]bool](raw any, order []string) (M, error) {
-	var days enrollmentModels.WeekdayBoolean
+	var days capability.WeekdayBoolean
 	if err := decodeStructured(raw, &days); err != nil {
 		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
 	}
@@ -4361,7 +4361,7 @@ func pickupDaysFromLegacyPickupAnswer(answer string) users.PickupDays {
 func (s *decisionService) readFieldValue(
 	request *enrollmentModels.Request,
 	child *enrollmentModels.RequestChild,
-	field *enrollmentModels.FormField,
+	field *capability.FormField,
 ) any {
 	if field.AppliesToCh {
 		if child == nil || child.CustomData == nil {
@@ -4430,7 +4430,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 	if (isPickup && s.PickupScheduleRepo == nil) || (!isPickup && s.ArrivalScheduleRepo == nil) {
 		return nil
 	}
-	var sched enrollmentModels.WeekdaySchedule
+	var sched capability.WeekdaySchedule
 	if err := decodeStructured(raw, &sched); err != nil {
 		return fmt.Errorf("decode weekday_schedule: %w", err)
 	}
@@ -4501,7 +4501,7 @@ func contactIdentityName(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func contactIdentityPhones(entry enrollmentModels.ContactEntry) map[string]bool {
+func contactIdentityPhones(entry capability.ContactEntry) map[string]bool {
 	phones := map[string]bool{}
 	for _, phone := range entry.PhoneNumbers {
 		number := strings.TrimSpace(phone.PhoneNumber)
@@ -4568,7 +4568,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 	if s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
 		return linkedProfileIDs, nil
 	}
-	var entries []enrollmentModels.ContactEntry
+	var entries []capability.ContactEntry
 	if err := decodeStructured(raw, &entries); err != nil {
 		return linkedProfileIDs, fmt.Errorf("decode contact_list: %w", err)
 	}

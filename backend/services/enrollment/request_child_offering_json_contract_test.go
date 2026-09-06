@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/require"
@@ -24,7 +26,7 @@ func TestOwnerOfferingSelectionPreservesLegacyJSON(t *testing.T) {
 			row.CreatedAt = time.Date(2027, 3, 28, 0, 0, 0, 0, time.UTC)
 			row.UpdatedAt = row.CreatedAt
 			if populated {
-				from, until := owner.Date("2027-03-28"), owner.Date("2027-10-31")
+				from, until := timezone.Date("2027-03-28"), timezone.Date("2027-10-31")
 				note := "selection history"
 				row.ValidFrom, row.ValidUntil, row.Notes = &from, &until, &note
 				row.SelectedDays = []string{"mon", "wed"}

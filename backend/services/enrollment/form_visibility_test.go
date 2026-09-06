@@ -32,10 +32,10 @@ func TestValidateAccompaniedCompanionNote(t *testing.T) {
 
 	svc := &requestService{}
 	grade := gradePtr(2)
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{{
+	schema := &capability.FormSchema{Fields: []capability.FormField{{
 		Key:         "allowed_modes",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        capability.FormFieldWeekdayMultiMode,
+		Target:      capability.TargetStudentAllowedDepartureModes,
 		AppliesToCh: true,
 	}}}
 	withChild := func(custom map[string]any) SubmitRequest {
@@ -57,7 +57,7 @@ func TestValidateAccompaniedCompanionNote(t *testing.T) {
 	t.Run("accompanied with a blank note is rejected", func(t *testing.T) {
 		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
 			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
-			enrollmentModels.TargetStudentDepartureCompanionNote: "   ",
+			capability.TargetStudentDepartureCompanionNote: "   ",
 		}), nil)
 		require.ErrorIs(t, err, ErrInvalidSubmission)
 	})
@@ -65,7 +65,7 @@ func TestValidateAccompaniedCompanionNote(t *testing.T) {
 	t.Run("accompanied with a note is accepted", func(t *testing.T) {
 		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
 			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
-			enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia",
+			capability.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia",
 		}), nil)
 		require.NoError(t, err)
 	})
@@ -83,11 +83,11 @@ func TestValidateAccompaniedCompanionNote(t *testing.T) {
 func TestCustomValueSatisfiesRequired(t *testing.T) {
 	t.Parallel()
 
-	text := enrollmentModels.FormField{Type: enrollmentModels.FormFieldText}
-	boolean := enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
-	phones := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
-	contacts := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
-	sched := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	text := capability.FormField{Type: capability.FormFieldText}
+	boolean := capability.FormField{Type: capability.FormFieldBoolean}
+	phones := capability.FormField{Type: capability.FormFieldPhoneList}
+	contacts := capability.FormField{Type: capability.FormFieldContactList}
+	sched := capability.FormField{Type: capability.FormFieldWeekdaySchedule}
 
 	// Plain text / number / boolean.
 	assert.False(t, customValueSatisfiesRequired(text, nil))
@@ -117,7 +117,7 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 	assert.False(t, customValueSatisfiesRequired(sched, nil), "nil schedule rejected")
 
 	// weekday_boolean (Buskind): needs at least one selected day.
-	busDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentBus}
+	busDays := capability.FormField{Type: capability.FormFieldWeekdayBoolean, Target: capability.TargetStudentBus}
 	assert.False(t, customValueSatisfiesRequired(busDays, nil), "nil bus days rejected")
 	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{}), "empty bus days rejected")
 	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{"mon": false}), "all-false bus days rejected")
@@ -126,7 +126,7 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 	// weekday_boolean (Abholregelung): an empty map is the valid "Geht
 	// alleine nach Hause" answer, so a required pickup field is satisfied
 	// even with no day selected. A malformed value is still rejected.
-	pickupDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentPickupStatus}
+	pickupDays := capability.FormField{Type: capability.FormFieldWeekdayBoolean, Target: capability.TargetStudentPickupStatus}
 	assert.True(t, customValueSatisfiesRequired(pickupDays, nil), "nil pickup days accepted (goes alone)")
 	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{}), "empty pickup days accepted (goes alone)")
 	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{"mon": true}), "selected pickup day accepted")
@@ -140,10 +140,10 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
 	t.Parallel()
 
-	pickup := enrollmentModels.FormField{
+	pickup := capability.FormField{
 		Key:    "pickup",
-		Type:   enrollmentModels.FormFieldWeekdayBoolean,
-		Target: enrollmentModels.TargetStudentPickupStatus,
+		Type:   capability.FormFieldWeekdayBoolean,
+		Target: capability.TargetStudentPickupStatus,
 	}
 
 	// 1) Missing key — unanswered required pickup is rejected.
@@ -166,10 +166,10 @@ func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
 
 	// Non-pickup weekday_boolean (Buskind) still requires a selected day even
 	// when present, and a missing key fails as before.
-	bus := enrollmentModels.FormField{
+	bus := capability.FormField{
 		Key:    "bus",
-		Type:   enrollmentModels.FormFieldWeekdayBoolean,
-		Target: enrollmentModels.TargetStudentBus,
+		Type:   capability.FormFieldWeekdayBoolean,
+		Target: capability.TargetStudentBus,
 	}
 	assert.False(t, customAnswerSatisfiesRequired(bus, map[string]any{}),
 		"missing bus answer fails required")
@@ -185,10 +185,10 @@ func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
 func TestWeekdayMode_RequiredHandling(t *testing.T) {
 	t.Parallel()
 
-	departure := enrollmentModels.FormField{
+	departure := capability.FormField{
 		Key:    "departure",
-		Type:   enrollmentModels.FormFieldWeekdayMode,
-		Target: enrollmentModels.TargetStudentDeparture,
+		Type:   capability.FormFieldWeekdayMode,
+		Target: capability.TargetStudentDeparture,
 	}
 
 	// Value-shape check: a well-formed map (even empty) satisfies required.
@@ -211,10 +211,10 @@ func TestWeekdayMode_RequiredHandling(t *testing.T) {
 func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
 	t.Parallel()
 
-	departure := enrollmentModels.FormField{
+	departure := capability.FormField{
 		Key:    "allowed_departure",
-		Type:   enrollmentModels.FormFieldWeekdayMultiMode,
-		Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:   capability.FormFieldWeekdayMultiMode,
+		Target: capability.TargetStudentAllowedDepartureModes,
 	}
 
 	assert.True(t, customAnswerSatisfiesRequiredWeekdayMultiMode(departure, map[string]any{}, map[string]bool{}),
@@ -250,14 +250,14 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 	t.Parallel()
 
 	const note = "Geschwisterkind Mia (1b)"
-	noteKey := enrollmentModels.TargetStudentDepartureCompanionNote
+	noteKey := capability.TargetStudentDepartureCompanionNote
 
 	schemaWith := func(target string) *capability.FormSchema {
-		fieldType := enrollmentModels.FormFieldWeekdayMultiMode
-		if target == enrollmentModels.TargetStudentDeparture {
-			fieldType = enrollmentModels.FormFieldWeekdayMode
+		fieldType := capability.FormFieldWeekdayMultiMode
+		if target == capability.TargetStudentDeparture {
+			fieldType = capability.FormFieldWeekdayMode
 		}
-		return &capability.FormSchema{Fields: []enrollmentModels.FormField{{
+		return &capability.FormSchema{Fields: []capability.FormField{{
 			Key:         "dep",
 			Type:        fieldType,
 			Target:      target,
@@ -272,7 +272,7 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 	}
 
 	t.Run("legacy departure target keeps note when accompanied", func(t *testing.T) {
-		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		schema := schemaWith(capability.TargetStudentDeparture)
 		values := map[string]any{
 			"dep":   map[string]any{"mon": "accompanied"},
 			noteKey: note,
@@ -282,7 +282,7 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 	})
 
 	t.Run("legacy departure target drops note when not accompanied", func(t *testing.T) {
-		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		schema := schemaWith(capability.TargetStudentDeparture)
 		values := map[string]any{
 			"dep":   map[string]any{"mon": "bus"},
 			noteKey: note,
@@ -293,7 +293,7 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 	})
 
 	t.Run("unified allowed-modes target keeps note when accompanied", func(t *testing.T) {
-		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		schema := schemaWith(capability.TargetStudentAllowedDepartureModes)
 		values := map[string]any{
 			"dep":   map[string]any{"mon": []any{"accompanied"}},
 			noteKey: note,
@@ -303,7 +303,7 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 	})
 
 	t.Run("oversized note is bounded before storage", func(t *testing.T) {
-		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		schema := schemaWith(capability.TargetStudentAllowedDepartureModes)
 		// A client that bypasses the React maxLength must not get an unbounded
 		// note persisted into custom_data (a storage/echo surface before
 		// approval). It is capped at MaxDepartureCompanionNoteLen runes (#1694).
@@ -323,10 +323,10 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
 	t.Parallel()
 
-	pickup := enrollmentModels.FormField{
+	pickup := capability.FormField{
 		Key:    "dismissal",
-		Type:   enrollmentModels.FormFieldWeekdaySchedule,
-		Target: enrollmentModels.TargetSchedulePickup,
+		Type:   capability.FormFieldWeekdaySchedule,
+		Target: capability.TargetSchedulePickup,
 	}
 
 	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{}, true),
@@ -397,7 +397,7 @@ func TestRelevantCareDaysForChild(t *testing.T) {
 	openByID := map[int64]*enrollmentModels.CareOffering{7: fixed}
 
 	// No offerings configured -> all weekdays (the form shows them all).
-	assert.Equal(t, enrollmentModels.ValidWeekdays,
+	assert.Equal(t, capability.ValidWeekdays,
 		relevantCareDaysForChild(SubmitChild{}, nil),
 		"no offerings means every weekday is schedulable")
 
@@ -412,9 +412,9 @@ func TestRelevantCareDaysForChild(t *testing.T) {
 func TestPruneChildScheduleAnswers(t *testing.T) {
 	t.Parallel()
 
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "dismissal", Type: enrollmentModels.FormFieldWeekdaySchedule,
-			Target: enrollmentModels.TargetSchedulePickup, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "dismissal", Type: capability.FormFieldWeekdaySchedule,
+			Target: capability.TargetSchedulePickup, AppliesToCh: true},
 	}}
 
 	// Tue/Thu care: a smuggled Friday entry is stripped, Tue kept.
@@ -424,7 +424,7 @@ func TestPruneChildScheduleAnswers(t *testing.T) {
 
 	// No offerings (all weekdays schedulable): mon-fri kept, weekend dropped.
 	answers2 := map[string]any{"dismissal": map[string]any{"mon": "15:00", "sat": "09:00"}}
-	pruneChildScheduleAnswers(schema, answers2, enrollmentModels.ValidWeekdays)
+	pruneChildScheduleAnswers(schema, answers2, capability.ValidWeekdays)
 	assert.Equal(t, map[string]any{"mon": "15:00"}, answers2["dismissal"])
 }
 
@@ -435,9 +435,9 @@ func TestValidateRequiredCustomFields_ChildRequiredScheduleNoOfferingsEnforced(t
 	// schedule, so the server must still enforce it (no empty-care-days
 	// exemption). openByID is empty in this configuration.
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
-			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: capability.FormFieldWeekdaySchedule,
+			Target: capability.TargetSchedulePickup, Required: true, AppliesToCh: true},
 	}}
 
 	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
@@ -457,9 +457,9 @@ func TestValidateRequiredCustomFields_ChildRequiredMultiModeNoOfferingsEnforced(
 	// selectedCareDays would be empty here and wrongly exempt the field, letting
 	// a scripted client skip a field the public form requires. openByID is empty.
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "allowed_departure", Label: "Abholarten", Type: enrollmentModels.FormFieldWeekdayMultiMode,
-			Target: enrollmentModels.TargetStudentAllowedDepartureModes, Required: true, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "allowed_departure", Label: "Abholarten", Type: capability.FormFieldWeekdayMultiMode,
+			Target: capability.TargetStudentAllowedDepartureModes, Required: true, AppliesToCh: true},
 	}}
 
 	// Missing answer -> must error (every weekday is relevant and required).
@@ -488,23 +488,23 @@ func TestValidateRequiredCustomFields_ChildRequiredMultiModeNoOfferingsEnforced(
 func TestFieldVisible_NoCondition(t *testing.T) {
 	t.Parallel()
 
-	f := &enrollmentModels.FormField{Key: "x", Type: enrollmentModels.FormFieldText}
+	f := &capability.FormField{Key: "x", Type: capability.FormFieldText}
 	assert.True(t, fieldVisible(f, fieldVisibilityContext{}))
 }
 
 func TestFieldVisible_GuardianFieldSource(t *testing.T) {
 	t.Parallel()
 
-	controller := &enrollmentModels.FormField{Key: "has_allergy", Type: enrollmentModels.FormFieldBoolean}
-	dependent := &enrollmentModels.FormField{
+	controller := &capability.FormField{Key: "has_allergy", Type: capability.FormFieldBoolean}
+	dependent := &capability.FormField{
 		Key:  "which",
-		Type: enrollmentModels.FormFieldText,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-			Operator: enrollmentModels.ConditionOpEquals, Value: true,
+		Type: capability.FormFieldText,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "has_allergy",
+			Operator: capability.ConditionOpEquals, Value: true,
 		},
 	}
-	byKey := map[string]*enrollmentModels.FormField{"has_allergy": controller, "which": dependent}
+	byKey := map[string]*capability.FormField{"has_allergy": controller, "which": dependent}
 
 	assert.True(t, fieldVisible(dependent, fieldVisibilityContext{
 		guardianAnswers: map[string]any{"has_allergy": true}, fieldsByKey: byKey,
@@ -517,15 +517,15 @@ func TestFieldVisible_GuardianFieldSource(t *testing.T) {
 func TestFieldVisible_ChildScopeControllerReadFromChildAnswers(t *testing.T) {
 	t.Parallel()
 
-	controller := &enrollmentModels.FormField{Key: "child_flag", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true}
-	dependent := &enrollmentModels.FormField{
-		Key: "child_detail", Type: enrollmentModels.FormFieldText, AppliesToCh: true,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "child_flag",
-			Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	controller := &capability.FormField{Key: "child_flag", Type: capability.FormFieldBoolean, AppliesToCh: true}
+	dependent := &capability.FormField{
+		Key: "child_detail", Type: capability.FormFieldText, AppliesToCh: true,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "child_flag",
+			Operator: capability.ConditionOpEquals, Value: true,
 		},
 	}
-	byKey := map[string]*enrollmentModels.FormField{"child_flag": controller, "child_detail": dependent}
+	byKey := map[string]*capability.FormField{"child_flag": controller, "child_detail": dependent}
 
 	// The controller is per-child, so its answer must be read from
 	// childAnswers, not guardianAnswers.
@@ -546,22 +546,22 @@ func TestFieldVisible_HiddenControllerCollapsesNeqDependent(t *testing.T) {
 
 	// has_extra (boolean) controls a (select); c uses neq on a. When has_extra
 	// is false, a is hidden — c must NOT stay visible via "nil != expected".
-	hasExtra := &enrollmentModels.FormField{Key: "has_extra", Type: enrollmentModels.FormFieldBoolean}
-	a := &enrollmentModels.FormField{
-		Key: "a", Type: enrollmentModels.FormFieldSelect,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "has_extra",
-			Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	hasExtra := &capability.FormField{Key: "has_extra", Type: capability.FormFieldBoolean}
+	a := &capability.FormField{
+		Key: "a", Type: capability.FormFieldSelect,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "has_extra",
+			Operator: capability.ConditionOpEquals, Value: true,
 		},
 	}
-	c := &enrollmentModels.FormField{
-		Key: "c", Type: enrollmentModels.FormFieldText,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "a",
-			Operator: enrollmentModels.ConditionOpNotEquals, Value: "x",
+	c := &capability.FormField{
+		Key: "c", Type: capability.FormFieldText,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "a",
+			Operator: capability.ConditionOpNotEquals, Value: "x",
 		},
 	}
-	byKey := map[string]*enrollmentModels.FormField{"has_extra": hasExtra, "a": a, "c": c}
+	byKey := map[string]*capability.FormField{"has_extra": hasExtra, "a": a, "c": c}
 
 	// a visible (has_extra=true) and a != "x" → c visible.
 	assert.True(t, fieldVisible(c, fieldVisibilityContext{
@@ -576,21 +576,21 @@ func TestFieldVisible_HiddenControllerCollapsesNeqDependent(t *testing.T) {
 func TestFieldVisible_CyclicConfigurationIsHidden(t *testing.T) {
 	t.Parallel()
 
-	a := &enrollmentModels.FormField{
-		Key: "a", Type: enrollmentModels.FormFieldSelect,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "b",
-			Operator: enrollmentModels.ConditionOpEquals, Value: "x",
+	a := &capability.FormField{
+		Key: "a", Type: capability.FormFieldSelect,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "b",
+			Operator: capability.ConditionOpEquals, Value: "x",
 		},
 	}
-	b := &enrollmentModels.FormField{
-		Key: "b", Type: enrollmentModels.FormFieldSelect,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source: enrollmentModels.ConditionSourceField, Field: "a",
-			Operator: enrollmentModels.ConditionOpEquals, Value: "x",
+	b := &capability.FormField{
+		Key: "b", Type: capability.FormFieldSelect,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source: capability.ConditionSourceField, Field: "a",
+			Operator: capability.ConditionOpEquals, Value: "x",
 		},
 	}
-	byKey := map[string]*enrollmentModels.FormField{"a": a, "b": b}
+	byKey := map[string]*capability.FormField{"a": a, "b": b}
 	// Must not recurse forever; resolves to hidden.
 	assert.False(t, fieldVisible(a, fieldVisibilityContext{
 		guardianAnswers: map[string]any{"a": "x", "b": "x"}, fieldsByKey: byKey,
@@ -600,11 +600,11 @@ func TestFieldVisible_CyclicConfigurationIsHidden(t *testing.T) {
 func TestFieldVisible_GradeLevel(t *testing.T) {
 	t.Parallel()
 
-	f := &enrollmentModels.FormField{
-		Key: "g", Type: enrollmentModels.FormFieldText, AppliesToCh: true,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source:   enrollmentModels.ConditionSourceGradeLevel,
-			Operator: enrollmentModels.ConditionOpEquals, Value: float64(1),
+	f := &capability.FormField{
+		Key: "g", Type: capability.FormFieldText, AppliesToCh: true,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source:   capability.ConditionSourceGradeLevel,
+			Operator: capability.ConditionOpEquals, Value: float64(1),
 		},
 	}
 	assert.True(t, fieldVisible(f, fieldVisibilityContext{gradeLevel: gradePtr(1)}))
@@ -615,11 +615,11 @@ func TestFieldVisible_GradeLevel(t *testing.T) {
 func TestFieldVisible_CareOfferingByName(t *testing.T) {
 	t.Parallel()
 
-	f := &enrollmentModels.FormField{
-		Key: "lunch_note", Type: enrollmentModels.FormFieldText, AppliesToCh: true,
-		VisibleWhen: &enrollmentModels.VisibilityCondition{
-			Source:   enrollmentModels.ConditionSourceCareOffering,
-			Operator: enrollmentModels.ConditionOpIncludes, Value: "Mittagessen",
+	f := &capability.FormField{
+		Key: "lunch_note", Type: capability.FormFieldText, AppliesToCh: true,
+		VisibleWhen: &capability.VisibilityCondition{
+			Source:   capability.ConditionSourceCareOffering,
+			Operator: capability.ConditionOpIncludes, Value: "Mittagessen",
 		},
 	}
 	assert.True(t, fieldVisible(f, fieldVisibilityContext{
@@ -643,8 +643,8 @@ func TestValidateRequiredCustomFields_GuardianRequiredMissing(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "emergency", Label: "Notfallkontakt", Type: enrollmentModels.FormFieldText, Required: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "emergency", Label: "Notfallkontakt", Type: capability.FormFieldText, Required: true},
 	}}
 	req := SubmitRequest{CustomData: map[string]any{}, Children: []SubmitChild{{}}}
 	err := s.validateRequiredCustomFields(schema, req, nil)
@@ -657,8 +657,8 @@ func TestValidateRequiredCustomFields_GuardianRequiredPresent(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "emergency", Label: "Notfallkontakt", Type: enrollmentModels.FormFieldText, Required: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "emergency", Label: "Notfallkontakt", Type: capability.FormFieldText, Required: true},
 	}}
 	req := SubmitRequest{CustomData: map[string]any{"emergency": "Oma 0123"}, Children: []SubmitChild{{}}}
 	assert.NoError(t, s.validateRequiredCustomFields(schema, req, nil))
@@ -668,12 +668,12 @@ func TestValidateRequiredCustomFields_HiddenGuardianFieldExempt(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean},
-		{Key: "which", Label: "Welche?", Type: enrollmentModels.FormFieldText, Required: true,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "has_allergy", Label: "Allergie?", Type: capability.FormFieldBoolean},
+		{Key: "which", Label: "Welche?", Type: capability.FormFieldText, Required: true,
+			VisibleWhen: &capability.VisibilityCondition{
+				Source: capability.ConditionSourceField, Field: "has_allergy",
+				Operator: capability.ConditionOpEquals, Value: true,
 			}},
 	}}
 	// has_allergy = false → "which" is hidden → its required flag is moot.
@@ -691,8 +691,8 @@ func TestValidateRequiredCustomFields_ChildRequiredMissing(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "diet", Label: "Ernährung", Type: enrollmentModels.FormFieldText, Required: true, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "diet", Label: "Ernährung", Type: capability.FormFieldText, Required: true, AppliesToCh: true},
 	}}
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"diet": "vegetarisch"}},
@@ -708,11 +708,11 @@ func TestValidateRequiredCustomFields_ChildHiddenByGradeExempt(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "g1_note", Label: "Hinweis Klasse 1", Type: enrollmentModels.FormFieldText, Required: true, AppliesToCh: true,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source:   enrollmentModels.ConditionSourceGradeLevel,
-				Operator: enrollmentModels.ConditionOpEquals, Value: float64(1),
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "g1_note", Label: "Hinweis Klasse 1", Type: capability.FormFieldText, Required: true, AppliesToCh: true,
+			VisibleWhen: &capability.VisibilityCondition{
+				Source:   capability.ConditionSourceGradeLevel,
+				Operator: capability.ConditionOpEquals, Value: float64(1),
 			}},
 	}}
 	// Grade 2 → field hidden → no answer required.
@@ -732,11 +732,11 @@ func TestValidateRequiredCustomFields_ChildHiddenByCareOfferingExempt(t *testing
 	lunch.ID = 42
 	openByID := map[int64]*enrollmentModels.CareOffering{42: lunch}
 
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "allergy_note", Label: "Allergie-Hinweis", Type: enrollmentModels.FormFieldText, Required: true, AppliesToCh: true,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source:   enrollmentModels.ConditionSourceCareOffering,
-				Operator: enrollmentModels.ConditionOpIncludes, Value: "Mittagessen",
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "allergy_note", Label: "Allergie-Hinweis", Type: capability.FormFieldText, Required: true, AppliesToCh: true,
+			VisibleWhen: &capability.VisibilityCondition{
+				Source:   capability.ConditionSourceCareOffering,
+				Operator: capability.ConditionOpIncludes, Value: "Mittagessen",
 			}},
 	}}
 
@@ -765,9 +765,9 @@ func TestValidateRequiredCustomFields_ChildRequiredScheduleNoCareDaysExempt(t *t
 	lunch.ID = 42
 	openByID := map[int64]*enrollmentModels.CareOffering{42: lunch}
 
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
-			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: capability.FormFieldWeekdaySchedule,
+			Target: capability.TargetSchedulePickup, Required: true, AppliesToCh: true},
 	}}
 
 	// No care offering selected → no care days → required schedule is exempt.
@@ -803,10 +803,10 @@ func TestValidateRequiredCustomFields_InfoFieldNeverRequired(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
+	schema := &capability.FormSchema{Fields: []capability.FormField{
 		// An info block carries no answer; even if Required somehow set,
 		// it must never block submit.
-		{Key: "infotext_1", Type: enrollmentModels.FormFieldInfo, Content: "Hinweis", Required: true},
+		{Key: "infotext_1", Type: capability.FormFieldInfo, Content: "Hinweis", Required: true},
 	}}
 	req := SubmitRequest{CustomData: map[string]any{}, Children: []SubmitChild{{}}}
 	assert.NoError(t, s.validateRequiredCustomFields(schema, req, nil))
@@ -816,12 +816,12 @@ func TestValidateRequiredCustomFields_ChildFieldDependsOnGuardianAnswer(t *testi
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "guardian_flag", Label: "Eltern-Flag", Type: enrollmentModels.FormFieldBoolean},
-		{Key: "child_detail", Label: "Kind-Detail", Type: enrollmentModels.FormFieldText, Required: true, AppliesToCh: true,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source: enrollmentModels.ConditionSourceField, Field: "guardian_flag",
-				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "guardian_flag", Label: "Eltern-Flag", Type: capability.FormFieldBoolean},
+		{Key: "child_detail", Label: "Kind-Detail", Type: capability.FormFieldText, Required: true, AppliesToCh: true,
+			VisibleWhen: &capability.VisibilityCondition{
+				Source: capability.ConditionSourceField, Field: "guardian_flag",
+				Operator: capability.ConditionOpEquals, Value: true,
 			}},
 	}}
 	// Guardian flag off → child field hidden → exempt.
@@ -843,9 +843,9 @@ func TestValidateRequiredCustomFields_StructuredSuggestedRequired(t *testing.T) 
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "student_contacts", Label: "Kontakte", Type: enrollmentModels.FormFieldContactList,
-			Target: enrollmentModels.TargetStudentContacts, Required: true, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "student_contacts", Label: "Kontakte", Type: capability.FormFieldContactList,
+			Target: capability.TargetStudentContacts, Required: true, AppliesToCh: true},
 	}}
 	// No contact entered → required contact list is empty → error.
 	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
@@ -873,17 +873,17 @@ func TestSanitizeVisibleAnswers_DropsHiddenAndUnknownKeys(t *testing.T) {
 	t.Parallel()
 
 	schema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "has_allergy", Type: enrollmentModels.FormFieldBoolean},
+		Fields: []capability.FormField{
+			{Key: "has_allergy", Type: capability.FormFieldBoolean},
 			{
 				Key:  "which", // hidden unless has_allergy == true
-				Type: enrollmentModels.FormFieldText,
-				VisibleWhen: &enrollmentModels.VisibilityCondition{
-					Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-					Operator: enrollmentModels.ConditionOpEquals, Value: true,
+				Type: capability.FormFieldText,
+				VisibleWhen: &capability.VisibilityCondition{
+					Source: capability.ConditionSourceField, Field: "has_allergy",
+					Operator: capability.ConditionOpEquals, Value: true,
 				},
 			},
-			{Key: "info", Type: enrollmentModels.FormFieldInfo},
+			{Key: "info", Type: capability.FormFieldInfo},
 		},
 	}
 	byKey := buildFieldsByKey(schema)
@@ -911,14 +911,14 @@ func TestSanitizeVisibleAnswers_KeepsValueWhenConditionPasses(t *testing.T) {
 	t.Parallel()
 
 	schema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "has_allergy", Type: enrollmentModels.FormFieldBoolean},
+		Fields: []capability.FormField{
+			{Key: "has_allergy", Type: capability.FormFieldBoolean},
 			{
 				Key:  "which",
-				Type: enrollmentModels.FormFieldText,
-				VisibleWhen: &enrollmentModels.VisibilityCondition{
-					Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-					Operator: enrollmentModels.ConditionOpEquals, Value: true,
+				Type: capability.FormFieldText,
+				VisibleWhen: &capability.VisibilityCondition{
+					Source: capability.ConditionSourceField, Field: "has_allergy",
+					Operator: capability.ConditionOpEquals, Value: true,
 				},
 			},
 		},
@@ -941,10 +941,10 @@ func TestMergeEditableCustomData_PreservesLegacyKeysAndReplacesSchemaFields(t *t
 	t.Parallel()
 
 	schema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "visible", Type: enrollmentModels.FormFieldText},
-			{Key: "hidden", Type: enrollmentModels.FormFieldText},
-			{Key: "info", Type: enrollmentModels.FormFieldInfo},
+		Fields: []capability.FormField{
+			{Key: "visible", Type: capability.FormFieldText},
+			{Key: "hidden", Type: capability.FormFieldText},
+			{Key: "info", Type: capability.FormFieldInfo},
 		},
 	}
 	out := mergeEditableCustomData(
@@ -970,37 +970,37 @@ func TestMergeEditableCustomData_TreatsCompanionNoteAsEditableWithDepartureField
 	t.Parallel()
 
 	schema := &capability.FormSchema{
-		Fields: []enrollmentModels.FormField{
+		Fields: []capability.FormField{
 			{
 				Key:         "departure",
-				Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+				Type:        capability.FormFieldWeekdayMultiMode,
 				AppliesToCh: true,
-				Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+				Target:      capability.TargetStudentAllowedDepartureModes,
 			},
 		},
 	}
 	out := mergeEditableCustomData(
 		map[string]any{
-			enrollmentModels.TargetStudentDepartureCompanionNote: "Mia",
-			"legacy_child_note": "keep",
+			capability.TargetStudentDepartureCompanionNote: "Mia",
+			"legacy_child_note":                            "keep",
 		},
 		map[string]any{"departure": map[string]any{"mon": []any{"alone"}}},
 		schema,
 		true,
 	)
 
-	_, hasCompanion := out[enrollmentModels.TargetStudentDepartureCompanionNote]
+	_, hasCompanion := out[capability.TargetStudentDepartureCompanionNote]
 	assert.False(t, hasCompanion, "stale companion notes are cleared with departure answers")
 	assert.Equal(t, "keep", out["legacy_child_note"])
 }
 
 // ---- validateConstrainedSchedules ---------------------------------------
 
-func pickupSchedField() enrollmentModels.FormField {
-	return enrollmentModels.FormField{
+func pickupSchedField() capability.FormField {
+	return capability.FormField{
 		Key: "pickup_times", Label: "Abholzeiten",
-		Type:        enrollmentModels.FormFieldWeekdaySchedule,
-		AppliesToCh: true, Target: enrollmentModels.TargetSchedulePickup,
+		Type:        capability.FormFieldWeekdaySchedule,
+		AppliesToCh: true, Target: capability.TargetSchedulePickup,
 		AllowedTimes: []string{"14:45", "16:00"},
 	}
 }
@@ -1016,7 +1016,7 @@ func TestValidateConstrainedSchedules_AcceptsListedTimes(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{pickupSchedField()}}
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "14:45", "fri": "16:00"}}},
 	}}
@@ -1027,7 +1027,7 @@ func TestValidateConstrainedSchedules_RejectsOffListTime(t *testing.T) {
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{pickupSchedField()}}
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
@@ -1045,7 +1045,7 @@ func TestValidateConstrainedSchedules_OffListWrapsPickupSentinel(t *testing.T) {
 	// identity (so the handler can attach a stable code) while still being
 	// part of the broad ErrInvalidSubmission category.
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{pickupSchedField()}}
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
@@ -1062,7 +1062,7 @@ func TestValidateConstrainedSchedules_NoRestrictionSkips(t *testing.T) {
 	s := &requestService{}
 	field := pickupSchedField()
 	field.AllowedTimes = nil
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{field}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{field}}
 	req := SubmitRequest{Children: []SubmitChild{
 		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
@@ -1076,12 +1076,12 @@ func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
 	// dropped before persistence, so an off-list value must not block submit.
 	s := &requestService{}
 	field := pickupSchedField()
-	field.VisibleWhen = &enrollmentModels.VisibilityCondition{
-		Source: enrollmentModels.ConditionSourceField, Field: "needs_pickup",
-		Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	field.VisibleWhen = &capability.VisibilityCondition{
+		Source: capability.ConditionSourceField, Field: "needs_pickup",
+		Operator: capability.ConditionOpEquals, Value: true,
 	}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "needs_pickup", Label: "Wird abgeholt?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "needs_pickup", Label: "Wird abgeholt?", Type: capability.FormFieldBoolean, AppliesToCh: true},
 		field,
 	}}
 	req := SubmitRequest{Children: []SubmitChild{
@@ -1098,7 +1098,7 @@ func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.
 	// has no care on is stripped before persistence (pruneChildScheduleAnswers),
 	// so rejecting it here would block an otherwise valid submit.
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{pickupSchedField()}}
 
 	fixed := &enrollmentModels.CareOffering{
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
@@ -1165,11 +1165,11 @@ func TestMatchExistingChildrenBySubmittedIdentityAllowsUniqueIDLessReorder(t *te
 
 // ---- Heimweg-Beschränkung (single_mode_grades, #2381) ---------------------
 
-func departureModesField() enrollmentModels.FormField {
-	return enrollmentModels.FormField{
+func departureModesField() capability.FormField {
+	return capability.FormField{
 		Key: "heimwege", Label: "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		AppliesToCh: true, Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        capability.FormFieldWeekdayMultiMode,
+		AppliesToCh: true, Target: capability.TargetStudentAllowedDepartureModes,
 		SingleModeGrades: []int{1},
 	}
 }
@@ -1178,7 +1178,7 @@ func TestValidateConstrainedSchedules_SingleModeRejectsMultiSelection(t *testing
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	grade := int16(1)
 	req := SubmitRequest{Children: []SubmitChild{{
 		TargetGradeLevel: &grade,
@@ -1197,7 +1197,7 @@ func TestValidateConstrainedSchedules_SingleModeAcceptsOnePerDay(t *testing.T) {
 	// Different modes across days stay allowed — only same-day multi-select
 	// is restricted (Q9: eine Abholart PRO Wochentag).
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	grade := int16(1)
 	req := SubmitRequest{Children: []SubmitChild{{
 		TargetGradeLevel: &grade,
@@ -1210,7 +1210,7 @@ func TestValidateConstrainedSchedules_SingleModeIgnoresUnrestrictedGrade(t *test
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	grade := int16(2)
 	req := SubmitRequest{Children: []SubmitChild{{
 		TargetGradeLevel: &grade,
@@ -1225,7 +1225,7 @@ func TestValidateConstrainedSchedules_SingleModeIgnoresNilGrade(t *testing.T) {
 	// No declared target grade (grade collection off / legacy request) →
 	// the rule silently does not apply; the fallback is multi-select.
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	req := SubmitRequest{Children: []SubmitChild{{
 		CustomData: map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
 	}}}
@@ -1237,12 +1237,12 @@ func TestValidateConstrainedSchedules_SingleModeHiddenFieldExempt(t *testing.T) 
 
 	s := &requestService{}
 	field := departureModesField()
-	field.VisibleWhen = &enrollmentModels.VisibilityCondition{
-		Source: enrollmentModels.ConditionSourceField, Field: "needs_modes",
-		Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	field.VisibleWhen = &capability.VisibilityCondition{
+		Source: capability.ConditionSourceField, Field: "needs_modes",
+		Operator: capability.ConditionOpEquals, Value: true,
 	}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{
-		{Key: "needs_modes", Label: "Heimwege angeben?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true},
+	schema := &capability.FormSchema{Fields: []capability.FormField{
+		{Key: "needs_modes", Label: "Heimwege angeben?", Type: capability.FormFieldBoolean, AppliesToCh: true},
 		field,
 	}}
 	grade := int16(1)
@@ -1257,7 +1257,7 @@ func TestValidateConstrainedSchedules_SingleModePreservesUnchangedLegacyAnswer(t
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	grade := int16(1)
 	legacy := map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}}
 	req := SubmitRequest{Children: []SubmitChild{{
@@ -1279,7 +1279,7 @@ func TestValidateConstrainedSchedules_SingleModeRejectsLegacyAnswerAfterGradeCha
 	t.Parallel()
 
 	s := &requestService{}
-	schema := &capability.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	schema := &capability.FormSchema{Fields: []capability.FormField{departureModesField()}}
 	oldGrade, restrictedGrade := int16(2), int16(1)
 	legacy := map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}}
 	req := SubmitRequest{Children: []SubmitChild{{

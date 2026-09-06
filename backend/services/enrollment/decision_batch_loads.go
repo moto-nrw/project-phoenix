@@ -173,7 +173,7 @@ func guardianPhoneSet(rows []*users.GuardianPhoneNumber) map[string]bool {
 	return phones
 }
 
-func (profiles *phoneOnlyContactProfiles) match(entry enrollmentModels.ContactEntry) []*users.GuardianProfile {
+func (profiles *phoneOnlyContactProfiles) match(entry capability.ContactEntry) []*users.GuardianProfile {
 	firstName := contactIdentityName(entry.FirstName)
 	lastName := contactIdentityName(entry.LastName)
 	phones := contactIdentityPhones(entry)
@@ -195,7 +195,7 @@ func (profiles *phoneOnlyContactProfiles) match(entry enrollmentModels.ContactEn
 	return matches
 }
 
-func (profiles *phoneOnlyContactProfiles) add(profile *users.GuardianProfile, entry enrollmentModels.ContactEntry) {
+func (profiles *phoneOnlyContactProfiles) add(profile *users.GuardianProfile, entry capability.ContactEntry) {
 	if profile == nil || profile.ID <= 0 {
 		return
 	}

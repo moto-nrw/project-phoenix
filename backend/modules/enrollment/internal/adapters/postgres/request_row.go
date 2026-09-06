@@ -12,8 +12,8 @@ type requestRow struct {
 	bun.BaseModel            `bun:"table:enrollment.requests,alias:request"`
 	ID                       int64           `bun:"id,pk,autoincrement"`
 	TenantID                 int64           `bun:"tenant_id,notnull"`
-	CreatedAt                time.Time       `bun:"created_at"`
-	UpdatedAt                time.Time       `bun:"updated_at"`
+	CreatedAt                time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	SchemaID                 *int64          `bun:"schema_id"`
 	PhaseID                  int64           `bun:"phase_id,notnull"`
 	GuardianFirstName        string          `bun:"guardian_first_name,notnull"`

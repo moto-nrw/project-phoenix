@@ -230,8 +230,8 @@ func TestToFormSchemaResponse_StringifiesIDs(t *testing.T) {
 		Version:   2,
 		IsActive:  true,
 		CreatedBy: 4321,
-		Fields: []enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		Fields: []capability.FormField{
+			{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 		},
 	}
 	out := toFormSchemaResponse(s)
@@ -256,9 +256,9 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 		Name:      "Test",
 		Version:   1,
 		CreatedBy: 4321,
-		Fields: []enrollmentModels.FormField{
-			{Key: "z", Label: "Z", Type: enrollmentModels.FormFieldText, SortOrder: 5},
-			{Key: "a", Label: "A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		Fields: []capability.FormField{
+			{Key: "z", Label: "Z", Type: capability.FormFieldText, SortOrder: 5},
+			{Key: "a", Label: "A", Type: capability.FormFieldText, SortOrder: 0},
 		},
 	}
 	out := toFormSchemaResponse(s)
@@ -273,11 +273,11 @@ func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
 	s := &capability.FormSchema{
 		ID:      1234,
 		Version: 2,
-		Fields:  []enrollmentModels.FormField{},
-		LegalBlocks: []enrollmentModels.FormLegalBlock{
+		Fields:  []capability.FormField{},
+		LegalBlocks: []capability.FormLegalBlock{
 			{
 				Key:       "photo",
-				Kind:      enrollmentModels.LegalBlockKindConsent,
+				Kind:      capability.LegalBlockKindConsent,
 				Title:     "Fotoeinwilligung",
 				Label:     "Fotos erlauben",
 				Text:      "disabled draft text must not leak",

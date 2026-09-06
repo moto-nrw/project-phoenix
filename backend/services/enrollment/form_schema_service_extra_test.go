@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -72,8 +74,8 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	pub, err := svc.CreateSchema(ctx, "Testformular GetByID", []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	pub, err := svc.CreateSchema(ctx, "Testformular GetByID", []enrollmentCapability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 
@@ -91,8 +93,8 @@ func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.CreateSchema(ctx, "", []enrollmentModels.FormField{
-		{Key: "x", Label: "X", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	_, err := svc.CreateSchema(ctx, "", []enrollmentCapability.FormField{
+		{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name")
@@ -105,8 +107,8 @@ func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Klassenanmeldung")
-	out, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	out, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 	assert.Equal(t, name, out.Name)
@@ -123,13 +125,13 @@ func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Doppelname")
-	_, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	_, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 
-	_, err = svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_b", Label: "Feld B", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	_, err = svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_b", Label: "Feld B", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
@@ -141,8 +143,8 @@ func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := svc.UpdateSchema(ctx, 0, []enrollmentModels.FormField{
-		{Key: "x", Label: "X", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	_, err := svc.UpdateSchema(ctx, 0, []enrollmentCapability.FormField{
+		{Key: "x", Label: "X", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "positive")
@@ -155,14 +157,14 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("BumpTest")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 	require.Equal(t, 1, v1.Version)
 
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A (überarbeitet)", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A (überarbeitet)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 	assert.Equal(t, name, v2.Name, "new version inherits source name")
@@ -183,8 +185,8 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("RepointTest")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 
@@ -215,8 +217,8 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	}
 	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), request))
 
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
+	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0, Required: true},
 	}, creatorID)
 	require.NoError(t, err)
 	require.NotEqual(t, v1.ID, v2.ID)
@@ -241,13 +243,13 @@ func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("CoreKeyGuard")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 
-	_, err = svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
-		{Key: "guardian_email", Label: "Email", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	_, err = svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
+		{Key: "guardian_email", Label: "Email", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.Error(t, err, "core field key must still be rejected on update")
 }
@@ -292,12 +294,12 @@ func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("DropMe")
-	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v1, err := svc.CreateSchema(ctx, name, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
-	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
-		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentCapability.FormField{
+		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 

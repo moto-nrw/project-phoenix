@@ -1656,7 +1656,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	publishDecisionScheduleSchema(t, env, "pickup_times", capability.TargetSchedulePickup)
 	_, reviewerWithStaffAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-change-request-rollback@example.com", "Anna", "Rollback", map[string]any{

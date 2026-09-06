@@ -527,7 +527,7 @@ func capOfferingReplacementAtCareEnd(
 		return nil
 	}
 	for _, row := range rows {
-		from, until := enrollmentOwner.Date(validFrom), enrollmentOwner.Date(validUntil)
+		from, until := validFrom, validUntil
 		row.ValidFrom, row.ValidUntil = &from, &until
 	}
 	return rows

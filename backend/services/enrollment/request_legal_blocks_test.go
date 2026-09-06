@@ -15,30 +15,30 @@ import (
 func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
+	blocks := buildTemplateLegalBlocks([]capability.FormLegalBlock{
 		{
 			Key:       enrollmentModels.ConsentKeyDataProcessing,
-			Kind:      enrollmentModels.LegalBlockKindPrivacyNotice,
+			Kind:      capability.LegalBlockKindPrivacyNotice,
 			Title:     "Datenschutz",
 			Label:     "Zur Kenntnis genommen.",
 			Required:  true,
 			Enabled:   true,
 			SortOrder: 10,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    capability.LegalBlockSourceStandard,
 		},
 		{
 			Key:       "custom_pool",
-			Kind:      enrollmentModels.LegalBlockKindConsent,
+			Kind:      capability.LegalBlockKindConsent,
 			Title:     "Schwimmbad",
 			Label:     "Mein Kind darf teilnehmen.",
 			Required:  false,
 			Enabled:   true,
 			SortOrder: 20,
-			Source:    enrollmentModels.LegalBlockSourceCustom,
+			Source:    capability.LegalBlockSourceCustom,
 		},
 		{
 			Key:     enrollmentModels.ConsentKeyPhoto,
-			Kind:    enrollmentModels.LegalBlockKindConsent,
+			Kind:    capability.LegalBlockKindConsent,
 			Title:   "Foto",
 			Label:   "Foto",
 			Enabled: false,
@@ -57,33 +57,33 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 
 	svc := &requestService{}
 	schema := &capability.FormSchema{
-		LegalBlocks: []enrollmentModels.FormLegalBlock{
+		LegalBlocks: []capability.FormLegalBlock{
 			{
 				Key:      enrollmentModels.ConsentKeyDataProcessing,
-				Kind:     enrollmentModels.LegalBlockKindPrivacyNotice,
+				Kind:     capability.LegalBlockKindPrivacyNotice,
 				Title:    "Datenschutz",
 				Label:    "Zur Kenntnis genommen.",
 				Required: true,
 				Enabled:  true,
-				Source:   enrollmentModels.LegalBlockSourceStandard,
+				Source:   capability.LegalBlockSourceStandard,
 			},
 			{
 				Key:      "custom_pool",
-				Kind:     enrollmentModels.LegalBlockKindConsent,
+				Kind:     capability.LegalBlockKindConsent,
 				Title:    "Schwimmbad",
 				Label:    "Mein Kind darf teilnehmen.",
 				Required: true,
 				Enabled:  true,
-				Source:   enrollmentModels.LegalBlockSourceCustom,
+				Source:   capability.LegalBlockSourceCustom,
 			},
 			{
 				Key:      enrollmentModels.ConsentKeyAGB,
-				Kind:     enrollmentModels.LegalBlockKindTerms,
+				Kind:     capability.LegalBlockKindTerms,
 				Title:    "AGB",
 				Label:    "AGB",
 				Required: true,
 				Enabled:  false,
-				Source:   enrollmentModels.LegalBlockSourceStandard,
+				Source:   capability.LegalBlockSourceStandard,
 			},
 		},
 	}
@@ -150,18 +150,18 @@ func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
 func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
+	blocks := buildTemplateLegalBlocks([]capability.FormLegalBlock{
 		{
 			Key:         enrollmentModels.ConsentKeyAGB,
-			Kind:        enrollmentModels.LegalBlockKindTerms,
+			Kind:        capability.LegalBlockKindTerms,
 			Title:       "AGB",
 			Label:       "AGB akzeptieren",
 			Text:        "Textquelle bleibt gespeichert",
 			Required:    true,
 			Enabled:     true,
 			SortOrder:   10,
-			Source:      enrollmentModels.LegalBlockSourceStandard,
-			DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+			Source:      capability.LegalBlockSourceStandard,
+			DisplayMode: capability.LegalBlockDisplayModePDF,
 			DocumentURL: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
 		},
 	})
@@ -237,10 +237,10 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 		},
 	}}}
 	schema := &capability.FormSchema{
-		LegalBlocks: []enrollmentModels.FormLegalBlock{
+		LegalBlocks: []capability.FormLegalBlock{
 			{
 				Key:     enrollmentModels.ConsentKeyDataProcessing,
-				Kind:    enrollmentModels.LegalBlockKindPrivacyNotice,
+				Kind:    capability.LegalBlockKindPrivacyNotice,
 				Title:   "Datenschutz",
 				Label:   "Zur Kenntnis genommen.",
 				Enabled: false,
@@ -257,10 +257,10 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {
 	t.Parallel()
 
-	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
-		{Key: "custom_b", Kind: enrollmentModels.LegalBlockKindConsent, Title: "B", Label: "B", Enabled: true, SortOrder: 30},
-		{Key: "custom_a", Kind: enrollmentModels.LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true, SortOrder: 10},
-		{Key: "custom_c", Kind: enrollmentModels.LegalBlockKindConsent, Title: "C", Label: "C", Enabled: true, SortOrder: 20},
+	blocks := buildTemplateLegalBlocks([]capability.FormLegalBlock{
+		{Key: "custom_b", Kind: capability.LegalBlockKindConsent, Title: "B", Label: "B", Enabled: true, SortOrder: 30},
+		{Key: "custom_a", Kind: capability.LegalBlockKindConsent, Title: "A", Label: "A", Enabled: true, SortOrder: 10},
+		{Key: "custom_c", Kind: capability.LegalBlockKindConsent, Title: "C", Label: "C", Enabled: true, SortOrder: 20},
 	})
 
 	require.Len(t, blocks, 3)

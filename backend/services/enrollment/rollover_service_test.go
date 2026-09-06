@@ -127,8 +127,8 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Rollover", []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Rollover", []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
 

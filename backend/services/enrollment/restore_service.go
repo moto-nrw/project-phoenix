@@ -118,9 +118,9 @@ func (s *decisionService) restoreWithdrawn(ctx context.Context, requestID, resto
 	if err := s.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, fnvHash64(emailLC)); err != nil {
 		return nil, fmt.Errorf("restore: acquire dedup lock: %w", err)
 	}
-	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(withdrawn))
+	dupKeys := make([]enrollmentOwner.DuplicateChildKey, 0, len(withdrawn))
 	for _, child := range withdrawn {
-		dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{
+		dupKeys = append(dupKeys, enrollmentOwner.DuplicateChildKey{
 			FirstName: child.FirstName,
 			LastName:  child.LastName,
 		})

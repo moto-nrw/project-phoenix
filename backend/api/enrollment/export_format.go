@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -137,14 +139,14 @@ func formatOfferings(offerings []enrollmentService.ChildOfferingRow) string {
 	return strings.Join(parts, "; ")
 }
 
-func formatCustomValue(field enrollmentModels.FormField, raw any) string {
+func formatCustomValue(field enrollmentCapability.FormField, raw any) string {
 	switch field.Type {
-	case enrollmentModels.FormFieldBoolean:
+	case enrollmentCapability.FormFieldBoolean:
 		if isTruthy(raw) {
 			return "Ja"
 		}
 		return "Nein"
-	case enrollmentModels.FormFieldSelect:
+	case enrollmentCapability.FormFieldSelect:
 		val := stringifyValue(raw)
 		for _, opt := range field.Options {
 			if opt.Value == val {
@@ -152,17 +154,17 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 			}
 		}
 		return val
-	case enrollmentModels.FormFieldWeekdaySchedule:
+	case enrollmentCapability.FormFieldWeekdaySchedule:
 		return formatWeekdaySchedule(raw)
-	case enrollmentModels.FormFieldWeekdayBoolean:
+	case enrollmentCapability.FormFieldWeekdayBoolean:
 		return formatWeekdayBoolean(raw)
-	case enrollmentModels.FormFieldWeekdayMode:
+	case enrollmentCapability.FormFieldWeekdayMode:
 		return formatWeekdayMode(raw)
-	case enrollmentModels.FormFieldWeekdayMultiMode:
+	case enrollmentCapability.FormFieldWeekdayMultiMode:
 		return formatWeekdayMultiMode(raw)
-	case enrollmentModels.FormFieldPhoneList:
+	case enrollmentCapability.FormFieldPhoneList:
 		return formatPhoneList(raw)
-	case enrollmentModels.FormFieldContactList:
+	case enrollmentCapability.FormFieldContactList:
 		return formatContactList(raw)
 	default:
 		return stringifyValue(raw)
@@ -170,7 +172,7 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 }
 
 func formatWeekdayBoolean(raw any) string {
-	var days enrollmentModels.WeekdayBoolean
+	var days enrollmentCapability.WeekdayBoolean
 	if !decodeComposite(raw, &days) {
 		return stringifyValue(raw)
 	}
@@ -188,7 +190,7 @@ func formatWeekdayBoolean(raw any) string {
 }
 
 func formatWeekdayMultiMode(raw any) string {
-	var modes enrollmentModels.WeekdayMultiMode
+	var modes enrollmentCapability.WeekdayMultiMode
 	if !decodeComposite(raw, &modes) {
 		return stringifyValue(raw)
 	}
@@ -217,10 +219,10 @@ func formatWeekdayMultiMode(raw any) string {
 
 // departureModeLabelsDE renders a per-day departure mode for staff exports.
 var departureModeLabelsDE = map[string]string{
-	enrollmentModels.WeekdayModeAlone:       "geht zu Fuß",
-	enrollmentModels.WeekdayModeBus:         "fährt Bus",
-	enrollmentModels.WeekdayModePickup:      "wird abgeholt",
-	enrollmentModels.WeekdayModeAccompanied: "geht mit anderem Kind",
+	enrollmentCapability.WeekdayModeAlone:       "geht zu Fuß",
+	enrollmentCapability.WeekdayModeBus:         "fährt Bus",
+	enrollmentCapability.WeekdayModePickup:      "wird abgeholt",
+	enrollmentCapability.WeekdayModeAccompanied: "geht mit anderem Kind",
 }
 
 // formatWeekdayMode renders mon..fri → alone/bus/pickup as
@@ -229,7 +231,7 @@ func formatWeekdayMode(raw any) string {
 	if raw == nil {
 		return ""
 	}
-	var modes enrollmentModels.WeekdayMode
+	var modes enrollmentCapability.WeekdayMode
 	if !decodeComposite(raw, &modes) {
 		return stringifyValue(raw)
 	}
@@ -244,7 +246,7 @@ func formatWeekdayMode(raw any) string {
 			continue
 		}
 		hasAnswer = true
-		if mode == enrollmentModels.WeekdayModeAlone {
+		if mode == enrollmentCapability.WeekdayModeAlone {
 			continue
 		}
 		label := dayLabelsDE[day]
@@ -285,7 +287,7 @@ var weekdayOrder = []string{"mon", "tue", "wed", "thu", "fri"}
 // in week order, skipping unset days. Empty/garbage falls back to the
 // generic renderer.
 func formatWeekdaySchedule(raw any) string {
-	var sched enrollmentModels.WeekdaySchedule
+	var sched enrollmentCapability.WeekdaySchedule
 	if !decodeComposite(raw, &sched) {
 		return stringifyValue(raw)
 	}
@@ -314,7 +316,7 @@ var phoneTypeLabelsDE = map[string]string{
 // formatPhoneEntries renders a list of phone entries as
 // "Mobil: 0151…, Festnetz: …" — explicit label wins over the type label.
 // Shared by the phone_list field and the per-contact phone numbers.
-func formatPhoneEntries(entries []enrollmentModels.PhoneEntry) string {
+func formatPhoneEntries(entries []enrollmentCapability.PhoneEntry) string {
 	parts := make([]string, 0, len(entries))
 	for _, p := range entries {
 		num := strings.TrimSpace(p.PhoneNumber)
@@ -338,7 +340,7 @@ func formatPhoneEntries(entries []enrollmentModels.PhoneEntry) string {
 }
 
 func formatPhoneList(raw any) string {
-	var entries []enrollmentModels.PhoneEntry
+	var entries []enrollmentCapability.PhoneEntry
 	if !decodeComposite(raw, &entries) {
 		return stringifyValue(raw)
 	}
@@ -350,7 +352,7 @@ func formatPhoneList(raw any) string {
 // Notfallkontakt)". The pickup/emergency flags are the point of the
 // offline export — in a system outage this is who may collect the child.
 func formatContactList(raw any) string {
-	var contacts []enrollmentModels.ContactEntry
+	var contacts []enrollmentCapability.ContactEntry
 	if !decodeComposite(raw, &contacts) {
 		return stringifyValue(raw)
 	}
@@ -363,7 +365,7 @@ func formatContactList(raw any) string {
 
 // formatContactEntry renders one contact as "Vorname Nachname (Beziehung;
 // Tel: …; E-Mail: …; abholberechtigt, Notfallkontakt)".
-func formatContactEntry(c enrollmentModels.ContactEntry) string {
+func formatContactEntry(c enrollmentCapability.ContactEntry) string {
 	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
 	if name == "" {
 		name = "Kontakt"

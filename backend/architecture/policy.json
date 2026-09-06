@@ -3788,6 +3788,17 @@
       "target_role": "public"
     },
     {
+      "id": "inbound-students.enrollment-form-values",
+      "description": "Student enrollment responses serialize the Enrollment owner's public form values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
       "id": "enrollment.test-support.public",
       "description": "Enrollment test support exposes the owner facade.",
       "scopes": [
@@ -3819,17 +3830,6 @@
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
-    },
-    {
-      "id": "enrollment.domain.public",
-      "description": "Legacy Enrollment records use the owner form values and validation during the storage cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "domain",
-      "target_owner": "enrollment",
-      "target_role": "public"
     },
     {
       "id": "care-plan.integration-test.enrollment-compose",

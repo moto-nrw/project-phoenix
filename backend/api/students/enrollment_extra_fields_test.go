@@ -96,26 +96,26 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 		schemas: map[int64]*capability.FormSchema{
 			schemaID: {
 				ID: schemaID,
-				Fields: []enrollmentModels.FormField{
+				Fields: []capability.FormField{
 					{
 						Key:         "guardian_question",
 						Label:       "Elternfrage",
-						Type:        enrollmentModels.FormFieldText,
+						Type:        capability.FormFieldText,
 						AppliesToCh: false,
 					},
 					{
 						Key:         "swimming_level",
 						Label:       "Schwimmfähigkeit",
-						Type:        enrollmentModels.FormFieldSelect,
+						Type:        capability.FormFieldSelect,
 						AppliesToCh: true,
-						Options: []enrollmentModels.FormFieldOption{
+						Options: []capability.FormFieldOption{
 							{Label: "Kann sicher schwimmen", Value: "safe"},
 						},
 					},
 					{
 						Key:         "pickup_note",
 						Label:       "Abholhinweis",
-						Type:        enrollmentModels.FormFieldTextarea,
+						Type:        capability.FormFieldTextarea,
 						AppliesToCh: true,
 					},
 				},

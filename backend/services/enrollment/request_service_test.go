@@ -280,8 +280,8 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentCapability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentCapability.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
 
@@ -1674,7 +1674,7 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 	assert.Equal(t, reason, *child.ReviewReason)
 	assert.Equal(t, enrollmentModels.ChildActivationImmediate, child.ActivationMode)
 	require.NotNil(t, child.ActivateOn)
-	assert.Equal(t, enrollmentCapability.Date(activateOn.String()), *child.ActivateOn)
+	assert.Equal(t, activateOn, *child.ActivateOn)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
 	require.NotNil(t, child.TargetGradeLevel)
 	assert.Equal(t, int16(2), *child.TargetGradeLevel)
@@ -2948,11 +2948,11 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentModels.FormField{
+	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentCapability.FormField{
 		{
 			Key:       "later_required",
 			Label:     "Später erforderlich",
-			Type:      enrollmentModels.FormFieldText,
+			Type:      enrollmentCapability.FormFieldText,
 			Required:  true,
 			SortOrder: 0,
 		},
@@ -3001,14 +3001,14 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentModels.FormField{
-		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentCapability.FormField{
+		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentCapability.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
-			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
+			Key: "which_allergy", Label: "Welche?", Type: enrollmentCapability.FormFieldText,
 			AppliesToCh: true, Required: true, SortOrder: 1,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+			VisibleWhen: &enrollmentCapability.VisibilityCondition{
+				Source: enrollmentCapability.ConditionSourceField, Field: "has_allergy",
+				Operator: enrollmentCapability.ConditionOpEquals, Value: true,
 			},
 		},
 	}, env.creatorID)
@@ -3051,14 +3051,14 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentModels.FormField{
-		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentCapability.FormField{
+		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentCapability.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
-			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
+			Key: "which_allergy", Label: "Welche?", Type: enrollmentCapability.FormFieldText,
 			AppliesToCh: true, Required: true, SortOrder: 1,
-			VisibleWhen: &enrollmentModels.VisibilityCondition{
-				Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
-				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+			VisibleWhen: &enrollmentCapability.VisibilityCondition{
+				Source: enrollmentCapability.ConditionSourceField, Field: "has_allergy",
+				Operator: enrollmentCapability.ConditionOpEquals, Value: true,
 			},
 		},
 	}, env.creatorID)
@@ -3091,11 +3091,11 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 		Logger: slog.Default(),
 	})
 	// Required per-child contact_list (canonical target student.contacts).
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 5", []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 5", []enrollmentCapability.FormField{
 		{
 			Key: "contacts", Label: "Notfallkontakte",
-			Type: enrollmentModels.FormFieldContactList, AppliesToCh: true,
-			Required: true, Target: enrollmentModels.TargetStudentContacts, SortOrder: 0,
+			Type: enrollmentCapability.FormFieldContactList, AppliesToCh: true,
+			Required: true, Target: enrollmentCapability.TargetStudentContacts, SortOrder: 0,
 		},
 	}, env.creatorID)
 	require.NoError(t, err)
@@ -3130,11 +3130,11 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentCapability.FormField{
 		{
 			Key: "schedule_pickup", Label: "Abholzeiten",
-			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
-			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: allowed, SortOrder: 0,
+			Type: enrollmentCapability.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentCapability.TargetSchedulePickup, AllowedTimes: allowed, SortOrder: 0,
 		},
 	}, env.creatorID)
 	require.NoError(t, err)

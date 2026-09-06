@@ -69,9 +69,9 @@ func wipeSchemas(db *bun.DB, tenantID, createdBy int64) {
 		Exec(context.Background())
 }
 
-func validFields() []enrollmentModels.FormField {
-	return []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+func validFields() []capability.FormField {
+	return []capability.FormField{
+		{Key: "allergies", Label: "Allergien", Type: capability.FormFieldText, SortOrder: 0},
 	}
 }
 
@@ -534,16 +534,16 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		Fields:    validFields(),
 		IsActive:  true,
 		CreatedBy: creator,
-		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+		LegalBlocks: []capability.FormLegalBlock{{
 			Key:       enrollmentModels.ConsentKeyAGB,
-			Kind:      enrollmentModels.LegalBlockKindTerms,
+			Kind:      capability.LegalBlockKindTerms,
 			Title:     "AGB",
 			Label:     "AGB akzeptieren",
 			Text:      "Bitte lesen: " + storedURL,
 			Required:  true,
 			Enabled:   true,
 			SortOrder: 10,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    capability.LegalBlockSourceStandard,
 		}},
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -556,16 +556,16 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		Fields:    validFields(),
 		IsActive:  true,
 		CreatedBy: creator,
-		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+		LegalBlocks: []capability.FormLegalBlock{{
 			Key:       enrollmentModels.ConsentKeyAGB,
-			Kind:      enrollmentModels.LegalBlockKindTerms,
+			Kind:      capability.LegalBlockKindTerms,
 			Title:     "AGB",
 			Label:     "AGB akzeptieren",
 			Text:      "Bitte lesen: " + otherPublicURL,
 			Required:  true,
 			Enabled:   true,
 			SortOrder: 10,
-			Source:    enrollmentModels.LegalBlockSourceStandard,
+			Source:    capability.LegalBlockSourceStandard,
 		}},
 	}
 	require.NoError(t, runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
@@ -578,16 +578,16 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		Fields:    validFields(),
 		IsActive:  true,
 		CreatedBy: creator,
-		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+		LegalBlocks: []capability.FormLegalBlock{{
 			Key:         enrollmentModels.ConsentKeyAGB,
-			Kind:        enrollmentModels.LegalBlockKindTerms,
+			Kind:        capability.LegalBlockKindTerms,
 			Title:       "AGB",
 			Label:       "AGB akzeptieren",
 			Required:    true,
 			Enabled:     true,
 			SortOrder:   10,
-			Source:      enrollmentModels.LegalBlockSourceStandard,
-			DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+			Source:      capability.LegalBlockSourceStandard,
+			DisplayMode: capability.LegalBlockDisplayModePDF,
 			DocumentURL: documentPublicURL,
 		}},
 	}

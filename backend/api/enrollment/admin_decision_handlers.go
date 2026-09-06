@@ -91,7 +91,7 @@ type AdminRequestSchemaLegalBlock struct {
 
 // AdminRequestSchemaField is the slim form-field shape the admin UI
 // needs to render parent-submitted answers with their original label
-// + target hint. Mirrors enrollmentModels.FormField but stringified
+// + target hint. Mirrors capability.FormField but stringified
 // + tagged for JSON.
 type AdminRequestSchemaField struct {
 	Key            string                          `json:"key"`
@@ -102,7 +102,7 @@ type AdminRequestSchemaField struct {
 	Options        []AdminRequestSchemaFieldOption `json:"options,omitempty"`
 }
 
-// AdminRequestSchemaFieldOption mirrors enrollmentModels.FormFieldOption
+// AdminRequestSchemaFieldOption mirrors capability.FormFieldOption
 // so the admin renderer can turn a stored value (e.g. "picked_up")
 // back into its human-readable label (e.g. "Wird abgeholt").
 type AdminRequestSchemaFieldOption struct {
@@ -421,7 +421,7 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
 	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
 	for _, f := range fs.Fields {
-		if f.Type == enrollmentModels.FormFieldInfo {
+		if f.Type == capability.FormFieldInfo {
 			continue
 		}
 		opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))

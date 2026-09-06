@@ -77,7 +77,7 @@ func seedApprovedWithoutOfferingScenario(
 	afterPhase, afterPhaseUntil := timezone.Date(phase.ServiceEndDate).AddDays(1), timezone.Date(phase.ServiceEndDate).AddDays(31)
 	outOfPeriodLink := &enrollmentModels.RequestChildOffering{
 		RequestChildID: outOfPeriod.ID, CareOfferingID: offering.ID,
-		ValidFrom: (*enrollmentOwner.Date)(&afterPhase), ValidUntil: (*enrollmentOwner.Date)(&afterPhaseUntil),
+		ValidFrom: &afterPhase, ValidUntil: &afterPhaseUntil,
 	}
 	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, outOfPeriodLink)
 	required := &enrollmentModels.CareOffering{

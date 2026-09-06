@@ -5,15 +5,15 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Companion regressions for the admin-correction sync of an APPROVED child
@@ -87,11 +87,11 @@ func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string
 		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.CreateSchema(ctx, name, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, name, []enrollmentCapability.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
-		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
-		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		Type:        enrollmentCapability.FormFieldWeekdayMultiMode,
+		Target:      enrollmentCapability.TargetStudentAllowedDepartureModes,
 		AppliesToCh: true,
 		SortOrder:   0,
 	}}, env.creatorID)
@@ -113,7 +113,7 @@ func approveAccompaniedTuesdayChild(
 	ctx := testpkg.Ctx(t)
 	requestID, childID = submitOneChildWithCustomData(t, env, guardianEmail, first, last, map[string]any{
 		"allowed_modes": map[string]any{"tue": []any{"accompanied"}},
-		enrollmentModels.TargetStudentDepartureCompanionNote: "Nachbarskind",
+		enrollmentCapability.TargetStudentDepartureCompanionNote: "Nachbarskind",
 	})
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID:  requestID,

@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -103,7 +105,7 @@ func TestActivationSummary(t *testing.T) {
 	if got := activationSummary(immediate); got != "Sofort" {
 		t.Errorf("immediate = %q, want Sofort", got)
 	}
-	on := capability.Date("2026-08-01")
+	on := timezone.Date("2026-08-01")
 	dated := &enrollmentModels.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled, ActivateOn: &on}
 	if got := activationSummary(dated); got != "Geplant (01.08.2026)" {
 		t.Errorf("dated = %q, want 'Geplant (01.08.2026)'", got)
@@ -149,7 +151,7 @@ func TestFormatWeekdaySchedule_FallsBackOnGarbage(t *testing.T) {
 func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean}
+	field := capability.FormField{Type: capability.FormFieldWeekdayBoolean}
 	raw := map[string]any{"fri": true, "mon": true, "wed": false}
 	assert.Equal(t, "Mo, Fr", formatCustomValue(field, raw))
 }
@@ -157,7 +159,7 @@ func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
 func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	field := capability.FormField{Type: capability.FormFieldWeekdayMode}
 	raw := map[string]any{"mon": "bus", "wed": "pickup", "thu": "alone"}
 	// Week order, alone/unset days skipped.
 	assert.Equal(t, "Mo: fährt Bus, Mi: wird abgeholt", formatCustomValue(field, raw))
@@ -166,7 +168,7 @@ func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
 func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	field := capability.FormField{Type: capability.FormFieldWeekdayMode}
 	raw := map[string]any{
 		"mon": "alone",
 		"tue": "alone",
@@ -180,14 +182,14 @@ func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
 func TestFormatCustomValue_WeekdayMode_EmptyMapIsExplicitAllAlone(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	field := capability.FormField{Type: capability.FormFieldWeekdayMode}
 	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, map[string]any{}))
 }
 
 func TestFormatCustomValue_WeekdayMode_NilStaysMissing(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	field := capability.FormField{Type: capability.FormFieldWeekdayMode}
 	assert.Empty(t, formatCustomValue(field, nil))
 }
 
@@ -298,14 +300,14 @@ func TestFormatOfferings_FallsBackToAvailableDaysAndOfferingID(t *testing.T) {
 func TestFormatCustomValue_BooleanAndSelect(t *testing.T) {
 	t.Parallel()
 
-	boolField := enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
+	boolField := capability.FormField{Type: capability.FormFieldBoolean}
 	if got := formatCustomValue(boolField, false); got != "Nein" {
 		t.Errorf("boolean false = %q, want Nein", got)
 	}
 	// Select with no matching option returns the raw value verbatim.
-	selField := enrollmentModels.FormField{
-		Type:    enrollmentModels.FormFieldSelect,
-		Options: []enrollmentModels.FormFieldOption{{Value: "a", Label: "Apfel"}},
+	selField := capability.FormField{
+		Type:    capability.FormFieldSelect,
+		Options: []capability.FormFieldOption{{Value: "a", Label: "Apfel"}},
 	}
 	if got := formatCustomValue(selField, "z"); got != "z" {
 		t.Errorf("select no-match = %q, want 'z'", got)

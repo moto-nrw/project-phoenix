@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
 	"slices"
 	"strings"
@@ -363,7 +364,22 @@ func normalizeGradeLevels(levels []int) ([]int, error) {
 // null. field names the column in the error so the caller's message stays
 // specific (auto_add_grade_levels vs eligible_grade_levels).
 func normalizeGradeLevelList(field string, levels []int) ([]int, error) {
-	return capability.NormalizeGradeLevelList(field, levels)
+	if len(levels) == 0 {
+		return []int{}, nil
+	}
+	seen := make(map[int]bool, len(levels))
+	out := make([]int, 0, len(levels))
+	for _, level := range levels {
+		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
+			return nil, fmt.Errorf("%s contains invalid grade %d", field, level)
+		}
+		if seen[level] {
+			continue
+		}
+		seen[level] = true
+		out = append(out, level)
+	}
+	return out, nil
 }
 
 // HasUnlimitedCapacity returns true when the capacity field is NULL,
@@ -430,8 +446,8 @@ type RequestChildOffering struct {
 	Notes                 *string   `json:"notes,omitempty"`
 	// ValidFrom / ValidUntil make an approved offering switch effective on its
 	// requested date. ValidUntil is exclusive, matching student enrollments.
-	ValidFrom  *capability.Date `json:"valid_from,omitempty"`
-	ValidUntil *capability.Date `json:"valid_until,omitempty"`
+	ValidFrom  *timezone.Date `json:"valid_from,omitempty"`
+	ValidUntil *timezone.Date `json:"valid_until,omitempty"`
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection

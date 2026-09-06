@@ -90,7 +90,7 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 			"departure": map[string]any{
 				"mon": []any{"pickup", "accompanied"},
 			},
-			enrollmentModels.TargetStudentDepartureCompanionNote: "Mia",
+			capability.TargetStudentDepartureCompanionNote: "Mia",
 		},
 	}
 	student := &userModels.Student{
@@ -114,10 +114,10 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	}
 	schemas := map[int64]*capability.FormSchema{
 		schemaID: {
-			Fields: []enrollmentModels.FormField{
-				{Key: "arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
-				{Key: "pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
-				{Key: "departure", Target: enrollmentModels.TargetStudentAllowedDepartureModes, Type: enrollmentModels.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			Fields: []capability.FormField{
+				{Key: "arrival", Target: capability.TargetScheduleArrival, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "pickup", Target: capability.TargetSchedulePickup, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "departure", Target: capability.TargetStudentAllowedDepartureModes, Type: capability.FormFieldWeekdayMultiMode, AppliesToCh: true},
 			},
 		},
 	}
@@ -203,16 +203,16 @@ func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
 	}
 	schemas := map[int64]*capability.FormSchema{
 		schemaID: {
-			Fields: []enrollmentModels.FormField{
-				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
-				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			Fields: []capability.FormField{
+				{Key: "guardian_pickup", Target: capability.TargetSchedulePickup, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_arrival", Target: capability.TargetScheduleArrival, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: false},
 			},
 		},
 	}
 
 	pickupByDay, err := careUsagePickupByDay(req, child, schemas)
 	require.NoError(t, err)
-	arrivalByDay, err := careUsageScheduleByTarget(req, child, schemas, enrollmentModels.TargetScheduleArrival)
+	arrivalByDay, err := careUsageScheduleByTarget(req, child, schemas, capability.TargetScheduleArrival)
 	require.NoError(t, err)
 	links := []*enrollmentModels.RequestChildOffering{
 		{RequestChildID: 21, CareOfferingID: 1, SelectedDays: []string{"mon"}},
@@ -261,9 +261,9 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 	}
 	schemas := map[int64]*capability.FormSchema{
 		schemaID: {
-			Fields: []enrollmentModels.FormField{
-				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
-				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			Fields: []capability.FormField{
+				{Key: "guardian_arrival", Target: capability.TargetScheduleArrival, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_pickup", Target: capability.TargetSchedulePickup, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: false},
 			},
 		},
 	}
@@ -304,8 +304,8 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	}
 	schemas := map[int64]*capability.FormSchema{
 		schemaID: {
-			Fields: []enrollmentModels.FormField{
-				{Key: "pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
+			Fields: []capability.FormField{
+				{Key: "pickup", Target: capability.TargetSchedulePickup, Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
 			},
 		},
 	}
@@ -1226,10 +1226,10 @@ func (r *fakeClassRosterPersonRepo) FindByIDs(_ context.Context, ids []int64) (m
 type fakeClassRosterRequestRepo struct {
 	ReportRequests
 	requests    []*enrollmentModels.Request
-	seenFilters enrollmentModels.RequestListFilters
+	seenFilters capability.RequestListFilters
 }
 
-func (r *fakeClassRosterRequestRepo) AdminRequests(_ context.Context, filters enrollmentModels.RequestListFilters) ([]*capability.Request, error) {
+func (r *fakeClassRosterRequestRepo) AdminRequests(_ context.Context, filters capability.RequestListFilters) ([]*capability.Request, error) {
 	r.seenFilters = filters
 	if len(filters.CreatedStudentIDs) == 0 {
 		return make([]*capability.Request, maxExportRequests+1), nil
@@ -1497,8 +1497,8 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	enrollment := &classRosterApprovedEnrollment{request: req, child: child}
 	schemas := map[int64]*capability.FormSchema{
 		schemaID: {
-			Fields: []enrollmentModels.FormField{
-				{Key: "departure", Target: enrollmentModels.TargetStudentAllowedDepartureModes, Type: enrollmentModels.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			Fields: []capability.FormField{
+				{Key: "departure", Target: capability.TargetStudentAllowedDepartureModes, Type: capability.FormFieldWeekdayMultiMode, AppliesToCh: true},
 			},
 		},
 	}
@@ -1520,7 +1520,7 @@ type fakeCareUsageRequestRepo struct {
 	requests []*enrollmentModels.Request
 }
 
-func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ enrollmentModels.RequestListFilters) ([]*capability.Request, error) {
+func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ capability.RequestListFilters) ([]*capability.Request, error) {
 	return reportRequestInputs(r.requests)
 }
 

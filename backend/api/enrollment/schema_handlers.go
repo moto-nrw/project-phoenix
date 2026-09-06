@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,15 +25,15 @@ import (
 // FormSchemaResponse is the wire shape returned to admin UIs. The id is
 // stringified so the frontend can keep its int64-as-string convention.
 type FormSchemaResponse struct {
-	ID               string                            `json:"id"`
-	Name             string                            `json:"name"`
-	Version          int                               `json:"version"`
-	IsActive         bool                              `json:"is_active"`
-	Fields           []enrollmentModels.FormField      `json:"fields"`
-	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
-	LegalBlocks      []enrollmentModels.FormLegalBlock `json:"legal_blocks"`
-	CreatedBy        string                            `json:"created_by"`
-	CreatedAt        time.Time                         `json:"created_at"`
+	ID               string                      `json:"id"`
+	Name             string                      `json:"name"`
+	Version          int                         `json:"version"`
+	IsActive         bool                        `json:"is_active"`
+	Fields           []capability.FormField      `json:"fields"`
+	CoreRequirements capability.CoreRequirements `json:"core_requirements"`
+	LegalBlocks      []capability.FormLegalBlock `json:"legal_blocks"`
+	CreatedBy        string                      `json:"created_by"`
+	CreatedAt        time.Time                   `json:"created_at"`
 }
 
 func toFormSchemaResponse(s *capability.FormSchema) FormSchemaResponse {
@@ -51,16 +50,16 @@ func toFormSchemaResponse(s *capability.FormSchema) FormSchemaResponse {
 	}
 }
 
-func coreRequirementsValue(value enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+func coreRequirementsValue(value capability.CoreRequirements) capability.CoreRequirements {
 	if value == nil {
-		return enrollmentModels.CoreRequirements{}
+		return capability.CoreRequirements{}
 	}
 	return value
 }
 
-func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModels.FormLegalBlock {
+func legalBlocksValue(value []capability.FormLegalBlock) []capability.FormLegalBlock {
 	if value == nil {
-		return []enrollmentModels.FormLegalBlock{}
+		return []capability.FormLegalBlock{}
 	}
 	return value
 }
@@ -70,17 +69,17 @@ func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModel
 // when empty it falls back to updating/creating the default
 // "Standardformular" schema (legacy single-schema flow).
 type PublishSchemaRequest struct {
-	Name             string                             `json:"name"`
-	Fields           []enrollmentModels.FormField       `json:"fields"`
-	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
-	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
+	Name             string                       `json:"name"`
+	Fields           []capability.FormField       `json:"fields"`
+	CoreRequirements *capability.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]capability.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
 // service so we don't duplicate it here.
 func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
-		req.Fields = []enrollmentModels.FormField{}
+		req.Fields = []capability.FormField{}
 	}
 	return nil
 }
@@ -93,15 +92,15 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 // name is inherited from the source schema, keeping every version of a
 // logical schema under one shared name.
 type UpdateSchemaRequest struct {
-	Name             *string                            `json:"name,omitempty"`
-	Fields           []enrollmentModels.FormField       `json:"fields"`
-	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
-	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
+	Name             *string                      `json:"name,omitempty"`
+	Fields           []capability.FormField       `json:"fields"`
+	CoreRequirements *capability.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]capability.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
-		req.Fields = []enrollmentModels.FormField{}
+		req.Fields = []capability.FormField{}
 	}
 	return nil
 }
@@ -127,10 +126,10 @@ func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
 // form. The fields array carries everything the dynamic renderer
 // consumes (label, type, options, validation).
 type PublicFormSchemaResponse struct {
-	ID               string                            `json:"id"`
-	Version          int                               `json:"version"`
-	Fields           []enrollmentModels.FormField      `json:"fields"`
-	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
+	ID               string                      `json:"id"`
+	Version          int                         `json:"version"`
+	Fields           []capability.FormField      `json:"fields"`
+	CoreRequirements capability.CoreRequirements `json:"core_requirements"`
 }
 
 type SchemaPreviewBootstrapResponse struct {
