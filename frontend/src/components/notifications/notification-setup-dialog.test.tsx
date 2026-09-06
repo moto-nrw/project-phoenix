@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import {
@@ -95,6 +95,12 @@ describe("NotificationSetupDialog", () => {
     );
   });
 
+  it("scopes a staff setup decision to the active tenant", () => {
+    expect(setupStorageKey("tenant", "42", "school-a")).toBe(
+      "moto.tenant.notification-setup.v1.school-a.42",
+    );
+  });
+
   it("asks staff about their own device, not about a child", async () => {
     renderDialog({ portal: "tenant" });
 
@@ -128,7 +134,7 @@ describe("NotificationSetupDialog", () => {
 
   it("stays closed once this browser finished the setup", async () => {
     localStorage.setItem(
-      setupStorageKey("tenant", "42"),
+      setupStorageKey("tenant", "42", "test-tenant"),
       JSON.stringify({ done: true }),
     );
 
@@ -140,7 +146,7 @@ describe("NotificationSetupDialog", () => {
 
   it("runs again when the settings card restarts the setup", async () => {
     localStorage.setItem(
-      setupStorageKey("tenant", "42"),
+      setupStorageKey("tenant", "42", "test-tenant"),
       JSON.stringify({ done: true }),
     );
 
@@ -149,5 +155,34 @@ describe("NotificationSetupDialog", () => {
     await waitFor(() =>
       expect(mocks.fetchPreferences).toHaveBeenCalledWith("tenant"),
     );
+  });
+
+  it("waits for tenant preferences after Android installation", async () => {
+    mocks.isAndroidDevice.mockReturnValue(true);
+    mocks.canPromptInstall.mockReturnValue(true);
+    let resolvePreferences: ((value: unknown) => void) | undefined;
+    mocks.fetchPreferences.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePreferences = resolve;
+        }),
+    );
+
+    renderDialog({ portal: "tenant" });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "App installieren" }),
+    );
+    await waitFor(() =>
+      expect(mocks.triggerInstallPrompt).toHaveBeenCalledOnce(),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Benachrichtigungen aktivieren" }),
+    ).not.toBeInTheDocument();
+
+    resolvePreferences?.({ tenant_enabled: false, types: [] });
+    await waitFor(() => expect(mocks.fetchPreferences).toHaveBeenCalledOnce());
+    expect(mocks.subscribePush).not.toHaveBeenCalled();
   });
 });

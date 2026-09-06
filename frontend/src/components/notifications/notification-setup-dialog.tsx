@@ -38,6 +38,7 @@ import {
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "NotificationSetupDialog" });
 const INSTALL_GUIDE_REMIND_MS = 24 * 60 * 60 * 1000;
@@ -67,8 +68,13 @@ function writeDecision(key: string, decision: StoredDecision): void {
   }
 }
 
-export function setupStorageKey(portal: PushPortal, accountId: string): string {
-  return `moto.${portal}.notification-setup.v1.${accountId}`;
+export function setupStorageKey(
+  portal: PushPortal,
+  accountId: string,
+  tenantSlug?: string | null,
+): string {
+  const tenantScope = portal === "tenant" && tenantSlug ? `.${tenantSlug}` : "";
+  return `moto.${portal}.notification-setup.v1${tenantScope}.${accountId}`;
 }
 
 /**
@@ -96,9 +102,10 @@ export function NotificationSetupDialog({
   onFinished?: () => void;
 }>) {
   const t = useTranslations("parentNotificationSetup");
+  const tenantSlug = useTenantSlugSafe();
   const storageKey = useMemo(
-    () => setupStorageKey(portal, accountId),
-    [accountId, portal],
+    () => setupStorageKey(portal, accountId, tenantSlug),
+    [accountId, portal, tenantSlug],
   );
   const [mode, setMode] = useState<SetupMode | null>(null);
   const [types, setTypes] = useState<NotificationPreferenceType[]>([]);
@@ -232,8 +239,11 @@ export function NotificationSetupDialog({
     try {
       const outcome = await triggerInstallPrompt();
       if (outcome === "accepted") {
+        // The Android install prompt comes before preferences are inspected.
+        // Do not expose the enable action until the follow-up inspection has
+        // confirmed that this tenant permits notifications and loaded its types.
         setInstallAccepted(true);
-        setMode("enable");
+        setMode(null);
       }
     } catch (err) {
       logger.warn("app_install_failed", {

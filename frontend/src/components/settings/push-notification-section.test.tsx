@@ -107,6 +107,10 @@ describe("PushNotificationSection", () => {
         "Öffnen Sie moto in Safari, Chrome, Edge oder Firefox und versuchen Sie es dort erneut.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("moto als App geöffnet")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("moto darf Sie benachrichtigen"),
+    ).not.toBeInTheDocument();
   });
 
   it("guides parent users through Android installation before push", async () => {
