@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -389,7 +389,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentModels.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentService.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -632,7 +632,7 @@ func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *enrollmentService.RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -710,13 +710,13 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) applyAdminOfferingUpdate(
 	r *http.Request, requestID, childID int64, body *AdminUpdateOfferingsRequest,
-) (*enrollmentModels.RequestChild, error) {
+) (*enrollmentService.RequestChild, error) {
 	selections, effectiveFrom, err := parseAdminOfferingUpdate(body)
 	if err != nil {
 		return nil, err
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var updated *enrollmentModels.RequestChild
+	var updated *enrollmentService.RequestChild
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID: requestID, ChildID: childID, Offerings: selections, Reason: body.Reason,

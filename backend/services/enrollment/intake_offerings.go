@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -13,7 +13,7 @@ type OfferingSelectionWriter interface {
 	ScheduleRequestChildOfferings(context.Context, int64, owner.Date, []*owner.RequestChildOffering) error
 }
 
-func writeOwnerOfferingSelections(ctx context.Context, writer OfferingSelectionWriter, childID int64, effectiveFrom *timezone.Date, selections []*legacy.RequestChildOffering) error {
+func writeOwnerOfferingSelections(ctx context.Context, writer OfferingSelectionWriter, childID int64, effectiveFrom *timezone.Date, selections []*RequestChildOffering) error {
 	values := make([]*owner.RequestChildOffering, len(selections))
 	for index, selection := range selections {
 		if selection == nil {
@@ -69,7 +69,7 @@ type OfferingSelectionReader interface {
 	RequestChildOfferingHistory(context.Context, int64) ([]*owner.RequestChildOffering, error)
 }
 
-func readOwnerOfferingSelections(ctx context.Context, reader OfferingSelectionReader, childID int64, onDate timezone.Date) ([]*legacy.RequestChildOffering, error) {
+func readOwnerOfferingSelections(ctx context.Context, reader OfferingSelectionReader, childID int64, onDate timezone.Date) ([]*RequestChildOffering, error) {
 	values, err := reader.RequestChildOfferingsAtDate(ctx, childID, owner.Date(onDate))
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func readOwnerOfferingSelections(ctx context.Context, reader OfferingSelectionRe
 	return legacyOfferingSelections(values), nil
 }
 
-func ReadOfferingHistory(ctx context.Context, reader OfferingHistoryReader, childID int64) ([]*legacy.RequestChildOffering, error) {
+func ReadOfferingHistory(ctx context.Context, reader OfferingHistoryReader, childID int64) ([]*RequestChildOffering, error) {
 	values, err := reader.RequestChildOfferingHistory(ctx, childID)
 	if err != nil {
 		return nil, err
@@ -85,16 +85,16 @@ func ReadOfferingHistory(ctx context.Context, reader OfferingHistoryReader, chil
 	return legacyOfferingSelections(values), nil
 }
 
-func legacyOfferingSelections(values []*owner.RequestChildOffering) []*legacy.RequestChildOffering {
+func legacyOfferingSelections(values []*owner.RequestChildOffering) []*RequestChildOffering {
 	if values == nil {
 		return nil
 	}
-	selections := make([]*legacy.RequestChildOffering, len(values))
+	selections := make([]*RequestChildOffering, len(values))
 	for index, value := range values {
 		if value == nil {
 			continue
 		}
-		selection := &legacy.RequestChildOffering{
+		selection := &RequestChildOffering{
 			RequestChildID: value.RequestChildID, CareOfferingID: value.CareOfferingID,
 			SelectedDays: value.SelectedDays, ManualSelectedDays: value.ManualSelectedDays,
 			AutomaticSelectedDays: value.AutomaticSelectedDays, Notes: value.Notes,
@@ -119,7 +119,7 @@ type OfferingSelectionBatchReader interface {
 	RequestChildOfferingsForChildrenAtDate(context.Context, []int64, owner.Date) ([]*owner.RequestChildOffering, error)
 }
 
-func readOwnerOfferingBatchHistory(ctx context.Context, reader OfferingSelectionBatchReader, childIDs []int64) ([]*legacy.RequestChildOffering, error) {
+func readOwnerOfferingBatchHistory(ctx context.Context, reader OfferingSelectionBatchReader, childIDs []int64) ([]*RequestChildOffering, error) {
 	values, err := reader.RequestChildOfferingHistoryForChildren(ctx, childIDs)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func readOwnerOfferingBatchHistory(ctx context.Context, reader OfferingSelection
 	return legacyOfferingSelections(values), nil
 }
 
-func readOwnerOfferingBatchSelections(ctx context.Context, reader OfferingSelectionBatchReader, childIDs []int64, onDate timezone.Date) ([]*legacy.RequestChildOffering, error) {
+func readOwnerOfferingBatchSelections(ctx context.Context, reader OfferingSelectionBatchReader, childIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error) {
 	values, err := reader.RequestChildOfferingsForChildrenAtDate(ctx, childIDs, owner.Date(onDate))
 	if err != nil {
 		return nil, err

@@ -338,7 +338,7 @@ func courseGroupMatchesTarget(group enrollmentModels.CourseGroup, catalog *Offer
 	return false
 }
 
-func courseTargetCatalog(child *enrollmentModels.RequestChild) *OfferingChangeCatalog {
+func courseTargetCatalog(child *RequestChild) *OfferingChangeCatalog {
 	catalog := &OfferingChangeCatalog{}
 	if child == nil {
 		return catalog
@@ -663,20 +663,20 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 		}
 	}
 	slices.Sort(childIDs)
-	childrenByID := make(map[int64]*enrollmentModels.RequestChild)
+	childrenByID := make(map[int64]*RequestChild)
 	if courseGroupsHaveTargets(groups) {
 		children, childErr := offeringChildrenByID(ctx, s.Children, slices.Compact(childIDs))
 		if childErr != nil {
 			return 0, fmt.Errorf("course request: load waitlist children: %w", childErr)
 		}
-		childrenByID = make(map[int64]*enrollmentModels.RequestChild, len(children))
+		childrenByID = make(map[int64]*RequestChild, len(children))
 		for _, child := range children {
 			if child != nil {
 				childrenByID[child.ID] = child
 			}
 		}
 	}
-	current := make([]*enrollmentModels.RequestChildOffering, 0)
+	current := make([]*RequestChildOffering, 0)
 	if len(dates) > 0 {
 		ownerDates := make(map[int64]enrollmentOwner.Date, len(dates))
 		for childID, date := range dates {
@@ -706,7 +706,7 @@ func courseWaitlistPositionFromRows(
 	offeringID int64,
 	groups []enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
-	childrenByID map[int64]*enrollmentModels.RequestChild,
+	childrenByID map[int64]*RequestChild,
 	bookedByChild map[int64]map[int64]bool,
 ) int {
 	position := 0
@@ -738,7 +738,7 @@ func courseRequestAfter(row, pending *enrollmentModels.OfferingChangeRequest) bo
 		(row.CreatedAt.Equal(pending.CreatedAt) && row.ID > pending.ID)
 }
 
-func courseGroupsMatchTarget(groups []enrollmentModels.CourseGroup, child *enrollmentModels.RequestChild) bool {
+func courseGroupsMatchTarget(groups []enrollmentModels.CourseGroup, child *RequestChild) bool {
 	if !courseGroupsHaveTargets(groups) {
 		return true
 	}

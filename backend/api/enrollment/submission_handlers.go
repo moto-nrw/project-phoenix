@@ -513,7 +513,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		req       *enrollmentModels.Request
-		children  []*enrollmentModels.RequestChild
+		children  []*enrollmentService.RequestChild
 		guardians []*capability.RequestGuardian
 		editMode  string
 		statusErr error
@@ -677,7 +677,7 @@ func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftCh
 	return responses
 }
 
-func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering) EditDraftChildResponse {
+func toEditDraftChildResponse(child *enrollmentService.RequestChild, offeringLinks []*enrollmentService.RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -698,7 +698,7 @@ func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLink
 	return response
 }
 
-func toEditDraftOfferingDayResponse(link *enrollmentModels.RequestChildOffering) *EditDraftOfferingDayResponse {
+func toEditDraftOfferingDayResponse(link *enrollmentService.RequestChildOffering) *EditDraftOfferingDayResponse {
 	if len(link.SelectedDays) == 0 {
 		return nil
 	}

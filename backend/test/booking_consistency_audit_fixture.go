@@ -35,7 +35,7 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
-	link := &enrollmentModel.RequestChildOffering{
+	link := &auditOfferingSelection{
 		RequestChildID: bookedChild.child.ID,
 		CareOfferingID: offering.ID,
 		SelectedDays:   []string{"mon", "tue"},
@@ -119,7 +119,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
-	arrivalLink := &enrollmentModel.RequestChildOffering{
+	arrivalLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
@@ -136,7 +136,7 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	futureOffering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, futureOffering, "days_of_week_mode", "pickup_times")
 	futureDate := auditDate.AddDays(1)
-	futureLink := &enrollmentModel.RequestChildOffering{
+	futureLink := &auditOfferingSelection{
 		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
 	}
@@ -163,12 +163,12 @@ func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 
 	splitDate := auditDate.AddDays(15)
 	phaseEndExclusive := timezone.Date(child.phase.ServiceEndDate).AddDays(1)
-	firstLink := &enrollmentModel.RequestChildOffering{
+	firstLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), firstLink)
-	secondLink := &enrollmentModel.RequestChildOffering{
+	secondLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
 	}
@@ -283,7 +283,7 @@ func auditFixtureTable(model any) string {
 		return "enrollment.phases"
 	case *enrollmentModel.CareOffering:
 		return "enrollment.care_offerings"
-	case *enrollmentModel.RequestChildOffering:
+	case *auditOfferingSelection:
 		return "enrollment.request_child_offerings"
 	case *scheduleModel.StudentArrivalSchedule:
 		return "schedule.student_arrival_schedules"

@@ -409,7 +409,7 @@ func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
 		{ID: 14, RequestChildID: 104, CreatedAt: createdAt.Add(-time.Minute), Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
 	}
 	gradeThree, gradeFour := int16(3), int16(4)
-	children := map[int64]*enrollmentModels.RequestChild{
+	children := map[int64]*RequestChild{
 		101: {TargetGradeLevel: &gradeThree},
 		102: {TargetGradeLevel: &gradeThree},
 		103: {TargetGradeLevel: &gradeThree},
