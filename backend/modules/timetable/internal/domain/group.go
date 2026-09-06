@@ -56,6 +56,7 @@ type GroupFilter struct {
 type CourseGroupFilter struct {
 	LegacyGroupIDs    []int64
 	SourceOfferingIDs []int64
+	EffectiveOn       string
 }
 
 type CourseGroup struct {

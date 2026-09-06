@@ -27,7 +27,7 @@ func (r manualPlanningReader) ListManualPlanningOccurrences(ctx context.Context,
 	return result, nil
 }
 
-func (r manualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offerings []enrollment.CourseOfferingReference) (map[int64][]enrollment.CourseGroup, error) {
+func (r manualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offerings []enrollment.CourseOfferingReference, effectiveOn timezone.Date) (map[int64][]enrollment.CourseGroup, error) {
 	if r.courseGroups == nil {
 		return repositories.NewManualPlanningQuery(r.db).CourseGroupsForOfferings(ctx, offerings)
 	}
@@ -45,6 +45,7 @@ func (r manualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offe
 			filter.LegacyGroupIDs = append(filter.LegacyGroupIDs, *offering.ActivityGroupID)
 		}
 	}
+	filter.EffectiveOn = effectiveOn.String()
 	groups, err := r.courseGroups.ListCourseGroups(ctx, filter)
 	if err != nil {
 		return nil, err

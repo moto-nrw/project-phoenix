@@ -1503,7 +1503,7 @@ func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context
 	return result, nil
 }
 
-func (r manualPlanningFixture) CourseGroupsForOfferings(ctx context.Context, offerings []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error) {
+func (r manualPlanningFixture) CourseGroupsForOfferings(ctx context.Context, offerings []enrollmentModels.CourseOfferingReference, _ timezone.Date) (map[int64][]enrollmentModels.CourseGroup, error) {
 	return repositories.NewManualPlanningQuery(r.db).CourseGroupsForOfferings(ctx, offerings)
 }
 

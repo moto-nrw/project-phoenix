@@ -129,14 +129,27 @@ func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupF
 	rows := []courseGroupRow{}
 	query := db.NewSelect().Model(&rows).ModelTableExpr(`activities.groups AS "group"`).
 		ColumnExpr(`"group".id, "group".archived_at IS NULL AS active, "group".max_participants,
-			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`).
-		ColumnExpr(`COALESCE(ARRAY(
+			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`)
+	if filter.EffectiveOn == "" {
+		query = query.ColumnExpr(`COALESCE(ARRAY(
 			SELECT DISTINCT schedule.weekday
 			FROM activities.schedules AS schedule
 			WHERE schedule.tenant_id = "group".tenant_id
 			  AND schedule.activity_group_id = "group".id
 			ORDER BY schedule.weekday
-		), ARRAY[]::integer[]) AS scheduled_weekdays`).
+		), ARRAY[]::integer[]) AS scheduled_weekdays`)
+	} else {
+		query = query.ColumnExpr(`COALESCE(ARRAY(
+			SELECT DISTINCT schedule.weekday
+			FROM activities.schedules AS schedule
+			WHERE schedule.tenant_id = "group".tenant_id
+			  AND schedule.activity_group_id = "group".id
+			  AND (schedule.valid_from IS NULL OR schedule.valid_from <= ?::date)
+			  AND (schedule.valid_until IS NULL OR schedule.valid_until > ?::date)
+			ORDER BY schedule.weekday
+		), ARRAY[]::integer[]) AS scheduled_weekdays`, filter.EffectiveOn, filter.EffectiveOn)
+	}
+	query = query.
 		Where(`"group".tenant_id = ?`, tenantID).
 		Where(`"group".type = ?`, "activity").
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {

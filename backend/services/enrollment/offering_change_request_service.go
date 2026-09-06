@@ -1670,7 +1670,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 		if projectionErr != nil {
 			return nil, projectionErr
 		}
-		groups, projectionErr = projection.CourseGroupsForOfferings(ctx, refs)
+		groups, projectionErr = projection.CourseGroupsForOfferings(ctx, refs, timezone.TodayDate())
 		if projectionErr != nil {
 			return nil, fmt.Errorf("offering change: mark course diff lines: %w", projectionErr)
 		}

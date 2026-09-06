@@ -74,6 +74,9 @@ type GroupFilter struct {
 type CourseGroupFilter struct {
 	LegacyGroupIDs    []int64
 	SourceOfferingIDs []int64
+	// EffectiveOn selects schedule weekdays that are valid on this calendar
+	// day. An empty value retains the compatibility view of all weekdays.
+	EffectiveOn string
 }
 
 // CourseGroup is the timetable-owned projection needed to present and enforce

@@ -52,7 +52,7 @@ func (r courseProjectionStub) ListManualPlanningOccurrences(context.Context, int
 	return nil, nil
 }
 
-func (r courseProjectionStub) CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error) {
+func (r courseProjectionStub) CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference, timezone.Date) (map[int64][]enrollmentModels.CourseGroup, error) {
 	return r.groups, nil
 }
 

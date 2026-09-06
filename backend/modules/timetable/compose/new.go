@@ -217,7 +217,7 @@ func (e engine) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([
 
 func (e engine) ListCourseGroups(ctx context.Context, filter timetable.CourseGroupFilter) ([]timetable.CourseGroup, error) {
 	values, err := e.service.ListCourseGroups(ctx, domain.CourseGroupFilter{
-		LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs,
+		LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs, EffectiveOn: filter.EffectiveOn,
 	})
 	if err != nil {
 		return nil, mapError(err)

@@ -38,7 +38,7 @@ import (
 // that course requests need. Its production adapter reaches the tenant-safe
 // timetable projection; it never exposes timetable repositories to enrollment.
 type CourseProjectionReader interface {
-	CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference) (map[int64][]enrollmentModels.CourseGroup, error)
+	CourseGroupsForOfferings(context.Context, []enrollmentModels.CourseOfferingReference, timezone.Date) (map[int64][]enrollmentModels.CourseGroup, error)
 	LockCourseGroups(context.Context, []int64) ([]enrollmentModels.CourseGroup, error)
 	CountActiveCourseEnrollments(context.Context, []int64, timezone.Date, timezone.Date, int64) (map[int64]int, error)
 }
@@ -324,7 +324,7 @@ func (s *offeringChangeRequestService) courseGroups(
 			})
 		}
 	}
-	projected, err := projection.CourseGroupsForOfferings(ctx, references)
+	projected, err := projection.CourseGroupsForOfferings(ctx, references, catalog.EarliestEffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("course request: list course groups: %w", err)
 	}
@@ -399,7 +399,7 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	if len(references) == 0 {
 		return nil
 	}
-	groups, err := projection.CourseGroupsForOfferings(ctx, references)
+	groups, err := projection.CourseGroupsForOfferings(ctx, references, catalog.EarliestEffectiveFrom)
 	if err != nil {
 		return fmt.Errorf("offering change: mark course diff lines: %w", err)
 	}
@@ -798,7 +798,7 @@ func (s *offeringChangeRequestService) courseGroupsForCompetingRequests(
 	if err != nil {
 		return nil, err
 	}
-	additionalGroups, err := projection.CourseGroupsForOfferings(ctx, references)
+	additionalGroups, err := projection.CourseGroupsForOfferings(ctx, references, timezone.TodayDate())
 	if err != nil {
 		return nil, fmt.Errorf("course request: load competing waitlist course groups: %w", err)
 	}
@@ -931,7 +931,7 @@ func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 	if err != nil {
 		return err
 	}
-	projected, err := projection.CourseGroupsForOfferings(ctx, references)
+	projected, err := projection.CourseGroupsForOfferings(ctx, references, from)
 	if err != nil {
 		return fmt.Errorf("course request: list course groups: %w", err)
 	}
