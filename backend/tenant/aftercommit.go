@@ -27,14 +27,6 @@ func (h *afterCommitHooks) add(fn func()) {
 	h.mu.Unlock()
 }
 
-func (h *afterCommitHooks) drain() []func() {
-	h.mu.Lock()
-	fns := h.fns
-	h.fns = nil
-	h.mu.Unlock()
-	return fns
-}
-
 // HasAfterCommitHooks reports whether ctx is inside WithTenantTx (or a
 // test holder) so RegisterAfterCommit will queue instead of running now.
 func HasAfterCommitHooks(ctx context.Context) bool {

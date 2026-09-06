@@ -113,10 +113,9 @@ type Option func(*Client)
 
 // WithAddressPolicy replaces the outbound address policy.
 //
-// Production must not call this: the public-only policy IS the SSRF guard.
-// It exists because the integration test has to reach a loopback server, and
-// a guard that a test can only satisfy by being switched off globally is a
-// guard that eventually gets switched off globally.
+// New uses this to install the public-only production default. Other production
+// callers must not override it: the public-only policy IS the SSRF guard. The
+// option exists because the integration test has to reach a loopback server.
 func WithAddressPolicy(policy AddressPolicy) Option { return func(c *Client) { c.policy = policy } }
 
 // WithTimeout bounds the whole transfer.
@@ -129,11 +128,15 @@ func WithMaxBytes(maxBytes int64) Option { return func(c *Client) { c.maxBytes =
 // system resolver, plain TCP.
 func New(opts ...Option) *Client {
 	client := &Client{
-		dial:     (&net.Dialer{}).DialContext,
-		resolve:  DefaultResolver,
-		policy:   PublicOnlyPolicy{},
-		timeout:  DefaultTimeout,
-		maxBytes: DefaultMaxBytes,
+		dial:    (&net.Dialer{}).DialContext,
+		resolve: DefaultResolver,
+	}
+	for _, opt := range []Option{
+		WithAddressPolicy(PublicOnlyPolicy{}),
+		WithTimeout(DefaultTimeout),
+		WithMaxBytes(DefaultMaxBytes),
+	} {
+		opt(client)
 	}
 	for _, opt := range opts {
 		opt(client)
