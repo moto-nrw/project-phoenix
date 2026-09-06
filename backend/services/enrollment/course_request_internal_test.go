@@ -224,18 +224,23 @@ func TestAddedCourseIDs(t *testing.T) {
 	})
 }
 
-func TestCourseWasAdded(t *testing.T) {
+func TestCourseWasAddedForGroups(t *testing.T) {
 	t.Parallel()
 
 	row := &enrollmentModels.OfferingChangeRequest{
 		Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 2}, {OfferingID: 5}}),
 	}
+	targetGroupIDs := map[int64]bool{70: true}
+	groupsByOffering := map[int64][]enrollmentModels.CourseGroup{
+		2: {{ID: 70, Active: true}},
+		5: {{ID: 70, Active: true}},
+	}
 
-	added, err := courseWasAdded(row, 2, map[int64]bool{5: true})
+	added, err := courseWasAddedForGroups(row, targetGroupIDs, groupsByOffering, map[int64]bool{5: true})
 	require.NoError(t, err)
 	assert.True(t, added)
 
-	retained, err := courseWasAdded(row, 5, map[int64]bool{5: true})
+	retained, err := courseWasAddedForGroups(row, targetGroupIDs, groupsByOffering, map[int64]bool{2: true, 5: true})
 	require.NoError(t, err)
 	assert.False(t, retained, "a care change that keeps a booked course is not queued")
 }
@@ -401,7 +406,7 @@ func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
 
 	createdAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	rows := []*enrollmentModels.OfferingChangeRequest{
-		{ID: 11, RequestChildID: 101, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
+		{ID: 11, RequestChildID: 101, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 8}})},
 		{ID: 12, RequestChildID: 102, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
 		{ID: 13, RequestChildID: 103, CreatedAt: createdAt, Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
 		{ID: 14, RequestChildID: 104, CreatedAt: createdAt.Add(-time.Minute), Payload: payloadFromSelections([]OfferingChangeSelection{{OfferingID: 7}})},
@@ -415,10 +420,14 @@ func TestCourseWaitlistPositionUsesGroupTargetAndRequestIDOrder(t *testing.T) {
 	}
 
 	position := courseWaitlistPositionFromRows(
-		rows, 7,
+		rows,
 		[]enrollmentModels.CourseGroup{{ID: 70, Active: true, SourceGradeLevels: []int{3}}},
+		map[int64][]enrollmentModels.CourseGroup{
+			7: {{ID: 70, Active: true, SourceGradeLevels: []int{3}}},
+			8: {{ID: 70, Active: true, SourceGradeLevels: []int{3}}},
+		},
 		rows[1], children, map[int64]map[int64]bool{},
 	)
 
-	assert.Equal(t, 2, position, "only the earlier same-target request precedes this one")
+	assert.Equal(t, 2, position, "the earlier request through another offering reaches the same course group")
 }

@@ -175,7 +175,9 @@ export function BookedCareSection({
   const pending =
     pendingRequest &&
     pendingRequest.diff.length > 0 &&
-    pendingRequest.diff.every((line) => line.is_course === true)
+    pendingRequest.diff.every(
+      (line) => line.is_course === true || isAutomaticallyDerivedAddition(line),
+    )
       ? undefined
       : pendingRequest;
   const decision = offerings?.last_decision;
@@ -496,5 +498,16 @@ export function BookedCareSection({
         />
       )}
     </div>
+  );
+}
+
+function isAutomaticallyDerivedAddition(
+  line: NonNullable<ChildCareOfferings["pending_request"]>["diff"][number],
+) {
+  return (
+    line.old_state === "not_booked" &&
+    line.new_state === "booked" &&
+    line.new_days.length > 0 &&
+    line.new_automatic_days?.length === line.new_days.length
   );
 }

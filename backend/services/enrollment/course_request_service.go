@@ -600,7 +600,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 			continue
 		}
 		position, posErr := s.courseWaitlistPosition(
-			ctx, course.OfferingID, groupsByOffering[course.OfferingID], pending,
+			ctx, groupsByOffering[course.OfferingID], groupsByOffering, pending,
 		)
 		if posErr != nil {
 			return posErr
@@ -659,8 +659,8 @@ func (s *offeringChangeRequestService) courseOccupancy(
 // "Platz 1".
 func (s *offeringChangeRequestService) courseWaitlistPosition(
 	ctx context.Context,
-	offeringID int64,
-	groups []enrollmentModels.CourseGroup,
+	targetGroups []enrollmentModels.CourseGroup,
+	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
 ) (int, error) {
 	rows, err := s.ChangeRepo.ListPendingForTenant(ctx, enrollmentModels.OfferingChangeQueueFilters{})
@@ -680,7 +680,7 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 	}
 	slices.Sort(childIDs)
 	childrenByID := make(map[int64]*RequestChild)
-	if courseGroupsHaveTargets(groups) {
+	if courseGroupsHaveTargets(targetGroups) {
 		children, childErr := offeringChildrenByID(ctx, s.Children, slices.Compact(childIDs))
 		if childErr != nil {
 			return 0, fmt.Errorf("course request: load waitlist children: %w", childErr)
@@ -714,26 +714,34 @@ func (s *offeringChangeRequestService) courseWaitlistPosition(
 		}
 		bookedByChild[link.RequestChildID][link.CareOfferingID] = true
 	}
-	return courseWaitlistPositionFromRows(rows, offeringID, groups, pending, childrenByID, bookedByChild), nil
+	return courseWaitlistPositionFromRows(rows, targetGroups, groupsByOffering, pending, childrenByID, bookedByChild), nil
 }
 
 func courseWaitlistPositionFromRows(
 	rows []*enrollmentModels.OfferingChangeRequest,
-	offeringID int64,
-	groups []enrollmentModels.CourseGroup,
+	targetGroups []enrollmentModels.CourseGroup,
+	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
 	childrenByID map[int64]*RequestChild,
 	bookedByChild map[int64]map[int64]bool,
 ) int {
+	targetGroupIDs := make(map[int64]bool, len(targetGroups))
+	for _, group := range targetGroups {
+		if group.Active {
+			targetGroupIDs[group.ID] = true
+		}
+	}
 	position := 0
 	for _, row := range rows {
 		if row == nil || courseRequestAfter(row, pending) {
 			continue
 		}
-		if !courseGroupsMatchTarget(groups, childrenByID[row.RequestChildID]) {
+		if !courseGroupsMatchTarget(targetGroups, childrenByID[row.RequestChildID]) {
 			continue
 		}
-		added, addedErr := courseWasAdded(row, offeringID, bookedByChild[row.RequestChildID])
+		added, addedErr := courseWasAddedForGroups(
+			row, targetGroupIDs, groupsByOffering, bookedByChild[row.RequestChildID],
+		)
 		if addedErr != nil {
 			// A payload we cannot read is not evidence of a competing course
 			// request; it is a row the review queue will surface anyway.
@@ -772,11 +780,13 @@ func courseGroupsHaveTargets(groups []enrollmentModels.CourseGroup) bool {
 	})
 }
 
-// courseWasAdded distinguishes a course request from another offering change
-// whose complete desired selection merely retains an already booked course.
-func courseWasAdded(
+// courseWasAddedForGroups distinguishes a course request from another offering
+// change whose complete desired selection merely retains a booked course. The
+// same course group can be reached through more than one care offering.
+func courseWasAddedForGroups(
 	row *enrollmentModels.OfferingChangeRequest,
-	offeringID int64,
+	targetGroupIDs map[int64]bool,
+	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 	booked map[int64]bool,
 ) (bool, error) {
 	selections, err := selectionsFromPayload(row.Payload)
@@ -784,28 +794,31 @@ func courseWasAdded(
 		return false, err
 	}
 	for _, selection := range selections {
-		if selection.OfferingID == offeringID {
-			return !booked[offeringID], nil
+		if booked[selection.OfferingID] {
+			continue
+		}
+		for _, group := range groupsByOffering[selection.OfferingID] {
+			if group.Active && targetGroupIDs[group.ID] {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
 }
 
-// assertCourseCapacityAvailable refuses an approval that would put one more
-// child into a full AG. It is a no-op for an offering without an AG, and for
-// an AG without a Teilnehmergrenze.
-func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
+// assertCourseCapacitiesAvailable refuses an approval that would put one more
+// child into a full AG. It locks every relevant group in one globally ordered
+// batch before reading occupancy, because several care offerings can share an
+// activity group.
+func (s *offeringChangeRequestService) assertCourseCapacitiesAvailable(
 	ctx context.Context,
 	studentID int64,
 	requestChildID int64,
-	offering *enrollmentModels.CareOffering,
+	offerings []*enrollmentModels.CareOffering,
 	effectiveFrom timezone.Date,
 ) error {
-	if offering == nil {
+	if len(offerings) == 0 {
 		return nil
-	}
-	if _, err := s.courseProjection(); err != nil {
-		return err
 	}
 	child, err := offeringChildByID(ctx, s.Children, requestChildID)
 	if err != nil {
@@ -814,31 +827,68 @@ func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	if child == nil {
 		return fmt.Errorf("course request: request child %d not found", requestChildID)
 	}
-	groups, hadCourseTarget, err := s.offeringCourseGroups(ctx, offering, child.TargetGradeLevel, child.TargetSchoolClass)
+	references := make([]enrollmentModels.CourseOfferingReference, 0, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			references = append(references, enrollmentModels.CourseOfferingReference{
+				OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
+			})
+		}
+	}
+	projection, err := s.courseProjection()
 	if err != nil {
 		return err
 	}
-	if len(groups) == 0 {
-		if hadCourseTarget {
-			return fmt.Errorf("%w: %s", ErrOfferingChangeInvalid, offering.Name)
+	projected, err := projection.CourseGroupsForOfferings(ctx, references)
+	if err != nil {
+		return fmt.Errorf("course request: list course groups: %w", err)
+	}
+	catalog := courseTargetCatalog(child)
+	groupsByOffering := make(map[int64][]enrollmentModels.CourseGroup, len(offerings))
+	allGroups := make([]enrollmentModels.CourseGroup, 0)
+	for _, offering := range offerings {
+		if offering == nil {
+			continue
 		}
+		groups, hadCourseTarget := activeCourseGroupsForTarget(projected[offering.ID], catalog)
+		if len(groups) == 0 {
+			if hadCourseTarget {
+				return fmt.Errorf("%w: %s", ErrOfferingChangeInvalid, offering.Name)
+			}
+			continue
+		}
+		groupsByOffering[offering.ID] = groups
+		allGroups = append(allGroups, groups...)
+	}
+	if len(allGroups) == 0 {
 		return nil
 	}
-	groups, err = s.lockCourseGroups(ctx, groups)
+	locked, err := s.lockCourseGroups(ctx, allGroups)
 	if err != nil {
 		return err
 	}
-	groupIDs := make([]int64, 0, len(groups))
-	for _, group := range groups {
+	lockedByID := make(map[int64]enrollmentModels.CourseGroup, len(locked))
+	groupIDs := make([]int64, 0, len(locked))
+	for _, group := range locked {
+		lockedByID[group.ID] = group
 		groupIDs = append(groupIDs, group.ID)
 	}
 	taken, err := s.courseOccupancy(ctx, groupIDs, effectiveFrom, studentID)
 	if err != nil {
 		return err
 	}
-	for _, group := range groups {
-		if group.ParticipantLimit != nil && taken[group.ID] >= *group.ParticipantLimit {
-			return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
+	for _, offering := range offerings {
+		if offering == nil {
+			continue
+		}
+		for _, group := range groupsByOffering[offering.ID] {
+			lockedGroup, ok := lockedByID[group.ID]
+			if !ok {
+				return fmt.Errorf("%w: %s", ErrOfferingChangeInvalid, offering.Name)
+			}
+			if lockedGroup.ParticipantLimit != nil && taken[lockedGroup.ID] >= *lockedGroup.ParticipantLimit {
+				return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
+			}
 		}
 	}
 	return nil
@@ -866,31 +916,6 @@ func (s *offeringChangeRequestService) lockCourseGroups(
 		return nil, fmt.Errorf("course request: lock course capacity: %w", err)
 	}
 	return locked, nil
-}
-
-// offeringCourseGroups resolves both link shapes for a single offering.
-func (s *offeringChangeRequestService) offeringCourseGroups(
-	ctx context.Context,
-	offering *enrollmentModels.CareOffering,
-	gradeLevel *int16,
-	schoolClass *string,
-) ([]enrollmentModels.CourseGroup, bool, error) {
-	projection, err := s.courseProjection()
-	if err != nil {
-		return nil, false, err
-	}
-	projected, err := projection.CourseGroupsForOfferings(ctx, []enrollmentModels.CourseOfferingReference{{
-		OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
-	}})
-	if err != nil {
-		return nil, false, fmt.Errorf("course request: list course groups: %w", err)
-	}
-	catalog := &OfferingChangeCatalog{TargetGradeLevel: gradeLevel}
-	if schoolClass != nil {
-		catalog.TargetSchoolClass = *schoolClass
-	}
-	groups, hadCourseTarget := activeCourseGroupsForTarget(projected[offering.ID], catalog)
-	return groups, hadCourseTarget, nil
 }
 
 func activeCourseGroupsForTarget(

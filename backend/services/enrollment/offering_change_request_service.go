@@ -2452,6 +2452,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	}
 	lockedByID := offeringsByID(locked)
 	phaseEndExclusive := timezone.Date(phase.ServiceEndDate).AddDays(1)
+	courseOfferings := make([]*enrollmentModels.CareOffering, 0, len(replacementOfferingIDs))
 	for _, offeringID := range replacementOfferingIDs {
 		offering := lockedByID[offeringID]
 		if offering == nil || (!held[offeringID] && !offering.IsActive) {
@@ -2460,13 +2461,23 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
 			continue
 		}
+		courseOfferings = append(courseOfferings, offering)
+	}
+	// Resolve every course group before acquiring any course lock. Each batch is
+	// ordered by group id, so approvals touching overlapping offerings cannot
+	// deadlock while each waits for the other's later group lock.
+	if err := s.assertCourseCapacitiesAvailable(ctx, studentID, requestChildID, courseOfferings, effectiveFrom); err != nil {
+		return err
+	}
+	for _, offeringID := range replacementOfferingIDs {
+		offering := lockedByID[offeringID]
+		if heldOfferingCoversRange(current, offeringID, phaseEndExclusive) {
+			continue
+		}
 		// A Kurs carries a second limit: the AG's Teilnehmergrenze, measured
 		// against its actual roster (#3075). Both limits are maintained by the
 		// school, so the stricter one decides; an approval must not silently
 		// overbook the AG because only the offering had room.
-		if err := s.assertCourseCapacityAvailable(ctx, studentID, requestChildID, offering, effectiveFrom); err != nil {
-			return err
-		}
 		if offering.Capacity == nil {
 			continue
 		}
