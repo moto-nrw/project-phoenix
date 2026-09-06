@@ -261,16 +261,18 @@ function NavigationProgressRouter({
   const router: AppRouterInstance | null = useContext(AppRouterContext);
   useEffect(() => {
     // Next 16 löst native `next/link`-Wechsel direkt über seine interne
-    // Router-Aktion aus. Die Capture-Phase meldet sie deshalb selbst, noch
-    // bevor Next die generische Ladehülle rendern kann.
+    // Router-Aktion aus. Das Dokumentelement liegt in der Capture-Phase nach
+    // `document`: Navigation Guards können den Klick dort zuerst abbrechen;
+    // erfolgreiche Links werden noch vor Nexts Router-Dispatch gemeldet.
     const handleLinkClick = (event: MouseEvent) => {
       const target = linkNavigationTarget(event);
       if (target !== null && target !== currentUrl()) {
         store.startLinkNavigation(target);
       }
     };
-    document.addEventListener("click", handleLinkClick, true);
-    return () => document.removeEventListener("click", handleLinkClick, true);
+    const root = document.documentElement;
+    root.addEventListener("click", handleLinkClick, true);
+    return () => root.removeEventListener("click", handleLinkClick, true);
   }, [store]);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede

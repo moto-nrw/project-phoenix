@@ -417,31 +417,21 @@ describe("NavigationProgress", () => {
     expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
-  it("ends a cancelled native link after the fallback timeout", () => {
-    vi.useFakeTimers();
+  it("does not start progress when a document navigation guard cancels a native link", () => {
+    const guard = (event: Event) => event.preventDefault();
+    document.addEventListener("click", guard, true);
     renderShell(
       <>
         <ProtectedLoading />
-        <NextLink
-          href="/calendar-periods"
-          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
-            event.preventDefault()
-          }
-        >
-          Planungszeiträume
-        </NextLink>
+        <NextLink href="/calendar-periods">Planungszeiträume</NextLink>
       </>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
-    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(10_000);
-    });
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
     expect(screen.getByLabelText("Lädt...")).toBeVisible();
+    document.removeEventListener("click", guard, true);
   });
 
   it("does not show progress when router.back cannot traverse history", () => {
