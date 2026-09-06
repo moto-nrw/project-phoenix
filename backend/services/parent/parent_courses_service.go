@@ -24,7 +24,7 @@ func (s *service) GetChildCourses(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentsView)
 	if err != nil {
 		// "Darf nicht anfragen" ist kein Fehler, sondern ein benannter Grund:
 		// sonst stünde an der Stelle eine Fehlermeldung statt einer Erklärung.
@@ -58,13 +58,13 @@ func (s *service) GetChildCourses(
 }
 
 // RequestChildCourse asks the OGS for one course. Requires
-// parent_portal.request.submit, the permission every parent request uses.
+// parent_portal.enrollment.submit, the permission for enrollment changes.
 func (s *service) RequestChildCourse(
 	ctx context.Context,
 	accountID, studentID, offeringID int64,
 	note string,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +106,20 @@ func (s *service) WithdrawChildCourseRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
 	if err != nil {
+		return nil, err
+	}
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrCourseRequestsDisabled
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		return s.OfferingChanges.WithdrawCourseRequest(txCtx, requestID, accountID, studentID)
 	})
 	if txErr != nil {

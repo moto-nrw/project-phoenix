@@ -147,11 +147,13 @@ func TestCourseItemsFromGroupsKeepsOnlyCourses(t *testing.T) {
 		{OfferingID: 1, Name: "Mittagessen", IsActive: true},
 		{OfferingID: 2, Name: "Fußball", IsActive: true, Selected: true},
 		{OfferingID: 3, Name: "Chor", IsActive: false},
+		{OfferingID: 4, Name: "Elternwahl", IsActive: true, DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
 		{OfferingID: 5, Name: "Ballett", IsActive: true},
 	}}
 	groups := map[int64][]int64{
 		2: {70},     // legacy link on the offering
 		3: {71},     // linked, but the offering is inactive
+		4: {74},     // course days would require a picker the course view has not
 		5: {72, 73}, // one offering split across two Regeltermine (#2137)
 	}
 
@@ -266,11 +268,10 @@ func TestCourseSelectionsWith(t *testing.T) {
 
 	t.Run("a course with fixed days travels without days", func(t *testing.T) {
 		t.Parallel()
-		course := &OfferingChangeCatalogItem{
-			OfferingID:     7,
-			Name:           "Fußball",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
-			AvailableDays:  []string{"wed"},
+		course := &CourseCatalogItem{
+			OfferingID:    7,
+			Name:          "Fußball",
+			AvailableDays: []string{"wed"},
 		}
 
 		selections := courseSelectionsWith(catalog, course)
@@ -284,19 +285,18 @@ func TestCourseSelectionsWith(t *testing.T) {
 		assert.Empty(t, selections[2].SelectedDays)
 	})
 
-	t.Run("a course the family may pick days for keeps them", func(t *testing.T) {
+	t.Run("course days are never inferred from availability", func(t *testing.T) {
 		t.Parallel()
-		course := &OfferingChangeCatalogItem{
-			OfferingID:     7,
-			Name:           "Fußball",
-			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
-			AvailableDays:  []string{"wed", "thu"},
+		course := &CourseCatalogItem{
+			OfferingID:    7,
+			Name:          "Fußball",
+			AvailableDays: []string{"wed", "thu"},
 		}
 
 		selections := courseSelectionsWith(catalog, course)
 
 		require.Len(t, selections, 3)
-		assert.Equal(t, []string{"wed", "thu"}, selections[2].SelectedDays)
+		assert.Empty(t, selections[2].SelectedDays)
 	})
 }
 
@@ -305,24 +305,22 @@ func TestCourseSelectionsWith(t *testing.T) {
 func TestCourseCatalogEntry(t *testing.T) {
 	t.Parallel()
 
-	catalog := &OfferingChangeCatalog{Items: []OfferingChangeCatalogItem{
-		{OfferingID: 1, Name: "Mittagessen", IsActive: true},
-		{OfferingID: 2, Name: "Fußball", IsActive: true},
-		{OfferingID: 3, Name: "Chor", IsActive: true, Selected: true},
-	}}
-	groups := map[int64][]int64{2: {70}, 3: {71}}
+	courses := []CourseCatalogItem{
+		{OfferingID: 2, Name: "Fußball"},
+		{OfferingID: 3, Name: "Chor", Booked: true},
+	}
 
-	entry, err := courseCatalogEntry(catalog, groups, 2)
+	entry, err := courseCatalogEntry(courses, 2)
 	require.NoError(t, err)
 	assert.Equal(t, "Fußball", entry.Name)
 
-	_, err = courseCatalogEntry(catalog, groups, 1)
+	_, err = courseCatalogEntry(courses, 1)
 	assert.ErrorIs(t, err, ErrCourseNotFound, "a care offering is not a course")
 
-	_, err = courseCatalogEntry(catalog, groups, 3)
+	_, err = courseCatalogEntry(courses, 3)
 	assert.ErrorIs(t, err, ErrCourseAlreadyBooked)
 
-	_, err = courseCatalogEntry(catalog, groups, 404)
+	_, err = courseCatalogEntry(courses, 404)
 	assert.ErrorIs(t, err, ErrCourseNotFound)
 }
 

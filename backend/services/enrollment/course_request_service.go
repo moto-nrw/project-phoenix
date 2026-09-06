@@ -251,7 +251,10 @@ func courseItemsFromGroups(
 	items := make([]CourseCatalogItem, 0, len(catalog.Items))
 	for _, item := range catalog.Items {
 		groupIDs := groupsByOffering[item.OfferingID]
-		if !item.IsActive || len(groupIDs) == 0 {
+		// The course view has no weekday picker. A parent-choice offering must
+		// therefore stay on the ordinary offering-change path, where the
+		// family explicitly selects its days.
+		if !item.IsActive || len(groupIDs) == 0 || item.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
 			continue
 		}
 		items = append(items, CourseCatalogItem{
@@ -368,6 +371,23 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	if err != nil {
 		return err
 	}
+	references, requestedIDs := courseDiffReferences(entries, offerings, requested)
+	if len(references) == 0 {
+		return nil
+	}
+	groups, err := projection.CourseGroupsForOfferings(ctx, references)
+	if err != nil {
+		return fmt.Errorf("offering change: mark course diff lines: %w", err)
+	}
+	markCourseDiffEntriesForGroups(entries, groups, catalog, requestedIDs)
+	return nil
+}
+
+func courseDiffReferences(
+	entries []OfferingChangeDiffEntry,
+	offerings map[int64]*enrollmentModels.CareOffering,
+	requested []OfferingChangeSelection,
+) ([]enrollmentModels.CourseOfferingReference, map[int64]bool) {
 	requestedIDs := make(map[int64]bool, len(requested))
 	for _, selection := range requested {
 		requestedIDs[selection.OfferingID] = true
@@ -378,22 +398,13 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 			continue
 		}
 		offering := offerings[entry.OfferingID]
-		if offering == nil {
-			continue
+		if offering != nil {
+			references = append(references, enrollmentModels.CourseOfferingReference{
+				OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
+			})
 		}
-		references = append(references, enrollmentModels.CourseOfferingReference{
-			OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
-		})
 	}
-	if len(references) == 0 {
-		return nil
-	}
-	groups, err := projection.CourseGroupsForOfferings(ctx, references)
-	if err != nil {
-		return fmt.Errorf("offering change: mark course diff lines: %w", err)
-	}
-	markCourseDiffEntriesForGroups(entries, groups, catalog, requestedIDs)
-	return nil
+	return references, requestedIDs
 }
 
 func markCourseDiffEntriesForGroups(
@@ -911,11 +922,11 @@ func (s *offeringChangeRequestService) CreateCourseRequest(
 	if err != nil {
 		return nil, err
 	}
-	_, groupsByOffering, err := s.courseItems(ctx, catalog)
+	courses, _, err := s.courseItems(ctx, catalog)
 	if err != nil {
 		return nil, err
 	}
-	course, err := courseCatalogEntry(catalog, courseGroupIDs(groupsByOffering), input.OfferingID)
+	course, err := courseCatalogEntry(courses, input.OfferingID)
 	if err != nil {
 		return nil, err
 	}
@@ -939,22 +950,18 @@ func (s *offeringChangeRequestService) CreateCourseRequest(
 }
 
 func courseCatalogEntry(
-	catalog *OfferingChangeCatalog,
-	groupsByOffering map[int64][]int64,
+	courses []CourseCatalogItem,
 	offeringID int64,
-) (*OfferingChangeCatalogItem, error) {
-	for i := range catalog.Items {
-		item := &catalog.Items[i]
-		if item.OfferingID != offeringID {
+) (*CourseCatalogItem, error) {
+	for i := range courses {
+		course := &courses[i]
+		if course.OfferingID != offeringID {
 			continue
 		}
-		if len(groupsByOffering[item.OfferingID]) == 0 || !item.IsActive {
-			return nil, ErrCourseNotFound
-		}
-		if item.Selected {
+		if course.Booked {
 			return nil, ErrCourseAlreadyBooked
 		}
-		return item, nil
+		return course, nil
 	}
 	return nil, ErrCourseNotFound
 }
@@ -964,7 +971,7 @@ func courseCatalogEntry(
 // contract the enrollment form and the change modal write.
 func courseSelectionsWith(
 	catalog *OfferingChangeCatalog,
-	course *OfferingChangeCatalogItem,
+	course *CourseCatalogItem,
 ) []OfferingChangeSelection {
 	selections := make([]OfferingChangeSelection, 0, len(catalog.Items)+1)
 	for _, item := range catalog.Items {
@@ -977,13 +984,9 @@ func courseSelectionsWith(
 		}
 		selections = append(selections, current)
 	}
-	// Die Tage werden nur mitgeschickt, wenn das Angebot eine Auswahl zulässt.
-	// Bei einem Kurs legt die Schule sie fast immer selbst fest, und eine
-	// mitgeschickte Auswahl weist der Server dann zurück.
+	// Kurse haben feste Tage. Angebote mit Elternwahl stehen nicht im
+	// Kurskatalog, weil die Kursansicht keine Tagesauswahl anbietet.
 	selection := OfferingChangeSelection{OfferingID: course.OfferingID}
-	if course.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
-		selection.SelectedDays = append([]string(nil), course.AvailableDays...)
-	}
 	return append(selections, selection)
 }
 

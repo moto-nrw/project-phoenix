@@ -173,6 +173,8 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 		o.ActivityGroupID = &group.ID
 		o.Capacity = &zero
 		o.SortOrder = 203
+		o.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+		o.AvailableDays = []string{"mon"}
 	})
 	_, err := svc.CreateCourseRequest(ctx, enrollmentService.CreateCourseRequestInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, OfferingID: course.ID,

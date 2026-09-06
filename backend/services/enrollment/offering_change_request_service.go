@@ -1584,6 +1584,14 @@ func (s *offeringChangeRequestService) pendingReviews(
 		}
 	}
 
+	type pendingCourseDiff struct {
+		review      *pendingReview
+		entries     []OfferingChangeDiffEntry
+		catalog     *OfferingChangeCatalog
+		requested   []OfferingChangeSelection
+		changedByID map[int64]bool
+	}
+	pendingCourseDiffs := make([]pendingCourseDiff, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -1636,20 +1644,41 @@ func (s *offeringChangeRequestService) pendingReviews(
 			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
-		if err := s.markCourseDiffEntries(ctx, entries, offeringsByID, courseTargetCatalog(child), requested); err != nil {
-			return nil, err
-		}
 		review := reviews[row.ID]
 		if review == nil {
 			continue
 		}
 		review.FullWithdrawal = leavesNoCareOfferings(entries, offeringsByID)
 		review.Unchanged = unchangedBookings(entries, changedByOfferingID)
-		entries = slices.DeleteFunc(entries, func(entry OfferingChangeDiffEntry) bool {
-			return !changedByOfferingID[entry.OfferingID] && len(entry.NewRuleDays) == 0
+		pendingCourseDiffs = append(pendingCourseDiffs, pendingCourseDiff{
+			review: review, entries: entries, catalog: courseTargetCatalog(child),
+			requested: requested, changedByID: changedByOfferingID,
 		})
-		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-		review.Diff = entries
+	}
+	refs := make([]enrollmentModels.CourseOfferingReference, 0, len(pendingCourseDiffs))
+	for _, diff := range pendingCourseDiffs {
+		batch, _ := courseDiffReferences(diff.entries, offeringsByID, diff.requested)
+		refs = append(refs, batch...)
+	}
+	groups := map[int64][]enrollmentModels.CourseGroup{}
+	if len(refs) > 0 {
+		projection, projectionErr := s.courseProjection()
+		if projectionErr != nil {
+			return nil, projectionErr
+		}
+		groups, projectionErr = projection.CourseGroupsForOfferings(ctx, refs)
+		if projectionErr != nil {
+			return nil, fmt.Errorf("offering change: mark course diff lines: %w", projectionErr)
+		}
+	}
+	for _, diff := range pendingCourseDiffs {
+		_, requestedIDs := courseDiffReferences(diff.entries, offeringsByID, diff.requested)
+		markCourseDiffEntriesForGroups(diff.entries, groups, diff.catalog, requestedIDs)
+		diff.entries = slices.DeleteFunc(diff.entries, func(entry OfferingChangeDiffEntry) bool {
+			return !diff.changedByID[entry.OfferingID] && len(entry.NewRuleDays) == 0
+		})
+		sort.SliceStable(diff.entries, func(i, j int) bool { return diff.entries[i].Label < diff.entries[j].Label })
+		diff.review.Diff = diff.entries
 	}
 	return reviews, nil
 }
