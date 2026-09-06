@@ -5,7 +5,6 @@ import {
   AppRouterContext,
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { getLinkForCurrentNavigation } from "next/dist/client/components/links";
 import {
   createContext,
   Suspense,
@@ -268,17 +267,7 @@ function NavigationProgressRouter({
     const handleLinkClick = (event: MouseEvent) => {
       const target = linkNavigationTarget(event);
       if (target !== null && target !== currentUrl()) {
-        // `next/link` setzt diesen Verweis synchron, sobald es seinen
-        // Router-Dispatch ausführt. Bleibt er unverändert, hat ein späterer
-        // Handler den Klick abgebrochen. `defaultPrevented` allein reicht
-        // nicht: Next setzt es auch bei jeder erfolgreichen Navigation.
-        const previousLink = getLinkForCurrentNavigation();
-        const navigationId = store.startLinkNavigation(target);
-        queueMicrotask(() => {
-          if (getLinkForCurrentNavigation() === previousLink) {
-            store.cancelNavigation(navigationId);
-          }
-        });
+        store.startLinkNavigation(target);
       }
     };
     const root = document.documentElement;
