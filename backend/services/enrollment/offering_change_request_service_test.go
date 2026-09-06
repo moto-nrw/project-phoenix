@@ -176,7 +176,8 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	counter := testpkg.CaptureQueries(t, env.db)
+	counter := testpkg.CaptureQueriesForContext(t, env.db)
+	ctx = counter.Context(ctx)
 	catalog, err := svc.CourseCatalog(ctx, fx.studentID, env.creatorID)
 	require.NoError(t, err)
 	var courseItem *enrollmentService.CourseCatalogItem
