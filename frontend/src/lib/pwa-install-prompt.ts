@@ -189,9 +189,32 @@ function isCurrentParentSettingsPath(): boolean {
   );
 }
 
+/**
+ * Die Seiten, auf denen die Karte "Benachrichtigungen auf diesem Gerät" steht.
+ * Auf dem Rechner ist das der einzige Ort mit einem Ersatz für Chromes eigene
+ * Installationswerbung; überall sonst bleibt sie unangetastet (#2831).
+ */
+function isCurrentDeviceSettingsPath(): boolean {
+  const pathname = window.location.pathname.replace(
+    /^\/(parents|school)(?=\/|$)/,
+    "",
+  );
+  return (
+    pathname === "/profile" ||
+    pathname === "/settings" ||
+    pathname === "/einstellungen"
+  );
+}
+
 // Never suppress Chrome unless the replacement card can actually render, or the
 // visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
+  // Auf dem Rechner gibt es keinen schwebenden Hinweis, sondern nur das
+  // Angebot in der Gerätekarte. Überall sonst behält Chrome sein eigenes
+  // Installationssymbol, so wie bisher.
+  if (isDesktopDevice(window.navigator)) {
+    return isCurrentInstallHost() && isCurrentDeviceSettingsPath();
+  }
   if (isCurrentTenantInstallHost()) {
     return isCurrentProtectedTenantPath() && isInstallHintEligible(window);
   }

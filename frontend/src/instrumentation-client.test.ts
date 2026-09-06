@@ -13,6 +13,9 @@ describe("instrumentation-client", () => {
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+    // Seit #2831 fängt auch der Schul-Host den Installationsdialog; der
+    // Hostname wird auf jedem Host geprüft und ist wie die anderen Pflicht.
+    vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
     vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
     localStorage.clear();

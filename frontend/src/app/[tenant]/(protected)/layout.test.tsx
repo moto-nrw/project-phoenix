@@ -19,6 +19,8 @@ vi.mock("~/lib/shell-auth-context", () => ({
   TeacherShellProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="teacher-shell-provider">{children}</div>
   ),
+  // Der geführte Einstieg im Layout (#2831) liest die Sitzung hierüber.
+  useShellAuthSafe: () => undefined,
 }));
 
 vi.mock("~/components/dashboard/app-shell", () => ({
