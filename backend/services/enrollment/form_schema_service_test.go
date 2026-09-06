@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -24,7 +26,7 @@ func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 
@@ -408,93 +410,34 @@ func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.
 	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound)
 }
 
-// newSchemaServiceWithRepo builds a service around an arbitrary repo so a
-// test can inject failures into a single repository method. Mirrors the
-// minimal config setupSchemaTest uses (RenameSchema only touches s.repo).
-func newSchemaServiceWithRepo(repo enrollmentModels.FormSchemaRepository) enrollmentService.FormSchemaService {
+// newSchemaServiceWithOwner injects an owner read failure without replacing storage.
+func newSchemaServiceWithOwner(repo enrollmentService.FormSchemaOwner) enrollmentService.FormSchemaService {
 	return enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repo,
+		Owner:  repo,
 		Logger: slog.Default(),
 	})
 }
 
-// existsCheckFailsRepo delegates to a real repo (so FindByID returns the
-// source row) but fails the name-existence probe, exercising RenameSchema's
-// "check existing name" error branch.
-type existsCheckFailsRepo struct {
-	enrollmentModels.FormSchemaRepository
+type activeSchemaReadFailure struct {
+	enrollmentService.FormSchemaOwner
+	err error
 }
 
-func (existsCheckFailsRepo) ExistsByName(context.Context, string) (bool, error) {
-	return false, errors.New("exists probe boom")
+func (r activeSchemaReadFailure) ActiveSchema(context.Context) (*capability.FormSchema, error) {
+	return nil, r.err
 }
 
-// renameExecFailsRepo reports no collision but fails the actual rename with a
-// plain (non-23505) error, exercising the generic rename error branch. The
-// 23505 race fallback needs a real concurrent unique-violation and is left to
-// the repository-level tests.
-type renameExecFailsRepo struct {
-	enrollmentModels.FormSchemaRepository
-}
-
-func (renameExecFailsRepo) ExistsByName(context.Context, string) (bool, error) {
-	return false, nil
-}
-
-func (renameExecFailsRepo) RenameByName(context.Context, string, string) error {
-	return errors.New("rename exec boom")
-}
-
-func TestFormSchemaService_RenameSchema_LoadErrorIsServerFault(t *testing.T) {
+func TestFormSchemaService_ActiveReadFailureStopsPublish(t *testing.T) {
 	t.Parallel()
-
-	_, _, _, tenantID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(tenantID)
-
-	// failingSchemaRepo (decision_export_integration_test.go) makes FindByID
-	// fail with a non-ErrNoRows error — a transient read fault, not a 404.
-	svc := newSchemaServiceWithRepo(failingSchemaRepo{})
-	_, err := svc.RenameSchema(ctx, 42, "Egal")
-	require.Error(t, err)
-	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
-		"a read fault must not be flattened into not-found")
-	assert.Contains(t, err.Error(), "load source schema")
-}
-
-func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T) {
-	t.Parallel()
-
-	db, svc, creatorID, tenantID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(tenantID)
-
-	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
-	}, creatorID)
-	require.NoError(t, err)
-
-	wrapped := newSchemaServiceWithRepo(existsCheckFailsRepo{repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).FormSchema})
-	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "check existing name")
-}
-
-func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) {
-	t.Parallel()
-
-	db, svc, creatorID, tenantID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(tenantID)
-
-	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
-		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
-	}, creatorID)
-	require.NoError(t, err)
-
-	wrapped := newSchemaServiceWithRepo(renameExecFailsRepo{repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).FormSchema})
-	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
-	require.Error(t, err)
-	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
-		"a plain rename failure is not a name collision")
-	assert.Contains(t, err.Error(), "rename schema")
+	testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	unavailable := errors.New("schema storage unavailable")
+	svc := newSchemaServiceWithOwner(activeSchemaReadFailure{err: unavailable})
+	_, err := svc.GetActive(ctx)
+	require.ErrorIs(t, err, unavailable)
+	require.NotErrorIs(t, err, enrollmentService.ErrNoActiveSchema)
+	_, err = svc.PublishForm(ctx, enrollmentService.PublishFormInput{})
+	require.ErrorIs(t, err, unavailable, "a read failure must not enter the default-schema creation path")
 }
 
 // TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage drives
@@ -566,8 +509,8 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 
 // TestFormSchemaService_RenameThenFailedPublish_RollsBackRename proves the
 // combined "rename + edit" save is atomic at the database level: the rename
-// and the version-publish ride in ONE tenant transaction (exactly as the
-// updateSchema handler wires them), so a publish failure rolls the rename
+// and the version-publish ride in ONE tenant transaction owned by the public
+// service method, so a publish failure rolls the rename
 // back. Without the shared transaction the rename would commit on its own and
 // leave a "renamed but content unchanged" lineage — the partial-save bug this
 // guards against. The publish is made to fail deterministically with a
@@ -592,19 +535,19 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 		return nil
 	}))
 
-	// One transaction, mirroring updateSchema's runInTenantTx: rename succeeds,
-	// then the publish fails on a reserved core key. The closure returns that
-	// error, so WithTenantTx rolls the whole transaction back.
-	txErr := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if _, err := svc.RenameSchema(ctx, lineageID, "Herbstfest"); err != nil {
-			return err
-		}
-		_, err := svc.UpdateSchema(ctx, lineageID, []enrollmentModels.FormField{
+	// No caller-supplied transaction: the public method must roll its own
+	// rename back when the subsequent publication rejects a reserved core key.
+	newName := "Herbstfest"
+	ctx := testpkg.WithTenantRuntime(t, testpkg.TenantContext(tenantID), db)
+	failed, txErr := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		ID: lineageID, Name: &newName, ActorID: creatorID,
+		Fields: []enrollmentModels.FormField{
 			{Key: "guardian_email", Label: "Email", Type: enrollmentModels.FormFieldText, SortOrder: 0},
-		}, creatorID)
-		return err
+		},
 	})
 	require.Error(t, txErr, "the reserved-key publish must fail and abort the transaction")
+	require.ErrorContains(t, txErr, "guardian_email")
+	require.Nil(t, failed)
 
 	// Neither change committed: the name is still the original and no new
 	// version row was inserted.
@@ -618,6 +561,18 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 			"the rename must roll back when the publish in the same transaction fails")
 		return nil
 	}))
+	retried, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		ID: lineageID, Name: &newName, ActorID: creatorID, Fields: field,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, retried.Version, "rollback must not consume a version")
+	require.Equal(t, newName, retried.Name)
+	versions, err := svc.ListVersions(ctx)
+	require.NoError(t, err)
+	require.Len(t, versions, 2)
+	for _, version := range versions {
+		require.Equal(t, newName, version.Name, "successful retry renames the entire lineage")
+	}
 }
 
 // --- PublishForm / PublishFormVersion (POST + PUT /schema orchestration) ---

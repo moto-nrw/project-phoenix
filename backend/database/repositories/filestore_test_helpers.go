@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	fileRepo "github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -52,7 +54,7 @@ func NewFileStoreTestRepositories(db *bun.DB, command auditModels.Command) (File
 	return FileStoreTestRepositories{
 		Folders: personFolderRepository{FolderRepository: fileRepo.NewFolderRepository(db), persons: persons},
 		Files:   fileRepo.NewFileRepository(db), Attachments: fileRepo.NewAnnouncementAttachmentRepository(db),
-		Events: NewFileEventTestRepository(db, command), Announcements: usersRepo.NewParentAnnouncementRepository(db),
+		Events: NewFileEventTestRepository(db, command), Announcements: usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New()),
 	}, nil
 }
 

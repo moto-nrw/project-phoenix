@@ -1,0 +1,8 @@
+{
+  "data": {
+    "request_id": "REQUEST_ID",
+    "status_url": "PARENTS_ORIGIN/anmeldung/status/STATUS_TOKEN"
+  },
+  "message": "Enrollment submitted",
+  "status": "success"
+}

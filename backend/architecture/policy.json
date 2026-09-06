@@ -422,6 +422,41 @@
   ],
   "packages": [
     {
+      "path": "modules/enrollment/enrollmenttest",
+      "owner": "enrollment",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/integration",
+      "owner": "enrollment",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment",
+      "owner": "enrollment",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/compose",
+      "owner": "enrollment",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/internal/adapters/postgres",
+      "owner": "enrollment",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": ".",
       "owner": "root-composition",
       "role": "compose",
@@ -3697,6 +3732,277 @@
     }
   ],
   "rules": [
+    {
+      "id": "people-directory.behavior-test.enrollment-support",
+      "description": "Announcement adapter tests compose Enrollment audience queries through owner test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.postgres.enrollment-query",
+      "description": "Care-exit cleanup consumes Enrollment-owned student-link and application-status facts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "audit.postgres.enrollment-query",
+      "description": "Booking consistency audit consumes Enrollment-owned approved booking facts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e.enrollment-support",
+      "description": "Cross-owner audit tests compose Enrollment through owner test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.postgres.enrollment-query",
+      "description": "Parent application lists consume Enrollment-owned request and phase projections.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.test-support.public",
+      "description": "Enrollment test support exposes the owner facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "test-support",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.test-support.compose",
+      "description": "Enrollment test support constructs the owner with production composition.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "test-support",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.behavior-test.test-support",
+      "description": "Enrollment behavior tests construct the public facade through owner test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment.domain.public",
+      "description": "Legacy Enrollment records use the owner form values and validation during the storage cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "domain",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.integration-test.enrollment-compose",
+      "description": "Parent enrollment compatibility tests exercise the Enrollment write owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.integration-test.enrollment.postgres",
+      "description": "Enrollment rollback tests inject failures around real owner writes while exercising the public command.",
+      "scopes": ["internal_test"],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "postgres"
+    },
+    {
+      "id": "enrollment.integration-test.enrollment.public",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.integration-test.enrollment.compose",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.integration-test.tenant-runtime.public",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.integration-test.test-support.test-support",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment.integration-test.orm-sql",
+      "description": "Enrollment integration tests arrange and verify PostgreSQL fixtures.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "legacy-composition.compose.to.enrollment.public",
+      "description": "legacy-composition compose uses the Enrollment cutover's enrollment public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.enrollment.compose",
+      "description": "legacy-composition compose uses the Enrollment cutover's enrollment compose boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.compose.to.enrollment.public",
+      "description": "enrollment compose uses the Enrollment cutover's enrollment public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.compose.to.enrollment.postgres",
+      "description": "enrollment compose uses the Enrollment cutover's enrollment postgres boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "postgres"
+    },
+    {
+      "id": "enrollment.compose.to.tenant-runtime.public",
+      "description": "enrollment compose uses the Enrollment cutover's tenant-runtime public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.postgres.to.enrollment.public",
+      "description": "enrollment postgres uses the Enrollment cutover's enrollment public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.to.enrollment.public",
+      "description": "enrollment application uses the Enrollment cutover's enrollment public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.compose.orm-sql",
+      "description": "Enrollment composition resolves the ambient Bun transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "enrollment.inbound-test.test-support",
+      "description": "Enrollment HTTP adapter tests compose the Enrollment owner through its test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
     {
       "id": "adapter-test.domain.contract",
       "description": "Adapter tests may fake domain contracts.",
@@ -10133,6 +10439,15 @@
       "target_role": "test-support"
     },
     {
+      "id": "test-support.to.enrollment-support",
+      "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
       "id": "enrollment-test.to.care-plan-support",
       "description": "Enrollment behavior tests compose Care Plan fixtures through its test support.",
       "scopes": ["external_test"],
@@ -10203,6 +10518,33 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "postgres"
+    },
+    {
+      "id": "identity-access.behavior-test.enrollment-public",
+      "description": "Guardian invitation integration fixtures create Enrollment requests through public owner values.",
+      "scopes": ["external_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.behavior-test.enrollment-public",
+      "description": "Sourced-template integration fixtures create Enrollment phases through public owner values.",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.internal-test.enrollment-public",
+      "description": "Parent care-period tests implement the Enrollment owner query port with public values.",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
     },
     {
       "id": "care-plan.integration-test.enrollment-domain",

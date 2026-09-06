@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
@@ -26,8 +28,8 @@ import (
 // on: phase, request, child linked to an enrolled student, plus two offerings
 // the child is booked into.
 type correctionFixture struct {
-	phase    *enrollmentModels.Phase
-	child    *enrollmentModels.RequestChild
+	phase    *capability.Phase
+	child    *capability.RequestChild
 	ganztag  *enrollmentModels.CareOffering
 	mittag   *enrollmentModels.CareOffering
 	tenantID int64
@@ -35,12 +37,11 @@ type correctionFixture struct {
 
 func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID int64, lastName string) *correctionFixture {
 	t.Helper()
-	ctx := t.Context()
 	phase := testpkg.CreateTestEnrollmentPhase(t, tc.db)
 	ganztag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Ganztag")
 	mittag := testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Mittagessen")
 
-	request := &enrollmentModels.Request{
+	request := &capability.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Erzieh",
 		GuardianLastName:  "Ungsberechtigt",
@@ -48,30 +49,28 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		StatusToken:       fmt.Sprintf("tok-%d", testpkg.UniqueSuffix()),
 	}
 	request.TenantID = tenantID
-	_, err := tc.db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(ctx)
-	require.NoError(t, err)
+	owner := testutil.NewEnrollmentOwner()
+	ownerCtx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), tc.db)
+	require.NoError(t, owner.InsertRequest(ownerCtx, request))
 
-	child := &enrollmentModels.RequestChild{
+	child := &capability.RequestChild{
 		RequestID:        request.ID,
 		FirstName:        "Zkorrektur",
 		LastName:         lastName,
-		DateOfBirth:      studentsTestToday.AddDays(-2500),
+		DateOfBirth:      capability.Date(studentsTestToday.AddDays(-2500)),
 		Status:           enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = tenantID
-	_, err = tc.db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, owner.InsertChild(ownerCtx, child))
 
 	for _, offering := range []*enrollmentModels.CareOffering{ganztag, mittag} {
-		link := &enrollmentModels.RequestChildOffering{
+		link := &capability.RequestChildOffering{
 			RequestChildID: child.ID,
 			CareOfferingID: offering.ID,
 		}
 		link.TenantID = tenantID
-		_, err = tc.db.NewInsert().Model(link).
-			ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(ctx)
-		require.NoError(t, err)
+		require.NoError(t, owner.InsertRequestChildOffering(ownerCtx, link))
 	}
 
 	return &correctionFixture{phase: phase, child: child, ganztag: ganztag, mittag: mittag, tenantID: tenantID}
@@ -157,7 +156,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// Eine Freigabe trägt seit #2484 immer das Datum, das die OGS bestätigt —
 	// hier das der Anfrage.
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"reason":"Passt","effective_from":%q}`, pending.EffectiveFrom.String()))
+		`{"approve":true,"reason":"Passt","effective_from":%q}`, string(pending.EffectiveFrom)))
 	rr := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
 		claims, perms)
@@ -219,7 +218,7 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 	// #2267: reason policy defaults to "both"
 	body := strings.NewReader(fmt.Sprintf(
 		`{"approve":true,"reason":"Passt so","effective_from":%q,"complete_withdrawal_confirmed":true}`,
-		pending.EffectiveFrom.String(),
+		string(pending.EffectiveFrom),
 	))
 	response := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
@@ -247,12 +246,17 @@ func insertPendingOfferingChangeRequest(
 				map[string]any{"offering_id": fixture.mittag.ID},
 			},
 		},
-		EffectiveFrom: studentsTestToday.AddDays(30),
+		EffectiveFrom: enrollmentModels.OfferingChangeDate(studentsTestToday.AddDays(30)),
 		Status:        enrollmentModels.OfferingChangeStatusPending,
 	}
 	row.TenantID = fixture.tenantID
-	_, err := tc.db.NewInsert().Model(row).
-		ModelTableExpr(`enrollment.offering_change_requests AS "offering_change_request"`).Exec(t.Context())
+	payload, err := json.Marshal(row.Payload)
+	require.NoError(t, err)
+	err = tc.db.NewRaw(`INSERT INTO enrollment.offering_change_requests
+		(tenant_id, student_id, request_child_id, submitted_by, payload, effective_from, status)
+		VALUES (?, ?, ?, ?, ?::jsonb, ?, ?) RETURNING id, created_at, updated_at`,
+		row.TenantID, row.StudentID, row.RequestChildID, row.SubmittedBy,
+		string(payload), row.EffectiveFrom, row.Status).Scan(t.Context(), row)
 	require.NoError(t, err)
 	return row
 }

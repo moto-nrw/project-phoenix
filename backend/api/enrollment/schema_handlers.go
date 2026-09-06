@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -35,7 +37,7 @@ type FormSchemaResponse struct {
 	CreatedAt        time.Time                         `json:"created_at"`
 }
 
-func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
+func toFormSchemaResponse(s *capability.FormSchema) FormSchemaResponse {
 	return FormSchemaResponse{
 		ID:               strconv.FormatInt(s.ID, 10),
 		Name:             s.Name,
@@ -149,8 +151,8 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		schema *enrollmentModels.FormSchema
-		phases []*enrollmentModels.Phase
+		schema *capability.FormSchema
+		phases []*capability.Phase
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		if schemaID > 0 {
@@ -210,7 +212,7 @@ func parseSchemaPreviewSchemaID(w http.ResponseWriter, r *http.Request) (int64, 
 	return parsed, true
 }
 
-func countAssignedPreviewPhases(phases []*enrollmentModels.Phase, schema *enrollmentModels.FormSchema) (int, int) {
+func countAssignedPreviewPhases(phases []*capability.Phase, schema *capability.FormSchema) (int, int) {
 	assigned := 0
 	active := 0
 	for _, phase := range phases {
@@ -252,7 +254,7 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
@@ -325,7 +327,7 @@ func (rs *Resource) getActiveSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.GetActive(ctx)
 		schema = s
@@ -351,7 +353,7 @@ func (rs *Resource) listSchemaVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schemas []*enrollmentModels.FormSchema
+	var schemas []*capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.ListVersions(ctx)
 		schemas = s
@@ -384,14 +386,18 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.GetByID(ctx, id)
 		schema = s
 		return innerErr
 	})
 	if txErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(txErr))
+		if errors.Is(txErr, sql.ErrNoRows) || errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(txErr))
 		return
 	}
 
@@ -421,7 +427,7 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, publishErr := rs.FormSchemaService.PublishForm(ctx, enrollmentService.PublishFormInput{
 			Name:             req.Name,
@@ -474,7 +480,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, publishErr := rs.FormSchemaService.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
 			ID:               id,
@@ -544,7 +550,7 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.RenameSchema(ctx, id, req.Name)
 		schema = s

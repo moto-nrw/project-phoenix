@@ -3,11 +3,9 @@ package enrollment
 import (
 	"testing"
 
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	baseModels "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *testing.T) {
@@ -18,14 +16,14 @@ func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *t
 	automaticOfferingID := int64(202)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		primaryOfferingID: {
-			Model:          baseModels.Model{ID: primaryOfferingID},
+			ID:             primaryOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
-			Model:                     baseModels.Model{ID: automaticOfferingID},
+			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -61,13 +59,13 @@ func TestMaterializeOfferingSelectionsSkipsAutomaticOfferingForNonMatchingGrade(
 	automaticOfferingID := int64(404)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		primaryOfferingID: {
-			Model:          baseModels.Model{ID: primaryOfferingID},
+			ID:             primaryOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon"},
 		},
 		automaticOfferingID: {
-			Model:                     baseModels.Model{ID: automaticOfferingID},
+			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon"},
@@ -96,7 +94,7 @@ func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T)
 	lunchOfferingID := int64(606)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		careOfferingID: {
-			Model:          baseModels.Model{ID: careOfferingID},
+			ID:             careOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
@@ -104,7 +102,7 @@ func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T)
 			SortOrder:      1,
 		},
 		lunchOfferingID: {
-			Model:          baseModels.Model{ID: lunchOfferingID},
+			ID:             lunchOfferingID,
 			Name:           "Mittagessen",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
@@ -136,7 +134,7 @@ func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *te
 	lunchOfferingID := int64(808)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		nonCareOfferingID: {
-			Model:          baseModels.Model{ID: nonCareOfferingID},
+			ID:             nonCareOfferingID,
 			Name:           "AG",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"fri"},
@@ -144,7 +142,7 @@ func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *te
 			SortOrder:      1,
 		},
 		lunchOfferingID: {
-			Model:          baseModels.Model{ID: lunchOfferingID},
+			ID:             lunchOfferingID,
 			Name:           "Mittagessen",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"fri"},
@@ -173,7 +171,7 @@ func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t 
 	secondAutomaticID := int64(903)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		secondAutomaticID: {
-			Model:                     baseModels.Model{ID: secondAutomaticID},
+			ID:                        secondAutomaticID,
 			Name:                      "Randstunde 2",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -181,14 +179,14 @@ func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t 
 			SortOrder:                 3,
 		},
 		primaryOfferingID: {
-			Model:          baseModels.Model{ID: primaryOfferingID},
+			ID:             primaryOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 			SortOrder:      1,
 		},
 		firstAutomaticID: {
-			Model:                     baseModels.Model{ID: firstAutomaticID},
+			ID:                        firstAutomaticID,
 			Name:                      "Randstunde 1",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -222,7 +220,7 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 	automaticOfferingID := int64(1002)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		manualOfferingID: {
-			Model:          baseModels.Model{ID: manualOfferingID},
+			ID:             manualOfferingID,
 			Name:           "Frühbetreuung",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon"},
@@ -231,7 +229,7 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
-			Model:                     baseModels.Model{ID: automaticOfferingID},
+			ID:                        automaticOfferingID,
 			Name:                      "Spätbetreuung",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon"},
@@ -258,14 +256,14 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferin
 	automaticOfferingID := int64(1102)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		manualOfferingID: {
-			Model:          baseModels.Model{ID: manualOfferingID},
+			ID:             manualOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "wed"},
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
-			Model:                     baseModels.Model{ID: automaticOfferingID},
+			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "wed"},
@@ -294,14 +292,14 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 	automaticOfferingID := int64(1202)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		manualOfferingID: {
-			Model:          baseModels.Model{ID: manualOfferingID},
+			ID:             manualOfferingID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon"},
 			SortOrder:      1,
 		},
 		automaticOfferingID: {
-			Model:                     baseModels.Model{ID: automaticOfferingID},
+			ID:                        automaticOfferingID,
 			Name:                      "Randstunde",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon"},
@@ -332,14 +330,14 @@ func TestMaterializeOfferingSelectionsExcludedTargetKeepsManualShare(t *testing.
 	targetID := int64(1102)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		triggerID: {
-			Model:          baseModels.Model{ID: triggerID},
+			ID:             triggerID,
 			Name:           "Randstunde",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 			SortOrder:      1,
 		},
 		targetID: {
-			Model:                     baseModels.Model{ID: targetID},
+			ID:                        targetID,
 			Name:                      "Ganztagsbetreuung",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -379,14 +377,14 @@ func TestMaterializeOfferingSelectionsExclusionCascadesThroughChain(t *testing.T
 	secondAutoID := int64(1203)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		primaryID: {
-			Model:          baseModels.Model{ID: primaryID},
+			ID:             primaryID,
 			Name:           "Randstunde",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 			SortOrder:      1,
 		},
 		firstAutoID: {
-			Model:                     baseModels.Model{ID: firstAutoID},
+			ID:                        firstAutoID,
 			Name:                      "Ganztag 14:30",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -394,7 +392,7 @@ func TestMaterializeOfferingSelectionsExclusionCascadesThroughChain(t *testing.T
 			SortOrder:                 2,
 		},
 		secondAutoID: {
-			Model:                     baseModels.Model{ID: secondAutoID},
+			ID:                        secondAutoID,
 			Name:                      "Ganztag 16:00",
 			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
@@ -426,7 +424,7 @@ func TestMaterializeOfferingSelectionsExclusionKeepsRequiredLunchDays(t *testing
 	lunchID := int64(1302)
 	openByID := map[int64]*enrollmentModels.CareOffering{
 		careID: {
-			Model:          baseModels.Model{ID: careID},
+			ID:             careID,
 			Name:           "Ganztag",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
@@ -434,7 +432,7 @@ func TestMaterializeOfferingSelectionsExclusionKeepsRequiredLunchDays(t *testing
 			SortOrder:      1,
 		},
 		lunchID: {
-			Model:          baseModels.Model{ID: lunchID},
+			ID:             lunchID,
 			Name:           "Mittagessen",
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},

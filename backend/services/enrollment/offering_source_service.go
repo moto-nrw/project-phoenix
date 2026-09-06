@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -94,7 +96,7 @@ func (s *decisionService) resyncTemplateOfferingRoster(ctx context.Context, in s
 		return fmt.Errorf("offering roster resync: enrollment repositories are not configured")
 	}
 
-	var phase *enrollmentModels.Phase
+	var phase *enrollmentOwner.Phase
 	wanted := make(map[int64][]*sourcedRosterTarget)
 	if len(in.OfferingIDs) > 0 {
 		offerings, offeringPhase, dropped, err := s.loadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID, in.TolerateDriftedSources)
@@ -444,7 +446,7 @@ func (s *decisionService) retireDepartingSourcedRows(
 	schoolClasses []string,
 	effectiveFrom timezone.Date,
 ) error {
-	departing, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offeringID}, effectiveFrom)
+	departing, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offeringID}, effectiveFrom)
 	if err != nil {
 		return fmt.Errorf("list departing offering children: %w", err)
 	}
@@ -531,8 +533,8 @@ func (s *decisionService) loadOfferingSources(
 	offeringIDs []int64,
 	calendarPeriodID *int64,
 	tolerateDrift bool,
-) ([]*enrollmentModels.CareOffering, *enrollmentModels.Phase, []int64, error) {
-	return loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, tolerateDrift)
+) ([]*enrollmentModels.CareOffering, *enrollmentOwner.Phase, []int64, error) {
+	return loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.Phases, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, tolerateDrift)
 }
 
 // loadValidatedOfferingSources runs the offering-source guard (#2137) per id
@@ -576,12 +578,12 @@ func (s *decisionService) loadOfferingSources(
 func loadValidatedOfferingSources(
 	ctx context.Context,
 	offeringRepo enrollmentModels.CareOfferingRepository,
-	phaseRepo enrollmentModels.PhaseRepository,
+	phaseRepo PhaseReader,
 	periodRepo scheduleModels.CalendarPeriodRepository,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
 	tolerateDrift bool,
-) (offerings []*enrollmentModels.CareOffering, phase *enrollmentModels.Phase, droppedIDs []int64, err error) {
+) (offerings []*enrollmentModels.CareOffering, phase *enrollmentOwner.Phase, droppedIDs []int64, err error) {
 	if len(offeringIDs) == 0 {
 		return nil, nil, nil, fmt.Errorf("%w: at least one care offering is required", scheduleService.ErrOfferingSourceInvalid)
 	}
@@ -632,7 +634,7 @@ func loadValidatedOfferingSources(
 		if phase == nil {
 			// The first surviving offering establishes the shared phase; the
 			// window check runs once since every later offering must match it.
-			phase, err = phaseRepo.FindByID(ctx, offering.PhaseID)
+			phase, err = phaseRepo.Phase(ctx, offering.PhaseID)
 			if err != nil {
 				if modelBase.IsNoRows(err) {
 					return nil, nil, nil, fmt.Errorf("%w: enrollment phase of care offering %d not found", scheduleService.ErrOfferingSourceInvalid, offeringID)
@@ -652,8 +654,8 @@ func loadValidatedOfferingSources(
 
 // offeringPhaseName resolves a phase name for the mixed-phase error message;
 // error path only, so a failed lookup falls back to the id.
-func offeringPhaseName(ctx context.Context, phaseRepo enrollmentModels.PhaseRepository, phaseID int64) string {
-	phase, err := phaseRepo.FindByID(ctx, phaseID)
+func offeringPhaseName(ctx context.Context, phaseRepo PhaseReader, phaseID int64) string {
+	phase, err := phaseRepo.Phase(ctx, phaseID)
 	if err != nil || phase == nil {
 		return fmt.Sprintf("phase %d", phaseID)
 	}
@@ -671,7 +673,7 @@ func offeringPhaseName(ctx context.Context, phaseRepo enrollmentModels.PhaseRepo
 func (s *decisionService) unionWantedSourcedRosterTargets(
 	ctx context.Context,
 	offerings []*enrollmentModels.CareOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	in scheduleService.OfferingRosterResyncInput,
 	envelopeFrom, envelopeUntil *timezone.Date,
 ) (map[int64][]*sourcedRosterTarget, error) {
@@ -728,11 +730,11 @@ func coverageFromSourcedTargets(targets []*sourcedRosterTarget) *legacyChildCove
 func (s *decisionService) wantedSourcedRosterTargets(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	in scheduleService.OfferingRosterResyncInput,
 	envelopeFrom, envelopeUntil *timezone.Date,
 ) (map[int64][]*sourcedRosterTarget, error) {
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offering.ID}, in.EffectiveFrom)
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, []int64{offering.ID}, in.EffectiveFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list approved children: %w", err)
 	}
@@ -833,27 +835,27 @@ func sameSourcedDraftDays(left, right *careEnrollmentDraft) bool {
 // must not outlive it. ok is false when the intersection is empty.
 func sourcedRosterWindow(
 	link *enrollmentModels.RequestChildOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	effectiveFrom timezone.Date,
 	envelopeFrom, envelopeUntil *timezone.Date,
 ) (validFrom, validUntil timezone.Date, ok bool) {
-	validFrom = phase.ServiceStartDate
+	validFrom = timezone.Date(phase.ServiceStartDate)
 	if effectiveFrom.After(validFrom) {
 		validFrom = effectiveFrom
 	}
 	if envelopeFrom != nil && envelopeFrom.After(validFrom) {
 		validFrom = *envelopeFrom
 	}
-	validUntil = phase.ServiceEndDate.AddDays(1)
+	validUntil = timezone.Date(phase.ServiceEndDate).AddDays(1)
 	if envelopeUntil != nil && envelopeUntil.Before(validUntil) {
 		validUntil = *envelopeUntil
 	}
 	if link != nil {
-		if link.ValidFrom != nil && link.ValidFrom.After(validFrom) {
-			validFrom = *link.ValidFrom
+		if link.ValidFrom != nil && timezone.Date(*link.ValidFrom).After(validFrom) {
+			validFrom = timezone.Date(*link.ValidFrom)
 		}
-		if link.ValidUntil != nil && link.ValidUntil.Before(validUntil) {
-			validUntil = *link.ValidUntil
+		if link.ValidUntil != nil && timezone.Date(*link.ValidUntil).Before(validUntil) {
+			validUntil = timezone.Date(*link.ValidUntil)
 		}
 	}
 	if !validFrom.Before(validUntil) {
@@ -887,7 +889,7 @@ func (s *decisionService) reconcileSourcedRosterRow(
 	if row == nil || row.EnrollmentRequestChildID == nil {
 		return false, nil
 	}
-	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
+	if row.ValidUntil != nil && !timezone.Date(*row.ValidUntil).After(effectiveFrom) {
 		return false, nil // history stays
 	}
 	childID := *row.EnrollmentRequestChildID
@@ -1184,11 +1186,11 @@ func (s *decisionService) legacyLinkedChildCoverage(
 			offeringIDs = append(offeringIDs, offering.ID)
 		}
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, onOrAfter)
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, onOrAfter)
 	if err != nil {
 		return nil, fmt.Errorf("offering roster resync: list legacy-linked children: %w", err)
 	}
-	phases := make(map[int64]*enrollmentModels.Phase)
+	phases := make(map[int64]*enrollmentOwner.Phase)
 	protected := make(map[int64]*legacyChildCoverage, len(children))
 	for _, child := range children {
 		coverage := protected[child.Link.RequestChildID]
@@ -1216,7 +1218,7 @@ func (s *decisionService) legacyLinkedChildCoverage(
 // legacy link still plans. nil without error means the link plans nothing.
 func (s *decisionService) legacyCoverageWindowForLink(
 	ctx context.Context,
-	phases map[int64]*enrollmentModels.Phase,
+	phases map[int64]*enrollmentOwner.Phase,
 	offering *enrollmentModels.CareOffering,
 	link *enrollmentModels.RequestChildOffering,
 	templateID int64,
@@ -1237,14 +1239,14 @@ func (s *decisionService) legacyCoverageWindowForLink(
 		return &legacyCoverageWindow{allWeekdays: true}, nil
 	}
 	window := &legacyCoverageWindow{
-		from:  cloneOptionalDraftDate(link.ValidFrom),
-		until: cloneOptionalDraftDate(link.ValidUntil),
+		from:  cloneOptionalDraftDate((*timezone.Date)(link.ValidFrom)),
+		until: cloneOptionalDraftDate((*timezone.Date)(link.ValidUntil)),
 	}
-	serviceStart := phase.ServiceStartDate
+	serviceStart := timezone.Date(phase.ServiceStartDate)
 	if window.from == nil || serviceStart.After(*window.from) {
 		window.from = &serviceStart
 	}
-	serviceEnd := phase.ServiceEndDate.AddDays(1)
+	serviceEnd := timezone.Date(phase.ServiceEndDate).AddDays(1)
 	if window.until == nil || serviceEnd.Before(*window.until) {
 		window.until = &serviceEnd
 	}
@@ -1284,13 +1286,13 @@ func (s *decisionService) legacyCoverageWindowForLink(
 // conservatively instead of failing the resync.
 func (s *decisionService) legacyCoveragePhase(
 	ctx context.Context,
-	phases map[int64]*enrollmentModels.Phase,
+	phases map[int64]*enrollmentOwner.Phase,
 	offering *enrollmentModels.CareOffering,
-) (*enrollmentModels.Phase, error) {
+) (*enrollmentOwner.Phase, error) {
 	if phase, ok := phases[offering.PhaseID]; ok {
 		return phase, nil
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := s.Phases.Phase(ctx, offering.PhaseID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			phases[offering.PhaseID] = nil
@@ -1500,10 +1502,10 @@ type OfferingSourceOptionLister interface {
 // request child — within one phase a child holds one request-child identity,
 // which is also the provenance tag the union resync seeds rows under.
 func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (*OfferingSourceCombinedCounts, error) {
-	if s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.RequestChildOfferingRepo == nil {
+	if s.CareOfferingRepo == nil || s.Phases == nil || s.ApprovedOfferings == nil {
 		return nil, fmt.Errorf("offering source counts: repositories are not configured")
 	}
-	offerings, _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.PhaseRepo, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
+	offerings, _, _, err := loadValidatedOfferingSources(ctx, s.CareOfferingRepo, s.Phases, s.CalendarPeriodRepo, offeringIDs, calendarPeriodID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1531,7 +1533,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 			countedFrom = timezone.Date(period.StartDate)
 		}
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, countedIDs, countedFrom)
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, countedIDs, countedFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering source counts: list approved children: %w", err)
 	}
@@ -1564,7 +1566,7 @@ func (s *decisionService) CombinedOfferingSourceCounts(ctx context.Context, offe
 // phase's service window lies within that period qualify — a source outside
 // the Planungszeitraum could never materialize a single occurrence.
 func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]OfferingSourceOption, error) {
-	if s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.RequestChildOfferingRepo == nil || s.ActivityGroupRepo == nil {
+	if s.CareOfferingRepo == nil || s.Phases == nil || s.ApprovedOfferings == nil || s.ActivityGroupRepo == nil {
 		return nil, fmt.Errorf("offering source options: repositories are not configured")
 	}
 	offerings, err := s.CareOfferingRepo.ListByTenant(ctx)
@@ -1597,7 +1599,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 	if period != nil && period.StartDate.After(scheduleModels.Date(countedFrom)) {
 		countedFrom = timezone.Date(period.StartDate)
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(ctx, offeringIDs, countedFrom)
 	if err != nil {
 		return nil, fmt.Errorf("offering source options: list approved children: %w", err)
 	}
@@ -1620,7 +1622,7 @@ func (s *decisionService) ListOfferingSourceOptions(ctx context.Context, calenda
 		}
 		if phase := phases[offering.PhaseID]; phase != nil {
 			option.PhaseName = phase.Name
-			option.PhaseServiceStart = phase.ServiceStartDate
+			option.PhaseServiceStart = timezone.Date(phase.ServiceStartDate)
 		}
 		if c := counts[offering.ID]; c != nil {
 			option.TotalCount = c.total
@@ -1658,8 +1660,8 @@ func sourcedTemplatesByOffering(templates []*activities.Group) map[int64][]*acti
 // offeringSourcePhases returns the tenant's phases keyed by id, restricted to
 // those fitting the calendar period when one is given. The loaded period is
 // returned alongside so the caller can scope its child counts to it.
-func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeriodID *int64) (map[int64]*enrollmentModels.Phase, *scheduleModels.CalendarPeriod, error) {
-	phases, err := s.PhaseRepo.ListByTenant(ctx)
+func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeriodID *int64) (map[int64]*enrollmentOwner.Phase, *scheduleModels.CalendarPeriod, error) {
+	phases, err := s.Phases.Phases(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering source options: list phases: %w", err)
 	}
@@ -1676,7 +1678,7 @@ func (s *decisionService) offeringSourcePhases(ctx context.Context, calendarPeri
 			return nil, nil, fmt.Errorf("offering source options: load calendar period: %w", err)
 		}
 	}
-	byID := make(map[int64]*enrollmentModels.Phase, len(phases))
+	byID := make(map[int64]*enrollmentOwner.Phase, len(phases))
 	for _, phase := range phases {
 		if phase == nil {
 			continue

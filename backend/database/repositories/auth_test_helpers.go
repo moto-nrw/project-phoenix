@@ -8,6 +8,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +36,7 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        authRepo.NewInvitationTokenRepository(db), GuardianInvitation: authRepo.NewGuardianInvitationRepository(db),
 		GuardianProfile: usersRepo.NewGuardianProfileRepository(db), StudentGuardian: usersRepo.NewStudentGuardianRepository(db),
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db)),
+		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New()),
 		MFACredential:           authRepo.NewMFACredentialRepository(db), MFAEmailChallenge: authRepo.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice: authRepo.NewMFATrustedDeviceRepository(db), MFAOverride: authRepo.NewMFAOverrideRepository(db),
 		PasskeyCredential: authRepo.NewPasskeyCredentialRepository(db), PasskeySession: authRepo.NewPasskeySessionRepository(db),

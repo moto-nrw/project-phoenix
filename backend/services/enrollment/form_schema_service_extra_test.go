@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -19,19 +21,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// setupFullSchemaTest layers PhaseRepo + RequestRepo onto the basic
-// schema service so the DeleteSchema branches (which check for phase /
-// request references) actually have something to look at.
+// setupFullSchemaTest provides repositories for phase and request fixtures
+// used to verify the schema owner's reference checks.
 func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:        repoFactory.FormSchema,
-		PhaseRepo:   repoFactory.Phase,
-		RequestRepo: repoFactory.Request,
-		Logger:      slog.Default(),
+		Owner:  repoFactory.Enrollment(),
+		Logger: slog.Default(),
 	})
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")
@@ -190,18 +189,18 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	require.NoError(t, err)
 
 	phaseName := uniqueSchemaName("form-schema-extra-repoint")
-	phase := &enrollmentModels.Phase{
+	phase := &phaseFixture.Phase{
 		Name:              phaseName,
 		Kind:              enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:  timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:    timezone.NewDate(2027, 7, 31),
+		ServiceStartDate:  phaseFixture.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:    phaseFixture.Date(timezone.NewDate(2027, 7, 31)),
 		FormSchemaID:      &v1.ID,
 		IsActive:          true,
 		CareOverflowMode:  enrollmentModels.PhaseCareOverflowWaitlist,
 		EnrollmentOpenAt:  nil,
 		EnrollmentCloseAt: nil,
 	}
-	require.NoError(t, repoFactory.Phase.Create(ctx, phase))
+	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), phase))
 
 	request := &enrollmentModels.Request{
 		SchemaID:          &v1.ID,
@@ -214,7 +213,7 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 		StatusToken:       "form-schema-extra-repoint-" + time.Now().Format("150405.000000"),
 		SubmittedAt:       time.Now().UTC(),
 	}
-	require.NoError(t, repoFactory.Request.Create(ctx, request))
+	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), request))
 
 	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
 		{Key: "field_a", Label: "Feld A (v2)", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
@@ -222,13 +221,13 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	require.NoError(t, err)
 	require.NotEqual(t, v1.ID, v2.ID)
 
-	gotPhase, err := repoFactory.Phase.FindByID(ctx, phase.ID)
+	gotPhase, err := repoFactory.Enrollment().Phase(ctx, phase.ID)
 	require.NoError(t, err)
 	require.NotNil(t, gotPhase.FormSchemaID)
 	assert.Equal(t, v2.ID, *gotPhase.FormSchemaID,
 		"phase must follow the newly published version of the same logical schema")
 
-	gotRequest, err := repoFactory.Request.FindByID(ctx, request.ID)
+	gotRequest, err := enrollmentService.ReadOwnerRequestForTest(ctx, repoFactory.Enrollment(), request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, gotRequest.SchemaID)
 	assert.Equal(t, v1.ID, *gotRequest.SchemaID,

@@ -515,9 +515,9 @@ type ServiceConfig struct {
 
 	// Booked care offerings read view (#1665). The offering side is reached
 	// through the approved enrollment behind the child.
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	CarePeriods      enrollmentSvc.StudentCarePeriodReader
+	OfferingHistory  enrollmentSvc.OfferingHistoryReader
+	CareOfferingRepo enrollmentModels.CareOfferingRepository
 	// OfferingChanges owns the post-enrollment change-request lifecycle; this
 	// service only authorizes the guardian and hands over.
 	OfferingChanges enrollmentSvc.OfferingChangeRequestService

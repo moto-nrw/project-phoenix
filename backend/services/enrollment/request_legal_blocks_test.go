@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +56,7 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 	t.Parallel()
 
 	svc := &requestService{}
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
 			{
 				Key:      enrollmentModels.ConsentKeyDataProcessing,
@@ -234,7 +236,7 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 			configModel.KeyEnrollmentLegalDSGVOEnabled: true,
 		},
 	}}}
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
 			{
 				Key:     enrollmentModels.ConsentKeyDataProcessing,

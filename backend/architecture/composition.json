@@ -7321,7 +7321,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        749
+        751
       ],
       "tables": []
     },
@@ -7331,7 +7331,7 @@
       "declaration": "setupGuardianInvitationTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        57
       ],
       "tables": []
     },
@@ -7341,7 +7341,7 @@
       "declaration": "setupGuardianInviteWithBackfiller",
       "target": "database/repositories.NewFactory",
       "lines": [
-        635
+        637
       ],
       "tables": []
     },
@@ -7927,7 +7927,7 @@
       "declaration": "TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        276
       ],
       "tables": []
     },
@@ -7937,7 +7937,7 @@
       "declaration": "calendarPeriodValidationFixture.createPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        83
+        86
       ],
       "tables": []
     },
@@ -7947,7 +7947,7 @@
       "declaration": "calendarPeriodValidationFixture.selectOfferingForSubmittedChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        183
+        186
       ],
       "tables": [
         "enrollment.request_children",
@@ -7960,7 +7960,7 @@
       "declaration": "TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom",
       "target": "database/repositories.NewFactory",
       "lines": [
-        112
+        114
       ],
       "tables": []
     },
@@ -7970,7 +7970,7 @@
       "declaration": "TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        434
       ],
       "tables": []
     },
@@ -7980,7 +7980,7 @@
       "declaration": "createCareMaterializationException",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        70
       ],
       "tables": []
     },
@@ -7990,7 +7990,7 @@
       "declaration": "setCareTestPhaseWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
+        60
       ],
       "tables": []
     },
@@ -8000,7 +8000,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        827
+        829
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -8013,7 +8013,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        775
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -8026,7 +8026,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        590
+        592
       ],
       "tables": []
     },
@@ -8036,7 +8036,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        562
       ],
       "tables": []
     },
@@ -8046,7 +8046,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        501
+        503
       ],
       "tables": []
     },
@@ -8056,7 +8056,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        405
+        407
       ],
       "tables": []
     },
@@ -8066,7 +8066,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        124
       ],
       "tables": [
         "activities.schedules"
@@ -8078,7 +8078,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        104
+        106
       ],
       "tables": []
     },
@@ -8088,7 +8088,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        53
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -8141,7 +8141,7 @@
       "declaration": "TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1543
+        1536
       ],
       "tables": []
     },
@@ -8151,7 +8151,7 @@
       "declaration": "TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1445
+        1438
       ],
       "tables": []
     },
@@ -8161,7 +8161,7 @@
       "declaration": "TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        548
+        541
       ],
       "tables": []
     },
@@ -8171,7 +8171,7 @@
       "declaration": "TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        697
+        690
       ],
       "tables": []
     },
@@ -8181,7 +8181,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename",
       "target": "database/repositories.NewFactory",
       "lines": [
-        526
+        519
       ],
       "tables": []
     },
@@ -8191,7 +8191,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1604
+        1597
       ],
       "tables": []
     },
@@ -8201,7 +8201,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsStaleBaseSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        470
+        463
       ],
       "tables": []
     },
@@ -8211,7 +8211,7 @@
       "declaration": "TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1482
+        1475
       ],
       "tables": []
     },
@@ -8221,7 +8221,7 @@
       "declaration": "TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        623
+        616
       ],
       "tables": []
     },
@@ -8231,7 +8231,7 @@
       "declaration": "TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        656
+        649
       ],
       "tables": []
     },
@@ -8241,7 +8241,7 @@
       "declaration": "TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1367
+        1360
       ],
       "tables": []
     },
@@ -8251,7 +8251,7 @@
       "declaration": "enableChangeRequestMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        251
+        244
       ],
       "tables": []
     },
@@ -8261,7 +8261,7 @@
       "declaration": "newChangeRequestServiceForTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        26
       ],
       "tables": []
     },
@@ -8271,7 +8271,7 @@
       "declaration": "newChangeRequestServiceForTestWithAuthorizer",
       "target": "database/repositories.NewFactory",
       "lines": [
-        33
+        34
       ],
       "tables": []
     },
@@ -8281,7 +8281,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3883
+        3865
       ],
       "tables": []
     },
@@ -8291,7 +8291,7 @@
       "declaration": "newDeletionTestFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        36
+        39
       ],
       "tables": []
     },
@@ -8301,7 +8301,7 @@
       "declaration": "setupFullSchemaTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        30
       ],
       "tables": [
         "auth.accounts",
@@ -8313,30 +8313,10 @@
     {
       "scope": "test",
       "file": "services/enrollment/form_schema_service_test.go",
-      "declaration": "TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        475
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/form_schema_service_test.go",
-      "declaration": "TestFormSchemaService_RenameSchema_RenameExecErrorPropagates",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        492
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/form_schema_service_test.go",
       "declaration": "setupSchemaTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        27
       ],
       "tables": [
         "auth.accounts",
@@ -8349,7 +8329,7 @@
       "declaration": "TestDecide_FansOutToMultiSourceTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1163
+        1166
       ],
       "tables": []
     },
@@ -8359,7 +8339,7 @@
       "declaration": "TestDecide_MultiSourceFanOutSeedsFromPhaseStart",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1291
+        1294
       ],
       "tables": []
     },
@@ -8369,7 +8349,7 @@
       "declaration": "TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1369
+        1372
       ],
       "tables": []
     },
@@ -8379,7 +8359,7 @@
       "declaration": "TestOfferingDelete_DegradesSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        892
+        895
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -8391,8 +8371,8 @@
       "declaration": "TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1205,
-        1257
+        1208,
+        1260
       ],
       "tables": [
         "activities.student_enrollments",
@@ -8405,8 +8385,8 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSources",
       "target": "database/repositories.NewFactory",
       "lines": [
-        940,
-        958
+        943,
+        961
       ],
       "tables": []
     },
@@ -8416,9 +8396,9 @@
       "declaration": "TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1020,
-        1041,
-        1047
+        1023,
+        1044,
+        1050
       ],
       "tables": []
     },
@@ -8428,7 +8408,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1413
+        1416
       ],
       "tables": []
     },
@@ -8438,7 +8418,7 @@
       "declaration": "TestResync_UnionAcrossOfferings_PlansSharedChildOnce",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1076
+        1079
       ],
       "tables": [
         "activities.student_enrollments"
@@ -8460,7 +8440,7 @@
       "declaration": "TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1323
+        1326
       ],
       "tables": []
     },
@@ -8470,7 +8450,7 @@
       "declaration": "createSourcedTemplate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
+        46
       ],
       "tables": []
     },
@@ -8490,7 +8470,7 @@
       "declaration": "setupPhaseTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        30
+        31
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -8514,7 +8494,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        68
       ],
       "tables": [
         "enrollment.request_children",
@@ -8528,7 +8508,7 @@
       "declaration": "TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        188
       ],
       "tables": [
         "enrollment.late_invites",
@@ -8542,7 +8522,7 @@
       "declaration": "TestRequestService_Edit_LocksAfterReviewStarted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1277
+        1354
       ],
       "tables": []
     },
@@ -8552,7 +8532,7 @@
       "declaration": "TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1199
+        1276
       ],
       "tables": []
     },
@@ -8562,7 +8542,7 @@
       "declaration": "TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1225
+        1302
       ],
       "tables": []
     },
@@ -8572,7 +8552,7 @@
       "declaration": "TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1428
+        1505
       ],
       "tables": []
     },
@@ -8582,7 +8562,7 @@
       "declaration": "TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1510
+        1587
       ],
       "tables": []
     },
@@ -8592,7 +8572,7 @@
       "declaration": "TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditionalOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1464
+        1541
       ],
       "tables": []
     },
@@ -8602,7 +8582,7 @@
       "declaration": "TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1541
+        1618
       ],
       "tables": []
     },
@@ -8612,7 +8592,7 @@
       "declaration": "TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSchemaChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2850
+        2932
       ],
       "tables": [
         "enrollment.phases"
@@ -8624,7 +8604,7 @@
       "declaration": "TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1784
+        1861
       ],
       "tables": []
     },
@@ -8634,7 +8614,7 @@
       "declaration": "TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1824
+        1901
       ],
       "tables": []
     },
@@ -8644,17 +8624,7 @@
       "declaration": "TestRequestService_ReplaceEditable_LocksAfterReviewStarted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1401
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/enrollment/request_service_test.go",
-      "declaration": "TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        304
+        1478
       ],
       "tables": []
     },
@@ -8664,7 +8634,7 @@
       "declaration": "TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization",
       "target": "database/repositories.NewFactory",
       "lines": [
-        337
+        412
       ],
       "tables": [
         "enrollment.phases",
@@ -8677,7 +8647,7 @@
       "declaration": "TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2309
+        2391
       ],
       "tables": []
     },
@@ -8687,7 +8657,7 @@
       "declaration": "TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1115
+        1188
       ],
       "tables": []
     },
@@ -8697,7 +8667,7 @@
       "declaration": "TestRequestService_Submit_BasisPhaseNoFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2813
+        2895
       ],
       "tables": [
         "enrollment.phases"
@@ -8709,7 +8679,7 @@
       "declaration": "TestRequestService_Submit_CapacityNullMeansUnlimited",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2601
+        2683
       ],
       "tables": []
     },
@@ -8719,7 +8689,7 @@
       "declaration": "TestRequestService_Submit_CapacityOverflowWaitlist",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2357
+        2439
       ],
       "tables": []
     },
@@ -8729,7 +8699,7 @@
       "declaration": "TestRequestService_Submit_EnforcesExactlyOneCareOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1028
+        1101
       ],
       "tables": []
     },
@@ -8739,7 +8709,7 @@
       "declaration": "TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1011
+        1084
       ],
       "tables": []
     },
@@ -8749,7 +8719,7 @@
       "declaration": "TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1057
+        1130
       ],
       "tables": []
     },
@@ -8759,7 +8729,7 @@
       "declaration": "TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2917
+        2999
       ],
       "tables": []
     },
@@ -8769,7 +8739,7 @@
       "declaration": "TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2462
+        2544
       ],
       "tables": []
     },
@@ -8779,7 +8749,7 @@
       "declaration": "TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3170
+        3252
       ],
       "tables": []
     },
@@ -8789,7 +8759,7 @@
       "declaration": "TestRequestService_Submit_PrunesNonCareDayPickupTimes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3102
+        3184
       ],
       "tables": []
     },
@@ -8799,7 +8769,7 @@
       "declaration": "TestRequestService_Submit_RateLimitTenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2164
+        2241
       ],
       "tables": [
         "enrollment.submission_rate_limits"
@@ -8811,7 +8781,7 @@
       "declaration": "TestRequestService_Submit_RejectsInactiveOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        994
+        1067
       ],
       "tables": []
     },
@@ -8821,7 +8791,7 @@
       "declaration": "TestRequestService_Submit_RejectsOutsideWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        658
+        731
       ],
       "tables": []
     },
@@ -8831,7 +8801,7 @@
       "declaration": "TestRequestService_Submit_RequiredStructuredFieldValidatesEntries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3006
+        3088
       ],
       "tables": []
     },
@@ -8841,7 +8811,7 @@
       "declaration": "TestRequestService_Submit_VisibleRequiredFieldStillEnforced",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2967
+        3049
       ],
       "tables": []
     },
@@ -8851,7 +8821,7 @@
       "declaration": "TestRequestService_Withdraw_DigestFailureRollsBackStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2015
+        2092
       ],
       "tables": []
     },
@@ -8861,7 +8831,7 @@
       "declaration": "TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1979
+        2056
       ],
       "tables": []
     },
@@ -8871,7 +8841,7 @@
       "declaration": "TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2051
+        2128
       ],
       "tables": []
     },
@@ -8881,7 +8851,7 @@
       "declaration": "TestRequestService_Withdraw_PerChildRejectsApproved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1947
+        2024
       ],
       "tables": []
     },
@@ -8891,7 +8861,7 @@
       "declaration": "publishPickupSchema",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3046
+        3128
       ],
       "tables": []
     },
@@ -8901,7 +8871,7 @@
       "declaration": "restrictClassesForEditDraftTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3243
+        3325
       ],
       "tables": []
     },
@@ -8911,7 +8881,7 @@
       "declaration": "setPhaseOverflowMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2271
+        2353
       ],
       "tables": []
     },
@@ -8921,7 +8891,7 @@
       "declaration": "setupCareOfferingForCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2236
+        2318
       ],
       "tables": []
     },
@@ -8931,7 +8901,7 @@
       "declaration": "setupRequestTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        164
+        243
       ],
       "tables": [
         "auth.accounts",
@@ -8949,7 +8919,7 @@
       "declaration": "withLateInviteRenewalFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        390
+        464
       ],
       "tables": [
         "enrollment.late_invites",
@@ -8964,7 +8934,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        365
+        364
       ],
       "tables": []
     },
@@ -8984,8 +8954,8 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        411,
-        420
+        410,
+        419
       ],
       "tables": []
     },
@@ -8995,7 +8965,7 @@
       "declaration": "TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull",
       "target": "database/repositories.NewFactory",
       "lines": [
-        463
+        462
       ],
       "tables": []
     },
@@ -9025,7 +8995,7 @@
       "declaration": "setupRolloverTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        56
       ],
       "tables": [
         "auth.accounts",
@@ -10312,7 +10282,7 @@
       "declaration": "TestArrivalBaselineCareDayWithoutAnyClassTime",
       "target": "database/repositories.NewFactory",
       "lines": [
-        160
+        168
       ],
       "tables": []
     },
@@ -10322,7 +10292,7 @@
       "declaration": "TestArrivalBaselineClassTimeAloneIsNoCareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        133
+        141
       ],
       "tables": []
     },
@@ -10332,7 +10302,7 @@
       "declaration": "TestArrivalBaselineHandlesStudentWithoutClassTimetable",
       "target": "database/repositories.NewFactory",
       "lines": [
-        108
+        116
       ],
       "tables": [
         "users.students"
@@ -10344,7 +10314,7 @@
       "declaration": "TestArrivalBaselineManualRowOverridesClassTime",
       "target": "database/repositories.NewFactory",
       "lines": [
-        182
+        190
       ],
       "tables": []
     },
@@ -10354,7 +10324,7 @@
       "declaration": "TestArrivalBaselineTakesTimeFromTheClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        63
       ],
       "tables": []
     },
@@ -11123,7 +11093,7 @@
       "declaration": "TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        323
+        325
       ],
       "tables": []
     },
@@ -11133,7 +11103,7 @@
       "declaration": "TestTemplateOfferingSource_RejectsInactiveOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        867
+        869
       ],
       "tables": [
         "enrollment.care_offerings"
@@ -11145,7 +11115,7 @@
       "declaration": "TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        800
+        802
       ],
       "tables": []
     },
@@ -11155,8 +11125,8 @@
       "declaration": "TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        916,
-        937
+        918,
+        939
       ],
       "tables": []
     },
@@ -11166,7 +11136,7 @@
       "declaration": "TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        393
+        395
       ],
       "tables": []
     },
@@ -11176,7 +11146,7 @@
       "declaration": "createSourceCareOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        55
       ],
       "tables": []
     },
@@ -11186,7 +11156,7 @@
       "declaration": "linkApprovedChildToOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        130
+        132
       ],
       "tables": [
         "users.students"
@@ -11198,7 +11168,7 @@
       "declaration": "loadTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        99
+        101
       ],
       "tables": []
     },
@@ -11208,8 +11178,8 @@
       "declaration": "TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting",
       "target": "database/repositories.NewFactory",
       "lines": [
-        370,
-        426
+        372,
+        428
       ],
       "tables": []
     },
@@ -11219,7 +11189,7 @@
       "declaration": "TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2203
+        2205
       ],
       "tables": []
     },
@@ -11229,7 +11199,7 @@
       "declaration": "createLinkedCareOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        260
+        262
       ],
       "tables": [
         "activities.groups"
@@ -11505,8 +11475,8 @@
       "declaration": "TestBookingAuthorityImpactAndActivationUseTheSameEvaluation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        159,
-        169
+        180,
+        190
       ],
       "tables": []
     },
@@ -11516,7 +11486,7 @@
       "declaration": "TestBookingMutationPlansFutureNaturalEndImmediately",
       "target": "database/repositories.NewFactory",
       "lines": [
-        469
+        490
       ],
       "tables": []
     },
@@ -11526,7 +11496,7 @@
       "declaration": "TestBookingParticipationBoundaryKeepsActualPresenceVisible",
       "target": "database/repositories.NewFactory",
       "lines": [
-        260
+        281
       ],
       "tables": []
     },
@@ -11536,7 +11506,7 @@
       "declaration": "TestConcurrentBookingAuthorityActivationCreatesOneCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        555
+        576
       ],
       "tables": []
     },
@@ -11546,7 +11516,7 @@
       "declaration": "TestConfirmedWithdrawalCannotBypassBookingAuthority",
       "target": "database/repositories.NewFactory",
       "lines": [
-        491
+        512
       ],
       "tables": []
     },
@@ -11556,8 +11526,8 @@
       "declaration": "TestNaturalBookingEndSchedulerIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338,
-        344
+        359,
+        365
       ],
       "tables": []
     },
@@ -11567,7 +11537,7 @@
       "declaration": "TestNaturalSchedulerPreservesConfirmedWithdrawalAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        365
+        386
       ],
       "tables": []
     },
@@ -11577,7 +11547,7 @@
       "declaration": "TestOverdueRebookingReplacesTheStaleCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        421
       ],
       "tables": []
     },
@@ -11587,7 +11557,7 @@
       "declaration": "assertFiniteRebookingHistory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        423
+        444
       ],
       "tables": [
         "enrollment.request_child_offerings",
@@ -11600,7 +11570,7 @@
       "declaration": "assertNonCareMutationKeepsConfirmedWithdrawal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        515
+        536
       ],
       "tables": []
     },

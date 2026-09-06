@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -49,18 +51,22 @@ type cleanupRequestStub struct {
 	deleted   []int64
 }
 
-func (s *cleanupRequestStub) ListFullyRejectedBefore(_ context.Context, cutoff time.Time) ([]int64, error) {
+func (s *cleanupRequestStub) DeleteRequestTree(ctx context.Context, id int64) error {
+	return s.DeleteRequest(ctx, id)
+}
+
+func (s *cleanupRequestStub) FullyRejectedRequestsBefore(_ context.Context, cutoff time.Time) ([]int64, error) {
 	s.cutoff = cutoff
 	return s.ids, s.listErr
 }
-func (s *cleanupRequestStub) FindByIDForUpdate(_ context.Context, id int64) (*enrollmentModels.Request, error) {
+func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*capability.Request, error) {
 	s.locked = append(s.locked, id)
 	if err := s.lockErr[id]; err != nil {
 		return nil, err
 	}
-	return &enrollmentModels.Request{}, nil
+	return &capability.Request{}, nil
 }
-func (s *cleanupRequestStub) DeleteByID(_ context.Context, id int64) error {
+func (s *cleanupRequestStub) DeleteRequest(_ context.Context, id int64) error {
 	if err := s.deleteErr[id]; err != nil {
 		return err
 	}
@@ -69,12 +75,15 @@ func (s *cleanupRequestStub) DeleteByID(_ context.Context, id int64) error {
 }
 
 type cleanupChildrenStub struct {
-	byRequestID map[int64][]*enrollmentModels.RequestChild
+	byRequestID map[int64][]*capability.RequestChild
 	errFor      map[int64]error
 	locked      []int64
 }
 
-func (s *cleanupChildrenStub) ListByRequestIDForUpdate(_ context.Context, requestID int64) ([]*enrollmentModels.RequestChild, error) {
+func (s *cleanupChildrenStub) ChildrenForRequest(_ context.Context, requestID int64, forUpdate bool) ([]*capability.RequestChild, error) {
+	if !forUpdate {
+		return nil, errors.New("cleanup must lock children")
+	}
 	s.locked = append(s.locked, requestID)
 	if err := s.errFor[requestID]; err != nil {
 		return nil, err
@@ -85,11 +94,11 @@ func (s *cleanupChildrenStub) ListByRequestIDForUpdate(_ context.Context, reques
 func eligibleCleanupChildren(requestIDs ...int64) *cleanupChildrenStub {
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
 	children := &cleanupChildrenStub{
-		byRequestID: make(map[int64][]*enrollmentModels.RequestChild, len(requestIDs)),
+		byRequestID: make(map[int64][]*capability.RequestChild, len(requestIDs)),
 		errFor:      map[int64]error{},
 	}
 	for _, requestID := range requestIDs {
-		children.byRequestID[requestID] = []*enrollmentModels.RequestChild{{
+		children.byRequestID[requestID] = []*capability.RequestChild{{
 			RequestID:  requestID,
 			Status:     enrollmentModels.ChildStatusRejected,
 			ReviewedAt: &reviewedAt,
@@ -110,7 +119,7 @@ type cleanupLateInvitesStub struct {
 	deleted []int64
 }
 
-func (s *cleanupLateInvitesStub) DeleteByUsedRequestID(_ context.Context, requestID int64) (int64, error) {
+func (s *cleanupLateInvitesStub) DeleteLateInvitesByUsedRequestID(_ context.Context, requestID int64) (int64, error) {
 	if err := s.errFor[requestID]; err != nil {
 		return 0, err
 	}
@@ -247,7 +256,7 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
-	children.byRequestID[11] = []*enrollmentModels.RequestChild{{
+	children.byRequestID[11] = []*capability.RequestChild{{
 		RequestID:  11,
 		Status:     enrollmentModels.ChildStatusUnderReview,
 		ReviewedAt: &reviewedAt,
@@ -311,16 +320,16 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		children []*enrollmentModels.RequestChild
+		children []*capability.RequestChild
 		want     bool
 	}{
 		{name: "no children"},
-		{name: "nil child", children: []*enrollmentModels.RequestChild{nil}},
-		{name: "reopened child", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
-		{name: "missing review time", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
-		{name: "review exactly at cutoff", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
-		{name: "review after cutoff", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
-		{name: "all rejected before cutoff", children: []*enrollmentModels.RequestChild{
+		{name: "nil child", children: []*capability.RequestChild{nil}},
+		{name: "reopened child", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
+		{name: "missing review time", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
+		{name: "review exactly at cutoff", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
+		{name: "review after cutoff", children: []*capability.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
+		{name: "all rejected before cutoff", children: []*capability.RequestChild{
 			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
 			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
 		}, want: true},

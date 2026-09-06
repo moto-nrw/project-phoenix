@@ -40,37 +40,37 @@ func newCompanionSyncApplier(
 	t.Helper()
 	repoFactory := testRepositories(t, env.db)
 	svc := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              repoFactory.Request,
-		RequestChildRepo:         repoFactory.RequestChild,
-		RequestGuardianRepo:      repoFactory.RequestGuardian,
-		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
-		CareOfferingRepo:         repoFactory.CareOffering,
-		PhaseRepo:                repoFactory.Phase,
-		FormSchemaRepo:           repoFactory.FormSchema,
-		OfferingAdjustmentRepo:   repoFactory.EnrollmentOfferingAdjustment,
-		PersonRepo:               repoFactory.Person,
-		StaffRepo:                repoFactory.Staff,
-		StudentRepo:              repoFactory.Student,
-		StudentGuardianRepo:      repoFactory.StudentGuardian,
-		GuardianProfileRepo:      repoFactory.GuardianProfile,
-		GuardianPhoneRepo:        repoFactory.GuardianPhoneNumber,
-		PickupScheduleRepo:       repoFactory.StudentPickupSchedule,
-		ArrivalScheduleRepo:      repoFactory.StudentArrivalSchedule,
-		StudentEnrollmentRepo:    repoFactory.StudentEnrollment,
-		ActivityGroupRepo:        repoFactory.ActivityGroup,
-		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
-		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
-		TimeframeRepo:            repoFactory.Timeframe,
-		ActivityExceptionRepo:    repoFactory.ActivityException,
-		AccountRepo:              repoFactory.Account,
-		AccountTenantRepo:        repoFactory.AccountTenant,
-		AccountRoleRepo:          repoFactory.AccountRole,
-		RoleRepo:                 repoFactory.Role,
-		OutboxEnqueuer:           env.outbox,
-		Broadcaster:              bc,
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		Logger:                   slog.Default(),
+		Requests:               repoFactory.Enrollment(),
+		Children:               repoFactory.Enrollment(),
+		Guardians:              repoFactory.Enrollment(),
+		ApprovedOfferings:      approvedOfferingTestProjection(repoFactory),
+		CareOfferingRepo:       repoFactory.CareOffering,
+		Phases:                 repoFactory.Enrollment(),
+		Schemas:                repoFactory.Enrollment(),
+		OfferingAdjustmentRepo: repoFactory.EnrollmentOfferingAdjustment,
+		PersonRepo:             repoFactory.Person,
+		StaffRepo:              repoFactory.Staff,
+		StudentRepo:            repoFactory.Student,
+		StudentGuardianRepo:    repoFactory.StudentGuardian,
+		GuardianProfileRepo:    repoFactory.GuardianProfile,
+		GuardianPhoneRepo:      repoFactory.GuardianPhoneNumber,
+		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
+		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
+		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,
+		ActivityGroupRepo:      repoFactory.ActivityGroup,
+		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:     repoFactory.CalendarPeriod,
+		TimeframeRepo:          repoFactory.Timeframe,
+		ActivityExceptionRepo:  repoFactory.ActivityException,
+		AccountRepo:            repoFactory.Account,
+		AccountTenantRepo:      repoFactory.AccountTenant,
+		AccountRoleRepo:        repoFactory.AccountRole,
+		RoleRepo:               repoFactory.Role,
+		OutboxEnqueuer:         env.outbox,
+		Broadcaster:            bc,
+		FrontendURL:            "http://localhost:3000",
+		ParentsURL:             "http://parents.localhost:3000",
+		Logger:                 slog.Default(),
 	})
 	applier, ok := svc.(enrollmentService.ChangeRequestDecisionApplier)
 	require.True(t, ok, "decision service must implement the change-request applier contract")
@@ -84,7 +84,7 @@ func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   env.repos.FormSchema,
+		Owner:  env.repos.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, name, []enrollmentModels.FormField{{
@@ -97,7 +97,7 @@ func publishCompanionModesSchema(t *testing.T, env *decisionTestEnv, name string
 	}}, env.creatorID)
 	require.NoError(t, err)
 	env.sourcePhase.FormSchemaID = &schema.ID
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 }
 
 // approveAccompaniedTuesdayChild submits and approves one child whose plan
@@ -188,12 +188,12 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 func narrowChildToBusMonday(t *testing.T, env *decisionTestEnv, childID int64) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 	child.CustomData = map[string]any{
 		"allowed_modes": map[string]any{"mon": []any{"bus"}},
 	}
-	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+	require.NoError(t, enrollmentService.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 }
 
 // syncApprovedChild runs the admin correction inside a tenant transaction, the

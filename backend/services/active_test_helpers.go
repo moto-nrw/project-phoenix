@@ -35,6 +35,10 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	groups, err := NewGroupsTestModule(db, unit)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -65,8 +69,8 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, r.RequestChildOffering, r.CareOffering, settings.Settings)
-	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student, r.ClassArrivalTime, r.ClassArrivalException, r.RequestChildOffering, r.CareOffering, settings.Settings)
+	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
+	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student, r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
 	careDay := schedule.NewCareDayService(schedule.CareDayDependencies{ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule,
 		ArrivalExceptions: r.StudentArrivalException, PickupBaselines: pickup, PickupExceptions: r.StudentPickupException})
 	care, err := NewCareLifecycleTestModule(db, unit)

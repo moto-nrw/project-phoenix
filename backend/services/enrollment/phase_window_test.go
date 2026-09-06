@@ -4,8 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,8 +13,8 @@ func windowPhase() *enrollmentModels.Phase {
 	return &enrollmentModels.Phase{
 		Name:             "Schuljahr 2026/27",
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		ServiceStartDate: "2026-09-01",
+		ServiceEndDate:   "2027-07-31",
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 }

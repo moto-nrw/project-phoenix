@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,33 @@ import (
 
 func issue(c *QueryCounter, sql string) {
 	c.BeforeQuery(context.Background(), &bun.QueryEvent{Query: sql})
+}
+
+type queryCounterRowResult int64
+
+func (r queryCounterRowResult) RowsAffected() (int64, error) { return int64(r), nil }
+func (r queryCounterRowResult) LastInsertId() (int64, error) { return 0, nil }
+
+func TestQueryCounterWriteRowsExcludeReadsAndFailedStatements(t *testing.T) {
+	t.Parallel()
+	c := NewQueryCounter()
+	ctx := context.Background()
+	for _, event := range []bun.QueryEvent{
+		{Query: "SELECT id FROM enrollment.requests", Result: queryCounterRowResult(100)},
+		{Query: "INSERT INTO enrollment.requests DEFAULT VALUES RETURNING id", Result: queryCounterRowResult(1)},
+		{Query: "UPDATE enrollment.requests SET status = ?", Result: queryCounterRowResult(2)},
+		{Query: "DELETE FROM enrollment.requests WHERE id = ?", Result: queryCounterRowResult(1)},
+		{Query: "UPDATE enrollment.requests SET status = ?", Result: queryCounterRowResult(9), Err: errors.New("failed")},
+	} {
+		c.AfterQuery(ctx, &event)
+	}
+	var expectedRows int64 = 4
+	assert.Equal(t, expectedRows, c.WriteRows())
+	c.Stop()
+	c.AfterQuery(ctx, &bun.QueryEvent{Query: "DELETE FROM enrollment.requests", Result: queryCounterRowResult(50)})
+	assert.Equal(t, expectedRows, c.WriteRows())
+	c.Reset()
+	assert.Zero(t, c.WriteRows())
 }
 
 func TestQueryCounterBucketsAndToggles(t *testing.T) {

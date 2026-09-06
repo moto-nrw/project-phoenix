@@ -8,11 +8,14 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,7 +32,7 @@ func uniqueSchemaName(prefix string) string {
 // the DB, the repo under test, the tenant id, and the creator id.
 // Cleans up the creator account on test end; schema rows are wiped
 // per-test by the caller via defer.
-func setupSchemaRepoTest(t *testing.T) (*bun.DB, enrollmentModels.FormSchemaRepository, int64, int64) {
+func setupSchemaRepoTest(t *testing.T) (*bun.DB, *capability.Module, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -42,7 +45,7 @@ func setupSchemaRepoTest(t *testing.T) (*bun.DB, enrollmentModels.FormSchemaRepo
 			Exec(context.Background())
 	})
 
-	repo := enrollmentRepo.NewFormSchemaRepository(db)
+	repo := enrollmentCompose.New()
 	return db, repo, tenantID, account.ID
 }
 
@@ -80,7 +83,7 @@ func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("create"),
 		Version:   1,
 		Fields:    validFields(),
@@ -88,7 +91,7 @@ func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
 		CreatedBy: creator,
 	}
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, schema)
+		return repo.InsertSchemaVersion(ctx, schema)
 	})
 	require.NoError(t, err)
 	assert.NotZero(t, schema.ID, "RETURNING * must populate ID")
@@ -104,13 +107,13 @@ func TestFormSchemaRepository_Create_RejectsInvalidSchema(t *testing.T) {
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		Version:   1,
 		CreatedBy: creator,
 		// Name intentionally empty.
 	}
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, schema)
+		return repo.InsertSchemaVersion(ctx, schema)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validation failed")
@@ -122,7 +125,7 @@ func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("find"),
 		Version:   1,
 		Fields:    validFields(),
@@ -130,14 +133,14 @@ func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
 		CreatedBy: creator,
 	}
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, schema)
+		return repo.InsertSchemaVersion(ctx, schema)
 	})
 	require.NoError(t, err)
 
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindByID(ctx, schema.ID)
+		got, fbErr = repo.Schema(ctx, schema.ID)
 		return fbErr
 	})
 	require.NoError(t, err)
@@ -153,10 +156,10 @@ func TestFormSchemaRepository_FindByID_NotFound(t *testing.T) {
 
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindByID(ctx, 9_999_999)
+		got, fbErr = repo.Schema(ctx, 9_999_999)
 		return fbErr
 	})
 	require.Error(t, err)
@@ -174,7 +177,7 @@ func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
-	active := &enrollmentModels.FormSchema{
+	active := &capability.FormSchema{
 		Name:      uniqueSchemaName("findactive"),
 		Version:   1,
 		Fields:    validFields(),
@@ -182,13 +185,13 @@ func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
 		CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, active)
+		return repo.InsertSchemaVersion(ctx, active)
 	}))
 
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindActive(ctx)
+		got, fbErr = repo.ActiveSchema(ctx)
 		return fbErr
 	})
 	require.NoError(t, err)
@@ -203,10 +206,10 @@ func TestFormSchemaRepository_FindActive_NoRowsReturnsWrappedErrNoRows(t *testin
 	// its own ErrNoActiveSchema sentinel. The wrap must preserve that.
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindActive(ctx)
+		got, fbErr = repo.ActiveSchema(ctx)
 		return fbErr
 	})
 	require.Error(t, err)
@@ -225,7 +228,7 @@ func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
 
 	name := uniqueSchemaName("list")
 	for i := 1; i <= 3; i++ {
-		s := &enrollmentModels.FormSchema{
+		s := &capability.FormSchema{
 			Name:      name,
 			Version:   i,
 			Fields:    validFields(),
@@ -233,14 +236,14 @@ func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
 			CreatedBy: creator,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, s)
+			return repo.InsertSchemaVersion(ctx, s)
 		}))
 	}
 
-	var list []*enrollmentModels.FormSchema
+	var list []*capability.FormSchema
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByTenant(ctx)
+		list, lErr = repo.SchemaVersions(ctx)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -266,10 +269,10 @@ func TestFormSchemaRepository_ListByTenant_EmptyIsNoError(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	var list []*enrollmentModels.FormSchema
+	var list []*capability.FormSchema
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByTenant(ctx)
+		list, lErr = repo.SchemaVersions(ctx)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -290,7 +293,7 @@ func TestFormSchemaRepository_NextVersion_StartsAt1WhenEmpty(t *testing.T) {
 	var next int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var nErr error
-		next, nErr = repo.NextVersion(ctx)
+		next, nErr = repo.NextSchemaVersion(ctx)
 		return nErr
 	})
 	require.NoError(t, err)
@@ -306,7 +309,7 @@ func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
 	name := uniqueSchemaName("bump")
 	otherName := uniqueSchemaName("other")
 	for i := 1; i <= 2; i++ {
-		s := &enrollmentModels.FormSchema{
+		s := &capability.FormSchema{
 			Name:      name,
 			Version:   i,
 			Fields:    validFields(),
@@ -314,21 +317,21 @@ func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
 			CreatedBy: creator,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, s)
+			return repo.InsertSchemaVersion(ctx, s)
 		}))
 	}
 	// A row for *another* name must not influence NextVersionForName(name).
-	otherS := &enrollmentModels.FormSchema{
+	otherS := &capability.FormSchema{
 		Name: otherName, Version: 1, Fields: validFields(), IsActive: true, CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, otherS)
+		return repo.InsertSchemaVersion(ctx, otherS)
 	}))
 
 	var next int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var nErr error
-		next, nErr = repo.NextVersionForName(ctx, name)
+		next, nErr = repo.NextSchemaVersionForName(ctx, name)
 		return nErr
 	})
 	require.NoError(t, err)
@@ -338,7 +341,7 @@ func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
 	freshName := uniqueSchemaName("fresh")
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var nErr error
-		next, nErr = repo.NextVersionForName(ctx, freshName)
+		next, nErr = repo.NextSchemaVersionForName(ctx, freshName)
 		return nErr
 	})
 	require.NoError(t, err)
@@ -354,7 +357,7 @@ func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.
 	defer wipeSchemas(db, tenantID, creator)
 
 	for i := 1; i <= 2; i++ {
-		s := &enrollmentModels.FormSchema{
+		s := &capability.FormSchema{
 			Name:      uniqueSchemaName(fmt.Sprintf("deact-%d", i)),
 			Version:   1,
 			Fields:    validFields(),
@@ -362,19 +365,19 @@ func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.
 			CreatedBy: creator,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, s)
+			return repo.InsertSchemaVersion(ctx, s)
 		}))
 	}
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.DeactivatePrevious(ctx)
+		return repo.DeactivateSchemas(ctx)
 	})
 	require.NoError(t, err)
 
-	var list []*enrollmentModels.FormSchema
+	var list []*capability.FormSchema
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByTenant(ctx)
+		list, lErr = repo.SchemaVersions(ctx)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -392,7 +395,7 @@ func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		Name:      uniqueSchemaName("flag"),
 		Version:   1,
 		Fields:    validFields(),
@@ -400,29 +403,29 @@ func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
 		CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, schema)
+		return repo.InsertSchemaVersion(ctx, schema)
 	}))
 
 	// Deactivate.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.UpdateActiveFlag(ctx, schema.ID, false)
+		return repo.SetSchemaActive(ctx, schema.ID, false)
 	}))
 
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindByID(ctx, schema.ID)
+		got, fbErr = repo.Schema(ctx, schema.ID)
 		return fbErr
 	}))
 	assert.False(t, got.IsActive)
 
 	// Re-activate.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.UpdateActiveFlag(ctx, schema.ID, true)
+		return repo.SetSchemaActive(ctx, schema.ID, true)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindByID(ctx, schema.ID)
+		got, fbErr = repo.Schema(ctx, schema.ID)
 		return fbErr
 	}))
 	assert.True(t, got.IsActive)
@@ -434,7 +437,7 @@ func TestFormSchemaRepository_UpdateActiveFlag_MissingIDErrors(t *testing.T) {
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.UpdateActiveFlag(ctx, 9_999_999, true)
+		return repo.SetSchemaActive(ctx, 9_999_999, true)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -450,7 +453,7 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 
 	name := uniqueSchemaName("delall")
 	for i := 1; i <= 3; i++ {
-		s := &enrollmentModels.FormSchema{
+		s := &capability.FormSchema{
 			Name:      name,
 			Version:   i,
 			Fields:    validFields(),
@@ -458,11 +461,11 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 			CreatedBy: creator,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, s)
+			return repo.InsertSchemaVersion(ctx, s)
 		}))
 	}
 	// Keep a row under a *different* name to confirm it survives.
-	survivor := &enrollmentModels.FormSchema{
+	survivor := &capability.FormSchema{
 		Name:      uniqueSchemaName("keep"),
 		Version:   1,
 		Fields:    validFields(),
@@ -470,11 +473,11 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 		CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, survivor)
+		return repo.InsertSchemaVersion(ctx, survivor)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.DeleteByName(ctx, name)
+		return repo.DeleteSchemaLineage(ctx, name)
 	}))
 
 	// Every version under `name` is gone.
@@ -500,7 +503,7 @@ func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.DeleteByName(ctx, "no-such-schema-name-"+t.Name())
+		return repo.DeleteSchemaLineage(ctx, "no-such-schema-name-"+t.Name())
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -525,7 +528,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 	otherStoredURL := "/uploads/enrollment-legal-documents/2_terms.pdf"
 	otherPublicURL := "/api/public/enrollment-legal-documents/2_terms.pdf"
 
-	storedSchema := &enrollmentModels.FormSchema{
+	storedSchema := &capability.FormSchema{
 		Name:      uniqueSchemaName("legal-stored"),
 		Version:   1,
 		Fields:    validFields(),
@@ -544,10 +547,10 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		}},
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, storedSchema)
+		return repo.InsertSchemaVersion(ctx, storedSchema)
 	}))
 
-	publicSchema := &enrollmentModels.FormSchema{
+	publicSchema := &capability.FormSchema{
 		Name:      uniqueSchemaName("legal-public"),
 		Version:   1,
 		Fields:    validFields(),
@@ -566,10 +569,10 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		}},
 	}
 	require.NoError(t, runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, publicSchema)
+		return repo.InsertSchemaVersion(ctx, publicSchema)
 	}))
 
-	documentURLSchema := &enrollmentModels.FormSchema{
+	documentURLSchema := &capability.FormSchema{
 		Name:      uniqueSchemaName("legal-document-url"),
 		Version:   1,
 		Fields:    validFields(),
@@ -589,13 +592,13 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		}},
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, documentURLSchema)
+		return repo.InsertSchemaVersion(ctx, documentURLSchema)
 	}))
 
 	var referenced bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var refErr error
-		referenced, refErr = repo.HasLegalDocumentReference(ctx, storedURL, publicURL)
+		referenced, refErr = repo.SchemaReferencesLegalDocument(ctx, storedURL, publicURL)
 		return refErr
 	})
 	require.NoError(t, err)
@@ -603,7 +606,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var refErr error
-		referenced, refErr = repo.HasLegalDocumentReference(ctx, documentStoredURL, documentPublicURL)
+		referenced, refErr = repo.SchemaReferencesLegalDocument(ctx, documentStoredURL, documentPublicURL)
 		return refErr
 	})
 	require.NoError(t, err)
@@ -611,7 +614,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 
 	err = runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
 		var refErr error
-		referenced, refErr = repo.HasLegalDocumentReference(ctx, otherStoredURL, otherPublicURL)
+		referenced, refErr = repo.SchemaReferencesLegalDocument(ctx, otherStoredURL, otherPublicURL)
 		return refErr
 	})
 	require.NoError(t, err)
@@ -619,7 +622,7 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var refErr error
-		referenced, refErr = repo.HasLegalDocumentReference(ctx, otherStoredURL, otherPublicURL)
+		referenced, refErr = repo.SchemaReferencesLegalDocument(ctx, otherStoredURL, otherPublicURL)
 		return refErr
 	})
 	require.NoError(t, err)
@@ -636,7 +639,7 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 
 	oldName := uniqueSchemaName("renall")
 	for i := 1; i <= 3; i++ {
-		s := &enrollmentModels.FormSchema{
+		s := &capability.FormSchema{
 			Name:      oldName,
 			Version:   i,
 			Fields:    validFields(),
@@ -644,11 +647,11 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 			CreatedBy: creator,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, s)
+			return repo.InsertSchemaVersion(ctx, s)
 		}))
 	}
 	// A row under a different name must keep its name untouched.
-	survivor := &enrollmentModels.FormSchema{
+	survivor := &capability.FormSchema{
 		Name:      uniqueSchemaName("keep"),
 		Version:   1,
 		Fields:    validFields(),
@@ -656,12 +659,12 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 		CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, survivor)
+		return repo.InsertSchemaVersion(ctx, survivor)
 	}))
 
 	newName := uniqueSchemaName("renamed")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.RenameByName(ctx, oldName, newName)
+		return repo.RenameSchemaLineage(ctx, oldName, newName)
 	}))
 
 	// All three versions now carry the new name; old name is gone.
@@ -694,7 +697,7 @@ func TestFormSchemaRepository_RenameByName_UnknownNameErrors(t *testing.T) {
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.RenameByName(ctx, "no-such-schema-name-"+t.Name(), "whatever")
+		return repo.RenameSchemaLineage(ctx, "no-such-schema-name-"+t.Name(), "whatever")
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -722,7 +725,7 @@ func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
 			Exec(context.Background())
 	})
 
-	schemaA := &enrollmentModels.FormSchema{
+	schemaA := &capability.FormSchema{
 		Name:      uniqueSchemaName("rlsA"),
 		Version:   1,
 		Fields:    validFields(),
@@ -730,15 +733,15 @@ func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
 		CreatedBy: creator,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantA, func(ctx context.Context) error {
-		return repo.Create(ctx, schemaA)
+		return repo.InsertSchemaVersion(ctx, schemaA)
 	}))
 
 	// Looking up the row from tenant B's session must fail (RLS hides
 	// the row entirely → "not found" via sql.ErrNoRows).
-	var got *enrollmentModels.FormSchema
+	var got *capability.FormSchema
 	err := runInTenantTx(t, db, tenantB, func(ctx context.Context) error {
 		var fbErr error
-		got, fbErr = repo.FindByID(ctx, schemaA.ID)
+		got, fbErr = repo.Schema(ctx, schemaA.ID)
 		return fbErr
 	})
 	require.Error(t, err, "cross-tenant FindByID must NOT see the other tenant's row")

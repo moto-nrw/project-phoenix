@@ -3,7 +3,6 @@ package repositories
 import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -11,6 +10,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +21,6 @@ type StudentTestRepositories struct {
 	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedAbsenceRequest        activeModels.ExcusedAbsenceRequestRepository
 	OfferingChangeRequest        enrollmentModels.OfferingChangeRequestRepository
-	OfferingChangeImpact         enrollmentModels.OfferingChangeImpactRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository
 	FamilyProtection             usersModels.FamilyProtectionEventRepository
@@ -71,7 +70,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		return StudentTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		OfferingChangeImpact:         enrollmentRepo.NewOfferingChangeImpactRepository(db),
 		ParentRequestEvent:           usersRepo.NewParentRequestEventRepository(db),
 		FamilyProtection:             usersRepo.NewFamilyProtectionEventRepository(db),
 		EnrollmentOfferingAdjustment: auditRepo.NewEnrollmentOfferingAdjustmentRepository(newTestAuditRuntime(db)),
@@ -84,7 +82,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents)
+	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
@@ -95,7 +93,6 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,
 		OfferingChangeRequest:        r.OfferingChangeRequest,
-		OfferingChangeImpact:         r.OfferingChangeImpact,
 		ParentRequestEvent:           r.ParentRequestEvent,
 		StudentDataChangeRequest:     r.StudentDataChangeRequest,
 		FamilyProtection:             r.FamilyProtection,

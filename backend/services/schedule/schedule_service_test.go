@@ -415,7 +415,7 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 
 	t.Run("creates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		startTime := time.Date(2026, time.September, 5, 8, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := &schedule.Timeframe{
 			StartTime:   startTime,
@@ -476,7 +476,7 @@ func TestScheduleService_UpdateTimeframe(t *testing.T) {
 
 	t.Run("updates timeframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		startTime := time.Date(2026, time.September, 5, 8, 0, 0, 0, time.UTC)
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, false)
 

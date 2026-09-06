@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -27,6 +28,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -317,7 +319,7 @@ type CreateLateInviteInput struct {
 }
 
 type CreateLateInviteResult struct {
-	Invite *enrollmentModels.LateInvite
+	Invite *enrollmentCapability.LateInvite
 	Token  string
 }
 
@@ -333,11 +335,11 @@ type materializedOfferingSelection struct {
 type EditDraft struct {
 	Request          *enrollmentModels.Request
 	Children         []*enrollmentModels.RequestChild
-	Guardians        []*enrollmentModels.RequestGuardian
+	Guardians        []*enrollmentCapability.RequestGuardian
 	OfferingsByChild map[int64][]*enrollmentModels.RequestChildOffering
-	Phase            *enrollmentModels.Phase
+	Phase            *enrollmentCapability.Phase
 	School           *platformModels.School
-	Schema           *enrollmentModels.FormSchema
+	Schema           *enrollmentCapability.FormSchema
 	OpenOfferings    []*enrollmentModels.CareOffering
 	LegalTexts       LegalTexts
 	EditMode         string
@@ -385,7 +387,7 @@ type RequestService interface {
 	// GuardiansByStatusToken returns the additional guardians (co-guardians)
 	// for the request behind a public status token. Kept separate from
 	// GetByStatusToken so the edit/withdraw callers stay untouched.
-	GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentModels.RequestGuardian, error)
+	GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentCapability.RequestGuardian, error)
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	Withdraw(ctx context.Context, token string, childID int64) error
 
@@ -443,14 +445,14 @@ type RequestService interface {
 	// existing_students) phase — those are reachable only through the
 	// authenticated parents-portal gate (LoadEnrolleePhaseWithLateInvite).
 	// Caller must be inside a tenant-tx.
-	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
+	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentCapability.Phase, error)
 	// LoadEnrolleePhaseWithLateInvite is the authenticated parents-portal
 	// counterpart to LoadPublicPhaseWithLateInvite; identical except it also
 	// admits the audience-restricted (linked_parents / existing_students)
 	// phases the caller's resolved guardian facts cover — the caller passes
 	// them as EnrolleeAudienceAccess, whose zero value is the public gate.
-	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error)
-	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
+	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentCapability.Phase, error)
+	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentCapability.Phase, error)
 
 	// LoadPublicFormBootstrap assembles everything the public enrollment
 	// form-load endpoint needs inside one tenant transaction: the gated
@@ -490,7 +492,7 @@ type RequestService interface {
 	// currently-active schema, or a custom form would leak its fields into
 	// every Basis phase. A pinned-but-deleted schema also returns
 	// ErrNoActiveSchema. Caller must be inside a tenant-tx.
-	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.FormSchema, error)
+	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentCapability.FormSchema, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -545,17 +547,28 @@ type GuardianStudentAuthorizer interface {
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 }
 
+// IntakeCatalog loads the phase and immutable schema used by intake workflows.
+type IntakeCatalog interface {
+	Phase(context.Context, int64) (*enrollmentCapability.Phase, error)
+	Schema(context.Context, int64) (*enrollmentCapability.FormSchema, error)
+}
+
 // RequestServiceConfig is the dep-injection bundle.
+type IntakeLateInvites interface {
+	DecisionLateInvites
+	InsertLateInvite(context.Context, *enrollmentCapability.LateInvite) error
+	UsableLateInvite(context.Context, string, int64, time.Time, bool) (*enrollmentCapability.LateInvite, error)
+	MarkLateInviteUsed(context.Context, int64, int64, time.Time) error
+}
+
 type RequestServiceConfig struct {
-	RequestRepo              enrollmentModels.RequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
-	LateInviteRepo           enrollmentModels.LateInviteRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	CareOfferingRepo         enrollmentModels.CareOfferingRepository
-	FormSchemaRepo           enrollmentModels.FormSchemaRepository
-	PhaseRepo                enrollmentModels.PhaseRepository
-	SchoolRepo               platformModels.SchoolRepository
+	Requests         IntakeRequests
+	Children         IntakeChildren
+	Guardians        IntakeGuardians
+	LateInviteRepo   IntakeLateInvites
+	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	Catalog          IntakeCatalog
+	SchoolRepo       platformModels.SchoolRepository
 	// StudentRepo backs the new_students audience check (#1663): a
 	// submission for a child who is already an enrolled student at the
 	// school is rejected. Nil-safe — without the repo the check is
@@ -574,7 +587,7 @@ type RequestServiceConfig struct {
 	// resolves an existing student, so only tests that never pin one leave it
 	// unset (the factory always wires it).
 	GuardianAuthorizer GuardianStudentAuthorizer
-	RateLimitRepo      enrollmentModels.SubmissionRateLimitRepository
+	RateLimitRepo      SubmissionRateLimiter
 	OutboxEnqueuer     platformModels.OutboxEnqueuer
 	Settings           RequestSettingsResolver
 	// ManualDecider approves the freshly submitted request in the manual
@@ -682,7 +695,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	for _, o := range openOfferings {
 		openByID[o.ID] = o
 	}
-	selectionMode := enrollmentModels.PhaseCareOfferingSelectionOptional
+	selectionMode := enrollmentCapability.PhaseCareOfferingSelectionOptional
 	if capabilities.CareOfferingsEnabled {
 		selectionMode = phase.CareOfferingSelectionMode
 	}
@@ -823,11 +836,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// takes two int4s OR one int8.
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 		emailHash := fnvHash64(emailLC)
-		if err := s.RequestRepo.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
+		if err := s.Requests.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
 			return fmt.Errorf("submit: acquire dedup lock: %w", err)
 		}
 
-		var lateInvite *enrollmentModels.LateInvite
+		var lateInvite *enrollmentCapability.LateInvite
 		if strings.TrimSpace(req.LateInviteToken) != "" {
 			invite, inviteErr := s.findLateInviteForSubmit(txCtx, req.LateInviteToken, phase.ID, now)
 			if inviteErr != nil {
@@ -852,7 +865,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// the rest of the tx. Different parents or different child
 		// names slip past untouched; rejected/withdrawn rows are
 		// ignored, so a parent can re-apply after a denial.
-		dupes, dupErr := s.RequestRepo.FindActiveDuplicate(txCtx, phase.ID, req.GuardianEmail, dupKeys)
+		dupes, dupErr := s.Requests.ActiveDuplicateChildren(txCtx, phase.ID, req.GuardianEmail, dupKeys, 0)
 		if dupErr != nil {
 			return fmt.Errorf("submit: duplicate check: %w", dupErr)
 		}
@@ -881,6 +894,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			id := schema.ID
 			schemaID = &id
 		}
+		snapshotEntry, err := legalBlocksSnapshotEntry(legalBlocks, req.ConsentFlags, time.Now())
+		if err != nil {
+			return fmt.Errorf("submit: create request: %w", err)
+		}
 		request := &enrollmentModels.Request{
 			SchemaID:           schemaID,
 			PhaseID:            phase.ID,
@@ -896,15 +913,15 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			StatusToken:        statusToken,
 			StatusTokenExpires: &statusExpiresAt,
 			SubmittedAt:        time.Now(),
-			LegalBlocksSnapshot: []enrollmentModels.LegalBlocksSnapshotEntry{
-				legalBlocksSnapshotEntry(legalBlocks, req.ConsentFlags, time.Now()),
+			LegalBlocksSnapshot: []enrollmentCapability.LegalBlocksSnapshotEntry{
+				snapshotEntry,
 			},
 		}
-		if err := s.RequestRepo.Create(txCtx, request); err != nil {
+		if err := createIntakeRequest(txCtx, s.Requests, request); err != nil {
 			return fmt.Errorf("submit: create request: %w", err)
 		}
 		if lateInvite != nil {
-			if err := s.LateInviteRepo.MarkUsed(txCtx, lateInvite.ID, request.ID, time.Now()); err != nil {
+			if err := s.LateInviteRepo.MarkLateInviteUsed(txCtx, lateInvite.ID, request.ID, time.Now()); err != nil {
 				return fmt.Errorf("submit: mark late invite used: %w", err)
 			}
 		}
@@ -913,9 +930,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// Additional guardians (co-guardians). Already normalized +
 		// validated above. Stored here; materialized as students_guardians
 		// links on approval by the decision service.
-		if s.RequestGuardianRepo != nil {
+		if s.Guardians != nil {
 			for i, g := range req.AdditionalGuardians {
-				row := &enrollmentModels.RequestGuardian{
+				row := &enrollmentCapability.RequestGuardian{
 					RequestID: request.ID,
 					FirstName: g.FirstName,
 					LastName:  g.LastName,
@@ -923,7 +940,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 					Phone:     g.Phone,
 					SortOrder: i,
 				}
-				if err := s.RequestGuardianRepo.Create(txCtx, row); err != nil {
+				if err := createIntakeGuardian(txCtx, s.Guardians, row); err != nil {
 					return fmt.Errorf("submit: create request guardian %d: %w", i, err)
 				}
 			}
@@ -938,7 +955,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				RequestID:         request.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
-				DateOfBirth:       child.DateOfBirth,
+				DateOfBirth:       enrollmentCapability.Date(child.DateOfBirth),
 				TargetGradeLevel:  child.TargetGradeLevel,
 				TargetSchoolClass: child.TargetSchoolClass,
 				CustomData:        child.CustomData,
@@ -962,19 +979,19 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return err
 			}
 			row.MatchedStudentID = matchedStudentID
-			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
+			if err := createIntakeChild(txCtx, s.Children, row); err != nil {
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
 
 			for _, selection := range materializedSelections[i] {
-				link := &enrollmentModels.RequestChildOffering{
+				link := &enrollmentCapability.RequestChildOffering{
 					RequestChildID:        row.ID,
 					CareOfferingID:        selection.OfferingID,
 					SelectedDays:          selection.SelectedDays,
 					ManualSelectedDays:    selection.ManualSelectedDays,
 					AutomaticSelectedDays: selection.AutomaticSelectedDays,
 				}
-				if err := s.RequestChildOfferingRepo.Create(txCtx, link); err != nil {
+				if err := s.Children.InsertRequestChildOffering(txCtx, link); err != nil {
 					return fmt.Errorf("submit: create child-offering link: %w", err)
 				}
 			}
@@ -982,7 +999,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		}
 		if len(childStatusOverrides) > 0 && !req.SuppressSubmissionEmails {
 			if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
-				requests:   s.RequestRepo,
+				requests:   s.Requests,
 				settings:   s.Settings,
 				outbox:     s.OutboxEnqueuer,
 				schools:    s.SchoolRepo,
@@ -1066,7 +1083,7 @@ func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateI
 	firstName := strutil.TrimToNil(input.GuardianFirstName)
 	lastName := strutil.TrimToNil(input.GuardianLastName)
 	reason := strutil.TrimToNil(input.Reason)
-	invite := &enrollmentModels.LateInvite{
+	invite := &enrollmentCapability.LateInvite{
 		PhaseID:           phase.ID,
 		TokenHash:         lateInviteTokenHash(token),
 		GuardianEmail:     email,
@@ -1076,22 +1093,22 @@ func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateI
 		CreatedBy:         input.CreatedBy,
 		Reason:            reason,
 	}
-	if err := s.LateInviteRepo.Create(ctx, invite); err != nil {
+	if err := s.LateInviteRepo.InsertLateInvite(ctx, invite); err != nil {
 		return nil, err
 	}
 	return &CreateLateInviteResult{Invite: invite, Token: token}, nil
 }
 
-func (s *requestService) findLateInviteForSubmit(ctx context.Context, token string, phaseID int64, now time.Time) (*enrollmentModels.LateInvite, error) {
+func (s *requestService) findLateInviteForSubmit(ctx context.Context, token string, phaseID int64, now time.Time) (*enrollmentCapability.LateInvite, error) {
 	if s.LateInviteRepo == nil {
 		return nil, fmt.Errorf("%w: late invite support is not configured", ErrLateInviteInvalid)
 	}
-	invite, err := s.LateInviteRepo.FindUsableByTokenHashForUpdate(ctx, lateInviteTokenHash(token), phaseID, now)
+	invite, err := s.LateInviteRepo.UsableLateInvite(ctx, lateInviteTokenHash(token), phaseID, now, true)
 	if err != nil {
 		// Same split as the form-load gate: only a genuinely unusable token is
 		// an invalid invite. A lookup failure must not tell the parent their
 		// invite is invalid — surface it as a server error (#1663).
-		if errors.Is(err, enrollmentModels.ErrLateInviteNotFound) {
+		if errors.Is(err, enrollmentCapability.ErrLateInviteNotFound) {
 			return nil, ErrLateInviteInvalid
 		}
 		return nil, fmt.Errorf("submit: resolve late invite: %w", err)
@@ -1838,11 +1855,11 @@ func validateCareOfferingSelectionModeAllowingMissing(children []SubmitChild, op
 }
 
 func validateCareOfferingSelectionModeWithMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string, allowMissing bool) error {
-	if mode == "" || mode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+	if mode == "" || mode == enrollmentCapability.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
-	if mode != enrollmentModels.PhaseCareOfferingSelectionAtLeastOne &&
-		mode != enrollmentModels.PhaseCareOfferingSelectionExactlyOne {
+	if mode != enrollmentCapability.PhaseCareOfferingSelectionAtLeastOne &&
+		mode != enrollmentCapability.PhaseCareOfferingSelectionExactlyOne {
 		return fmt.Errorf("%w: invalid care offering selection mode %q", ErrInvalidSubmission, mode)
 	}
 
@@ -1866,11 +1883,11 @@ func validateCareOfferingSelectionModeWithMissing(children []SubmitChild, openBy
 			}
 		}
 		switch mode {
-		case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		case enrollmentCapability.PhaseCareOfferingSelectionAtLeastOne:
 			if choosableCount == 0 && !allowMissing {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
 			}
-		case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		case enrollmentCapability.PhaseCareOfferingSelectionExactlyOne:
 			if choosableCount > 1 || (choosableCount == 0 && !allowMissing) {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, i)
 			}
@@ -1896,7 +1913,7 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 	if token == "" {
 		return nil, nil, ErrRequestNotFound
 	}
-	req, err := s.RequestRepo.FindByStatusToken(ctx, token)
+	req, err := intakeRequestByToken(ctx, s.Requests, token, false)
 	if err != nil {
 		return nil, nil, ErrRequestNotFound
 	}
@@ -1904,8 +1921,8 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 		return nil, nil, ErrRequestNotFound
 	}
 
-	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
-	children, err := s.RequestChildRepo.ListByRequestID(tenantCtx, req.ID)
+	tenantCtx := tenant.WithTenantID(ctx, req.TenantID)
+	children, err := listIntakeChildren(tenantCtx, s.Children, req.ID, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("status: list children: %w", err)
 	}
@@ -1930,7 +1947,7 @@ func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentM
 	if req == nil {
 		return EditModeNone, nil
 	}
-	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
+	tenantCtx := tenant.WithTenantID(ctx, req.TenantID)
 	mode := editModeForChildren(children)
 	switch mode {
 	case EditModeDirectEdit:
@@ -1967,23 +1984,23 @@ func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentM
 // GuardiansByStatusToken loads the additional guardians (co-guardians)
 // behind a public status token. Same token/expiry gate as
 // GetByStatusToken; caller sets an admin-tx context (token-only auth).
-func (s *requestService) GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentModels.RequestGuardian, error) {
-	if s.RequestGuardianRepo == nil {
+func (s *requestService) GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentCapability.RequestGuardian, error) {
+	if s.Guardians == nil {
 		return nil, nil
 	}
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, ErrRequestNotFound
 	}
-	req, err := s.RequestRepo.FindByStatusToken(ctx, token)
+	req, err := intakeRequestByToken(ctx, s.Requests, token, false)
 	if err != nil {
 		return nil, ErrRequestNotFound
 	}
 	if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 		return nil, ErrRequestNotFound
 	}
-	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
-	return s.RequestGuardianRepo.ListByRequestID(tenantCtx, req.ID)
+	tenantCtx := tenant.WithTenantID(ctx, req.TenantID)
+	return listIntakeGuardians(tenantCtx, s.Guardians, req.ID)
 }
 
 // statusReasonVisibleToParent reports whether the given phase allows a
@@ -1991,7 +2008,7 @@ func (s *requestService) GuardiansByStatusToken(ctx context.Context, token strin
 // the phase can't be loaded it returns false, so an internal note is
 // redacted rather than risk leaking when the setting can't be confirmed.
 func (s *requestService) statusReasonVisibleToParent(ctx context.Context, phaseID int64) bool {
-	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	phase, err := s.intakePhase(ctx, phaseID)
 	if err != nil {
 		s.Logger.Warn("status: phase load failed; redacting status reason",
 			slog.Int64("phase_id", phaseID),
@@ -2016,12 +2033,12 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
 		childIDs  []int64
-		guardians []*enrollmentModels.RequestGuardian
+		guardians []*enrollmentCapability.RequestGuardian
 		links     []*enrollmentModels.RequestChildOffering
 		school    *platformModels.School
 	)
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		loadedReq, err := s.RequestRepo.FindByStatusToken(adminCtx, token)
+		loadedReq, err := intakeRequestByToken(adminCtx, s.Requests, token, false)
 		if err != nil {
 			return ErrRequestNotFound
 		}
@@ -2030,14 +2047,14 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		}
 		req = loadedReq
 
-		tenantCtx := tenant.WithTenantID(adminCtx, req.GetTenantID())
-		loadedChildren, err := s.RequestChildRepo.ListByRequestID(tenantCtx, req.ID)
+		tenantCtx := tenant.WithTenantID(adminCtx, req.TenantID)
+		loadedChildren, err := listIntakeChildren(tenantCtx, s.Children, req.ID, false)
 		if err != nil {
 			return fmt.Errorf("edit draft: list children: %w", err)
 		}
 		children = loadedChildren
-		if s.RequestGuardianRepo != nil {
-			loadedGuardians, err := s.RequestGuardianRepo.ListByRequestID(tenantCtx, req.ID)
+		if s.Guardians != nil {
+			loadedGuardians, err := listIntakeGuardians(tenantCtx, s.Guardians, req.ID)
 			if err != nil {
 				return fmt.Errorf("edit draft: list guardians: %w", err)
 			}
@@ -2047,7 +2064,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			childIDs = append(childIDs, c.ID)
 		}
 		if s.SchoolRepo != nil {
-			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.GetTenantID())
+			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.TenantID)
 			if err != nil {
 				return fmt.Errorf("edit draft: load school: %w", err)
 			}
@@ -2059,15 +2076,15 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	var (
-		phase         *enrollmentModels.Phase
-		schema        *enrollmentModels.FormSchema
+		phase         *enrollmentCapability.Phase
+		schema        *enrollmentCapability.FormSchema
 		openOfferings []*enrollmentModels.CareOffering
 		legalTexts    LegalTexts
 		editMode      string
 		capabilities  FormCapabilities
 		gradeLevelMax int
 	)
-	if err := tenant.WithTenantTx(ctx, s.DB, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(ctx, s.DB, req.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		resolvedCapabilities, capabilityErr := s.FormCapabilities(txCtx)
 		if capabilityErr != nil {
 			return fmt.Errorf("edit draft: resolve form capabilities: %w", capabilityErr)
@@ -2101,8 +2118,8 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		// The unscoped read returns every interval, so after a dated change the
 		// parent would find the superseded and the current selection both
 		// ticked - and saving that would book both.
-		loadedLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
-			txCtx, childIDs, currentOfferingSelectionDate(phase),
+		loadedLinks, linkErr := readOwnerOfferingBatchSelections(
+			txCtx, s.Children, childIDs, currentOfferingSelectionDate(phase),
 		)
 		if linkErr != nil {
 			return fmt.Errorf("edit draft: list child offerings: %w", linkErr)
@@ -2217,14 +2234,14 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 
 	var tenantID int64
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		req, err := s.RequestRepo.FindByStatusToken(adminCtx, token)
+		req, err := intakeRequestByToken(adminCtx, s.Requests, token, false)
 		if err != nil {
 			return ErrRequestNotFound
 		}
 		if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 			return ErrRequestNotFound
 		}
-		tenantID = req.GetTenantID()
+		tenantID = req.TenantID
 		return nil
 	}); err != nil {
 		return nil, err
@@ -2236,14 +2253,14 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		warnings        []SubmissionWarning
 	)
 	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		req, err := s.RequestRepo.FindByStatusTokenForUpdate(txCtx, token)
+		req, err := intakeRequestByToken(txCtx, s.Requests, token, true)
 		if err != nil {
 			return ErrRequestNotFound
 		}
 		if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 			return ErrRequestNotFound
 		}
-		children, err := s.RequestChildRepo.ListByRequestIDForUpdate(txCtx, req.ID)
+		children, err := listIntakeChildren(txCtx, s.Children, req.ID, true)
 		if err != nil {
 			return fmt.Errorf("edit replace: lock children: %w", err)
 		}
@@ -2293,7 +2310,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		for _, o := range openOfferings {
 			openByID[o.ID] = o
 		}
-		selectionMode := enrollmentModels.PhaseCareOfferingSelectionOptional
+		selectionMode := enrollmentCapability.PhaseCareOfferingSelectionOptional
 		if capabilities.CareOfferingsEnabled {
 			selectionMode = phase.CareOfferingSelectionMode
 		}
@@ -2387,7 +2404,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 		emailHash := fnvHash64(emailLC)
-		if err := s.RequestRepo.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
+		if err := s.Requests.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
 			return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
 		}
 
@@ -2408,8 +2425,8 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		// hidden selection means preserving the one in force now: across the
 		// full interval history a superseded booking would be restored
 		// alongside the live one and written back as current.
-		activeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(
-			txCtx, existingChildIDs, currentOfferingSelectionDate(phase),
+		activeLinks, err := readOwnerOfferingBatchSelections(
+			txCtx, s.Children, existingChildIDs, currentOfferingSelectionDate(phase),
 		)
 		if err != nil {
 			return fmt.Errorf("edit replace: load active child offerings: %w", err)
@@ -2439,12 +2456,12 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			}
 		}
 
-		if s.RequestGuardianRepo != nil {
-			if err := s.RequestGuardianRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
+		if s.Guardians != nil {
+			if err := s.Guardians.DeleteRequestGuardians(txCtx, req.ID); err != nil {
 				return err
 			}
 		}
-		if err := s.RequestChildRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
+		if err := s.Children.DeleteRequestChildren(txCtx, req.ID); err != nil {
 			return err
 		}
 
@@ -2452,7 +2469,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		for _, c := range editReq.Children {
 			dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
 		}
-		dupes, dupErr := s.RequestRepo.FindActiveDuplicate(txCtx, phase.ID, req.GuardianEmail, dupKeys)
+		dupes, dupErr := s.Requests.ActiveDuplicateChildren(txCtx, phase.ID, req.GuardianEmail, dupKeys, 0)
 		if dupErr != nil {
 			return fmt.Errorf("edit replace: duplicate check: %w", dupErr)
 		}
@@ -2478,14 +2495,17 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		// the original submit entry — never a rewrite. The entry carries
 		// the edited flags, so the pre-edit answers stay provable in the
 		// earlier entries even though Request.ConsentFlags is replaced.
-		req.LegalBlocksSnapshot = append(req.LegalBlocksSnapshot,
-			legalBlocksSnapshotEntry(legalBlocks, editReq.ConsentFlags, time.Now()))
-		if err := s.RequestRepo.UpdateGuardianData(txCtx, req); err != nil {
+		snapshotEntry, err := legalBlocksSnapshotEntry(legalBlocks, editReq.ConsentFlags, time.Now())
+		if err != nil {
 			return err
 		}
-		if s.RequestGuardianRepo != nil {
+		req.LegalBlocksSnapshot = append(req.LegalBlocksSnapshot, snapshotEntry)
+		if err := updateIntakeRequest(txCtx, s.Requests, req, false); err != nil {
+			return err
+		}
+		if s.Guardians != nil {
 			for i, g := range editReq.AdditionalGuardians {
-				row := &enrollmentModels.RequestGuardian{
+				row := &enrollmentCapability.RequestGuardian{
 					RequestID: req.ID,
 					FirstName: g.FirstName,
 					LastName:  g.LastName,
@@ -2493,7 +2513,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 					Phone:     g.Phone,
 					SortOrder: i,
 				}
-				if err := s.RequestGuardianRepo.Create(txCtx, row); err != nil {
+				if err := createIntakeGuardian(txCtx, s.Guardians, row); err != nil {
 					return fmt.Errorf("edit replace: create request guardian %d: %w", i, err)
 				}
 			}
@@ -2508,7 +2528,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				RequestID:         req.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
-				DateOfBirth:       child.DateOfBirth,
+				DateOfBirth:       enrollmentCapability.Date(child.DateOfBirth),
 				TargetGradeLevel:  child.TargetGradeLevel,
 				TargetSchoolClass: child.TargetSchoolClass,
 				CustomData:        child.CustomData,
@@ -2556,7 +2576,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				// While the phase is still existing_students, re-resolve against the
 				// (possibly edited) name/birthday. A concrete re-resolution wins; a
 				// nil result keeps the carried pin rather than dropping it.
-				if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents {
+				if phase.Audience == enrollmentCapability.PhaseAudienceExistingStudents {
 					resolved, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
 					if err != nil {
 						return err
@@ -2595,18 +2615,18 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				}
 				row.MatchedStudentID = matchedStudentID
 			}
-			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
+			if err := createIntakeChild(txCtx, s.Children, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
 			}
 			for _, selection := range materializedSelections[i] {
-				link := &enrollmentModels.RequestChildOffering{
+				link := &enrollmentCapability.RequestChildOffering{
 					RequestChildID:        row.ID,
 					CareOfferingID:        selection.OfferingID,
 					SelectedDays:          selection.SelectedDays,
 					ManualSelectedDays:    selection.ManualSelectedDays,
 					AutomaticSelectedDays: selection.AutomaticSelectedDays,
 				}
-				if err := s.RequestChildOfferingRepo.Create(txCtx, link); err != nil {
+				if err := s.Children.InsertRequestChildOffering(txCtx, link); err != nil {
 					return fmt.Errorf("edit replace: create child-offering link: %w", err)
 				}
 			}
@@ -2615,7 +2635,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		updatedRequest = req
 		if len(childStatusOverrides) > 0 && !editReq.SuppressSubmissionEmails {
 			if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
-				requests:   s.RequestRepo,
+				requests:   s.Requests,
 				settings:   s.Settings,
 				outbox:     s.OutboxEnqueuer,
 				schools:    s.SchoolRepo,
@@ -2721,9 +2741,9 @@ func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, 
 	return nil
 }
 
-func (s *requestService) schemaForEditableRequest(ctx context.Context, req *enrollmentModels.Request, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
+func (s *requestService) schemaForEditableRequest(ctx context.Context, req *enrollmentModels.Request, phase *enrollmentCapability.Phase) (*enrollmentCapability.FormSchema, error) {
 	if req != nil && req.SchemaID != nil {
-		return s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
+		return s.intakeSchema(ctx, *req.SchemaID)
 	}
 	return nil, nil
 }
@@ -2736,14 +2756,14 @@ func validateRolloverEditIdentity(existing []*enrollmentModels.RequestChild, inc
 		next := incoming[i]
 		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
 			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
-			next.DateOfBirth != child.DateOfBirth {
+			enrollmentCapability.Date(next.DateOfBirth) != child.DateOfBirth {
 			return ErrEditNotAllowed
 		}
 	}
 	return nil
 }
 
-func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) (LegalTexts, error) {
+func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schema *enrollmentCapability.FormSchema) (LegalTexts, error) {
 	texts, err := s.LegalTexts(ctx)
 	if err != nil {
 		return LegalTexts{}, err
@@ -2757,7 +2777,7 @@ func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schem
 // Rechtstexte were configured, or via the API) must not erase the tenant's
 // consent contract - that would let parents submit without the expected DSGVO
 // acknowledgment.
-func applyTemplateLegalBlocks(texts LegalTexts, schema *enrollmentModels.FormSchema) LegalTexts {
+func applyTemplateLegalBlocks(texts LegalTexts, schema *enrollmentCapability.FormSchema) LegalTexts {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
 		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
 			texts.Blocks = blocks
@@ -2766,7 +2786,7 @@ func applyTemplateLegalBlocks(texts LegalTexts, schema *enrollmentModels.FormSch
 	return texts
 }
 
-func (s *requestService) legalBlocksForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
+func (s *requestService) legalBlocksForEditableRequest(ctx context.Context, schema *enrollmentCapability.FormSchema) ([]LegalBlock, error) {
 	texts, err := s.legalTextsForEditableRequest(ctx, schema)
 	if err != nil {
 		return nil, fmt.Errorf("edit replace: resolve legal blocks: %w", err)
@@ -2817,9 +2837,9 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	// Same hidden-answer sanitizing as Submit: an edit must not be able to
 	// (re)introduce a value for a guardian field the parent couldn't see.
 	// Children aren't edited here, so only the guardian scope is filtered.
-	var schema *enrollmentModels.FormSchema
+	var schema *enrollmentCapability.FormSchema
 	if req.SchemaID != nil {
-		if loaded, schemaErr := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+		if loaded, schemaErr := s.intakeSchema(ctx, *req.SchemaID); schemaErr == nil {
 			schema = loaded
 			byKey := buildFieldsByKey(schema)
 			req.CustomData = sanitizeVisibleAnswers(
@@ -2829,7 +2849,7 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 		}
 	}
 
-	tenantID := req.GetTenantID()
+	tenantID := req.TenantID
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
 	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Same consent-key allowlist as Submit. Resolved inside the tenant
@@ -2841,7 +2861,7 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 			}
 			req.ConsentFlags = filterConsentFlags(req.ConsentFlags, blocks)
 		}
-		return s.RequestRepo.UpdateGuardianData(txCtx, req)
+		return updateIntakeRequest(txCtx, s.Requests, req, false)
 	})
 }
 
@@ -2858,7 +2878,7 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 		return err
 	}
 
-	tenantID := req.GetTenantID()
+	tenantID := req.TenantID
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
 	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.withdrawInTenant(txCtx, token, childID)
@@ -2866,14 +2886,14 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 }
 
 func (s *requestService) withdrawInTenant(ctx context.Context, token string, childID int64) error {
-	lockedReq, err := s.RequestRepo.FindByStatusTokenForUpdate(ctx, strings.TrimSpace(token))
+	lockedReq, err := intakeRequestByToken(ctx, s.Requests, strings.TrimSpace(token), true)
 	if err != nil || lockedReq == nil {
 		return ErrRequestNotFound
 	}
 	if lockedReq.StatusTokenExpires != nil && time.Now().After(*lockedReq.StatusTokenExpires) {
 		return ErrRequestNotFound
 	}
-	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, lockedReq.ID)
+	children, err := listIntakeChildren(ctx, s.Children, lockedReq.ID, true)
 	if err != nil {
 		return fmt.Errorf("withdraw: lock request children: %w", err)
 	}
@@ -2882,7 +2902,7 @@ func (s *requestService) withdrawInTenant(ctx context.Context, token string, chi
 		return err
 	}
 	if childID == 0 {
-		if err := s.RequestRepo.MarkWithdrawn(ctx, lockedReq.ID, time.Now()); err != nil {
+		if err := withdrawIntakeRequest(ctx, s.Requests, lockedReq.ID, time.Now()); err != nil {
 			return err
 		}
 	}
@@ -2904,10 +2924,10 @@ func (s *requestService) withdrawChildren(ctx context.Context, children []*enrol
 			}
 			continue
 		}
-		if child.IsTerminal() {
+		if (&enrollmentCapability.RequestChild{Status: child.Status}).IsTerminal() {
 			continue
 		}
-		if err := s.RequestChildRepo.UpdateStatus(ctx, child.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0); err != nil {
+		if err := s.Children.UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0); err != nil {
 			return false, err
 		}
 		child.Status, child.StatusReason, anyWithdrawn = enrollmentModels.ChildStatusWithdrawn, nil, true
@@ -2916,16 +2936,16 @@ func (s *requestService) withdrawChildren(ctx context.Context, children []*enrol
 }
 
 func (s *requestService) enqueueWithdrawDecision(ctx context.Context, request *enrollmentModels.Request) error {
-	children, err := s.RequestChildRepo.ListByRequestID(ctx, request.ID)
+	children, err := listIntakeChildren(ctx, s.Children, request.ID, false)
 	if err != nil {
 		return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	phase, err := s.intakePhase(ctx, request.PhaseID)
 	if err != nil {
 		return fmt.Errorf("withdraw: load phase for decision digest: %w", err)
 	}
 	if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
-		requests:   s.RequestRepo,
+		requests:   s.Requests,
 		settings:   s.Settings,
 		outbox:     s.OutboxEnqueuer,
 		schools:    s.SchoolRepo,
@@ -2955,7 +2975,7 @@ func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int,
 	if err != nil {
 		return 0, err
 	}
-	tenantID := req.GetTenantID()
+	tenantID := req.TenantID
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
 
 	var confirmed int
@@ -2964,7 +2984,7 @@ func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int,
 			if c.Status != enrollmentModels.ChildStatusPendingRenewal {
 				continue
 			}
-			if err := s.RequestChildRepo.UpdateStatus(txCtx, c.ID, enrollmentModels.ChildStatusSubmitted, nil, 0); err != nil {
+			if err := s.Children.UpdateChildStatus(txCtx, c.ID, enrollmentModels.ChildStatusSubmitted, nil, 0); err != nil {
 				return err
 			}
 			confirmed++
@@ -3052,11 +3072,11 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 // is inactive (admin marked it hidden) and ErrInvalidSubmission when
 // the id is unknown. The window check happens in Submit() - kept
 // separate so error mapping in the handler stays specific.
-func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
-	if s.PhaseRepo == nil {
+func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*enrollmentCapability.Phase, error) {
+	if s.Catalog == nil {
 		return nil, fmt.Errorf("submit: phase repo not wired")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	phase, err := s.intakePhase(ctx, phaseID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: phase %d not found", ErrInvalidSubmission, phaseID)
 	}
@@ -3073,11 +3093,11 @@ func (s *requestService) loadPhaseForSubmission(ctx context.Context, phaseID int
 // tenant's currently-active schema for Basis phases - the admin UI
 // promises "nur die Standardfelder", so silently inheriting the
 // latest custom schema would leak its fields into every Basis phase.
-func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
+func (s *requestService) resolveSubmissionSchema(ctx context.Context, phase *enrollmentCapability.Phase) (*enrollmentCapability.FormSchema, error) {
 	if phase.FormSchemaID == nil {
 		return nil, nil
 	}
-	schema, err := s.FormSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
+	schema, err := s.intakeSchema(ctx, *phase.FormSchemaID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Pinned schema was deleted out from under the phase.
@@ -3294,7 +3314,7 @@ func (s *requestService) LegalTextsForManualEnrollmentPhase(ctx context.Context,
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
-func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *enrollmentModels.Phase) (LegalTexts, error) {
+func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *enrollmentCapability.Phase) (LegalTexts, error) {
 	texts, err := s.LegalTexts(ctx)
 	if err != nil {
 		return LegalTexts{}, err
@@ -3317,7 +3337,7 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 // restricted set is exactly the one Submit refuses
 // (audienceRequiresGuardianAccount): loading a form whose save can only ever
 // fail is a dead end that also leaks the phase's existence.
-func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
+func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentCapability.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
@@ -3332,11 +3352,11 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 	// the token is ever validated (#1663).
 	hasValidLateInvite := false
 	if s.LateInviteRepo != nil && strings.TrimSpace(lateInviteToken) != "" {
-		_, inviteErr := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now)
+		_, inviteErr := s.LateInviteRepo.UsableLateInvite(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now, false)
 		switch {
 		case inviteErr == nil:
 			hasValidLateInvite = true
-		case errors.Is(inviteErr, enrollmentModels.ErrLateInviteNotFound):
+		case errors.Is(inviteErr, enrollmentCapability.ErrLateInviteNotFound):
 			// Unknown, used, or expired token: no override, fall through to
 			// the normal audience and window gates below.
 		default:
@@ -3386,7 +3406,7 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 //
 // Mutates a phase already cleared for a form load; Submit and the edit paths
 // reload the phase independently, so this never reaches validation.
-func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentModels.Phase) {
+func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentCapability.Phase) {
 	if phase == nil {
 		return
 	}
@@ -3407,7 +3427,7 @@ func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentModels.Phase
 // independently (loadPhaseForSubmission), so this narrowing never reaches
 // validation — and eligible ⊆ available guarantees every offered class still
 // passes the available check anyway (#1663).
-func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
+func narrowOfferedClassesToEligibleForForm(phase *enrollmentCapability.Phase) {
 	if phase == nil || len(phase.EligibleSchoolClasses) == 0 {
 		return
 	}
@@ -3447,7 +3467,7 @@ func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
 // Presentation only: this mutates a phase already cleared for a form load, and
 // Submit reloads the phase independently, so the derived list never reaches
 // validation or the database. The class gate stays the enforcing side.
-func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentModels.Phase) {
+func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentCapability.Phase) {
 	if phase == nil || len(phase.EligibleGradeLevels) > 0 {
 		return
 	}
@@ -3482,7 +3502,7 @@ func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentModels.Phase) 
 // LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
 // rejects every audience-restricted phase (linked_parents and
 // existing_students) outright — the zero access value grants neither.
-func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentCapability.Phase, error) {
 	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, EnrolleeAudienceAccess{})
 }
 
@@ -3491,15 +3511,15 @@ func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phas
 // admits the restricted audiences the caller's resolved guardian facts cover
 // (see EnrolleeAudienceAccess) — the submit path still enforces
 // GuardianSubmitEligible + the per-child eligibility rules on top.
-func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
+func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentCapability.Phase, error) {
 	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 }
 
-func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentCapability.Phase, error) {
 	return s.loadPhaseForEditableRequest(ctx, phaseID)
 }
 
-func (s *requestService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.FormSchema, error) {
+func (s *requestService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentCapability.FormSchema, error) {
 	phase, err := s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 	if err != nil {
 		return nil, err
@@ -3507,7 +3527,7 @@ func (s *requestService) PublicActiveSchema(ctx context.Context, phaseID int64, 
 	if phase.FormSchemaID == nil {
 		return nil, ErrNoActiveSchema
 	}
-	schema, err := s.FormSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
+	schema, err := s.intakeSchema(ctx, *phase.FormSchemaID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNoActiveSchema
@@ -3517,7 +3537,7 @@ func (s *requestService) PublicActiveSchema(ctx context.Context, phaseID int64, 
 	return schema, nil
 }
 
-func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentCapability.Phase, error) {
 	if !s.isEnrollmentEnabled(ctx) {
 		return nil, ErrEnrollmentDisabled
 	}
@@ -3680,7 +3700,7 @@ func (s *requestService) legalBlockEnabled(ctx context.Context, key string, labe
 // blocks. Zero enabled template blocks fall back to settings (same rule as
 // LegalTextsForPhaseWithLateInvite) so an all-disabled snapshot can never erase the
 // tenant's consent contract.
-func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
+func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentCapability.FormSchema) ([]LegalBlock, error) {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
 		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
 			return blocks, nil
@@ -3700,10 +3720,10 @@ func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schem
 // no other versioning, and Request.ConsentFlags is overwritten on edit,
 // so this entry is the only reliable record of the wording the family
 // saw and the answers they gave at that moment.
-func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time.Time) enrollmentModels.LegalBlocksSnapshotEntry {
-	snapshot := make([]enrollmentModels.LegalBlockSnapshot, 0, len(blocks))
+func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time.Time) (enrollmentCapability.LegalBlocksSnapshotEntry, error) {
+	snapshot := make([]enrollmentCapability.LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
-		snapshot = append(snapshot, enrollmentModels.LegalBlockSnapshot{
+		snapshot = append(snapshot, enrollmentCapability.LegalBlockSnapshot{
 			Key:      block.Key,
 			Kind:     block.Kind,
 			Title:    block.Title,
@@ -3713,13 +3733,15 @@ func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time
 			Source:   block.Source,
 		})
 	}
-	// Copy the flags: the caller keeps mutating the live request map,
-	// and the evidence entry must not alias it.
-	frozenFlags := make(map[string]any, len(flags))
-	for k, v := range flags {
-		frozenFlags[k] = v
+	// Freeze the flags independently of subsequent request edits.
+	if flags == nil {
+		flags = map[string]any{}
 	}
-	return enrollmentModels.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}
+	frozenFlags, err := json.Marshal(flags)
+	if err != nil {
+		return enrollmentCapability.LegalBlocksSnapshotEntry{}, err
+	}
+	return enrollmentCapability.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}, nil
 }
 
 // requiredConsentKeys extracts the keys the parent must accept from the
@@ -3893,7 +3915,7 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 // account are served by the two deliberate override paths that already skip
 // this gate via AllowClosedPhase: a late invite (a per-recipient token the
 // school mints) and admin manual enrollment (#1663).
-func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentCapability.Phase, req SubmitRequest) error {
 	if req.AllowClosedPhase {
 		return nil
 	}
@@ -3910,8 +3932,8 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 // accounts without that permission and the ones the public form gate refuses to
 // bootstrap, so the three stay in agreement (#1663).
 func audienceRequiresGuardianAccount(audience string) bool {
-	return audience == enrollmentModels.PhaseAudienceLinkedParents ||
-		audience == enrollmentModels.PhaseAudienceExistingStudents
+	return audience == enrollmentCapability.PhaseAudienceLinkedParents ||
+		audience == enrollmentCapability.PhaseAudienceExistingStudents
 }
 
 // EnrolleeAudienceAccess carries the caller's per-audience form-load
@@ -3945,9 +3967,9 @@ func (a EnrolleeAudienceAccess) AllowsAudience(audience string) bool {
 		return true
 	}
 	switch audience {
-	case enrollmentModels.PhaseAudienceLinkedParents:
+	case enrollmentCapability.PhaseAudienceLinkedParents:
 		return a.LinkedParents
-	case enrollmentModels.PhaseAudienceExistingStudents:
+	case enrollmentCapability.PhaseAudienceExistingStudents:
 		return a.ExistingStudents
 	default:
 		return false
@@ -3962,7 +3984,7 @@ func (a EnrolleeAudienceAccess) AllowsAudience(audience string) bool {
 // already-enrolled identity, while the linked_parents authorization stays
 // preserved from the original submission (#1663). Callers must run
 // validateAndNormalizeSchoolClasses first so this sees the persisted class.
-func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentCapability.Phase, req SubmitRequest) error {
 	if err := validateChildGradeEligibility(phase, req.Children); err != nil {
 		return err
 	}
@@ -3993,14 +4015,14 @@ func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phas
 // original index in the error (see validateChangedChildIdentityEligibility).
 func (s *requestService) validateChildEnrolledStatus(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	tenantID int64,
 	child SubmitChild,
 	childIndex int,
 ) error {
 	if s.StudentRepo == nil ||
-		(phase.Audience != enrollmentModels.PhaseAudienceNewStudents &&
-			phase.Audience != enrollmentModels.PhaseAudienceExistingStudents) {
+		(phase.Audience != enrollmentCapability.PhaseAudienceNewStudents &&
+			phase.Audience != enrollmentCapability.PhaseAudienceExistingStudents) {
 		return nil
 	}
 	exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, tenantID,
@@ -4008,10 +4030,10 @@ func (s *requestService) validateChildEnrolledStatus(
 	if err != nil {
 		return fmt.Errorf("submit: check enrolled student for child %d: %w", childIndex, err)
 	}
-	if phase.Audience == enrollmentModels.PhaseAudienceNewStudents && exists {
+	if phase.Audience == enrollmentCapability.PhaseAudienceNewStudents && exists {
 		return fmt.Errorf("%w: child %d", ErrChildAlreadyEnrolled, childIndex)
 	}
-	if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents && !exists {
+	if phase.Audience == enrollmentCapability.PhaseAudienceExistingStudents && !exists {
 		return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
 	}
 	return nil
@@ -4031,7 +4053,7 @@ func (s *requestService) validateChildEnrolledStatus(
 // JUST created that student would reject every later change request on it — so
 // that path applies them only to children whose identity the edit rewrites
 // (validateChangedChildIdentityEligibility).
-func validateChildClassEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+func validateChildClassEligibility(phase *enrollmentCapability.Phase, children []SubmitChild) error {
 	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
 	for _, c := range phase.EligibleSchoolClasses {
 		if t := strings.TrimSpace(c); t != "" {
@@ -4073,7 +4095,7 @@ func validateChildClassEligibility(phase *enrollmentModels.Phase, children []Sub
 // nils the grade out when collect_grade_level is off, and the phase-side
 // collectability guard is what keeps that pair from being configurable. Treating
 // nil as "eligible" would silently disable the restriction instead.
-func validateChildGradeEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+func validateChildGradeEligibility(phase *enrollmentCapability.Phase, children []SubmitChild) error {
 	if len(phase.EligibleGradeLevels) == 0 {
 		return nil
 	}
@@ -4123,8 +4145,8 @@ func isTrustedEnrollmentSource(source string) bool {
 // top of the two records that already collide, the exact data this flow exists
 // to prevent. So on a nil ID we probe existence to tell the two apart and
 // reject only the ambiguous case.
-func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentModels.Phase, childIndex int, child SubmitChild) (*int64, error) {
-	if s.StudentRepo == nil || phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentCapability.Phase, childIndex int, child SubmitChild) (*int64, error) {
+	if s.StudentRepo == nil || phase.Audience != enrollmentCapability.PhaseAudienceExistingStudents {
 		return nil, nil
 	}
 	id, err := s.StudentRepo.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID,
@@ -4165,14 +4187,14 @@ func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID i
 // eligibilityEnforced mirrors whichever gate the caller ran, so a trusted path
 // keeps its override untouched.
 func assertExistingStudentMatchResolved(
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	matchedStudentID *int64,
 	eligibilityEnforced bool,
 	childIndex int,
 ) error {
 	if !eligibilityEnforced ||
 		matchedStudentID != nil ||
-		phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+		phase.Audience != enrollmentCapability.PhaseAudienceExistingStudents {
 		return nil
 	}
 	return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
@@ -4218,7 +4240,7 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 // corrected address has no pre-existing relationship.
 func reEnrollmentSubmitterForPersistedRequest(
 	ctx context.Context,
-	lateInvites enrollmentModels.LateInviteRepository,
+	lateInvites DecisionLateInvites,
 	req *enrollmentModels.Request,
 ) (reEnrollmentSubmitter, error) {
 	if req == nil {
@@ -4229,7 +4251,7 @@ func reEnrollmentSubmitterForPersistedRequest(
 		if lateInvites == nil {
 			return reEnrollmentSubmitter{}, errors.New("late invite repository is not configured")
 		}
-		invite, err := lateInvites.FindByUsedRequestID(ctx, req.ID)
+		invite, err := lateInvites.LateInviteByUsedRequestID(ctx, req.ID)
 		if err != nil {
 			return reEnrollmentSubmitter{}, fmt.Errorf("load late invite for request %d: %w", req.ID, err)
 		}
@@ -4324,10 +4346,10 @@ func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID 
 	if matchedStudentID == nil {
 		return nil
 	}
-	if err := s.RequestRepo.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
+	if err := s.Requests.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
 		return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
 	}
-	has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID, excludeRequestChildID)
+	has, err := s.Requests.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID, excludeRequestChildID)
 	if err != nil {
 		return fmt.Errorf("submit: matched-student duplicate check for child %d: %w", childIndex, err)
 	}
@@ -4350,7 +4372,7 @@ func hasRolloverGeneratedChild(children []*enrollmentModels.RequestChild) bool {
 	return false
 }
 
-func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
+func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentCapability.Phase, children []SubmitChild) error {
 	collect, err := s.CollectsSchoolClass(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve collect_school_class: %w", err)
@@ -4456,7 +4478,7 @@ func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
 // a dead end. Reads EligibleSchoolClasses (never narrowed) whenever a
 // restriction exists, so it returns the same answer on a form-load phase whose
 // offered list was narrowed to the eligible subset.
-func CollectsGrade1Class(phase *enrollmentModels.Phase) bool {
+func CollectsGrade1Class(phase *enrollmentCapability.Phase) bool {
 	if phase == nil {
 		return false
 	}
@@ -4579,7 +4601,7 @@ func (s *requestService) resolveAdminEmails(ctx context.Context) []string {
 // loop.
 func (s *requestService) applyCapacityOverflow(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	children []SubmitChild,
 ) (map[int]string, error) {
 	return s.applyCapacityOverflowWithCapacityClaims(ctx, phase, children, nil, nil)
@@ -4590,7 +4612,7 @@ func (s *requestService) applyCapacityOverflow(
 // not the request's historical offering intervals.
 func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	children []SubmitChild,
 	preservedClaims map[int64]int,
 ) (map[int]string, error) {
@@ -4599,7 +4621,7 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 
 func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	children []SubmitChild,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
@@ -4608,7 +4630,7 @@ func (s *requestService) applyCapacityOverflowWithReplacedChildren(
 
 func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	children []SubmitChild,
 	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
@@ -4619,7 +4641,7 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 			return s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentWaitlistEnabled)
 		}
 	}
-	return applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
+	return applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.Children,
 		resolveWaitlistEnabled, phase, fullWindowClaims(children), preservedClaims, replacedRequestChildIDs)
 }
 
@@ -4640,21 +4662,21 @@ func (s *requestService) applyCapacityOverflowWithCapacityClaims(
 func applyCapacityOverflowCore(
 	ctx context.Context,
 	careOfferingRepo enrollmentModels.CareOfferingRepository,
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository,
+	capacity OfferingCapacityReader,
 	resolveWaitlistEnabled func(context.Context) (bool, error),
-	phase *enrollmentModels.Phase,
+	phase *enrollmentCapability.Phase,
 	claimsPerChild [][]OfferingClaim,
 	preservedClaims map[int64]int,
 	replacedRequestChildIDs []int64,
 ) (map[int]string, error) {
 	overrides := make(map[int]string)
-	if requestChildOfferingRepo == nil || len(claimsPerChild) == 0 {
+	if capacity == nil || len(claimsPerChild) == 0 {
 		return overrides, nil
 	}
 	// Historical manual approvals and late invites can legitimately target a
 	// completed care period. They create no present or future capacity claim,
 	// so querying from today through the already-ended phase would be empty.
-	if phase.ServiceEndDate.Before(timezone.TodayDate()) {
+	if timezone.Date(phase.ServiceEndDate).Before(timezone.TodayDate()) {
 		return overrides, nil
 	}
 	// Serialize this count with offering-change approvals and other
@@ -4692,9 +4714,9 @@ func applyCapacityOverflowCore(
 
 	mode := phase.CareOverflowMode
 	if mode == "" {
-		mode = enrollmentModels.PhaseCareOverflowWaitlist
+		mode = enrollmentCapability.PhaseCareOverflowWaitlist
 	}
-	if mode == enrollmentModels.PhaseCareOverflowWaitlist {
+	if mode == enrollmentCapability.PhaseCareOverflowWaitlist {
 		if resolveWaitlistEnabled == nil {
 			return nil, errors.New("enrollment settings resolver is not configured")
 		}
@@ -4705,17 +4727,17 @@ func applyCapacityOverflowCore(
 		if !waitlistEnabled {
 			// Tenant-wide disable wins. Overflow remains deterministic and safe:
 			// accept above capacity instead of manufacturing a forbidden status.
-			mode = enrollmentModels.PhaseCareOverflowAllow
+			mode = enrollmentCapability.PhaseCareOverflowAllow
 		}
 	}
 
 	// The phase's remaining capacity window; every claim interval is
 	// clamped into it before counting.
 	capacityFrom := timezone.TodayDate()
-	if phase.ServiceStartDate.After(capacityFrom) {
-		capacityFrom = phase.ServiceStartDate
+	if timezone.Date(phase.ServiceStartDate).After(capacityFrom) {
+		capacityFrom = timezone.Date(phase.ServiceStartDate)
 	}
-	capacityUntil := phase.ServiceEndDate.AddDays(1)
+	capacityUntil := timezone.Date(phase.ServiceEndDate).AddDays(1)
 
 	// Queued claims from earlier children in this run, per offering. Each
 	// keeps its clamped interval so a later claim queues against exactly
@@ -4753,7 +4775,7 @@ func applyCapacityOverflowCore(
 		if cached, ok := peakCache[key]; ok {
 			return cached, nil
 		}
-		count, err := requestChildOfferingRepo.CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx, offeringID, replacedRequestChildIDs, from, until)
+		count, err := capacity.OfferingCapacityPeak(ctx, offeringID, replacedRequestChildIDs, enrollmentCapability.Date(from), enrollmentCapability.Date(until))
 		if err != nil {
 			return 0, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
@@ -4838,7 +4860,7 @@ func applyCapacityOverflowCore(
 			}
 			if over {
 				childOver = true
-				if mode == enrollmentModels.PhaseCareOverflowReject {
+				if mode == enrollmentCapability.PhaseCareOverflowReject {
 					return nil, fmt.Errorf("%w: offering %d", ErrCareOfferingFull, claim.OfferingID)
 				}
 			}
@@ -4846,7 +4868,7 @@ func applyCapacityOverflowCore(
 			// waitlisted claims too, so the in-run queue must as well.
 			enqueue()
 		}
-		if childOver && mode == enrollmentModels.PhaseCareOverflowWaitlist {
+		if childOver && mode == enrollmentCapability.PhaseCareOverflowWaitlist {
 			overrides[childIdx] = enrollmentModels.ChildStatusWaitlisted
 		}
 	}
@@ -4875,9 +4897,7 @@ func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest
 			return limitErr
 		})
 		if err != nil {
-			s.Logger.Warn("enrollment submit: rate-limit transaction failed; allowing through",
-				slog.String("error", err.Error()),
-				slog.Int64("tenant_id", req.TenantID))
+			return fmt.Errorf("enrollment submit: rate-limit transaction: %w", err)
 		}
 		if errors.Is(limitErr, ErrRateLimited) {
 			return limitErr
@@ -4897,13 +4917,13 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 
 	if ip != "" {
-		state, err := s.RateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentModels.SubmissionRateLimitKeyTypeIP, ip, rateLimitWindowIP)
+		state, err := s.RateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, ip, rateLimitWindowIP)
 		if err != nil {
-			s.Logger.Warn("enrollment submit: rate-limit IP increment failed; allowing through",
-				slog.String("error", err.Error()))
-		} else if state.Attempts > rateLimitMaxAttemptsIP {
+			return fmt.Errorf("enrollment submit: rate-limit IP increment: %w", err)
+		}
+		if state.Attempts > rateLimitMaxAttemptsIP {
 			s.Logger.Info("enrollment submit rate-limited",
-				slog.String("key_type", enrollmentModels.SubmissionRateLimitKeyTypeIP),
+				slog.String("key_type", enrollmentCapability.SubmissionRateLimitKeyTypeIP),
 				slog.Int("attempts", state.Attempts),
 				slog.Int64("tenant_id", req.TenantID))
 			return ErrRateLimited
@@ -4911,13 +4931,13 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 	}
 
 	if email != "" {
-		state, err := s.RateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentModels.SubmissionRateLimitKeyTypeEmail, email, rateLimitWindowEmail)
+		state, err := s.RateLimitRepo.IncrementAttempts(ctx, req.TenantID, enrollmentCapability.SubmissionRateLimitKeyTypeEmail, email, rateLimitWindowEmail)
 		if err != nil {
-			s.Logger.Warn("enrollment submit: rate-limit email increment failed; allowing through",
-				slog.String("error", err.Error()))
-		} else if state.Attempts > rateLimitMaxAttemptsMail {
+			return fmt.Errorf("enrollment submit: rate-limit email increment: %w", err)
+		}
+		if state.Attempts > rateLimitMaxAttemptsMail {
 			s.Logger.Info("enrollment submit rate-limited",
-				slog.String("key_type", enrollmentModels.SubmissionRateLimitKeyTypeEmail),
+				slog.String("key_type", enrollmentCapability.SubmissionRateLimitKeyTypeEmail),
 				slog.Int("attempts", state.Attempts),
 				slog.Int64("tenant_id", req.TenantID))
 			return ErrRateLimited
@@ -4959,4 +4979,19 @@ func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []
 	default:
 		return nil, fmt.Errorf("offering has unknown days_of_week_mode %q", offering.DaysOfWeekMode)
 	}
+}
+
+// SubmissionRateLimiter is the submission flow's consumer-owned throttle port.
+type SubmissionRateLimiter interface {
+	IncrementAttempts(context.Context, int64, string, string, time.Duration) (*enrollmentCapability.SubmissionRateLimitState, error)
+}
+
+func (s *requestService) intakePhase(ctx context.Context, id int64) (*enrollmentCapability.Phase, error) {
+	value, err := s.Catalog.Phase(ctx, id)
+	return value, err
+}
+
+func (s *requestService) intakeSchema(ctx context.Context, id int64) (*enrollmentCapability.FormSchema, error) {
+	value, err := s.Catalog.Schema(ctx, id)
+	return cloneSchema(value), err
 }

@@ -2,6 +2,7 @@ package enrollment_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strconv"
@@ -9,10 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -107,6 +112,80 @@ type recordingOutbox struct {
 	err     error
 }
 
+type failAfterDurableEnqueue struct {
+	module *deliveryModule.Module
+	err    error
+	failAt int
+	calls  int
+}
+
+func (f *failAfterDurableEnqueue) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+	payload, err := json.Marshal(req.Payload)
+	if err != nil {
+		return err
+	}
+	address, _ := req.Payload["recipient_email"].(string)
+	_, err = f.module.EnqueueEmail(ctx, deliveryModule.EmailIntent{
+		TenantID: tenant.FromContext(ctx), Template: req.Kind,
+		Recipient: deliveryModule.EmailRecipient{Address: address}, Payload: payload,
+		Related: deliveryModule.RelatedEntity{Type: req.RelatedEntityType, ID: req.RelatedEntityID},
+	})
+	if err != nil {
+		return err
+	}
+	f.calls++
+	if f.calls == f.failAt {
+		return f.err
+	}
+	return nil
+}
+
+func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
+	t.Parallel()
+	for _, failAt := range []int{1, 2} {
+		t.Run(strconv.Itoa(failAt), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env, cleanup := setupRequestTest(t)
+			defer cleanup()
+			env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.test"
+			delivery := newTestEnrollmentDelivery(t, env.db)
+			failure := errors.New("failure after durable enqueue")
+			outbox := &failAfterDurableEnqueue{module: delivery.module, err: failure, failAt: failAt}
+			config := env.config
+			config.OutboxEnqueuer = outbox
+			svc := enrollmentService.NewRequestService(config)
+			input := validSubmission(t, env.phaseID)
+			offering := setupCareOfferingForCapacity(t, env, 10)
+			input.Children[0].OfferingIDs = []int64{offering.ID}
+			guardianEmail := "alex@example.test"
+			input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{
+				FirstName: "Alex", LastName: "Beispiel", Email: &guardianEmail,
+			}}
+			_, err := svc.Submit(testpkg.Ctx(t), input)
+			require.ErrorIs(t, err, failure)
+			require.Equal(t, failAt, outbox.calls)
+			tables := []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings", "platform.email_outbox"}
+			for _, table := range tables {
+				count, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
+				require.NoError(t, err)
+				require.Zero(t, count, table)
+			}
+			outbox.err = nil
+			result, err := svc.Submit(testpkg.Ctx(t), input)
+			require.NoError(t, err)
+			require.NotNil(t, result.Request)
+			for _, table := range tables[:len(tables)-1] {
+				count, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
+				require.NoError(t, err)
+				require.Equal(t, 1, count, "retry must commit one row in %s", table)
+			}
+			count, err := env.db.NewSelect().Table("platform.email_outbox").Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
+			require.NoError(t, err)
+			require.Equal(t, 2, count, "retry must commit exactly one parent and one admin intent")
+		})
+	}
+}
+
 type recordingGuardianAuthorizer struct {
 	email        string
 	grantedEmail string
@@ -148,7 +227,7 @@ type requestTestEnv struct {
 	db        *bun.DB
 	svc       enrollmentService.RequestService
 	config    enrollmentService.RequestServiceConfig
-	phase     *enrollmentModels.Phase
+	phase     *enrollmentCapability.Phase
 	schemaID  int64
 	creatorID int64
 	settings  *stubRequestSettings
@@ -176,20 +255,19 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 
 	outbox := &recordingOutbox{}
 	config := enrollmentService.RequestServiceConfig{
-		RequestRepo:              repoFactory.Request,
-		RequestChildRepo:         repoFactory.RequestChild,
-		RequestGuardianRepo:      repoFactory.RequestGuardian,
-		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
-		CareOfferingRepo:         repoFactory.CareOffering,
-		FormSchemaRepo:           repoFactory.FormSchema,
-		PhaseRepo:                repoFactory.Phase,
-		SchoolRepo:               repoFactory.School,
-		RateLimitRepo:            repoFactory.SubmissionRateLimit,
-		OutboxEnqueuer:           outbox,
-		Settings:                 settings,
-		FrontendURL:              "http://localhost:3000",
-		DB:                       db,
-		Logger:                   slog.Default(),
+		Requests:         repoFactory.Enrollment(),
+		Children:         repoFactory.Enrollment(),
+		Guardians:        repoFactory.Enrollment(),
+		CareOfferingRepo: repoFactory.CareOffering,
+		Catalog:          repoFactory.Enrollment(),
+		SchoolRepo:       repoFactory.School,
+		RateLimitRepo:    repoFactory.Enrollment(),
+		LateInviteRepo:   repoFactory.Enrollment(),
+		OutboxEnqueuer:   outbox,
+		Settings:         settings,
+		FrontendURL:      "http://localhost:3000",
+		DB:               db,
+		Logger:           slog.Default(),
 	}
 	svc := enrollmentService.NewRequestService(config)
 
@@ -199,7 +277,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	// Use the form_schema service to publish a minimal active version.
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Submission", "Tester")
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentModels.FormField{
@@ -211,17 +289,17 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	// (replaced calendar_period in the phase model). The phase owns the
 	// open window (defaults: unbounded), the form schema (defaults:
 	// nil = fall back to tenant active), and the overflow mode.
-	phase := &enrollmentModels.Phase{
+	phase := &enrollmentCapability.Phase{
 		Name:             "request-test-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		ServiceStartDate: enrollmentCapability.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentCapability.Date(timezone.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.Phase.Create(ctx, phase))
+	phase.TenantID = testpkg.Tenant(t)
+	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), phase))
 
 	env := &requestTestEnv{
 		db:        db,
@@ -301,10 +379,7 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	config := env.config
-	config.LateInviteRepo = repos.LateInvite
-	svc := enrollmentService.NewRequestService(config)
+	svc := env.svc
 	created, err := svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
 		GuardianEmail: "invited@example.test",
@@ -323,7 +398,7 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	assert.Equal(t, enrollmentModels.RequestSourceLateInvite, result.Request.SubmissionSource)
 	assert.EqualValues(t, created.Invite.ID, result.Request.SourceMetadata["late_invite_id"])
 
-	used, err := repos.LateInvite.FindByUsedRequestID(ctx, result.Request.ID)
+	used, err := env.config.LateInviteRepo.LateInviteByUsedRequestID(ctx, result.Request.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "invited@example.test", used.GuardianEmail)
 }
@@ -353,7 +428,6 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: "submitted@example.test"}
 	config := env.config
-	config.LateInviteRepo = repos.LateInvite
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
 	svc := enrollmentService.NewRequestService(config)
@@ -419,7 +493,6 @@ func withLateInviteRenewalFixture(
 	const inviteEmail = "renewal-invited@example.test"
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: inviteEmail}
 	config := env.config
-	config.LateInviteRepo = repos.LateInvite
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
 	svc := enrollmentService.NewRequestService(config)
@@ -537,7 +610,7 @@ func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 
-	var stored []*enrollmentModels.RequestGuardian
+	var stored []*enrollmentCapability.RequestGuardian
 	err = env.db.NewSelect().
 		Model(&stored).
 		ModelTableExpr(`enrollment.request_guardians AS "request_guardian"`).
@@ -583,7 +656,7 @@ func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *te
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 
-	var stored []*enrollmentModels.RequestGuardian
+	var stored []*enrollmentCapability.RequestGuardian
 	err = env.db.NewSelect().
 		Model(&stored).
 		ModelTableExpr(`enrollment.request_guardians AS "request_guardian"`).
@@ -656,7 +729,7 @@ func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 	env.phase.EnrollmentOpenAt = &pastStart
 	env.phase.EnrollmentCloseAt = &pastEnd
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
@@ -754,7 +827,7 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	assert.Equal(t, "consent", entry.Blocks[1].Kind)
 	assert.False(t, entry.Blocks[1].Required)
 	// The entry also freezes the guardian's answers at submit time.
-	assert.Equal(t, map[string]any{"agb": true, "photo": false}, entry.ConsentFlags)
+	assert.JSONEq(t, `{"agb":true,"photo":false}`, string(entry.ConsentFlags))
 
 	// A guardian edit appends a second entry instead of rewriting the
 	// first; the pre-edit photo answer stays provable in entry 0 even
@@ -764,13 +837,13 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, replace)
 	require.NoError(t, err)
 
-	stored, err := env.config.RequestRepo.FindByStatusToken(ctx, result.Request.StatusToken)
+	stored, _, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
 	require.NoError(t, err)
 	require.Len(t, stored.LegalBlocksSnapshot, 2)
 	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[0].Blocks)
 	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[1].Blocks)
-	assert.Equal(t, map[string]any{"agb": true, "photo": false}, stored.LegalBlocksSnapshot[0].ConsentFlags)
-	assert.Equal(t, map[string]any{"agb": true, "photo": true}, stored.LegalBlocksSnapshot[1].ConsentFlags)
+	assert.JSONEq(t, `{"agb":true,"photo":false}`, string(stored.LegalBlocksSnapshot[0].ConsentFlags))
+	assert.JSONEq(t, `{"agb":true,"photo":true}`, string(stored.LegalBlocksSnapshot[1].ConsentFlags))
 }
 
 func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
@@ -990,7 +1063,7 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       false,
 	}
-	inactiveOffering.SetTenantID(testpkg.Tenant(t))
+	inactiveOffering.TenantID = testpkg.Tenant(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, inactiveOffering))
 
@@ -1011,7 +1084,7 @@ func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
@@ -1028,7 +1101,7 @@ func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	first := setupCareOfferingForCapacity(t, env, 0)
 	second := setupCareOfferingForCapacity(t, env, 0)
@@ -1057,7 +1130,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	// Mandatory base offering: always-on, no capacity limit.
 	required := &enrollmentModels.CareOffering{
@@ -1068,7 +1141,7 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 		IsActive:       true,
 		IsRequired:     true,
 	}
-	required.SetTenantID(testpkg.Tenant(t))
+	required.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
 
 	// Two choosable time-slot offerings the parent picks exactly one of.
@@ -1115,7 +1188,7 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 
 	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	required := &enrollmentModels.CareOffering{
 		PhaseID:        env.phaseID,
@@ -1125,7 +1198,7 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 		IsActive:       true,
 		IsRequired:     true,
 	}
-	required.SetTenantID(testpkg.Tenant(t))
+	required.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
 
 	choosable := setupCareOfferingForCapacity(t, env, 5)
@@ -1161,14 +1234,18 @@ func TestRequestService_GetByStatusToken_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
-	// Use a non-tenant context to verify the service-level token lookup
-	// works without prior tenant-tx middleware (mirrors the public route).
-	req, children, err := env.svc.GetByStatusToken(context.Background(), token)
+	// The public route supplies an admin transaction without a tenant ID;
+	// the token discovers the school before child access is scoped.
+	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {
+		req, children, err := env.svc.GetByStatusToken(adminCtx, token)
+		require.NoError(t, err)
+		require.NotNil(t, req)
+		require.Len(t, children, 1)
+		assert.Equal(t, "Anna", req.GuardianFirstName)
+		assert.Equal(t, "Lina", children[0].FirstName)
+		return nil
+	})
 	require.NoError(t, err)
-	require.NotNil(t, req)
-	require.Len(t, children, 1)
-	assert.Equal(t, "Anna", req.GuardianFirstName)
-	assert.Equal(t, "Lina", children[0].FirstName)
 }
 
 func TestRequestService_GetByStatusToken_UnknownReturnsNotFound(t *testing.T) {
@@ -1197,7 +1274,7 @@ func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *tes
 	// Admin records a rejection with an internal reason.
 	reason := "Intern: Kapazität voll, Geschwisterkind bevorzugt"
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
 	))
 
@@ -1223,12 +1300,12 @@ func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *tes
 
 	reason := "Leider keine freien Plätze in diesem Durchgang"
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID,
 	))
 
 	env.phase.ShowStatusReasonToParent = true
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	_, children, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
 	require.NoError(t, err)
@@ -1276,7 +1353,7 @@ func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 	// Move the only child to under_review so Edit must reject.
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
-		repoFactory.RequestChild.UpdateStatus(
+		repoFactory.Enrollment().UpdateChildStatus(
 			ctx, result.Children[0].ID, enrollmentModels.ChildStatusUnderReview, nil, 0,
 		),
 	)
@@ -1400,7 +1477,7 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
-		repoFactory.RequestChild.UpdateStatus(
+		repoFactory.Enrollment().UpdateChildStatus(
 			ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusUnderReview, nil, 0,
 		),
 	)
@@ -1539,7 +1616,7 @@ func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindo
 	env.phase.EnrollmentOpenAt = &pastStart
 	env.phase.EnrollmentCloseAt = &pastEnd
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
@@ -1597,7 +1674,7 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 	assert.Equal(t, reason, *child.ReviewReason)
 	assert.Equal(t, enrollmentModels.ChildActivationImmediate, child.ActivationMode)
 	require.NotNil(t, child.ActivateOn)
-	assert.Equal(t, activateOn, *child.ActivateOn)
+	assert.Equal(t, enrollmentCapability.Date(activateOn.String()), *child.ActivateOn)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
 	require.NotNil(t, child.TargetGradeLevel)
 	assert.Equal(t, int16(2), *child.TargetGradeLevel)
@@ -1781,7 +1858,7 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, editor.Request.ID)
+	stored, err := enrollmentService.ReadOwnerRequestForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), editor.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -1839,7 +1916,7 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 	submitted, err := env.svc.Submit(ctx, base)
 	require.NoError(t, err)
 	require.Len(t, submitted.Children, 2)
-	require.NoError(t, repoFactory.RequestChild.UpdateActivationPlan(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildActivationPlan(
 		ctx, submitted.Children[1].ID, enrollmentModels.ChildActivationImmediate, nil,
 	))
 
@@ -1868,7 +1945,7 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 	assert.Equal(t, enrollmentModels.ChildActivationImmediate, updated.Children[0].ActivationMode)
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, updated.Children[1].ActivationMode)
 
-	links, err := repoFactory.RequestChildOffering.ListByRequestChildIDs(ctx, []int64{
+	links, err := repoFactory.Enrollment().RequestChildOfferingHistoryForChildren(ctx, []int64{
 		updated.Children[0].ID,
 		updated.Children[1].ID,
 	})
@@ -1946,7 +2023,7 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	// Promote child to approved → per-child withdraw must fail.
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	require.NoError(t,
-		repoFactory.RequestChild.UpdateStatus(
+		repoFactory.Enrollment().UpdateChildStatus(
 			ctx, result.Children[0].ID, enrollmentModels.ChildStatusApproved, nil, 0,
 		),
 	)
@@ -1977,7 +2054,7 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 	require.Len(t, submitted.Children, 2)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
 	))
 	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
@@ -2013,7 +2090,7 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
 	))
 	env.outbox.mu.Lock()
@@ -2022,7 +2099,7 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 
 	err = env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID)
 	require.ErrorContains(t, err, "enqueue parent decision digest")
-	children, loadErr := repoFactory.RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	children, loadErr := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), submitted.Request.ID)
 	require.NoError(t, loadErr)
 	require.Len(t, children, 2)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[1].Status)
@@ -2048,7 +2125,7 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 	require.NoError(t, err)
 
 	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[0].ID))
-	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), submitted.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
@@ -2170,9 +2247,14 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 			Where("key_value = ?", tenantTwoEmail).
 			Exec(context.Background())
 	})
-	state, err := repoFactory.SubmissionRateLimit.IncrementAttempts(
-		ctx, otherTenantID, enrollmentModels.SubmissionRateLimitKeyTypeEmail, tenantTwoEmail, 24*time.Hour,
-	)
+	var state *enrollmentCapability.SubmissionRateLimitState
+	err = testpkg.WithTenantTx(t, context.Background(), env.db, otherTenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var incrementErr error
+		state, incrementErr = repoFactory.Enrollment().IncrementAttempts(
+			txCtx, otherTenantID, enrollmentCapability.SubmissionRateLimitKeyTypeEmail, tenantTwoEmail, 24*time.Hour,
+		)
+		return incrementErr
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 1, state.Attempts,
 		"a different tenant's bucket must start fresh, got %d", state.Attempts)
@@ -2212,7 +2294,7 @@ func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.
 		TableExpr("enrollment.submission_rate_limits").
 		Column("attempts").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Where("key_type = ?", enrollmentModels.SubmissionRateLimitKeyTypeEmail).
+		Where("key_type = ?", enrollmentCapability.SubmissionRateLimitKeyTypeEmail).
 		Where("key_value = ?", email).
 		Scan(context.Background(), &attempts)
 	require.NoError(t, err)
@@ -2245,7 +2327,7 @@ func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity in
 		Capacity:            &cap,
 		IsActive:            true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 	return offering
 }
@@ -2269,7 +2351,7 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 	ctx := testpkg.Ctx(t)
 	env.phase.CareOverflowMode = mode
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 }
 
 func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
@@ -2304,10 +2386,10 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.phase.ServiceStartDate = timezone.NewDate(2025, 9, 1)
-	env.phase.ServiceEndDate = timezone.NewDate(2026, 7, 31)
+	env.phase.ServiceStartDate = enrollmentCapability.Date(timezone.NewDate(2025, 9, 1))
+	env.phase.ServiceEndDate = enrollmentCapability.Date(timezone.NewDate(2026, 7, 31))
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -2354,7 +2436,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, r2.Request.ID)
+	stored, err := enrollmentService.ReadOwnerRequestForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), r2.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -2459,7 +2541,7 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
 	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
 
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Request.FindByID(ctx, result.Request.ID)
+	stored, err := enrollmentService.ReadOwnerRequestForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), result.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
 	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
@@ -2609,7 +2691,7 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 		Capacity:            nil, // unlimited
 		IsActive:            true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	for i := 0; i < 3; i++ {
@@ -2800,18 +2882,18 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 	// Build a second phase with FormSchemaID nil ("Basis"). The shared
 	// env phase doesn't pin a schema either, but it's safer to spell
 	// it out so the test breaks loudly if the default changes.
-	basis := &enrollmentModels.Phase{
+	basis := &enrollmentCapability.Phase{
 		Name:             "basis-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: env.phase.ServiceStartDate,
-		ServiceEndDate:   env.phase.ServiceEndDate,
+		ServiceStartDate: enrollmentCapability.Date(env.phase.ServiceStartDate),
+		ServiceEndDate:   enrollmentCapability.Date(env.phase.ServiceEndDate),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     nil,
 	}
-	basis.SetTenantID(testpkg.Tenant(t))
+	basis.TenantID = testpkg.Tenant(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
+	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), basis))
 	defer func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.phases").
@@ -2837,18 +2919,18 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	basis := &enrollmentModels.Phase{
+	basis := &enrollmentCapability.Phase{
 		Name:             "basis-edit-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: env.phase.ServiceStartDate,
-		ServiceEndDate:   env.phase.ServiceEndDate,
+		ServiceStartDate: enrollmentCapability.Date(env.phase.ServiceStartDate),
+		ServiceEndDate:   enrollmentCapability.Date(env.phase.ServiceEndDate),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     nil,
 	}
-	basis.SetTenantID(testpkg.Tenant(t))
+	basis.TenantID = testpkg.Tenant(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
+	require.NoError(t, enrollmentService.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), basis))
 	defer func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.phases").
@@ -2863,7 +2945,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 	require.Nil(t, submitted.Request.SchemaID)
 
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentModels.FormField{
@@ -2877,7 +2959,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 	}, env.creatorID)
 	require.NoError(t, err)
 	basis.FormSchemaID = &laterSchema.ID
-	require.NoError(t, repoFactory.Phase.Update(ctx, basis))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(basis)))
 
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
@@ -2916,7 +2998,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 	// text "which_allergy" that is only visible when has_allergy == true.
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentModels.FormField{
@@ -2934,7 +3016,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 
 	// Point the phase at this schema.
 	env.phase.FormSchemaID = &schema.ID
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	// has_allergy=false → which_allergy is hidden + unanswered. The client
 	// also smuggles a stale value for the hidden field.
@@ -2966,7 +3048,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentModels.FormField{
@@ -2982,7 +3064,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	}, env.creatorID)
 	require.NoError(t, err)
 	env.phase.FormSchemaID = &schema.ID
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	// has_allergy=true → which_allergy is visible + required, but left blank.
 	req := validSubmission(t, env.phaseID)
@@ -3005,7 +3087,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	// Required per-child contact_list (canonical target student.contacts).
@@ -3018,7 +3100,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 	}, env.creatorID)
 	require.NoError(t, err)
 	env.phase.FormSchemaID = &schema.ID
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	// Malformed: a single contact with no name and no email/phone.
 	bad := validSubmission(t, env.phaseID)
@@ -3045,7 +3127,7 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 	ctx := testpkg.Ctx(t)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repoFactory.FormSchema,
+		Owner:  repoFactory.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentModels.FormField{
@@ -3057,7 +3139,7 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 	}, env.creatorID)
 	require.NoError(t, err)
 	env.phase.FormSchemaID = &schema.ID
-	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+	require.NoError(t, repoFactory.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 }
 
 // TestRequestService_Submit_AcceptsAllowedPickupTime is the happy-path
@@ -3107,7 +3189,7 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 		AvailableDays:  []string{"tue", "thu"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
@@ -3175,7 +3257,7 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 		AvailableDays:  []string{"tue", "thu"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	req := validSubmission(t, env.phaseID)
@@ -3240,7 +3322,7 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 	env.phase.EligibleSchoolClasses = []string{"2a"}
 	env.phase.EligibleGradeLevels = []int{2}
 	env.phase.RequireSchoolClass = true
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Phase.Update(ctx, env.phase))
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.phase)))
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "edit-draft-eligibility@example.com"
@@ -3296,17 +3378,73 @@ func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.
 		"an eligibility-exempt draft must not narrow the grade select")
 }
 
+func TestRequestService_LateInviteSurvivesSubmissionRollback(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	invite, err := env.svc.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
+		PhaseID: env.phaseID, GuardianEmail: "invited-retry@example.test", CreatedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	input := validSubmission(t, env.phaseID)
+	input.LateInviteToken = invite.Token
+	failure := errors.New("delivery unavailable after invite consumption")
+	env.outbox.err = failure
+	_, err = env.svc.Submit(ctx, input)
+	require.ErrorIs(t, err, failure)
+	usable, err := env.config.LateInviteRepo.UsableLateInvite(ctx, invite.Invite.TokenHash, env.phaseID, time.Now(), false)
+	require.NoError(t, err)
+	require.Nil(t, usable.UsedAt)
+	require.Nil(t, usable.UsedRequestID)
+	env.outbox.err = nil
+	retried, err := env.svc.Submit(ctx, input)
+	require.NoError(t, err)
+	consumed, err := env.config.LateInviteRepo.LateInviteByUsedRequestID(ctx, retried.Request.ID)
+	require.NoError(t, err)
+	require.Equal(t, invite.Invite.ID, consumed.ID)
+	require.Equal(t, &retried.Request.ID, consumed.UsedRequestID)
+	_, err = env.svc.Submit(ctx, input)
+	require.ErrorIs(t, err, enrollmentService.ErrLateInviteInvalid)
+	count, err := env.db.NewSelect().Table("enrollment.requests").Where("phase_id = ?", env.phaseID).Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count, "rollback retry and consumed-token replay must not duplicate the request")
+}
+
 func TestRequestService_SubmitRollsBackWhenEmailEnqueueFails(t *testing.T) {
 	t.Parallel()
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	env.outbox.err = errors.New("outbox unavailable")
+	failure := errors.New("outbox unavailable")
+	env.outbox.err = failure
+	input := validSubmission(t, env.phaseID)
+	offering := setupCareOfferingForCapacity(t, env, 10)
+	input.Children[0].OfferingIDs = []int64{offering.ID}
+	coGuardianEmail := "alex@example.test"
+	input.AdditionalGuardians = []enrollmentService.SubmitGuardian{{
+		FirstName: "Alex", LastName: "Beispiel", Email: &coGuardianEmail,
+	}}
 
-	_, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	_, err := env.svc.Submit(testpkg.Ctx(t), input)
 	require.ErrorContains(t, err, "enqueue submission emails")
+	require.ErrorIs(t, err, failure)
 
 	var count int
 	require.NoError(t, env.db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE phase_id = ?`, env.phaseID).Scan(testpkg.Ctx(t), &count))
 	assert.Zero(t, count)
+	assertRows := func(expected int) {
+		for _, table := range []string{"enrollment.requests", "enrollment.request_children", "enrollment.request_guardians", "enrollment.request_child_offerings"} {
+			rows, err := env.db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(testpkg.Ctx(t))
+			require.NoError(t, err)
+			require.Equal(t, expected, rows, table)
+		}
+	}
+	assertRows(0)
+	env.outbox.err = nil
+	retried, err := env.svc.Submit(testpkg.Ctx(t), input)
+	require.NoError(t, err)
+	require.NotNil(t, retried.Request)
+	require.Len(t, retried.Children, 1)
+	assertRows(1)
 }

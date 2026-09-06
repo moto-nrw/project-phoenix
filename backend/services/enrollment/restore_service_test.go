@@ -55,7 +55,7 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 	require.NoError(t, env.requestSvc.Withdraw(ctx, result.Request.StatusToken, 0))
 
 	// Precondition: the withdraw stamped everything the restore must undo.
-	withdrawnReq, err := env.repos.Request.FindByID(ctx, reqID)
+	withdrawnReq, err := enrollmentService.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	require.NotNil(t, withdrawnReq.WithdrawnAt)
 
@@ -63,7 +63,7 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, outcome.RestoredChildIDs, 2)
 
-	children, err := env.repos.RequestChild.ListByRequestID(ctx, reqID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	for _, child := range children {
@@ -73,7 +73,7 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 		assert.Nil(t, child.StatusReason)
 	}
 
-	restoredReq, err := env.repos.Request.FindByID(ctx, reqID)
+	restoredReq, err := enrollmentService.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	assert.Nil(t, restoredReq.WithdrawnAt, "withdrawn_at must be cleared")
 
@@ -112,7 +112,7 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 	require.Len(t, outcome.RestoredChildIDs, 1)
 	assert.NotContains(t, outcome.RestoredChildIDs, rejectedChildID)
 
-	children, err := env.repos.RequestChild.ListByRequestID(ctx, reqID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	for _, child := range children {
@@ -127,7 +127,7 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 		assert.Nil(t, child.ReviewedAt)
 	}
 
-	restoredReq, err := env.repos.Request.FindByID(ctx, reqID)
+	restoredReq, err := enrollmentService.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	assert.Nil(t, restoredReq.WithdrawnAt)
 
@@ -191,10 +191,10 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	require.NoError(t, env.requestSvc.Withdraw(ctx, result.Request.StatusToken, 0))
 
 	env.sourcePhase.IsActive = false
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 	t.Cleanup(func() {
 		env.sourcePhase.IsActive = true
-		_ = env.repos.Phase.Update(testpkg.Ctx(t), env.sourcePhase)
+		_ = env.repos.Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentService.OwnerPhaseForTest(env.sourcePhase))
 	})
 
 	_, err := env.decision.RestoreWithdrawn(ctx, reqID, env.creatorID)
@@ -202,7 +202,7 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrRestorePhaseInactive))
 
 	// Nothing changed: children stay withdrawn, withdrawn_at stays set.
-	children, listErr := env.repos.RequestChild.ListByRequestID(ctx, reqID)
+	children, listErr := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, listErr)
 	for _, child := range children {
 		assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, child.Status)
@@ -217,13 +217,13 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 	t.Helper()
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              repoFactory.Request,
-		RequestChildRepo:         repoFactory.RequestChild,
-		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
-		CareOfferingRepo:         repoFactory.CareOffering,
-		PhaseRepo:                repoFactory.Phase,
-		RestorationAuditRepo:     repoFactory.EnrollmentRestorationAudit,
-		Logger:                   slog.Default(),
+		Requests:             repoFactory.Enrollment(),
+		Children:             repoFactory.Enrollment(),
+		ApprovedOfferings:    approvedOfferingTestProjection(repoFactory),
+		CareOfferingRepo:     repoFactory.CareOffering,
+		Phases:               repoFactory.Enrollment(),
+		RestorationAuditRepo: repoFactory.EnrollmentRestorationAudit,
+		Logger:               slog.Default(),
 	})
 }
 
@@ -262,7 +262,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 		"the offering is full again, so the restored child must come back waitlisted, not submitted")
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	children, err := repoFactory.RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, children[0].Status)
@@ -270,7 +270,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 	assert.Nil(t, children[0].ReviewedBy)
 
 	// Family B's claim is untouched.
-	othersChildren, err := repoFactory.RequestChild.ListByRequestID(ctx, resB.Request.ID)
+	othersChildren, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repoFactory.Enrollment(), resB.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, othersChildren, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, othersChildren[0].Status)
@@ -300,7 +300,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 	require.Len(t, outcome.RestoredChildIDs, 1)
 	assert.Empty(t, outcome.WaitlistedChildIDs)
 
-	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -312,8 +312,7 @@ func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.
 func setOfferingInterval(t *testing.T, db *bun.DB, requestChildID int64, validFrom, validUntil *timezone.Date) {
 	t.Helper()
 	_, err := db.NewUpdate().
-		Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		TableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
 		Set(`valid_from = ?`, validFrom).
 		Set(`valid_until = ?`, validUntil).
 		Where(`"request_child_offering".request_child_id = ?`, requestChildID).
@@ -362,7 +361,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 	assert.Empty(t, outcome.WaitlistedChildIDs,
 		"the claims never overlap, so the restore must come back submitted")
 
-	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[0].Status)
@@ -417,7 +416,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 	require.Len(t, outcome.WaitlistedChildIDs, 1,
 		"the overlapping restored claims share the single slot, so exactly one child must be waitlisted")
 
-	children, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, res.Request.ID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), res.Request.ID)
 	require.NoError(t, err)
 	require.Len(t, children, 2)
 	statuses := map[string]int{}
@@ -460,7 +459,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 		"reject-mode phase must refuse the restore instead of overbooking")
 
 	// Nothing changed on the withdrawn request.
-	children, listErr := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.ListByRequestID(ctx, resA.Request.ID)
+	children, listErr := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), resA.Request.ID)
 	require.NoError(t, listErr)
 	require.Len(t, children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
@@ -485,12 +484,12 @@ func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T)
 	assert.True(t, errors.Is(err, enrollmentService.ErrRestoreDuplicateActive))
 
 	// The withdrawn request is untouched.
-	children, listErr := env.repos.RequestChild.ListByRequestID(ctx, first.Request.ID)
+	children, listErr := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), first.Request.ID)
 	require.NoError(t, listErr)
 	for _, child := range children {
 		assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, child.Status)
 	}
-	req, findErr := env.repos.Request.FindByID(ctx, first.Request.ID)
+	req, findErr := enrollmentService.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), first.Request.ID)
 	require.NoError(t, findErr)
 	assert.NotNil(t, req.WithdrawnAt)
 }

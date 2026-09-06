@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -81,7 +82,7 @@ func TestParsePhaseExportRequest(t *testing.T) {
 // shapes the renderers must handle: guardian + child custom fields,
 // a select with an option label, consents, and an offering.
 func sampleExport() *enrollmentService.PhaseExport {
-	schema := &enrollmentModels.FormSchema{
+	schema := &capability.FormSchema{
 		Fields: []enrollmentModels.FormField{
 			{Key: "notes", Label: "Hinweise", Type: enrollmentModels.FormFieldText, SortOrder: 1},
 			{Key: "bus", Label: "Buskind", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
@@ -110,7 +111,7 @@ func sampleExport() *enrollmentService.PhaseExport {
 	child := &enrollmentModels.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
-		DateOfBirth:      timezone.NewDate(2018, 5, 12),
+		DateOfBirth:      "2018-05-12",
 		TargetGradeLevel: &grade,
 		Status:           enrollmentModels.ChildStatusApproved,
 		ActivationMode:   enrollmentModels.ChildActivationScheduled,
@@ -122,8 +123,8 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	return &enrollmentService.PhaseExport{
-		Phase:   &enrollmentModels.Phase{Name: "Schuljahr 2026/27"},
-		Schemas: map[int64]*enrollmentModels.FormSchema{schema.ID: schema},
+		Phase:   &capability.Phase{Name: "Schuljahr 2026/27"},
+		Schemas: map[int64]*capability.FormSchema{schema.ID: schema},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: req, Children: []enrollmentService.ExportChildRow{{Child: child, Offerings: offerings}}},
 		},
@@ -141,7 +142,7 @@ func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport 
 	return &enrollmentService.StudentEnrollmentExport{
 		StudentID: 8801,
 		Schemas:   data.Schemas,
-		Phases:    map[int64]*enrollmentModels.Phase{phase.ID: phase},
+		Phases:    map[int64]*capability.Phase{phase.ID: phase},
 		Rows:      data.Rows,
 	}
 }
@@ -385,7 +386,7 @@ func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
 	omaEmail := "oma@example.test"
 	omaPhone := "0151-555"
 	opaPhone := "0151-777"
-	data.Rows[0].Guardians = []*enrollmentModels.RequestGuardian{
+	data.Rows[0].Guardians = []*capability.RequestGuardian{
 		{FirstName: "Oma", LastName: "Muster", Email: &omaEmail, Phone: &omaPhone},
 		{FirstName: "Opa", LastName: "Muster", Phone: &opaPhone}, // phone-only, no email
 	}
@@ -439,12 +440,12 @@ func statusExportSample() *enrollmentService.PhaseExport {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName:   first,
 			LastName:    last,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 			Status:      status,
 		}}
 	}
 	return &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: mkReq("Gesa", "Submitted"), Children: []enrollmentService.ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
 			{Request: mkReq("Gesa", "Approved"), Children: []enrollmentService.ExportChildRow{
@@ -530,13 +531,13 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			// Submission order is deliberately NOT alphabetical.
 			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
@@ -565,13 +566,13 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
 			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
@@ -607,7 +608,7 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 	t.Parallel()
 
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: &enrollmentModels.Request{
 				GuardianFirstName: "Solo", GuardianLastName: "Parent",
@@ -635,20 +636,20 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
 	t.Parallel()
 
-	oldSchema := &enrollmentModels.FormSchema{
+	oldSchema := &capability.FormSchema{
 		Fields: []enrollmentModels.FormField{
 			{Key: "notes", Label: "Alter Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
 		},
 	}
 	oldSchema.ID = 10
-	newSchema := &enrollmentModels.FormSchema{
+	newSchema := &capability.FormSchema{
 		Fields: []enrollmentModels.FormField{
 			{Key: "notes", Label: "Neuer Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
 		},
 	}
 	newSchema.ID = 20
 
-	guardian, _ := collectCustomFields(map[int64]*enrollmentModels.FormSchema{
+	guardian, _ := collectCustomFields(map[int64]*capability.FormSchema{
 		oldSchema.ID: oldSchema,
 		newSchema.ID: newSchema,
 	})

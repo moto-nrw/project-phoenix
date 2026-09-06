@@ -12,6 +12,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -61,13 +62,12 @@ func (s *stubGuardianProfileRepo) Update(_ context.Context, _ *usersModels.Guard
 func int64Ptr(v int64) *int64 { return &v }
 
 type stubLateInviteRepo struct {
-	enrollmentModels.LateInviteRepository
-	invite  *enrollmentModels.LateInvite
+	invite  *capability.LateInvite
 	err     error
 	lookups int
 }
 
-func (s *stubLateInviteRepo) FindByUsedRequestID(_ context.Context, _ int64) (*enrollmentModels.LateInvite, error) {
+func (s *stubLateInviteRepo) LateInviteByUsedRequestID(_ context.Context, _ int64) (*capability.LateInvite, error) {
 	s.lookups++
 	return s.invite, s.err
 }
@@ -75,7 +75,7 @@ func (s *stubLateInviteRepo) FindByUsedRequestID(_ context.Context, _ int64) (*e
 func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
+	repo := &stubLateInviteRepo{invite: &capability.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
 	request := &enrollmentModels.Request{
 		SubmissionSource: enrollmentModels.RequestSourceLateInvite,
@@ -94,7 +94,7 @@ func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubLateInviteRepo{invite: &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}}
+	repo := &stubLateInviteRepo{invite: &capability.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{LateInviteRepo: repo}}
 	request := &enrollmentModels.Request{
 		SubmissionSource:  enrollmentModels.RequestSourceLateInvite,

@@ -14,6 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -302,7 +305,7 @@ func buildStudentEnrollmentExportRecords(data *enrollmentService.StudentEnrollme
 	}
 }
 
-func studentEnrollmentRecord(req *enrollmentModels.Request, phase *enrollmentModels.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
+func studentEnrollmentRecord(req *enrollmentModels.Request, phase *capability.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  childFullName(ch.Child),
 		Fields: childFields(ch, childCustoms),
@@ -323,7 +326,7 @@ func studentEnrollmentRecord(req *enrollmentModels.Request, phase *enrollmentMod
 	return rec
 }
 
-func phaseNameForExport(phase *enrollmentModels.Phase) string {
+func phaseNameForExport(phase *capability.Phase) string {
 	if phase == nil || strings.TrimSpace(phase.Name) == "" {
 		return "Nicht zugeordnet"
 	}
@@ -380,7 +383,7 @@ func buildStudentEnrollmentExportTable(data *enrollmentService.StudentEnrollment
 	}
 }
 
-func studentEnrollmentRowValues(req *enrollmentModels.Request, phase *enrollmentModels.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
+func studentEnrollmentRowValues(req *enrollmentModels.Request, phase *capability.Phase, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
 	values := map[listexport.ColumnID]string{
 		"phase":                   phaseNameForExport(phase),
 		"submitted_at":            req.SubmittedAt.Format("02.01.2006 15:04"),
@@ -450,9 +453,9 @@ func phaseExportSubtitle(data *enrollmentService.PhaseExport) string {
 // formats list registrations in exactly the same order.
 type exportEntry struct {
 	request   *enrollmentModels.Request
-	child     *enrollmentService.ExportChildRow   // nil = registration has no children
-	guardians []*enrollmentModels.RequestGuardian // co-guardians of this submission (nil when none)
-	sortLast  string                              // lower-cased sort key (child surname, or guardian surname when childless)
+	child     *enrollmentService.ExportChildRow // nil = registration has no children
+	guardians []*capability.RequestGuardian     // co-guardians of this submission (nil when none)
+	sortLast  string                            // lower-cased sort key (child surname, or guardian surname when childless)
 	sortFirst string
 }
 
@@ -638,7 +641,7 @@ func guardianBlockFields(req *enrollmentModels.Request, guardianCustoms []enroll
 // fields first (the child is the subject), then the guardian/contact
 // details led by the parent name, repeated on every child so a single
 // block holds everything a supervisor needs offline.
-func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChildRow, guardians []*enrollmentModels.RequestGuardian, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
+func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  childFullName(ch.Child),
 		Fields: childFields(ch, childCustoms),
@@ -652,7 +655,7 @@ func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChild
 // guardianOnlyRecord is the fallback block for a registration with no
 // child rows — keeps the guardian (and their answers) in the export
 // rather than dropping the submission entirely.
-func guardianOnlyRecord(req *enrollmentModels.Request, guardians []*enrollmentModels.RequestGuardian, guardianCustoms []enrollmentModels.FormField) listexport.Record {
+func guardianOnlyRecord(req *enrollmentModels.Request, guardians []*capability.RequestGuardian, guardianCustoms []enrollmentModels.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  guardianFullName(req),
 		Fields: guardianBlockFields(req, guardianCustoms),
@@ -664,7 +667,7 @@ func guardianOnlyRecord(req *enrollmentModels.Request, guardians []*enrollmentMo
 // additionalGuardianFields renders one label/value line per co-guardian for
 // the PDF/DOCX record, each "Vorname Nachname (E-Mail, Telefon)" with empty
 // contact parts omitted. Empty when the submission had no co-guardians.
-func additionalGuardianFields(guardians []*enrollmentModels.RequestGuardian) []listexport.Field {
+func additionalGuardianFields(guardians []*capability.RequestGuardian) []listexport.Field {
 	fields := make([]listexport.Field, 0, len(guardians))
 	for _, g := range guardians {
 		fields = append(fields, listexport.Field{
@@ -678,7 +681,7 @@ func additionalGuardianFields(guardians []*enrollmentModels.RequestGuardian) []l
 // formatGuardianContact renders one co-guardian as "Vorname Nachname
 // (E-Mail, Telefon)", dropping whichever contact parts are absent (a
 // co-guardian may be a name+phone-only or name+email-only contact).
-func formatGuardianContact(g *enrollmentModels.RequestGuardian) string {
+func formatGuardianContact(g *capability.RequestGuardian) string {
 	name := strings.TrimSpace(g.FirstName + " " + g.LastName)
 	contact := make([]string, 0, 2)
 	if g.Email != nil && strings.TrimSpace(*g.Email) != "" {
@@ -695,7 +698,7 @@ func formatGuardianContact(g *enrollmentModels.RequestGuardian) string {
 
 // formatAdditionalGuardians joins every co-guardian into one cell for the
 // XLSX export (one column can't expand per row), separated by "; ".
-func formatAdditionalGuardians(guardians []*enrollmentModels.RequestGuardian) string {
+func formatAdditionalGuardians(guardians []*capability.RequestGuardian) string {
 	if len(guardians) == 0 {
 		return ""
 	}
@@ -711,7 +714,7 @@ func formatAdditionalGuardians(guardians []*enrollmentModels.RequestGuardian) st
 func childFields(ch enrollmentService.ExportChildRow, childCustoms []enrollmentModels.FormField) []listexport.Field {
 	c := ch.Child
 	fields := []listexport.Field{
-		{Label: "Geburtsdatum", Value: c.DateOfBirth.Format("02.01.2006")},
+		{Label: "Geburtsdatum", Value: timezone.Date(c.DateOfBirth).Format("02.01.2006")},
 		{Label: "Zielklasse", Value: schoolClassLabel(c.TargetSchoolClass, c.TargetGradeLevel)},
 		{Label: "Status", Value: statusLabelDE(c.Status)},
 	}
@@ -834,7 +837,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 	}
 }
 
-func guardianRowValues(req *enrollmentModels.Request, guardians []*enrollmentModels.RequestGuardian, guardianCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
+func guardianRowValues(req *enrollmentModels.Request, guardians []*capability.RequestGuardian, guardianCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
 	values := map[listexport.ColumnID]string{
 		"guardian_last_name":      req.GuardianLastName,
 		"guardian_first_name":     req.GuardianFirstName,
@@ -861,7 +864,7 @@ func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollment
 	values := cloneValues(guardianValues)
 	values["child_first_name"] = c.FirstName
 	values["child_last_name"] = c.LastName
-	values["child_dob"] = c.DateOfBirth.Format("02.01.2006")
+	values["child_dob"] = timezone.Date(c.DateOfBirth).Format("02.01.2006")
 	values["child_grade"] = schoolClassLabel(c.TargetSchoolClass, c.TargetGradeLevel)
 	values["child_status"] = statusLabelDE(c.Status)
 	values["child_status_reason"] = base.Deref(c.StatusReason)
@@ -883,7 +886,7 @@ func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollment
 // guardian-level vs child-level, each sorted by SortOrder. Reserved
 // targets are still included — they live in custom_data too and the
 // admin wants every answer in the export.
-func collectCustomFields(schemas map[int64]*enrollmentModels.FormSchema) (guardian, child []enrollmentModels.FormField) {
+func collectCustomFields(schemas map[int64]*capability.FormSchema) (guardian, child []enrollmentModels.FormField) {
 	seenG := map[string]bool{}
 	seenC := map[string]bool{}
 	// Iterate schema versions newest-first (descending schema_id) so that

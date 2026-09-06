@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,7 +15,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -126,18 +127,26 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 
 // fakeClassDayPhaseRepo serves a fixed phase list for classDayPhase.
 type fakeClassDayPhaseRepo struct {
-	enrollmentModels.PhaseRepository
-	phases []*enrollmentModels.Phase
+	PhaseReader
+	phases []*capability.Phase
 }
 
-func (r *fakeClassDayPhaseRepo) ListByTenant(_ context.Context) ([]*enrollmentModels.Phase, error) {
-	return r.phases, nil
+func (r *fakeClassDayPhaseRepo) Phases(_ context.Context) ([]*capability.Phase, error) {
+	var values []*capability.Phase
+	for _, phase := range r.phases {
+		if phase == nil {
+			values = append(values, nil)
+			continue
+		}
+		values = append(values, OwnerPhaseForTest(phase))
+	}
+	return values, nil
 }
 
-func (r *fakeClassDayPhaseRepo) FindByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+func (r *fakeClassDayPhaseRepo) Phase(_ context.Context, id int64) (*capability.Phase, error) {
 	for _, phase := range r.phases {
 		if phase != nil && phase.ID == id {
-			return phase, nil
+			return OwnerPhaseForTest(phase), nil
 		}
 	}
 	return nil, ErrReportPhaseNotFound
@@ -156,11 +165,11 @@ func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context
 func TestClassDayPhasesReturnsEveryActiveCoveringPhase(t *testing.T) {
 	t.Parallel()
 
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
-		{Model: baseModels.Model{ID: 1}, Name: "Altjahr", ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
-		{Model: baseModels.Model{ID: 2}, Name: "Schuljahr", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
-		{Model: baseModels.Model{ID: 3}, Name: "Ferien", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 3), ServiceEndDate: timezone.NewDate(2026, 8, 14)},
-		{Model: baseModels.Model{ID: 4}, Name: "InaktivAlt", ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{Phases: &fakeClassDayPhaseRepo{phases: []*capability.Phase{
+		{ID: 1, Name: "Altjahr", ServiceStartDate: capability.Date(timezone.NewDate(2025, 8, 1)), ServiceEndDate: capability.Date(timezone.NewDate(2026, 7, 31))},
+		{ID: 2, Name: "Schuljahr", IsActive: true, ServiceStartDate: capability.Date(timezone.NewDate(2026, 8, 1)), ServiceEndDate: capability.Date(timezone.NewDate(2027, 7, 31))},
+		{ID: 3, Name: "Ferien", IsActive: true, ServiceStartDate: capability.Date(timezone.NewDate(2026, 8, 3)), ServiceEndDate: capability.Date(timezone.NewDate(2026, 8, 14))},
+		{ID: 4, Name: "InaktivAlt", ServiceStartDate: capability.Date(timezone.NewDate(2026, 8, 1)), ServiceEndDate: capability.Date(timezone.NewDate(2027, 7, 31))},
 	}}}}
 
 	phases, err := svc.classDayPhases(context.Background(), timezone.NewDate(2026, 8, 5))
@@ -179,8 +188,8 @@ func TestClassDayPhasesReturnsEveryActiveCoveringPhase(t *testing.T) {
 func TestClassDayPhasesNoneCovering(t *testing.T) {
 	t.Parallel()
 
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
-		{Model: baseModels.Model{ID: 1}, ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{Phases: &fakeClassDayPhaseRepo{phases: []*capability.Phase{
+		{ID: 1, ServiceStartDate: capability.Date(timezone.NewDate(2025, 8, 1)), ServiceEndDate: capability.Date(timezone.NewDate(2026, 7, 31))},
 	}}}}
 
 	phases, err := svc.classDayPhases(context.Background(), timezone.NewDate(2026, 8, 5))
@@ -216,7 +225,7 @@ func TestMergeClassDayRostersUnionsRegistrations(t *testing.T) {
 func TestClassDayRequiresConfiguredDependencies(t *testing.T) {
 	t.Parallel()
 
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{}}}
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{Phases: &fakeClassDayPhaseRepo{}}}
 
 	_, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
 
@@ -239,7 +248,7 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 		&fakeClassRosterRequestRepo{},
 		&fakeClassRosterChildRepo{},
 	)
-	svc.PhaseRepo = &fakeClassDayPhaseRepo{}
+	svc.Phases = &fakeClassDayPhaseRepo{}
 	svc.StudentStatusDayRepo = &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
 		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
 	}}
@@ -370,15 +379,15 @@ func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
 	assert.Equal(t, ClassDayTotals{Students: 1, Leaving: 1}, report.Totals)
 }
 
-// capturingChildOfferingRepo records the date the offering links were
+// capturingChildOfferingReader records the date the offering links were
 // requested for.
-type capturingChildOfferingRepo struct {
-	enrollmentModels.RequestChildOfferingRepository
+type capturingChildOfferingReader struct {
+	ReportChildren
 	seenDate timezone.Date
 }
 
-func (r *capturingChildOfferingRepo) ListByRequestChildIDsAtDate(_ context.Context, _ []int64, date timezone.Date) ([]*enrollmentModels.RequestChildOffering, error) {
-	r.seenDate = date
+func (r *capturingChildOfferingReader) RequestChildOfferingsForChildrenAtDate(_ context.Context, _ []int64, date capability.Date) ([]*capability.RequestChildOffering, error) {
+	r.seenDate = timezone.Date(date)
 	return nil, nil
 }
 
@@ -391,8 +400,8 @@ func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
 		&fakeClassRosterRequestRepo{},
 		&fakeClassRosterChildRepo{},
 	)
-	capture := &capturingChildOfferingRepo{}
-	svc.RequestChildOfferingRepo = capture
+	capture := &capturingChildOfferingReader{ReportChildren: svc.Children}
+	svc.Children = capture
 	pinned := timezone.NewDate(2026, 8, 10)
 
 	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a", OfferingDate: &pinned})

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+// OfferingChangeDate is the consumer's ISO calendar day, never an instant.
+type OfferingChangeDate string
 
 // Offering-change-request lifecycle. A guardian submits a pending row; staff
 // approve it (which applies the switch on its effective date) or reject it; the
@@ -42,39 +42,41 @@ var (
 // booking, and re-validating a full selection against capacity and the phase
 // rules at approval time is the same operation the enrollment form performs.
 type OfferingChangeRequest struct {
-	base.Model `bun:"schema:enrollment,table:offering_change_requests"`
-	base.TenantModel
+	ID        int64     `json:"id"`
+	TenantID  int64     `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
-	StudentID int64 `bun:"student_id,notnull" json:"student_id"`
+	StudentID int64 `json:"student_id"`
 	// RequestChildID anchors the apply: the enrollment rows the switch replaces
 	// are exactly the ones materialized from this approved request child.
-	RequestChildID int64 `bun:"request_child_id,notnull" json:"request_child_id"`
-	SubmittedBy    int64 `bun:"submitted_by,notnull" json:"submitted_by"`
+	RequestChildID int64 `json:"request_child_id"`
+	SubmittedBy    int64 `json:"submitted_by"`
 	// CompleteWithdrawalConfirmed records the guardian's explicit confirmation
 	// when the fully materialized request removes every care day.
-	CompleteWithdrawalConfirmed bool       `bun:"complete_withdrawal_confirmed,notnull,default:false" json:"complete_withdrawal_confirmed"`
-	WithdrawalConfirmedBy       *int64     `bun:"withdrawal_confirmed_by" json:"withdrawal_confirmed_by,omitempty"`
-	WithdrawalConfirmedAt       *time.Time `bun:"withdrawal_confirmed_at" json:"withdrawal_confirmed_at,omitempty"`
+	CompleteWithdrawalConfirmed bool       `json:"complete_withdrawal_confirmed"`
+	WithdrawalConfirmedBy       *int64     `json:"withdrawal_confirmed_by,omitempty"`
+	WithdrawalConfirmedAt       *time.Time `json:"withdrawal_confirmed_at,omitempty"`
 	// ApprovedCompleteWithdrawal records the result staff actually applied.
 	// It is deliberately separate from the guardian's submission confirmation:
 	// catalog and rule changes can leave care days in place at review time.
-	ApprovedCompleteWithdrawal bool `bun:"approved_complete_withdrawal,notnull,default:false" json:"approved_complete_withdrawal"`
+	ApprovedCompleteWithdrawal bool `json:"approved_complete_withdrawal"`
 	// Payload is {"offerings":[{"offering_id":<int>,"selected_days":["mon",...]}]}.
-	Payload        map[string]any `bun:"payload,type:jsonb,notnull" json:"payload"`
-	EffectiveFrom  timezone.Date  `bun:"effective_from,notnull,type:date" json:"effective_from"`
-	ParentNote     *string        `bun:"parent_note" json:"parent_note,omitempty"`
-	Status         string         `bun:"status,notnull,default:'pending'" json:"status"`
-	DecisionReason *string        `bun:"decision_reason" json:"decision_reason,omitempty"`
+	Payload        map[string]any     `json:"payload"`
+	EffectiveFrom  OfferingChangeDate `json:"effective_from"`
+	ParentNote     *string            `json:"parent_note,omitempty"`
+	Status         string             `json:"status"`
+	DecisionReason *string            `json:"decision_reason,omitempty"`
 	// DecisionSnapshot freezes the "current → requested" diff (including which
 	// lines a Mitbuchungs-Regel added and any per-request overrides) at the
 	// moment the request was decided. Recap views read only this snapshot, so a
 	// later rule change cannot rewrite history (ADR 0002). Nil on rows decided
 	// before the column existed; recap readers then fall back to the stored
 	// payload (the guardian's own selection), exactly as before the column.
-	DecisionSnapshot *OfferingChangeDecisionSnapshot `bun:"decision_snapshot,type:jsonb" json:"decision_snapshot,omitempty"`
-	ReviewedBy       *int64                          `bun:"reviewed_by" json:"reviewed_by,omitempty"`
-	ReviewedAt       *time.Time                      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
-	AppliedAt        *time.Time                      `bun:"applied_at" json:"applied_at,omitempty"`
+	DecisionSnapshot *OfferingChangeDecisionSnapshot `json:"decision_snapshot,omitempty"`
+	ReviewedBy       *int64                          `json:"reviewed_by,omitempty"`
+	ReviewedAt       *time.Time                      `json:"reviewed_at,omitempty"`
+	AppliedAt        *time.Time                      `json:"applied_at,omitempty"`
 }
 
 // IsTerminal reports whether the row can still be decided or withdrawn.
@@ -146,12 +148,12 @@ type OfferingChangeRequestRepository interface {
 
 	// ListPendingForTenant backs the staff review queue, ordered by effective
 	// date so the switch that lands soonest is decided first.
-	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters OfferingChangeQueueFilters) ([]*OfferingChangeRequest, error)
 
 	// ListDecidedForTenant returns the tenant's decided rows (approved,
 	// rejected, withdrawn) newest-decision-first via keyset pagination on
 	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
-	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
+	ListDecidedForTenant(ctx context.Context, filters OfferingChangeQueueFilters) ([]*OfferingChangeRequest, error)
 
 	// FindByIDForUpdate locks a row by id regardless of status, so an ownership
 	// check can run on the locked row before the pending check (a foreign id
@@ -160,13 +162,13 @@ type OfferingChangeRequestRepository interface {
 
 	// UpdateEffectiveFrom records the date an approved request was actually
 	// applied on when a delayed review moves it forward to today.
-	UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom timezone.Date) error
+	UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom OfferingChangeDate) error
 	UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error
 
 	// UpdatePending rewrites a still-pending row's selections, effective date
 	// and parent note — the guardian edit path (#2267). It refuses a decided
 	// row (ErrOfferingChangeNotPending) and bumps updated_at.
-	UpdatePending(ctx context.Context, id int64, payload map[string]any, effectiveFrom timezone.Date, note *string) error
+	UpdatePending(ctx context.Context, id int64, payload map[string]any, effectiveFrom OfferingChangeDate, note *string) error
 
 	// Decide moves a pending row to a terminal status, guarding the transition
 	// in SQL so two reviewers cannot both decide it. Returns

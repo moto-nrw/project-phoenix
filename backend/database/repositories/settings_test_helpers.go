@@ -3,8 +3,9 @@ package repositories
 import (
 	"context"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -18,11 +19,11 @@ type SettingsTestRepositories struct {
 }
 
 func NewSettingsTestRepositories(db *bun.DB, runtime configRepo.Runtime) SettingsTestRepositories {
-	phases := enrollmentRepo.NewPhaseRepository(db)
+	phases := enrollmentCompose.New()
 	return SettingsTestRepositories{
 		Values: configRepo.NewSettingValueRepository(runtime), Audit: configRepo.NewSettingAuditRepository(runtime),
-		ClassRestriction: phases.ExistsActiveWithEligibleClasses,
-		GradeRestriction: phases.ExistsActiveWithEligibleGradeLevels,
-		GradeCap:         phases.MaxActiveEligibleGradeLevel,
+		ClassRestriction: phases.HasActiveClassRestrictedPhase,
+		GradeRestriction: phases.HasActiveGradeRestrictedPhase,
+		GradeCap:         phases.MaxActivePhaseGrade,
 	}
 }

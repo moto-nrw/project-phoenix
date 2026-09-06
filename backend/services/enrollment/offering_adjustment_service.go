@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -51,7 +53,7 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 	if requestID <= 0 || requestChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	child, err := offeringChildByID(ctx, s.Children, requestChildID)
 	if err != nil || child == nil || child.RequestID != requestID {
 		return nil, ErrDecisionChildNotFound
 	}
@@ -146,7 +148,7 @@ type offeringAdjustmentWork struct {
 	request                                *enrollmentModels.Request
 	child                                  *enrollmentModels.RequestChild
 	student                                *users.Student
-	phase                                  *enrollmentModels.Phase
+	phase                                  *enrollmentOwner.Phase
 	effectiveFrom                          *timezone.Date
 	selectionDate                          timezone.Date
 	offeringByID                           map[int64]*enrollmentModels.CareOffering
@@ -182,19 +184,19 @@ func (s *decisionService) validateOfferingAdjustmentInput(
 	if reason == "" {
 		return "", fmt.Errorf("%w: reason is required", ErrOfferingAdjustmentInvalid)
 	}
-	if s.RequestRepo == nil || s.RequestChildRepo == nil || s.RequestChildOfferingRepo == nil ||
-		s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.OfferingAdjustmentRepo == nil || s.StudentRepo == nil {
+	if s.Requests == nil || s.Children == nil ||
+		s.CareOfferingRepo == nil || s.Phases == nil || s.OfferingAdjustmentRepo == nil || s.StudentRepo == nil {
 		return "", errors.New("decision: offering adjustment dependencies are not configured")
 	}
 	return reason, nil
 }
 
 func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, work *offeringAdjustmentWork) error {
-	req, err := s.RequestRepo.FindByID(ctx, work.input.RequestID)
+	req, err := intakeRequestByID(ctx, s.Requests, work.input.RequestID, false)
 	if err != nil {
 		return ErrDecisionRequestNotFound
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, work.input.ChildID)
+	child, err := offeringChildByID(ctx, s.Children, work.input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return ErrDecisionChildNotFound
 	}
@@ -212,7 +214,7 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	if student == nil {
 		return fmt.Errorf("%w: linked student was not found", ErrOfferingAdjustmentInvalid)
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.Phases.Phase(ctx, req.PhaseID)
 	if err != nil || phase == nil {
 		return fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
@@ -227,7 +229,7 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	return nil
 }
 
-func adjustmentSelectionDate(phase *enrollmentModels.Phase, effectiveFrom *timezone.Date, today timezone.Date) timezone.Date {
+func adjustmentSelectionDate(phase *enrollmentOwner.Phase, effectiveFrom *timezone.Date, today timezone.Date) timezone.Date {
 	selectionDate := offeringSelectionDateOn(phase, today)
 	if effectiveFrom != nil && effectiveFrom.After(selectionDate) {
 		selectionDate = *effectiveFrom
@@ -249,7 +251,7 @@ func (s *decisionService) loadOfferingAdjustmentCatalog(ctx context.Context, wor
 	activeOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferings))
 	addCareOfferingsByID(activeOfferingByID, activeOfferings)
 	addCareOfferingsByID(offeringByID, activeOfferings)
-	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, work.child.ID, work.selectionDate)
+	beforeLinks, err := readOwnerOfferingSelections(ctx, s.Children, work.child.ID, work.selectionDate)
 	if err != nil {
 		return fmt.Errorf("decision: list current child offerings: %w", err)
 	}
@@ -284,7 +286,7 @@ func buildAdjustmentSubmitChild(work *offeringAdjustmentWork) (SubmitChild, erro
 	submitChild := SubmitChild{
 		FirstName:                child.FirstName,
 		LastName:                 child.LastName,
-		DateOfBirth:              child.DateOfBirth,
+		DateOfBirth:              timezone.Date(child.DateOfBirth),
 		TargetGradeLevel:         child.TargetGradeLevel,
 		CustomData:               child.CustomData,
 		OfferingIDs:              make([]int64, 0, len(input.Offerings)),
@@ -428,17 +430,17 @@ func (s *decisionService) persistOfferingSourceRows(
 	ctx context.Context, work *offeringAdjustmentWork, scheduled []scheduledOfferingReplacement,
 ) error {
 	if work.effectiveFrom != nil || len(scheduled) > 0 {
-		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, work.child.ID, work.selectionDate, work.replacement); err != nil {
+		if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, &work.selectionDate, work.replacement); err != nil {
 			return fmt.Errorf("decision: schedule child offerings: %w", err)
 		}
 		for _, future := range scheduled {
-			if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, work.child.ID, future.EffectiveFrom, future.Rows); err != nil {
+			if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, &future.EffectiveFrom, future.Rows); err != nil {
 				return fmt.Errorf("decision: restore scheduled child offerings: %w", err)
 			}
 		}
 		return nil
 	}
-	if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, work.child.ID, work.replacement); err != nil {
+	if err := writeOwnerOfferingSelections(ctx, s.Children, work.child.ID, nil, work.replacement); err != nil {
 		return fmt.Errorf("decision: replace child offerings: %w", err)
 	}
 	return nil
@@ -496,7 +498,7 @@ func (s *decisionService) finishOfferingAdjustment(
 	if err := s.ReconcileOfferingPickupForStudents(ctx, []int64{studentID}); err != nil {
 		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
 	}
-	updated, err := s.RequestChildRepo.FindByID(ctx, work.child.ID)
+	updated, err := offeringChildByID(ctx, s.Children, work.child.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -510,13 +512,13 @@ func (s *decisionService) finishOfferingAdjustment(
 func capOfferingReplacementAtCareEnd(
 	rows []*enrollmentModels.RequestChildOffering,
 	lastCareDay *timezone.Date,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	effectiveFrom *timezone.Date,
 ) []*enrollmentModels.RequestChildOffering {
 	if lastCareDay == nil {
 		return rows
 	}
-	validFrom := phase.ServiceStartDate
+	validFrom := timezone.Date(phase.ServiceStartDate)
 	if effectiveFrom != nil {
 		validFrom = *effectiveFrom
 	}
@@ -525,7 +527,7 @@ func capOfferingReplacementAtCareEnd(
 		return nil
 	}
 	for _, row := range rows {
-		from, until := validFrom, validUntil
+		from, until := enrollmentOwner.Date(validFrom), enrollmentOwner.Date(validUntil)
 		row.ValidFrom, row.ValidUntil = &from, &until
 	}
 	return rows
@@ -658,7 +660,7 @@ func grandfatheredOfferingsFromLinks(links []*enrollmentModels.RequestChildOffer
 // its start, which the DB check would reject with a far less useful message.
 func validateAdjustmentEffectiveFrom(
 	effectiveFrom *timezone.Date,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	today timezone.Date,
 ) (*timezone.Date, error) {
 	if effectiveFrom == nil {
@@ -667,7 +669,7 @@ func validateAdjustmentEffectiveFrom(
 	if effectiveFrom.Before(today) {
 		return nil, fmt.Errorf("%w: effective_from must not be in the past", ErrOfferingAdjustmentInvalid)
 	}
-	if effectiveFrom.After(phase.ServiceEndDate) {
+	if effectiveFrom.After(timezone.Date(phase.ServiceEndDate)) {
 		return nil, fmt.Errorf("%w: effective_from must not be after the care period ends", ErrOfferingAdjustmentInvalid)
 	}
 	return effectiveFrom, nil
@@ -681,19 +683,19 @@ func validateAdjustmentEffectiveFrom(
 // current selection" would misread as a live one. The window clamp keeps the
 // answer meaningful outside the service period too: before it starts that is
 // the initial selection, after it ended the last one.
-func currentOfferingSelectionDate(phase *enrollmentModels.Phase) timezone.Date {
+func currentOfferingSelectionDate(phase *enrollmentOwner.Phase) timezone.Date {
 	return offeringSelectionDateOn(phase, timezone.TodayDate())
 }
 
-func offeringSelectionDateOn(phase *enrollmentModels.Phase, today timezone.Date) timezone.Date {
+func offeringSelectionDateOn(phase *enrollmentOwner.Phase, today timezone.Date) timezone.Date {
 	if phase == nil {
 		return today
 	}
-	if today.Before(phase.ServiceStartDate) {
-		return phase.ServiceStartDate
+	if today.Before(timezone.Date(phase.ServiceStartDate)) {
+		return timezone.Date(phase.ServiceStartDate)
 	}
-	if today.After(phase.ServiceEndDate) {
-		return phase.ServiceEndDate
+	if today.After(timezone.Date(phase.ServiceEndDate)) {
+		return timezone.Date(phase.ServiceEndDate)
 	}
 	return today
 }
@@ -715,16 +717,16 @@ func (s *decisionService) scheduledOfferingReplacements(
 	if effectiveFrom != nil {
 		return nil, nil
 	}
-	history, err := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, requestChildID)
+	history, err := ReadOfferingHistory(ctx, s.Children, requestChildID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list scheduled child offerings: %w", err)
 	}
 	byDate := make(map[timezone.Date][]*enrollmentModels.RequestChildOffering)
 	for _, row := range history {
-		if row == nil || row.ValidFrom == nil || !row.ValidFrom.After(selectionDate) {
+		if row == nil || row.ValidFrom == nil || !timezone.Date(*row.ValidFrom).After(selectionDate) {
 			continue
 		}
-		date := *row.ValidFrom
+		date := timezone.Date(*row.ValidFrom)
 		byDate[date] = append(byDate[date], row)
 	}
 	dates := make([]timezone.Date, 0, len(byDate))
@@ -743,15 +745,15 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
-	if s.RequestRepo == nil || s.RequestChildRepo == nil || s.StudentRepo == nil || s.PersonRepo == nil {
+	if s.Requests == nil || s.Children == nil || s.StudentRepo == nil || s.PersonRepo == nil {
 		return nil, fmt.Errorf("decision: approved child sync dependencies are not configured")
 	}
 
-	req, err := s.RequestRepo.FindByID(ctx, input.RequestID)
+	req, err := intakeRequestByID(ctx, s.Requests, input.RequestID, false)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, input.ChildID)
+	child, err := offeringChildByID(ctx, s.Children, input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return nil, ErrDecisionChildNotFound
 	}
@@ -783,7 +785,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 
 	person.FirstName = child.FirstName
 	person.LastName = child.LastName
-	dob := child.DateOfBirth
+	dob := timezone.Date(child.DateOfBirth)
 	person.Birthday = &dob
 	if err := s.PersonRepo.Update(ctx, person); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child person: %w", err)
@@ -915,7 +917,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		}
 	}
 
-	return s.RequestChildRepo.FindByID(ctx, child.ID)
+	return offeringChildByID(ctx, s.Children, child.ID)
 }
 
 // deferStudentPlanBroadcasts announces, after the surrounding tenant
@@ -1038,7 +1040,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	requestChildID, studentID int64,
 	beforeLinks []*enrollmentModels.RequestChildOffering,
 	replacement []*enrollmentModels.RequestChildOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	effectiveFrom *timezone.Date,
 ) error {
 	if s.StudentEnrollmentRepo == nil {
@@ -1114,7 +1116,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	replacement []*enrollmentModels.RequestChildOffering,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	effectiveFrom timezone.Date,
 ) error {
 	drafts, multiSource, err := s.careEnrollmentDraftsForLinks(ctx, requestChildID, studentID, replacement, phase)
@@ -1156,19 +1158,19 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 	ctx context.Context,
 	row *activities.StudentEnrollment,
 	requestChildID int64,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	effectiveFrom timezone.Date,
 	drafts map[int64]*careEnrollmentDraft,
 ) error {
 	if row == nil || row.EnrollmentRequestChildID == nil || *row.EnrollmentRequestChildID != requestChildID {
 		return nil
 	}
-	if row.ValidUntil != nil && !row.ValidUntil.After(effectiveFrom) {
+	if row.ValidUntil != nil && !timezone.Date(*row.ValidUntil).After(effectiveFrom) {
 		return nil
 	}
 	if draft := drafts[row.ActivityGroupID]; draft != nil &&
 		!row.ValidFrom.After(effectiveFrom) &&
-		(row.ValidUntil == nil || row.ValidUntil.After(effectiveFrom)) &&
+		(row.ValidUntil == nil || timezone.Date(*row.ValidUntil).After(effectiveFrom)) &&
 		careDraftMatchesEnrollment(draft, row) {
 		// The retained row is only ever extended to the end the draft itself
 		// may reach — the phase end, clamped by the sourced segment's envelope
@@ -1176,7 +1178,7 @@ func (s *decisionService) reconcileAdjustedEnrollment(
 		// split predecessor back to the phase end would restore coverage past
 		// the split and overlap its successor.
 		draftEndExclusive := careDraftValidUntil(draft, phase)
-		if row.ValidUntil != nil && row.ValidUntil.Before(draftEndExclusive) {
+		if row.ValidUntil != nil && timezone.Date(*row.ValidUntil).Before(draftEndExclusive) {
 			if err := s.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activities.Date(draftEndExclusive)); err != nil {
 				return fmt.Errorf("decision: extend retained adjusted enrollment: %w", err)
 			}

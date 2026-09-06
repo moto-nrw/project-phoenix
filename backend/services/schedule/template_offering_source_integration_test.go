@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -39,19 +41,19 @@ func createSourceCareOffering(
 	t.Helper()
 
 	suffix := time.Now().UnixNano()
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:                      fmt.Sprintf("Quell-Phase %d", suffix),
 		Kind:                      enrollmentModels.PhaseKindCustom,
-		ServiceStartDate:          serviceStart,
-		ServiceEndDate:            serviceEnd,
+		ServiceStartDate:          capability.Date(serviceStart),
+		ServiceEndDate:            capability.Date(serviceEnd),
 		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
 		AvailableSchoolClasses:    []string{},
 		IsActive:                  true,
 	}
-	phase.SetTenantID(s.tenantID)
+	phase.TenantID = s.tenantID
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	require.NoError(t, repos.Phase.Create(s.ctx, phase))
+	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            phase.ID,
@@ -122,12 +124,12 @@ func linkApprovedChildToOffering(
 	require.NoError(t, err)
 
 	childID := createSplitRequestChildInPhase(t, s, offering.PhaseID, studentID)
-	link := &enrollmentModels.RequestChildOffering{
+	link := &capability.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offering.ID,
 	}
-	link.SetTenantID(s.tenantID)
-	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).RequestChildOffering.Create(s.ctx, link))
+	link.TenantID = s.tenantID
+	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).Enrollment().InsertRequestChildOffering(s.ctx, link))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 }

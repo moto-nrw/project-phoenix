@@ -9,6 +9,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 func schemaIDsFromRequests(requests []*enrollmentModels.Request) []int64 {
@@ -21,14 +22,6 @@ func schemaIDsFromRequests(requests []*enrollmentModels.Request) []int64 {
 		}
 	}
 	return ids
-}
-
-func int64FilterArgs(ids []int64) []any {
-	values := make([]any, len(ids))
-	for i, id := range ids {
-		values[i] = id
-	}
-	return values
 }
 
 func findGuardianProfilesByEmails(
@@ -63,27 +56,31 @@ func findGuardianProfilesByEmails(
 	return result, nil
 }
 
+// SchemaReader supplies immutable versions for decisions and reports.
+type SchemaReader interface {
+	Schema(context.Context, int64) (*capability.FormSchema, error)
+	Schemas(context.Context, []int64) ([]*capability.FormSchema, error)
+}
+
 func loadFormSchemasByRequests(
 	ctx context.Context,
-	repo enrollmentModels.FormSchemaRepository,
+	repo SchemaReader,
 	requests []*enrollmentModels.Request,
-) (map[int64]*enrollmentModels.FormSchema, error) {
+) (map[int64]*capability.FormSchema, error) {
 	ids := schemaIDsFromRequests(requests)
-	result := make(map[int64]*enrollmentModels.FormSchema, len(ids))
+	result := make(map[int64]*capability.FormSchema, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
 	if repo == nil {
 		return nil, fmt.Errorf("form schema repo not configured")
 	}
-	rows, err := repo.ListWithOptions(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().In("id", int64FilterArgs(ids)...),
-	})
+	rows, err := repo.Schemas(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for _, schema := range rows {
-		result[schema.ID] = schema
+		result[schema.ID] = cloneSchema(schema)
 	}
 	for _, id := range ids {
 		if result[id] == nil {
@@ -111,8 +108,8 @@ func careOfferingMap(rows []*enrollmentModels.CareOffering) map[int64]*enrollmen
 	return result
 }
 
-func phaseMap(rows []*enrollmentModels.Phase) map[int64]*enrollmentModels.Phase {
-	result := make(map[int64]*enrollmentModels.Phase, len(rows))
+func phaseMap(rows []*capability.Phase) map[int64]*capability.Phase {
+	result := make(map[int64]*capability.Phase, len(rows))
 	for _, row := range rows {
 		if row != nil {
 			result[row.ID] = row

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
@@ -37,9 +39,9 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 		RequestChildID: bookedChild.child.ID,
 		CareOfferingID: offering.ID,
 		SelectedDays:   []string{"mon", "tue"},
-		ValidFrom:      &auditDate,
+		ValidFrom:      (*enrollmentOwner.Date)(&auditDate),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, link)
+	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), link)
 
 	staff := CreateTestStaff(t, db, "Audit", "Planung")
 	arrivalMonday := &scheduleModel.StudentArrivalSchedule{
@@ -118,9 +120,9 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	arrivalLink := &enrollmentModel.RequestChildOffering{
-		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
+		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&auditDate),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, arrivalLink)
+	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
 	arrivalException := &scheduleModel.StudentArrivalException{
 		StudentID: withArrivalException.ID, ExceptionDate: scheduleModel.Date(auditDate), CreatedBy: staff.ID,
 	}
@@ -136,9 +138,9 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	futureDate := auditDate.AddDays(1)
 	futureLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
+		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&futureDate),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, futureLink)
+	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), futureLink)
 
 	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
 	require.NoError(t, err)
@@ -160,17 +162,17 @@ func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 
 	splitDate := auditDate.AddDays(15)
-	phaseEndExclusive := child.phase.ServiceEndDate.AddDays(1)
+	phaseEndExclusive := timezone.Date(child.phase.ServiceEndDate).AddDays(1)
 	firstLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
+		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&auditDate), ValidUntil: (*enrollmentOwner.Date)(&splitDate),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, firstLink)
+	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), firstLink)
 	secondLink := &enrollmentModel.RequestChildOffering{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
-		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
+		SelectedDays: []string{"mon"}, ValidFrom: (*enrollmentOwner.Date)(&splitDate), ValidUntil: (*enrollmentOwner.Date)(&phaseEndExclusive),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, secondLink)
+	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), secondLink)
 	arrival := &scheduleModel.StudentArrivalSchedule{
 		StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday,
 		ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
@@ -183,8 +185,8 @@ func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 }
 
 type approvedBookingAuditChild struct {
-	phase *enrollmentModel.Phase
-	child *enrollmentModel.RequestChild
+	phase *enrollmentOwner.Phase
+	child *enrollmentOwner.RequestChild
 }
 
 func createApprovedBookingAuditChild(
@@ -197,36 +199,39 @@ func createApprovedBookingAuditChild(
 ) approvedBookingAuditChild {
 	t.Helper()
 	tenantID := auditModel.TenantIDFromContext(ctx)
-	phase := &enrollmentModel.Phase{
+	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Audit-%d", studentID),
 		Kind:                      enrollmentModel.PhaseKindSchoolYear,
-		ServiceStartDate:          auditDate,
-		ServiceEndDate:            auditDate.AddDays(30),
+		ServiceStartDate:          enrollmentOwner.Date(auditDate),
+		ServiceEndDate:            enrollmentOwner.Date(auditDate.AddDays(30)),
 		CareOverflowMode:          enrollmentModel.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: selectionMode,
 		IsActive:                  true,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, phase)
-	request := &enrollmentModel.Request{
+	phase.TenantID = tenantID
+	require.NoError(t, enrollmentOwner.New().InsertPhase(WithTenantRuntime(t, ctx, db), phase))
+	request := &enrollmentOwner.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Audit",
 		GuardianLastName:  "Test",
 		GuardianEmail:     fmt.Sprintf("booking-audit-request-%d@example.test", studentID),
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      []byte(`{}`),
+		CustomData:        []byte(`{}`),
 		SubmissionSource:  enrollmentModel.RequestSourceAdminManual,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("booking-audit-%d-%d", studentID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	insertTenantBookingAuditModel(t, db, ctx, request)
-	child := &enrollmentModel.RequestChild{
+	owner := enrollmentOwner.New()
+	ownerCtx := WithTenantRuntime(t, ctx, db)
+	require.NoError(t, owner.InsertRequest(ownerCtx, request))
+	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
-		DateOfBirth: timezone.NewDate(2018, time.January, 1), CustomData: map[string]any{},
+		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
 		Status: enrollmentModel.ChildStatusApproved, ActivationMode: enrollmentModel.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, child)
+	require.NoError(t, owner.InsertChild(ownerCtx, child))
 	require.Equal(t, tenantID, child.TenantID)
 	return approvedBookingAuditChild{phase: phase, child: child}
 }
@@ -249,13 +254,19 @@ func insertBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, mode
 
 func updateBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, columns ...string) {
 	t.Helper()
-	_, err := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...).WherePK().Exec(ctx)
+	query := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...)
+	if offering, ok := model.(*enrollmentModel.CareOffering); ok {
+		query = query.Where("id = ?", offering.ID)
+	} else {
+		query = query.WherePK()
+	}
+	_, err := query.Exec(ctx)
 	require.NoError(t, err)
 }
 
 func auditFixtureUpdateTable(model any) string {
 	switch model.(type) {
-	case *enrollmentModel.Phase:
+	case *enrollmentOwner.Phase:
 		return `enrollment.phases AS "phase"`
 	case *enrollmentModel.CareOffering:
 		return `enrollment.care_offerings AS "care_offering"`
@@ -268,12 +279,8 @@ func auditFixtureUpdateTable(model any) string {
 
 func auditFixtureTable(model any) string {
 	switch model.(type) {
-	case *enrollmentModel.Phase:
+	case *enrollmentOwner.Phase:
 		return "enrollment.phases"
-	case *enrollmentModel.Request:
-		return "enrollment.requests"
-	case *enrollmentModel.RequestChild:
-		return "enrollment.request_children"
 	case *enrollmentModel.CareOffering:
 		return "enrollment.care_offerings"
 	case *enrollmentModel.RequestChildOffering:

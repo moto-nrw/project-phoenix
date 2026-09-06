@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -675,29 +677,29 @@ func cleanupAcceptedAccount(t *testing.T, db *bun.DB, accountID int64) {
 	_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", accountID).Exec(bg)
 }
 
-func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email string) *enrollmentModels.Request {
+func createEnrollmentAwaitingGuardian(t *testing.T, env *guardianTestEnv, email string) *capability.Request {
 	t.Helper()
 	phase := testpkg.CreateTestEnrollmentPhase(t, env.db)
-	request := &enrollmentModels.Request{
+	request := &capability.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Guardian",
 		GuardianLastName:  "Test",
 		GuardianEmail:     email,
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      []byte("{}"),
+		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentModels.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    []byte("{}"),
 		StatusToken:       "guardian-backfill-" + t.Name(),
 		SubmittedAt:       time.Now(),
 	}
-	request.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.Request.Create(testpkg.Ctx(t), request))
+	request.TenantID = testpkg.Tenant(t)
+	require.NoError(t, env.repos.Enrollment().InsertRequest(testpkg.Ctx(t), request))
 	return request
 }
 
 func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, requestID, accountID int64) {
 	t.Helper()
-	linkedRequest, err := env.repos.Request.FindByID(testpkg.Ctx(t), requestID)
+	linkedRequest, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), requestID, false)
 	require.NoError(t, err)
 	require.NotNil(t, linkedRequest.GuardianAccountID)
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
@@ -828,7 +830,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
-	unlinked, err := env.repos.Request.FindByID(testpkg.Ctx(t), request.ID)
+	unlinked, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), request.ID, false)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.GuardianAccountID, "failed backfill write must be rolled back")
 }

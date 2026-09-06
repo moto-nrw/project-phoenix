@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -94,7 +96,7 @@ func enqueueDecisionNotifications(
 	deps decisionNotificationDependencies,
 	request *enrollmentModels.Request,
 	children []*enrollmentModels.RequestChild,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	immediateChildIDs map[int64]struct{},
 ) error {
 	mode, err := resolveOrPinDecisionNotificationMode(ctx, deps, request)
@@ -193,7 +195,7 @@ func enqueueDecisionDigest(
 	parentsURL string,
 	request *enrollmentModels.Request,
 	children []*enrollmentModels.RequestChild,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 ) error {
 	if outbox == nil {
 		return fmt.Errorf("decision: outbox is required for digest parent notification")
@@ -257,7 +259,7 @@ func enqueueImmediateDecisionEmail(
 	parentsURL string,
 	request *enrollmentModels.Request,
 	child *enrollmentModels.RequestChild,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	status DecisionStatus,
 	reason *string,
 ) error {

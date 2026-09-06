@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -145,7 +146,7 @@ func (m *mockDecisionService) ExportStudent(_ context.Context, studentID, actorA
 	return m.exportStudentResult, m.exportStudentErr
 }
 
-func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *enrollmentModels.Phase, _, _ string, _, _ int) error {
+func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *capability.Phase, _, _ string, _, _ int) error {
 	return nil
 }
 
@@ -207,30 +208,28 @@ func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, pa
 	return w
 }
 
-// makeReqSummary builds a RequestSummary via base.Model so the
-// embedded ID field is settable. Mirrors the mkRequest/mkChild
-// approach in api/enrollment/admin_handlers_helpers_test.go.
+// makeReqSummary builds an enrollment request summary with the supplied IDs.
 func makeReqSummary(id, phaseID int64, children ...*enrollmentModels.RequestChild) *enrollmentService.RequestSummary {
 	return &enrollmentService.RequestSummary{
 		Request: &enrollmentModels.Request{
-			Model:             baseModel.Model{ID: id},
+			ID:                id,
 			PhaseID:           phaseID,
 			GuardianFirstName: "Anna",
 			GuardianLastName:  "Beispiel",
 			GuardianEmail:     "anna@example.test",
 			SubmittedAt:       time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 		},
-		Phase:    &enrollmentModels.Phase{Name: "Schuljahr 2026"},
+		Phase:    &capability.Phase{Name: "Schuljahr 2026"},
 		Children: children,
 	}
 }
 
 func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentModels.RequestChild {
 	return &enrollmentModels.RequestChild{
-		Model:          baseModel.Model{ID: id},
+		ID:             id,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    timezone.NewDate(2018, 4, 15),
+		DateOfBirth:    "2018-04-15",
 		Status:         status,
 		ActivationMode: enrollmentModels.ChildActivationScheduled,
 	}
@@ -434,7 +433,7 @@ func TestGetAdminRequestHandler_ReportsLateInviteEmailMismatch(t *testing.T) {
 	)
 	summary.Request.StatusToken = "detail-token"
 	summary.Request.GuardianEmail = "submitted@example.test"
-	summary.LateInvite = &enrollmentModels.LateInvite{GuardianEmail: "invited@example.test"}
+	summary.LateInvite = &capability.LateInvite{GuardianEmail: "invited@example.test"}
 	router := buildAdminDecisionRouter(&mockDecisionService{getResult: summary})
 
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)

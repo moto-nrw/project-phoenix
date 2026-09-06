@@ -70,7 +70,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		repos.Attendance,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),
@@ -277,4 +277,11 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	_, err := svc.ListPickupChangeRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
+}
+
+func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProjection {
+	t.Helper()
+	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	require.NoError(t, err)
+	return projection
 }

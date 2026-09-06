@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,13 +12,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type phaseCountQueries struct {
+	counts map[int64]int
+	err    error
+}
+
+func (q phaseCountQueries) PhaseCountsByCalendarPeriod(context.Context) (map[int64]int, error) {
+	return q.counts, q.err
+}
+
+func TestCalendarPeriodUsageRepository_EnrollmentFailurePropagates(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("enrollment read failed")
+	repo := NewCalendarPeriodUsageRepository(nil, phaseCountQueries{err: failure})
+	_, err := repo.UsageCounts(context.Background())
+	require.ErrorIs(t, err, failure)
+}
+
 func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRuntime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewCalendarPeriodUsageRepository(db)
 	tenantID := testpkg.Tenant(t)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Mandant", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
+	repo := NewCalendarPeriodUsageRepository(db, phaseCountQueries{counts: map[int64]int{period.ID: 2}})
 	group := testpkg.CreateTestActivityGroup(t, db, "Mandanten-AG")
 	_, err := db.NewUpdate().TableExpr("activities.groups").
 		Set("calendar_period_id = ?", period.ID).
@@ -47,4 +65,6 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 	usage, err := repo.UsageCounts(tenant.WithTenantID(context.Background(), tenantID))
 	require.NoError(t, err)
 	assert.Equal(t, 1, usage[period.ID].ActivityGroups)
+	assert.Equal(t, 2, usage[period.ID].EnrollmentPhases)
+	assert.NotContains(t, usage, foreignPeriodID)
 }

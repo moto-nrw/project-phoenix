@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -41,8 +43,8 @@ func (s schoolClassSettingsStub) ResolveInt(context.Context, string) (int, error
 
 func classPtr(s string) *string { return &s }
 
-func phaseWithClasses(classes []string, require bool) *enrollmentModels.Phase {
-	return &enrollmentModels.Phase{
+func phaseWithClasses(classes []string, require bool) *capability.Phase {
+	return &capability.Phase{
 		AvailableSchoolClasses: classes,
 		RequireSchoolClass:     require,
 	}
@@ -56,7 +58,7 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 	tests := []struct {
 		name      string
 		collect   bool
-		phase     *enrollmentModels.Phase
+		phase     *capability.Phase
 		child     SubmitChild
 		wantErr   bool
 		wantClass *string // expected normalized TargetSchoolClass

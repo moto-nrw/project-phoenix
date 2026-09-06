@@ -20,8 +20,9 @@ type StudentDeletionRepository struct {
 	countAuditReferences func(context.Context, int64) (int, error)
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
-	countConsents func(context.Context, int64) (int, error)
-	carePlan      interface {
+	countConsents             func(context.Context, int64) (int, error)
+	countEnrollmentReferences func(context.Context, int64) (int, error)
+	carePlan                  interface {
 		CountCompanionLinks(context.Context, int64) (int, error)
 		CountStudentScheduleRows(context.Context, int64) (int, error)
 		CountCarePlanDeletionRecords(context.Context, int64) (CarePlanDeletionCounts, error)
@@ -62,8 +63,12 @@ func NewStudentDeletionRepository(
 	db *bun.DB,
 	countAuditReferences func(context.Context, int64) (int, error),
 	countConsents func(context.Context, int64) (int, error),
+	countEnrollmentReferences func(context.Context, int64) (int, error),
 ) userModels.StudentDeletionRepository {
-	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents}
+	if countEnrollmentReferences == nil {
+		panic("student deletion repository: enrollment references query is required")
+	}
+	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents, countEnrollmentReferences: countEnrollmentReferences}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -101,7 +106,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				) +
 				(SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?)
 			)::int AS communications,
-			(SELECT COUNT(*) FROM enrollment.request_children WHERE tenant_id = ? AND (created_student_id = ? OR matched_student_id = ?))::int AS enrollment_references,
+			0::int AS enrollment_references,
 			(
 				(SELECT COUNT(*) FROM schedule.grade_transition_roster_removals WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
@@ -111,11 +116,14 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
-		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.EnrollmentReferences, err = r.countEnrollmentReferences(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count enrollment references: %w", err)
 	}
 	counts.ActivityEnrollments, err = timetableprojection.CountStudentEnrollments(ctx, base.GetDB(ctx, r.db), tenantID, studentID)
 	if err != nil {

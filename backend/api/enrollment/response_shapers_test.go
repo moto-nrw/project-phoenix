@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- toCareOfferingResponse ----------------------------------------------
@@ -27,7 +26,7 @@ func TestToCareOfferingResponse_StringifiesIDs(t *testing.T) {
 	price := 12000
 	activityGroupID := int64(8888)
 	o := &enrollmentModels.CareOffering{
-		Model:               baseModel.Model{ID: 1234, CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)},
+		ID: 1234, CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 		PhaseID:             5678,
 		ActivityGroupID:     &activityGroupID,
 		Name:                "OGS-Nachmittag",
@@ -65,7 +64,7 @@ func TestToCareOfferingResponse_PreservesNilPointers(t *testing.T) {
 	// from JSON. The form needs to distinguish "no capacity" (unlimited)
 	// from "capacity: 0" (full).
 	o := &enrollmentModels.CareOffering{
-		Model:          baseModel.Model{ID: 1234},
+		ID:             1234,
 		PhaseID:        5678,
 		Name:           "Basic",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
@@ -142,24 +141,24 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 	deadline := time.Date(2027, 6, 30, 18, 0, 0, 0, time.UTC)
 	schemaID := int64(7777)
 	srcPhase := int64(4321)
-	mode := enrollmentModels.PhaseRolloverModeOptOut
+	mode := capability.PhaseRolloverModeOptOut
 
-	p := &enrollmentModels.Phase{
-		Model: baseModel.Model{
-			ID:        1234,
-			CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: time.Date(2026, 4, 2, 12, 0, 0, 0, time.UTC),
-		},
+	p := &capability.Phase{
+
+		ID:        1234,
+		CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 2, 12, 0, 0, 0, time.UTC),
+
 		Name:                      "Schuljahr 2026/27",
-		Kind:                      enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:          timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:            timezone.NewDate(2027, 7, 31),
+		Kind:                      capability.PhaseKindSchoolYear,
+		ServiceStartDate:          "2026-09-01",
+		ServiceEndDate:            "2027-07-31",
 		EnrollmentOpenAt:          &openAt,
 		EnrollmentCloseAt:         &closeAt,
 		FormSchemaID:              &schemaID,
 		ShowStatusReasonToParent:  true,
-		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
-		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
+		CareOverflowMode:          capability.PhaseCareOverflowWaitlist,
+		CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionAtLeastOne,
 		IsActive:                  true,
 		RolloverSourcePhaseID:     &srcPhase,
 		RolloverMode:              &mode,
@@ -181,14 +180,14 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 	require.NotNil(t, out.RolloverSourcePhaseID)
 	assert.Equal(t, "4321", *out.RolloverSourcePhaseID)
 	require.NotNil(t, out.RolloverMode)
-	assert.Equal(t, enrollmentModels.PhaseRolloverModeOptOut, *out.RolloverMode)
+	assert.Equal(t, capability.PhaseRolloverModeOptOut, *out.RolloverMode)
 	assert.True(t, out.RolloverAutoApprove)
 	require.NotNil(t, out.RolloverDeadline)
 	assert.Equal(t, "2027-06-30T18:00:00Z", *out.RolloverDeadline)
 	assert.True(t, out.RolloverBumpsGrade)
 	assert.True(t, out.ShowStatusReasonToParent)
-	assert.Equal(t, enrollmentModels.PhaseCareOverflowWaitlist, out.CareOverflowMode)
-	assert.Equal(t, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, out.CareOfferingSelectionMode)
+	assert.Equal(t, capability.PhaseCareOverflowWaitlist, out.CareOverflowMode)
+	assert.Equal(t, capability.PhaseCareOfferingSelectionAtLeastOne, out.CareOfferingSelectionMode)
 	assert.Equal(t, "2026-04-01T12:00:00Z", out.CreatedAt)
 	assert.Equal(t, "2026-04-02T12:00:00Z", out.UpdatedAt)
 }
@@ -200,13 +199,13 @@ func TestToPhaseResponse_NilOptionalPointersStayNil(t *testing.T) {
 	// optional pointer field must round-trip as nil so omitempty drops
 	// them from JSON. A non-rollover phase shouldn't render the review
 	// queue link in the admin UI.
-	p := &enrollmentModels.Phase{
-		Model:            baseModel.Model{ID: 1234},
+	p := &capability.Phase{
+		ID:               1234,
 		Name:             "Fresh Phase",
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		Kind:             capability.PhaseKindSchoolYear,
+		ServiceStartDate: "2026-09-01",
+		ServiceEndDate:   "2027-07-31",
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 	out := toPhaseResponse(p)
 	assert.Nil(t, out.EnrollmentOpenAt)
@@ -225,8 +224,8 @@ func TestToFormSchemaResponse_StringifiesIDs(t *testing.T) {
 	t.Parallel()
 
 	created := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
-	s := &enrollmentModels.FormSchema{
-		Model:     baseModel.Model{ID: 1234, CreatedAt: created},
+	s := &capability.FormSchema{
+		ID: 1234, CreatedAt: created,
 		Name:      "Schuljahr",
 		Version:   2,
 		IsActive:  true,
@@ -252,8 +251,8 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 	// Fields ordering matters — the form renders them in sort_order.
 	// The shaper must not reorder, even if sort_order is set out of
 	// sequence.
-	s := &enrollmentModels.FormSchema{
-		Model:     baseModel.Model{ID: 1234},
+	s := &capability.FormSchema{
+		ID:        1234,
 		Name:      "Test",
 		Version:   1,
 		CreatedBy: 4321,
@@ -271,8 +270,8 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
 	t.Parallel()
 
-	s := &enrollmentModels.FormSchema{
-		Model:   baseModel.Model{ID: 1234},
+	s := &capability.FormSchema{
+		ID:      1234,
 		Version: 2,
 		Fields:  []enrollmentModels.FormField{},
 		LegalBlocks: []enrollmentModels.FormLegalBlock{

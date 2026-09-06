@@ -9,6 +9,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/uptrace/bun"
@@ -49,7 +50,7 @@ func (f *Factory) SchoolCalendar() schoolcalendar.Capability { return f.schoolCa
 // group wrappers layered on top of them.
 func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capability) {
 	f.schoolCalendar = capability
-	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, scheduleRepo.NewCalendarPeriodUsageRepository(f.db))
+	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, scheduleRepo.NewCalendarPeriodUsageRepository(f.db, enrollmentCompose.New()))
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
 	if repo, ok := f.CareExitCleanup.(interface {

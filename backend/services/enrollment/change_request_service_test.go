@@ -12,6 +12,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,27 +33,23 @@ func newChangeRequestServiceForTestWithAuthorizer(
 ) enrollmentService.ChangeRequestService {
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        repoFactory.ChangeRequest,
-		MessageRepo:              repoFactory.ChangeRequestMessage,
-		RequestRepo:              repoFactory.Request,
-		RequestChildRepo:         repoFactory.RequestChild,
-		RequestGuardianRepo:      repoFactory.RequestGuardian,
-		LateInviteRepo:           repoFactory.LateInvite,
-		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
-		CareOfferingRepo:         repoFactory.CareOffering,
-		FormSchemaRepo:           repoFactory.FormSchema,
-		PhaseRepo:                repoFactory.Phase,
-		SchoolRepo:               repoFactory.School,
-		GuardianProfileRepo:      repoFactory.GuardianProfile,
-		GuardianPhoneRepo:        repoFactory.GuardianPhoneNumber,
-		StudentRepo:              repoFactory.Student,
-		GuardianAuthorizer:       authorizer,
-		Settings:                 env.settings,
-		OutboxEnqueuer:           env.outbox,
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       env.db,
-		Logger:                   slog.Default(),
+		Requests:            repoFactory.Enrollment(),
+		Children:            repoFactory.Enrollment(),
+		Guardians:           repoFactory.Enrollment(),
+		LateInviteRepo:      repoFactory.Enrollment(),
+		CareOfferingRepo:    repoFactory.CareOffering,
+		Catalog:             repoFactory.Enrollment(),
+		SchoolRepo:          repoFactory.School,
+		GuardianProfileRepo: repoFactory.GuardianProfile,
+		GuardianPhoneRepo:   repoFactory.GuardianPhoneNumber,
+		StudentRepo:         repoFactory.Student,
+		GuardianAuthorizer:  authorizer,
+		Settings:            env.settings,
+		OutboxEnqueuer:      env.outbox,
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		DB:                  env.db,
+		Logger:              slog.Default(),
 	})
 }
 
@@ -92,50 +89,46 @@ func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthoriz
 
 func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestService {
 	t.Helper()
-	return newChangeRequestServiceWithDecisionAndRepoForTest(t, env, env.repos.ChangeRequest)
+	return newChangeRequestServiceWithDecisionAndIntakeForTest(t, env, env.repos.Enrollment())
 }
 
-func newChangeRequestServiceWithDecisionAndRepoForTest(
+func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	t *testing.T,
 	env *decisionTestEnv,
-	changeRequestRepo enrollmentModels.ChangeRequestRepository,
+	requests enrollmentService.ChangeRequestIntakeRequests,
 ) enrollmentService.ChangeRequestService {
 	t.Helper()
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        changeRequestRepo,
-		MessageRepo:              env.repos.ChangeRequestMessage,
-		RequestRepo:              env.repos.Request,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestGuardianRepo:      env.repos.RequestGuardian,
-		LateInviteRepo:           env.repos.LateInvite,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		CareOfferingRepo:         env.repos.CareOffering,
-		FormSchemaRepo:           env.repos.FormSchema,
-		PhaseRepo:                env.repos.Phase,
-		SchoolRepo:               env.repos.School,
-		GuardianProfileRepo:      env.repos.GuardianProfile,
-		GuardianPhoneRepo:        env.repos.GuardianPhoneNumber,
-		StudentRepo:              env.repos.Student,
-		GuardianAuthorizer:       env.repos.StudentGuardian,
-		DecisionService:          changeRequestApplierForTest(t, env),
-		Settings:                 env.settings,
-		OutboxEnqueuer:           env.outbox,
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       env.db,
-		Logger:                   slog.Default(),
+		Requests:            requests,
+		Children:            env.repos.Enrollment(),
+		Guardians:           env.repos.Enrollment(),
+		LateInviteRepo:      env.repos.Enrollment(),
+		CareOfferingRepo:    env.repos.CareOffering,
+		Catalog:             env.repos.Enrollment(),
+		SchoolRepo:          env.repos.School,
+		GuardianProfileRepo: env.repos.GuardianProfile,
+		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
+		StudentRepo:         env.repos.Student,
+		GuardianAuthorizer:  env.repos.StudentGuardian,
+		DecisionService:     changeRequestApplierForTest(t, env),
+		Settings:            env.settings,
+		OutboxEnqueuer:      env.outbox,
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		DB:                  env.db,
+		Logger:              slog.Default(),
 	})
 }
 
-type failAdminAuditChangeRequestRepo struct {
-	enrollmentModels.ChangeRequestRepository
+type failAdminAuditChangeRequestIntake struct {
+	enrollmentService.ChangeRequestIntakeRequests
 }
 
-func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enrollmentModels.ChangeRequest) error {
+func (r failAdminAuditChangeRequestIntake) InsertChangeRequest(ctx context.Context, row *capability.ChangeRequest) error {
 	if row.Origin == enrollmentModels.ChangeRequestOriginAdmin {
 		return errors.New("forced admin correction audit failure")
 	}
-	return r.ChangeRequestRepository.Create(ctx, row)
+	return r.ChangeRequestIntakeRequests.InsertChangeRequest(ctx, row)
 }
 
 // liftTakeoverStamp clears created_student_id on the request's children and
@@ -147,8 +140,8 @@ func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enroll
 // then the stamp goes back on before the decision runs.
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
-	ctx := testpkg.TenantContext(env.sourcePhase.GetTenantID())
-	children, err := env.repos.RequestChild.ListByRequestID(ctx, requestID)
+	ctx := testpkg.TenantContext(env.sourcePhase.TenantID)
+	children, err := enrollmentService.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), requestID)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))
 	for _, child := range children {
@@ -248,7 +241,7 @@ func proposedChangeSubmission(t *testing.T, env *requestTestEnv, result *enrollm
 func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 	t.Helper()
 	reason := "Warteliste"
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.UpdateStatus(
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment().UpdateChildStatus(
 		testpkg.Ctx(t),
 		childID,
 		enrollmentModels.ChildStatusWaitlisted,
@@ -468,10 +461,10 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	require.NoError(t, err)
 
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
-	newer, err := repoFactory.Request.FindByID(ctx, result.Request.ID)
+	newer, err := enrollmentService.ReadOwnerRequestForTest(ctx, repoFactory.Enrollment(), result.Request.ID)
 	require.NoError(t, err)
 	newer.GuardianLastName = "Neuer"
-	require.NoError(t, repoFactory.Request.UpdateGuardianDataWithEmail(ctx, newer))
+	require.NoError(t, enrollmentService.UpdateOwnerRequestGuardianForTest(ctx, repoFactory.Enrollment(), newer, true))
 
 	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
 		Note:           "Freigegeben.",
@@ -523,7 +516,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment))
 
-	child, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, firstResult.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), firstResult.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Lina", child.FirstName)
 }
@@ -554,10 +547,10 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 	}
 	profile.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.GuardianProfile.Create(ctx, profile))
-	guardians, err := repoFactory.RequestGuardian.ListByRequestID(ctx, result.Request.ID)
+	guardians, err := repoFactory.Enrollment().RequestGuardians(ctx, []int64{result.Request.ID})
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
-	require.NoError(t, repoFactory.RequestGuardian.StampResolvedProfile(ctx, guardians[0].ID, profile.ID))
+	require.NoError(t, repoFactory.Enrollment().StampRequestGuardianProfile(ctx, guardians[0].ID, profile.ID))
 
 	guardianPhone := "+49 221 555 011"
 	proposed := proposedChangeSubmission(t, env, result)
@@ -578,7 +571,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 	})
 	require.NoError(t, err)
 
-	guardians, err = repoFactory.RequestGuardian.ListByRequestID(ctx, result.Request.ID)
+	guardians, err = repoFactory.Enrollment().RequestGuardians(ctx, []int64{result.Request.ID})
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
 	require.NotNil(t, guardians[0].GuardianProfileID)
@@ -734,7 +727,7 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 	})
 	require.NoError(t, err)
 
-	links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, result.Children[0].ID)
+	links, err := repoFactory.Enrollment().RequestChildOfferingHistory(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, offering.ID, links[0].CareOfferingID)
@@ -828,7 +821,7 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 	})
 	require.NoError(t, err)
 
-	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, result.Children[0].ID)
+	links, err := env.repos.Enrollment().RequestChildOfferingHistory(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, replacementOffering.ID, links[0].CareOfferingID)
@@ -938,10 +931,10 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	result, err := env.requestSvc.Submit(ctx, submission)
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
-	storedChild, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	storedChild, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	storedChild.CustomData = map[string]any{"allergies": "keine"}
-	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, storedChild))
+	require.NoError(t, enrollmentService.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), storedChild))
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID:  result.Request.ID,
 		ChildID:    result.Children[0].ID,
@@ -976,10 +969,10 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	assert.Equal(t, result.Children[0].ID, *audit.ChangeRequest.RequestChildID)
 	assert.Contains(t, audit.ChangeRequest.Diff["changed"], "children")
 
-	child, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Richtig", child.LastName)
-	assert.Equal(t, correctedDOB, child.DateOfBirth)
+	assert.Equal(t, correctedDOB.String(), string(child.DateOfBirth))
 	require.NotNil(t, child.TargetGradeLevel)
 	assert.Equal(t, gradeTwo, *child.TargetGradeLevel)
 	assert.Equal(t, map[string]any{"allergies": "keine"}, child.CustomData)
@@ -1049,7 +1042,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			require.NotNil(t, audit)
 			assert.Equal(t, enrollmentModels.ChangeRequestOriginAdmin, audit.ChangeRequest.Origin)
 
-			rejected, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+			rejected, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 			require.NoError(t, err)
 			assert.Equal(t, enrollmentModels.ChangeRequestStatusRejected, rejected.Status)
 			require.NotNil(t, rejected.AdminDecisionNote)
@@ -1058,7 +1051,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			assert.Equal(t, env.creatorID, *rejected.ReviewedByAccountID)
 			assert.NotNil(t, rejected.ReviewedAt)
 
-			messages, err := env.repos.ChangeRequestMessage.ListByChangeRequestID(ctx, rejected.ID, true)
+			messages, err := env.repos.Enrollment().ChangeRequestMessages(ctx, []int64{rejected.ID}, true)
 			require.NoError(t, err)
 			assert.Condition(t, func() bool {
 				for _, message := range messages {
@@ -1109,7 +1102,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 		ActorRole:      "admin",
 	})
 	require.NoError(t, err)
-	before, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	before, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
@@ -1127,7 +1120,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 	})
 	require.NoError(t, err)
 
-	after, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	after, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 	assert.Equal(t, before.Status, after.Status)
 	assert.Equal(t, before.AdminDecisionNote, after.AdminDecisionNote)
@@ -1156,7 +1149,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	require.NoError(t, err)
 	restoreTakeover()
 
-	storedChild, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	storedChild, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	require.NotNil(t, storedChild.CreatedStudentID)
 	student, err := env.repos.Student.FindByID(ctx, *storedChild.CreatedStudentID)
@@ -1164,8 +1157,8 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	personBefore, err := env.repos.Person.FindByID(ctx, student.PersonID)
 	require.NoError(t, err)
 
-	failingService := newChangeRequestServiceWithDecisionAndRepoForTest(t, env, failAdminAuditChangeRequestRepo{
-		ChangeRequestRepository: env.repos.ChangeRequest,
+	failingService := newChangeRequestServiceWithDecisionAndIntakeForTest(t, env, failAdminAuditChangeRequestIntake{
+		ChangeRequestIntakeRequests: env.repos.Enrollment(),
 	})
 	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := failingService.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
@@ -1182,25 +1175,25 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	})
 	require.ErrorContains(t, err, "forced admin correction audit failure")
 
-	openRequest, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	openRequest, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, openRequest.Status)
 	assert.Nil(t, openRequest.AdminDecisionNote)
 	assert.Nil(t, openRequest.ReviewedByAccountID)
 	assert.Nil(t, openRequest.ReviewedAt)
 
-	childAfter, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	childAfter, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, submission.Children[0].LastName, childAfter.LastName)
 	personAfter, err := env.repos.Person.FindByID(ctx, student.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, personBefore.LastName, personAfter.LastName)
 
-	messages, err := env.repos.ChangeRequestMessage.ListByChangeRequestID(ctx, openRequest.ID, true)
+	messages, err := env.repos.Enrollment().ChangeRequestMessages(ctx, []int64{openRequest.ID}, true)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	assert.Equal(t, "Bitte den Vornamen ändern.", messages[0].Body)
-	rows, err := env.repos.ChangeRequest.ListByRequestID(ctx, result.Request.ID)
+	rows, err := env.repos.Enrollment().ChangeRequestsForRequest(ctx, result.Request.ID)
 	require.NoError(t, err)
 	for _, row := range rows {
 		assert.NotEqual(t, enrollmentModels.ChangeRequestOriginAdmin, row.Origin)
@@ -1257,7 +1250,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 
 	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
 	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b", "3a"}
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 
 	gradeTwo := int16(2)
 	targetClass := "2a"
@@ -1298,7 +1291,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = false
 	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 1
 	env.sourcePhase.AvailableSchoolClasses = []string{"3a"}
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
 	correct := func(input enrollmentService.CorrectApprovedChildDataInput) error {
@@ -1332,7 +1325,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 	changedClass.Reason = "Zielklasse ändern"
 	require.ErrorIs(t, correct(changedClass), enrollmentService.ErrChangeRequestInvalidData)
 
-	child, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Richtig", child.LastName)
 	require.NotNil(t, child.TargetGradeLevel)
@@ -1347,7 +1340,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 	require.NoError(t, err)
 	assert.Equal(t, "Richtig", person.LastName)
 
-	changeRequests, err := env.repos.ChangeRequest.ListByRequestID(ctx, result.Request.ID)
+	changeRequests, err := env.repos.Enrollment().ChangeRequestsForRequest(ctx, result.Request.ID)
 	require.NoError(t, err)
 	adminAudits := 0
 	for _, changeRequest := range changeRequests {
@@ -1444,7 +1437,7 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 	require.Len(t, result.Children, 2)
 	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
 	reason := "kein Platz"
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID))
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(ctx, result.Children[0].ID, enrollmentModels.ChildStatusRejected, &reason, env.creatorID))
 	svc := newChangeRequestServiceForTest(env)
 
 	proposed := base
@@ -1466,7 +1459,7 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 	})
 	require.NoError(t, err)
 
-	child, err := repoFactory.RequestChild.FindByID(ctx, result.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, repoFactory.Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusRejected, child.Status)
 }
@@ -1496,7 +1489,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	candidate, err := env.svc.Submit(ctx, candidateReq)
 	require.NoError(t, err)
 	reason := "Bitte pruefen"
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx,
 		candidate.Children[0].ID,
 		enrollmentModels.ChildStatusUnderReview,
@@ -1520,10 +1513,10 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	})
 	require.NoError(t, err)
 
-	child, err := repoFactory.RequestChild.FindByID(ctx, candidate.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, repoFactory.Enrollment(), candidate.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, child.Status)
-	links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	links, err := repoFactory.Enrollment().RequestChildOfferingHistory(ctx, candidate.Children[0].ID)
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, offering.ID, links[0].CareOfferingID)
@@ -1555,7 +1548,7 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 	require.NoError(t, err)
 	require.Len(t, result.Children, 2)
 	reason := "Bitte pruefen"
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx,
 		result.Children[0].ID,
 		enrollmentModels.ChildStatusUnderReview,
@@ -1583,10 +1576,10 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 	require.NoError(t, err)
 
 	for _, child := range result.Children {
-		stored, err := repoFactory.RequestChild.FindByID(ctx, child.ID)
+		stored, err := enrollmentService.ReadOwnerChildForTest(ctx, repoFactory.Enrollment(), child.ID)
 		require.NoError(t, err)
 		assert.NotEqual(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
-		links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, child.ID)
+		links, err := repoFactory.Enrollment().RequestChildOfferingHistory(ctx, child.ID)
 		require.NoError(t, err)
 		require.Len(t, links, 1)
 		assert.Equal(t, offering.ID, links[0].CareOfferingID)
@@ -1618,14 +1611,14 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 	candidate, err := env.svc.Submit(ctx, candidateReq)
 	require.NoError(t, err)
 	reason := "Bitte pruefen"
-	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+	require.NoError(t, repoFactory.Enrollment().UpdateChildStatus(
 		ctx,
 		candidate.Children[0].ID,
 		enrollmentModels.ChildStatusUnderReview,
 		&reason,
 		env.creatorID,
 	))
-	beforeLinks, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	beforeLinks, err := repoFactory.Enrollment().RequestChildOfferingHistory(ctx, candidate.Children[0].ID)
 	require.NoError(t, err)
 	require.Empty(t, beforeLinks)
 
@@ -1646,13 +1639,13 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull), "expected ErrCareOfferingFull, got %v", err)
 
-	changeRequest, err := repoFactory.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	changeRequest, err := repoFactory.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, changeRequest.Status)
-	child, err := repoFactory.RequestChild.FindByID(ctx, candidate.Children[0].ID)
+	child, err := enrollmentService.ReadOwnerChildForTest(ctx, repoFactory.Enrollment(), candidate.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, child.Status)
-	afterLinks, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	afterLinks, err := repoFactory.Enrollment().RequestChildOfferingHistory(ctx, candidate.Children[0].ID)
 	require.NoError(t, err)
 	assert.Empty(t, afterLinks)
 }
@@ -1684,7 +1677,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	assert.Equal(t, 14, rows[0].PickupTime.Hour())
 	assert.Equal(t, 45, rows[0].PickupTime.Minute())
 
-	requestRow, err := env.repos.Request.FindByID(ctx, reqID)
+	requestRow, err := enrollmentService.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	grade := int16(2)
 	proposed := enrollmentService.SubmitRequest{
@@ -1730,7 +1723,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "targeted-field replacement sync")
 
-	changeRequest, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	changeRequest, err := env.repos.Enrollment().ChangeRequestByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, changeRequest.Status)
 	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)

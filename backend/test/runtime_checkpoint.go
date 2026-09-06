@@ -15,6 +15,7 @@ import (
 )
 
 type RuntimeCheckpointSample struct {
+	WriteRowsAffected  *int64  `json:"write_rows_affected,omitempty"`
 	RowsAffected       int64   `json:"rows_affected"`
 	StatementsWithRows int     `json:"statements_with_rows"`
 	DurationMS         float64 `json:"duration_ms"`

@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,11 +33,11 @@ func (f *fakeEnrollmentDecisionService) ListByStudent(_ context.Context, student
 
 type fakeEnrollmentFormSchemaService struct {
 	enrollmentService.FormSchemaService
-	schemas map[int64]*enrollmentModels.FormSchema
+	schemas map[int64]*capability.FormSchema
 	err     error
 }
 
-func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (*enrollmentModels.FormSchema, error) {
+func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (*capability.FormSchema, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -57,7 +58,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 		summaries: []*enrollmentService.RequestSummary{
 			{
 				Request: &enrollmentModels.Request{
-					Model:       baseModel.Model{ID: 77},
+					ID:          77,
 					SchemaID:    &schemaID,
 					PhaseID:     5,
 					SubmittedAt: submittedAt,
@@ -65,13 +66,13 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 						"guardian_question": "must not leak",
 					},
 				},
-				Phase: &enrollmentModels.Phase{
-					Model: baseModel.Model{ID: 5},
-					Name:  "Anmeldung 2026",
+				Phase: &capability.Phase{
+					ID:   5,
+					Name: "Anmeldung 2026",
 				},
 				Children: []*enrollmentModels.RequestChild{
 					{
-						Model:            baseModel.Model{ID: 701},
+						ID:               701,
 						CreatedStudentID: &linkedStudentID,
 						CustomData: map[string]any{
 							"swimming_level": "safe",
@@ -80,7 +81,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 						},
 					},
 					{
-						Model:            baseModel.Model{ID: 702},
+						ID:               702,
 						CreatedStudentID: &otherStudentID,
 						CustomData: map[string]any{
 							"swimming_level": "other child",
@@ -92,9 +93,9 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 	}
 	tc.resource.EnrollmentDecision = decision
 	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{
-		schemas: map[int64]*enrollmentModels.FormSchema{
+		schemas: map[int64]*capability.FormSchema{
 			schemaID: {
-				Model: baseModel.Model{ID: schemaID},
+				ID: schemaID,
 				Fields: []enrollmentModels.FormField{
 					{
 						Key:         "guardian_question",
@@ -182,7 +183,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 		summaries: []*enrollmentService.RequestSummary{
 			{
 				Request: &enrollmentModels.Request{
-					Model:    baseModel.Model{ID: 77},
+					ID:       77,
 					SchemaID: &schemaID,
 				},
 				Children: []*enrollmentModels.RequestChild{
@@ -224,7 +225,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 		summaries: []*enrollmentService.RequestSummary{
 			{
 				Request: &enrollmentModels.Request{
-					Model:    baseModel.Model{ID: 77},
+					ID:       77,
 					SchemaID: &schemaID,
 				},
 				Children: []*enrollmentModels.RequestChild{
@@ -239,7 +240,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 		},
 	}
 	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{
-		schemas: map[int64]*enrollmentModels.FormSchema{},
+		schemas: map[int64]*capability.FormSchema{},
 	}
 
 	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)

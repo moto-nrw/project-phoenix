@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -51,7 +53,7 @@ type careOfferingMaterializationState struct {
 func loadCareOfferingMaterializationState(
 	ctx context.Context,
 	deps careOfferingMaterializationDeps,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	change careOfferingMaterializationChange,
 ) (*careOfferingMaterializationState, error) {
 	if err := deps.validate(); err != nil {
@@ -66,8 +68,8 @@ func loadCareOfferingMaterializationState(
 	}
 	exceptions, err := deps.activityExceptionRepo.FindByDateRange(
 		ctx,
-		scheduleModels.Date(phase.ServiceStartDate),
-		scheduleModels.Date(phase.ServiceEndDate),
+		scheduleModels.Date(timezone.Date(phase.ServiceStartDate)),
+		scheduleModels.Date(timezone.Date(phase.ServiceEndDate)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load exceptions for care offering materialization: %w", err)
@@ -106,7 +108,7 @@ func validateCareOfferingMaterializability(
 	ctx context.Context,
 	deps careOfferingMaterializationDeps,
 	segments []linkedCareOfferingGroup,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	days []string,
 	change careOfferingMaterializationChange,
 ) error {
@@ -134,11 +136,11 @@ func validateCareOfferingMaterializability(
 
 func validateCareOfferingWeekdayMaterializability(
 	segments []linkedCareOfferingGroup,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	weekday int,
 	state *careOfferingMaterializationState,
 ) error {
-	for date := phase.ServiceStartDate; !date.After(phase.ServiceEndDate); date = date.AddDays(1) {
+	for date := timezone.Date(phase.ServiceStartDate); !date.After(timezone.Date(phase.ServiceEndDate)); date = date.AddDays(1) {
 		if careOfferingISOWeekday(date) != weekday {
 			continue
 		}
@@ -336,7 +338,7 @@ func (s *careOfferingService) ValidateTimeframeChange(
 func (s *careOfferingService) ValidatePhaseChange(
 	ctx context.Context,
 	phaseID int64,
-	replacement *enrollmentModels.Phase,
+	replacement *enrollmentOwner.Phase,
 ) error {
 	if phaseID <= 0 || replacement == nil || replacement.ID != phaseID {
 		return careOfferingInvalidf("phase replacement must match a positive phase id")
@@ -359,7 +361,7 @@ func (s *careOfferingService) ValidatePhaseChange(
 func (s *careOfferingService) validateOfferingPhaseChange(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-	replacement *enrollmentModels.Phase,
+	replacement *enrollmentOwner.Phase,
 ) error {
 	if offering == nil || offering.ActivityGroupID == nil {
 		return nil
@@ -400,7 +402,7 @@ func (s *careOfferingService) validateMaterializationResourceDeletion(
 	change careOfferingMaterializationChange,
 ) error {
 	if s.Repo == nil || s.ActivityGroupRepo == nil || s.ActivityScheduleRepo == nil ||
-		s.PhaseRepo == nil {
+		s.Phases == nil {
 		return errors.New("care offering resource deletion validation dependencies are not configured")
 	}
 	offerings, err := s.Repo.ListByTenant(ctx)
@@ -437,7 +439,7 @@ func (s *careOfferingService) validateOfferingResourceDeletion(
 	if !impacted {
 		return nil
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := s.Phases.Phase(ctx, offering.PhaseID)
 	if err != nil {
 		return fmt.Errorf("load care offering %d phase for resource deletion: %w", offering.ID, err)
 	}

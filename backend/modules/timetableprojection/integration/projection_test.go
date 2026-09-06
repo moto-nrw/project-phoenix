@@ -35,7 +35,7 @@ func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
 		},
 		"child enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, id)
+			return timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, id, id)
 		},
 		"student enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, id)

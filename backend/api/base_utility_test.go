@@ -278,7 +278,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
 	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
 	require.NoError(t, err)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, repos.FormSchema.HasLegalDocumentReference, db).SettingsRouter(), hub: module.RealtimeHub}
+	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, repos.Enrollment().SchemaReferencesLegalDocument, db).SettingsRouter(), hub: module.RealtimeHub}
 }
 
 func setupOperatorInvitationRoute(golden *API) chi.Router {

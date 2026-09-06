@@ -1,0 +1,12 @@
+{
+  "first_run": {
+    "DeletedRequests": 1,
+    "DeletedLateInvites": 0,
+    "DeletedOutboxRows": 1
+  },
+  "retry": {
+    "DeletedRequests": 0,
+    "DeletedLateInvites": 0,
+    "DeletedOutboxRows": 0
+  }
+}

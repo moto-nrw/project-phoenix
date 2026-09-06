@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"slices"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Days-of-week mode values matching the column CHECK constraint.
@@ -197,43 +194,42 @@ func (r *CareOfferingAvailabilityRule) MatchesGradeLevel(gradeLevel *int16) (boo
 // (typically a school year, occasionally a holiday); parents pick from
 // the open-window subset on the public submission form.
 type CareOffering struct {
-	base.Model `bun:"schema:enrollment,table:care_offerings"`
-	base.TenantModel
-	PhaseID             int64    `bun:"phase_id,notnull" json:"phase_id"`
-	ActivityGroupID     *int64   `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	Name                string   `bun:"name,notnull" json:"name"`
-	Description         *string  `bun:"description" json:"description,omitempty"`
-	DaysOfWeekMode      string   `bun:"days_of_week_mode,notnull,default:'fixed'" json:"days_of_week_mode"`
-	AvailableDays       []string `bun:"available_days,type:jsonb,notnull" json:"available_days"`
-	IncludesHolidayCare bool     `bun:"includes_holiday_care,notnull" json:"includes_holiday_care"`
-	IncludesLunch       bool     `bun:"includes_lunch,notnull" json:"includes_lunch"`
-	Capacity            *int     `bun:"capacity" json:"capacity,omitempty"`
-	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
-	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
-	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
-	// Keep the DB default, but do not tag this with bun default:true:
-	// explicit false must be inserted instead of letting Postgres default
-	// it back to true.
-	CountsAsCare       bool                          `bun:"counts_as_care,notnull" json:"counts_as_care"`
-	AutoAddGradeLevels []int                         `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
-	AvailabilityRule   *CareOfferingAvailabilityRule `bun:"availability_rule,type:jsonb" json:"availability_rule,omitempty"`
-	SortOrder          int                           `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	ID                  int64                         `json:"id"`
+	TenantID            int64                         `json:"tenant_id"`
+	CreatedAt           time.Time                     `json:"created_at"`
+	UpdatedAt           time.Time                     `json:"updated_at"`
+	PhaseID             int64                         `json:"phase_id"`
+	ActivityGroupID     *int64                        `json:"activity_group_id,omitempty"`
+	Name                string                        `json:"name"`
+	Description         *string                       `json:"description,omitempty"`
+	DaysOfWeekMode      string                        `json:"days_of_week_mode"`
+	AvailableDays       []string                      `json:"available_days"`
+	IncludesHolidayCare bool                          `json:"includes_holiday_care"`
+	IncludesLunch       bool                          `json:"includes_lunch"`
+	Capacity            *int                          `json:"capacity,omitempty"`
+	PriceCents          *int                          `json:"price_cents,omitempty"`
+	IsActive            bool                          `json:"is_active"`
+	IsRequired          bool                          `json:"is_required"`
+	CountsAsCare        bool                          `json:"counts_as_care"`
+	AutoAddGradeLevels  []int                         `json:"auto_add_grade_levels"`
+	AvailabilityRule    *CareOfferingAvailabilityRule `json:"availability_rule,omitempty"`
+	SortOrder           int                           `json:"sort_order"`
 	// SelectionGroup groups offerings that share a selection rule (empty
 	// = ungrouped). SelectionRule constrains how many of the group a
 	// parent must pick. See SelectionRule* constants.
-	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
-	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
+	SelectionGroup string `json:"selection_group,omitempty"`
+	SelectionRule  string `json:"selection_rule"`
 	// PickupTimes is the booking-derived pickup baseline per weekday
 	// ({"mon":"14:30"}). Keys are canonical day codes within
 	// AvailableDays; values are wall-clock HH:MM. The schedule service projects
 	// them through each booking's validity window (ADR 0001).
-	PickupTimes map[string]string `bun:"pickup_times,type:jsonb" json:"pickup_times,omitempty"`
+	PickupTimes map[string]string `json:"pickup_times,omitempty"`
 
 	// AutoAddTriggerOfferingIDs is loaded from
 	// enrollment.care_offering_auto_triggers. It is not a column on
 	// care_offerings itself.
-	AutoAddTriggerOfferingIDs []int64 `bun:"-" json:"auto_add_trigger_offering_ids,omitempty"`
-	CountsAsCareSet           bool    `bun:"-" json:"-"`
+	AutoAddTriggerOfferingIDs []int64 `json:"auto_add_trigger_offering_ids,omitempty"`
+	CountsAsCareSet           bool    `json:"-"`
 }
 
 // Validate enforces the column-level CHECK constraints in app code so
@@ -367,22 +363,7 @@ func normalizeGradeLevels(levels []int) ([]int, error) {
 // null. field names the column in the error so the caller's message stays
 // specific (auto_add_grade_levels vs eligible_grade_levels).
 func normalizeGradeLevelList(field string, levels []int) ([]int, error) {
-	if len(levels) == 0 {
-		return []int{}, nil
-	}
-	seen := make(map[int]bool, len(levels))
-	out := make([]int, 0, len(levels))
-	for _, level := range levels {
-		if level < schoolclass.MinGradeLevel || level > schoolclass.MaxGradeLevel {
-			return nil, fmt.Errorf("%s contains invalid grade %d", field, level)
-		}
-		if seen[level] {
-			continue
-		}
-		seen[level] = true
-		out = append(out, level)
-	}
-	return out, nil
+	return capability.NormalizeGradeLevelList(field, levels)
 }
 
 // HasUnlimitedCapacity returns true when the capacity field is NULL,
@@ -437,139 +418,20 @@ type CareOfferingRepository interface {
 // the join table linking a request_child to a care_offering. PR 6
 // ships the schema; PR 7 fills it on submission.
 type RequestChildOffering struct {
-	base.Model `bun:"schema:enrollment,table:request_child_offerings"`
-	base.TenantModel
-	RequestChildID        int64    `bun:"request_child_id,notnull" json:"request_child_id"`
-	CareOfferingID        int64    `bun:"care_offering_id,notnull" json:"care_offering_id"`
-	SelectedDays          []string `bun:"selected_days,type:jsonb,nullzero" json:"selected_days,omitempty"`
-	ManualSelectedDays    []string `bun:"manual_selected_days,type:jsonb,nullzero" json:"manual_selected_days,omitempty"`
-	AutomaticSelectedDays []string `bun:"automatic_selected_days,type:jsonb,nullzero" json:"automatic_selected_days,omitempty"`
-	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
+	ID                    int64     `json:"id"`
+	TenantID              int64     `json:"tenant_id"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+	RequestChildID        int64     `json:"request_child_id"`
+	CareOfferingID        int64     `json:"care_offering_id"`
+	SelectedDays          []string  `json:"selected_days,omitempty"`
+	ManualSelectedDays    []string  `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string  `json:"automatic_selected_days,omitempty"`
+	Notes                 *string   `json:"notes,omitempty"`
 	// ValidFrom / ValidUntil make an approved offering switch effective on its
 	// requested date. ValidUntil is exclusive, matching student enrollments.
-	ValidFrom  *timezone.Date `bun:"valid_from,type:date" json:"valid_from,omitempty"`
-	ValidUntil *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-}
-
-// CareOfferingAutoTrigger links a target offering to one source offering
-// that should cause it to be selected automatically.
-type CareOfferingAutoTrigger struct {
-	base.Model `bun:"schema:enrollment,table:care_offering_auto_triggers"`
-	base.TenantModel
-	TargetCareOfferingID  int64 `bun:"target_care_offering_id,notnull" json:"target_care_offering_id"`
-	TriggerCareOfferingID int64 `bun:"trigger_care_offering_id,notnull" json:"trigger_care_offering_id"`
-}
-
-// RequestChildOfferingRepository is the contract PR 7's submission
-// service consumes. PR 6 only ships the type so the factory can wire
-// it; the implementation has no callers yet.
-type RequestChildOfferingRepository interface {
-	Create(ctx context.Context, row *RequestChildOffering) error
-	ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*RequestChildOffering) error
-	// ScheduleReplacementForRequestChild closes the active selection at
-	// effectiveFrom and creates the replacement from that date onward.
-	ScheduleReplacementForRequestChild(ctx context.Context, requestChildID int64, effectiveFrom timezone.Date, rows []*RequestChildOffering) error
-	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
-	ListByRequestChildIDAtDate(ctx context.Context, requestChildID int64, onDate timezone.Date) ([]*RequestChildOffering, error)
-	ListHistoryByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
-
-	// ListByRequestChildIDs is the batched form of
-	// ListByRequestChildID: one query for every offering link across
-	// the given children. Powers the phase export's N+1-free load.
-	// Empty input returns an empty slice without a query.
-	ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*RequestChildOffering, error)
-	// ListByRequestChildIDsAtDate is the batched point-in-time variant used by
-	// write paths that must only inspect the selection active on a given date.
-	ListByRequestChildIDsAtDate(ctx context.Context, requestChildIDs []int64, onDate timezone.Date) ([]*RequestChildOffering, error)
-	// ListByRequestChildIDsAtDates loads the selection active on each child's
-	// individual date in one query.
-	ListByRequestChildIDsAtDates(ctx context.Context, dates map[int64]timezone.Date) ([]*RequestChildOffering, error)
-
-	// CountActiveByCareOffering returns the number of non-terminal selections
-	// across all validity intervals for a care offering. New capacity decisions
-	// must use the date/range-specific methods below.
-	// Counts non-terminal statuses on the joined request_children row:
-	// submitted, under_review, approved, waitlisted. Excludes rejected
-	// and withdrawn.
-	CountActiveByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
-	CountActiveByCareOfferingOnDate(ctx context.Context, careOfferingID int64, onDate timezone.Date) (int, error)
-	// CountMaxActiveByCareOfferingInRange returns the highest simultaneous
-	// number of non-terminal bookings whose validity intervals overlap the
-	// half-open [from, until) range. Capacity checks use it to reserve slots
-	// for approved future offering changes.
-	CountMaxActiveByCareOfferingInRange(ctx context.Context, careOfferingID int64, from, until timezone.Date) (int, error)
-	// CountMaxActiveByCareOfferingInRangeExcludingRequestChild returns the
-	// peak occupancy after removing one child's existing intervals. A dated
-	// replacement uses it to validate the post-replacement state before it
-	// writes the new intervals.
-	CountMaxActiveByCareOfferingInRangeExcludingRequestChild(ctx context.Context, careOfferingID, requestChildID int64, from, until timezone.Date) (int, error)
-	// CountMaxActiveByCareOfferingInRangeExcludingRequestChildren is the batch
-	// variant used while replacing several children in one enrollment request.
-	// It prevents historical selections from being subtracted from a peak that
-	// they did not occupy concurrently.
-	CountMaxActiveByCareOfferingInRangeExcludingRequestChildren(ctx context.Context, careOfferingID int64, requestChildIDs []int64, from, until timezone.Date) (int, error)
-	// CountMaterializableByCareOffering includes every non-terminal selection,
-	// including a replacement scheduled for a future date. It protects later
-	// materialization from incompatible offering/template edits.
-	CountMaterializableByCareOffering(ctx context.Context, careOfferingID int64) (int, error)
-
-	// ListApprovedChildrenByCareOfferingIDs returns, per offering, every
-	// offering link of an APPROVED request child that is still current or
-	// scheduled (valid_until in the future or open), with the child's
-	// resolved student id and the student's school class hydrated for
-	// Jahrgang filtering (#2137). Children without a resolved student row
-	// (approval not yet materialized) and alumni are excluded. Empty input
-	// returns an empty slice without a query.
-	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
-
-	// ListApprovedByStudentIDsInRange returns the approved offering links that
-	// overlap the inclusive calendar window [from, to]. Callers still apply the
-	// link's half-open [valid_from, valid_until) bounds per projected date.
-	// The custom repository query is required because generic filters cannot
-	// express its approved-child/student joins plus interval overlap. Empty
-	// input returns an empty slice without a query.
-	ListApprovedByStudentIDsInRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*ApprovedOfferingChild, error)
-
-	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
-	// bookings whose validity interval overlaps [from, until) by offering and
-	// by the child's target grade level. A child is counted once per
-	// (offering, grade) pair no matter how many intervals it holds there.
-	// Children without a target grade level are reported with a nil
-	// GradeLevel — availability rules never match a missing grade, so those
-	// bookings conflict with every rule (see
-	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
-	// empty slice without a query.
-	//
-	// NOT phase-scoped, for the same reason as
-	// CountMaxActiveByCareOfferingIDsInRange: an availability rule lives on
-	// the care_offering row and therefore applies to every booking of that
-	// row, whichever phase's request it hangs off.
-	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
-
-	// CountMaxActiveByCareOfferingIDsInRange is the batched form of
-	// CountMaxActiveByCareOfferingInRange — peak simultaneous occupancy per
-	// offering in one query. Offerings with no overlapping booking are absent
-	// from the map; read a missing key as zero. Empty input returns an empty
-	// map without a query.
-	//
-	// It counts the SAME population as the capacity gate, deliberately
-	// including bookings from every phase that references the offering. The
-	// two must not diverge: this number drives the admin dialog's occupancy
-	// hint, so a narrower count offers a slot the gate then refuses (#2186
-	// review). Capacity is a property of the care_offering row, and any
-	// booking of that row whose validity overlaps the window occupies one of
-	// its slots.
-	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
-}
-
-// CareOfferingGradeLevelCount is one (offering, grade level) bucket of the
-// current bookings. It answers "how many booked children would a grade-level
-// availability rule exclude" without shipping any child data to the client.
-type CareOfferingGradeLevelCount struct {
-	CareOfferingID int64
-	// GradeLevel is nil for booked children whose target grade is unknown.
-	GradeLevel *int16
-	Count      int
+	ValidFrom  *capability.Date `json:"valid_from,omitempty"`
+	ValidUntil *capability.Date `json:"valid_until,omitempty"`
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection

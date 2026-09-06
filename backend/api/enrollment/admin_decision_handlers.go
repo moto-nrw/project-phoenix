@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -211,7 +213,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ID:                strconv.FormatInt(c.ID, 10),
 			FirstName:         c.FirstName,
 			LastName:          c.LastName,
-			DateOfBirth:       c.DateOfBirth.String(),
+			DateOfBirth:       string(c.DateOfBirth),
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
 			Status:            c.Status,
@@ -416,7 +418,7 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 	return out
 }
 
-func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
+func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
 	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
 	for _, f := range fs.Fields {
 		if f.Type == enrollmentModels.FormFieldInfo {
@@ -635,7 +637,7 @@ func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChil
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
 		LastName:          child.LastName,
-		DateOfBirth:       child.DateOfBirth.String(),
+		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
 		Status:            child.Status,

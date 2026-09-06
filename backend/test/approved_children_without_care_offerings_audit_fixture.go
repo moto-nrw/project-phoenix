@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +38,7 @@ func verifyApprovedChildrenWithoutCareOfferingsAudit(t *testing.T) {
 	ctx := Ctx(t)
 	phase := CreateTestEnrollmentPhase(t, db)
 	phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	updateApprovedWithoutOfferingModel(t, db, ctx, phase, "care_offering_selection_mode")
+	require.NoError(t, enrollmentOwner.New().UpdatePhase(WithTenantRuntime(t, ctx, db), phase))
 	primary := seedApprovedWithoutOfferingScenario(t, db, ctx, phase)
 
 	other := NewTenantScope(t, db)
@@ -54,7 +56,7 @@ func seedApprovedWithoutOfferingScenario(
 	t *testing.T,
 	db *bun.DB,
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 ) approvedWithoutOfferingScenario {
 	t.Helper()
 	request := createApprovedWithoutOfferingRequest(t, db, ctx, phase.ID, phase.TenantID)
@@ -66,31 +68,28 @@ func seedApprovedWithoutOfferingScenario(
 		PhaseID: phase.ID, Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true, CountsAsCare: true,
 	}
-	offering.SetTenantID(phase.TenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, offering)
+	offering.TenantID = phase.TenantID
+	InsertTestCareOffering(t, db, ctx, offering)
 	bookedLink := &enrollmentModels.RequestChildOffering{
 		RequestChildID: booked.ID, CareOfferingID: offering.ID,
 	}
-	bookedLink.SetTenantID(phase.TenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, bookedLink)
-	afterPhase, afterPhaseUntil := phase.ServiceEndDate.AddDays(1), phase.ServiceEndDate.AddDays(31)
+	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, bookedLink)
+	afterPhase, afterPhaseUntil := timezone.Date(phase.ServiceEndDate).AddDays(1), timezone.Date(phase.ServiceEndDate).AddDays(31)
 	outOfPeriodLink := &enrollmentModels.RequestChildOffering{
 		RequestChildID: outOfPeriod.ID, CareOfferingID: offering.ID,
-		ValidFrom: &afterPhase, ValidUntil: &afterPhaseUntil,
+		ValidFrom: (*enrollmentOwner.Date)(&afterPhase), ValidUntil: (*enrollmentOwner.Date)(&afterPhaseUntil),
 	}
-	outOfPeriodLink.SetTenantID(phase.TenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, outOfPeriodLink)
+	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, outOfPeriodLink)
 	required := &enrollmentModels.CareOffering{
 		PhaseID: phase.ID, Name: "Verpflichtende Betreuung", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, IsActive: true, IsRequired: true, CountsAsCare: true,
 	}
-	required.SetTenantID(phase.TenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, required)
+	required.TenantID = phase.TenantID
+	InsertTestCareOffering(t, db, ctx, required)
 	requiredLink := &enrollmentModels.RequestChildOffering{
 		RequestChildID: requiredOnly.ID, CareOfferingID: required.ID,
 	}
-	requiredLink.SetTenantID(phase.TenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, requiredLink)
+	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, requiredLink)
 	return approvedWithoutOfferingScenario{booked.ID, missing.ID, outOfPeriod.ID, requiredOnly.ID}
 }
 
@@ -99,16 +98,16 @@ func createApprovedWithoutOfferingPhase(
 	db *bun.DB,
 	ctx context.Context,
 	tenantID int64,
-) *enrollmentModels.Phase {
+) *enrollmentOwner.Phase {
 	t.Helper()
-	phase := &enrollmentModels.Phase{
+	phase := &enrollmentOwner.Phase{
 		Name: "Other tenant audit", Kind: enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2025, time.December, 6), ServiceEndDate: timezone.NewDate(2026, time.November, 1),
+		ServiceStartDate: "2025-12-06", ServiceEndDate: "2026-11-01",
 		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional, IsActive: true,
 	}
-	phase.SetTenantID(tenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, phase)
+	phase.TenantID = tenantID
+	require.NoError(t, enrollmentOwner.New().InsertPhase(WithTenantRuntime(t, ctx, db), phase))
 	return phase
 }
 
@@ -117,22 +116,22 @@ func createApprovedWithoutOfferingRequest(
 	db *bun.DB,
 	ctx context.Context,
 	phaseID, tenantID int64,
-) *enrollmentModels.Request {
+) *enrollmentOwner.Request {
 	t.Helper()
-	request := &enrollmentModels.Request{
+	request := &enrollmentOwner.Request{
 		PhaseID:           phaseID,
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Audit",
 		GuardianEmail:     fmt.Sprintf("offering-audit-%d@example.test", tenantID),
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      []byte(`{}`),
+		CustomData:        []byte(`{}`),
 		SubmissionSource:  enrollmentModels.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("offering-audit-%d-%d", tenantID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	request.SetTenantID(tenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, request)
+	request.TenantID = tenantID
+	require.NoError(t, enrollmentOwner.New().InsertRequest(WithTenantRuntime(t, ctx, db), request))
 	return request
 }
 
@@ -143,15 +142,15 @@ func createApprovedWithoutOfferingChild(
 	requestID int64,
 	tenantID int64,
 	firstName string,
-) *enrollmentModels.RequestChild {
+) *enrollmentOwner.RequestChild {
 	t.Helper()
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentOwner.RequestChild{
 		RequestID: requestID, FirstName: firstName, LastName: "Audit",
-		DateOfBirth: timezone.NewDate(2018, 4, 15), CustomData: map[string]any{},
+		DateOfBirth: "2018-04-15", CustomData: []byte(`{}`),
 		Status: enrollmentModels.ChildStatusApproved, ActivationMode: enrollmentModels.ChildActivationScheduled,
 	}
-	child.SetTenantID(tenantID)
-	insertApprovedWithoutOfferingModel(t, db, ctx, child)
+	child.TenantID = tenantID
+	require.NoError(t, enrollmentOwner.New().InsertChild(WithTenantRuntime(t, ctx, db), child))
 	return child
 }
 
@@ -162,18 +161,6 @@ func runApprovedWithoutOfferingAudit(t *testing.T, db *bun.DB, ctx context.Conte
 	var rows []approvedWithoutOfferingAuditRow
 	require.NoError(t, db.NewRaw(string(query)).Scan(ctx, &rows))
 	return rows
-}
-
-func insertApprovedWithoutOfferingModel(t *testing.T, db *bun.DB, ctx context.Context, model any) {
-	t.Helper()
-	_, err := db.NewInsert().Model(model).ModelTableExpr(auditFixtureTable(model)).Exec(ctx)
-	require.NoError(t, err)
-}
-
-func updateApprovedWithoutOfferingModel(t *testing.T, db *bun.DB, ctx context.Context, model any, columns ...string) {
-	t.Helper()
-	_, err := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...).WherePK().Exec(ctx)
-	require.NoError(t, err)
 }
 
 func approvedWithoutOfferingRowsForTenant(rows []approvedWithoutOfferingAuditRow, tenantID int64) []approvedWithoutOfferingAuditRow {

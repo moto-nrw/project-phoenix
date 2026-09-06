@@ -23,6 +23,10 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork) (RemindersTestMo
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
+	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
 	groups, err := NewGroupsTestModule(db, unit)
 	if err != nil {
 		return RemindersTestModule{}, err
@@ -31,7 +35,7 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork) (RemindersTestMo
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	baseline := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, r.RequestChildOffering, r.CareOffering, settings.Settings)
+	baseline := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
 	pickup := schedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote,
 		r.Student, r.Person, schedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, baseline, r.InstanceStudent, db), baseline, db, slog.Default())
 	service := reminders.NewService(reminders.Dependencies{

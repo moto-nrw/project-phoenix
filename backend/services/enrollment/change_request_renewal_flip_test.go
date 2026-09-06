@@ -16,8 +16,8 @@ import (
 // the shortcut the rollover would otherwise take via renewalInitialStatus.
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.UpdateStatus(
-		testpkg.TenantContext(env.phase.GetTenantID()), childID, status, nil, env.creatorID,
+	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment().UpdateChildStatus(
+		testpkg.TenantContext(env.phase.TenantID), childID, status, nil, env.creatorID,
 	))
 }
 
@@ -33,7 +33,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(env.phase.GetTenantID())
+	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := enrollmentService.ReadOwnerChildForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 
@@ -74,7 +74,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(env.phase.GetTenantID())
+	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := enrollmentService.ReadOwnerChildForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, stored.Status)
 }
@@ -96,7 +96,7 @@ func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T)
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(env.phase.GetTenantID())
+	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	stored, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).RequestChild.FindByID(ctx, result.Children[0].ID)
+	stored, err := enrollmentService.ReadOwnerChildForTest(ctx, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).Enrollment(), result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
 }

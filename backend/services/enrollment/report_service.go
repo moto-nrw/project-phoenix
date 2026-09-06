@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -255,16 +257,15 @@ type ReportService interface {
 }
 
 type ReportServiceConfig struct {
-	RequestRepo              enrollmentModels.RequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	CareOfferingRepo         enrollmentModels.CareOfferingRepository
-	FormSchemaRepo           enrollmentModels.FormSchemaRepository
-	PhaseRepo                enrollmentModels.PhaseRepository
-	DataAccessLogRepo        auditModels.DataAccessLogRepository
-	StudentRepo              userModels.StudentRepository
-	StudentGuardianRepo      userModels.StudentGuardianRepository
+	Requests            ReportRequests
+	Children            ReportChildren
+	Guardians           GuardianReader
+	CareOfferingRepo    enrollmentModels.CareOfferingRepository
+	Schemas             SchemaReader
+	Phases              PhaseReader
+	DataAccessLogRepo   auditModels.DataAccessLogRepository
+	StudentRepo         userModels.StudentRepository
+	StudentGuardianRepo userModels.StudentGuardianRepository
 	// StudentCompanionRepo supplies the "läuft mit" links the class roster
 	// prints next to an accompanied departure. Optional: an unconfigured repo
 	// only costs the names in that one column, never the report.
@@ -358,16 +359,16 @@ func BookingViewDate(today, serviceEnd timezone.Date) timezone.Date {
 // reportOfferingDate selects the current point within a phase. Reports for a
 // future phase show the selection that will apply at its start; reports for a
 // completed phase show the final selection instead of mixing all intervals.
-func reportOfferingDate(phase *enrollmentModels.Phase) timezone.Date {
+func reportOfferingDate(phase *capability.Phase) timezone.Date {
 	today := timezone.TodayDate()
-	if phase == nil || (phase.ServiceStartDate.IsZero() && phase.ServiceEndDate.IsZero()) {
+	if phase == nil || (timezone.Date(phase.ServiceStartDate).IsZero() && timezone.Date(phase.ServiceEndDate).IsZero()) {
 		return today
 	}
-	if !phase.ServiceStartDate.IsZero() && today.Before(phase.ServiceStartDate) {
-		return phase.ServiceStartDate
+	if !timezone.Date(phase.ServiceStartDate).IsZero() && today.Before(timezone.Date(phase.ServiceStartDate)) {
+		return timezone.Date(phase.ServiceStartDate)
 	}
-	if !phase.ServiceEndDate.IsZero() && today.After(phase.ServiceEndDate) {
-		return phase.ServiceEndDate
+	if !timezone.Date(phase.ServiceEndDate).IsZero() && today.After(timezone.Date(phase.ServiceEndDate)) {
+		return timezone.Date(phase.ServiceEndDate)
 	}
 	return today
 }
@@ -385,11 +386,11 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 		return nil, fmt.Errorf("care usage report: phase_id required")
 	}
 
-	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
+	phase, err := s.Phases.Phase(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
-	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
+	requests, err := listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list requests: %w", err)
 	}
@@ -403,7 +404,7 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 		reqIDs = append(reqIDs, req.ID)
 		requestByID[req.ID] = req
 	}
-	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	children, err := listIntakeChildrenForRequests(ctx, s.Children, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list children: %w", err)
 	}
@@ -416,7 +417,8 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 		childIDs = append(childIDs, child.ID)
 	}
 	offeringDate := reportOfferingDate(phase)
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, offeringDate)
+	values, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, childIDs, capability.Date(offeringDate))
+	links := legacyOfferingSelections(values)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
@@ -534,9 +536,9 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 		}
 	}
 
-	guardiansByRequest := map[int64][]*enrollmentModels.RequestGuardian{}
-	if s.RequestGuardianRepo != nil && len(requestIDs) > 0 {
-		guardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+	guardiansByRequest := map[int64][]*capability.RequestGuardian{}
+	if s.Guardians != nil && len(requestIDs) > 0 {
+		guardians, err := listIntakeGuardiansForRequests(ctx, s.Guardians, requestIDs)
 		if err != nil {
 			return fmt.Errorf("care usage report: list request guardians: %w", err)
 		}
@@ -565,8 +567,8 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 	return nil
 }
 
-func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*enrollmentModels.Request) (map[int64]*enrollmentModels.FormSchema, error) {
-	schemas, err := loadFormSchemasByRequests(ctx, s.FormSchemaRepo, requests)
+func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*enrollmentModels.Request) (map[int64]*capability.FormSchema, error) {
+	schemas, err := loadFormSchemasByRequests(ctx, s.Schemas, requests)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: load schemas: %w", err)
 	}
@@ -687,12 +689,12 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 		if s.StudentGuardianRepo == nil {
 			return nil, fmt.Errorf("class roster report: student guardian repo not configured")
 		}
-		if s.RequestGuardianRepo == nil {
+		if s.Guardians == nil {
 			return nil, fmt.Errorf("class roster report: request guardian repo not configured")
 		}
 	}
 
-	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
+	phase, err := s.Phases.Phase(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
@@ -729,9 +731,9 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 
 	var requests []*enrollmentModels.Request
 	var children []*enrollmentModels.RequestChild
-	requestGuardiansByID := map[int64][]*enrollmentModels.RequestGuardian{}
+	requestGuardiansByID := map[int64][]*capability.RequestGuardian{}
 	if len(studentIDs) > 0 {
-		requests, err = s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+		requests, err = listReportRequests(ctx, s.Requests, enrollmentModels.RequestListFilters{
 			PhaseID:           filters.PhaseID,
 			CreatedStudentIDs: studentIDs,
 		})
@@ -742,12 +744,12 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 			return nil, fmt.Errorf("class roster report: %d requests: %w", len(requests), ErrReportExportTooLarge)
 		}
 		requestIDs := classRosterRequestIDs(requests)
-		children, err = s.RequestChildRepo.ListByRequestIDs(ctx, requestIDs)
+		children, err = listIntakeChildrenForRequests(ctx, s.Children, requestIDs)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
 		if !filters.SkipGuardianData {
-			requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+			requestGuardians, err := listIntakeGuardiansForRequests(ctx, s.Guardians, requestIDs)
 			if err != nil {
 				return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
 			}
@@ -784,7 +786,8 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	if filters.OfferingDate != nil {
 		offeringDate = *filters.OfferingDate
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, offeringDate)
+	values, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, approvedChildIDs, capability.Date(offeringDate))
+	links := legacyOfferingSelections(values)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}
@@ -999,7 +1002,7 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 		ChildID:           child.ID,
 		ChildFirstName:    child.FirstName,
 		ChildLastName:     child.LastName,
-		DateOfBirth:       child.DateOfBirth.Format("2006-01-02"),
+		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
 		Status:            child.Status,
@@ -1057,7 +1060,7 @@ type classRosterApprovedEnrollment struct {
 	request   *enrollmentModels.Request
 	child     *enrollmentModels.RequestChild
 	links     []*enrollmentModels.RequestChildOffering
-	guardians []*enrollmentModels.RequestGuardian
+	guardians []*capability.RequestGuardian
 }
 
 func classRosterStudentIDs(students []*userModels.Student) []int64 {
@@ -1109,8 +1112,8 @@ func classRosterRequestsByID(requests []*enrollmentModels.Request) map[int64]*en
 	return out
 }
 
-func classRosterRequestGuardiansByRequestID(guardians []*enrollmentModels.RequestGuardian) map[int64][]*enrollmentModels.RequestGuardian {
-	out := make(map[int64][]*enrollmentModels.RequestGuardian)
+func classRosterRequestGuardiansByRequestID(guardians []*capability.RequestGuardian) map[int64][]*capability.RequestGuardian {
+	out := make(map[int64][]*capability.RequestGuardian)
 	for _, guardian := range guardians {
 		if guardian == nil || guardian.RequestID <= 0 {
 			continue
@@ -1336,7 +1339,7 @@ func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEn
 	}
 }
 
-func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprovedEnrollment, guardiansByRequestID map[int64][]*enrollmentModels.RequestGuardian) {
+func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprovedEnrollment, guardiansByRequestID map[int64][]*capability.RequestGuardian) {
 	for _, enrollment := range enrollments {
 		if enrollment == nil || enrollment.request == nil {
 			continue
@@ -1351,7 +1354,7 @@ func classRosterRow(
 	groupName string,
 	enrollment *classRosterApprovedEnrollment,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
-	schemas map[int64]*enrollmentModels.FormSchema,
+	schemas map[int64]*capability.FormSchema,
 	studentGuardians []ClassRosterGuardian,
 	companions []userModels.CompanionLink,
 	careOfferingsEnabled bool,
@@ -1537,7 +1540,7 @@ func classRosterStudentGuardians(student *userModels.Student, linkedContacts []C
 	return normalizeClassRosterGuardians(contacts)
 }
 
-func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*enrollmentModels.RequestGuardian) []ClassRosterGuardian {
+func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*capability.RequestGuardian) []ClassRosterGuardian {
 	contacts := []ClassRosterGuardian{}
 	if req != nil {
 		contacts = append(contacts, ClassRosterGuardian{
@@ -1685,7 +1688,7 @@ func classRosterEnrollmentSummary(offerings []CareUsageRowOffering) string {
 	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
-func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (map[string]string, error) {
+func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (map[string]string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
 		return nil, err
@@ -1699,7 +1702,7 @@ func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentM
 	return classRosterDepartureByDayFromStudent(student, companions), nil
 }
 
-func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
+func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
 	if req == nil || req.SchemaID == nil || child == nil {
 		return nil, nil, nil, false, nil
 	}
@@ -1770,7 +1773,7 @@ func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollm
 	return nil, nil, note, false, nil
 }
 
-func classRosterDepartureFields(schema *enrollmentModels.FormSchema) []enrollmentModels.FormField {
+func classRosterDepartureFields(schema *capability.FormSchema) []enrollmentModels.FormField {
 	fields := make([]enrollmentModels.FormField, 0)
 	if schema == nil {
 		return fields
@@ -1899,11 +1902,11 @@ func classRosterFormatDepartureByDay(allowed userModels.AllowedDepartureModes, f
 	return out
 }
 
-func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (map[string]string, error) {
+func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema) (map[string]string, error) {
 	return careUsageScheduleByTarget(req, child, schemas, enrollmentModels.TargetSchedulePickup)
 }
 
-func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, target string) (map[string]string, error) {
+func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema, target string) (map[string]string, error) {
 	out := map[string]string{}
 	if req == nil || req.SchemaID == nil || child == nil {
 		return out, nil
@@ -1933,7 +1936,7 @@ func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentM
 	return out, nil
 }
 
-func careUsageScheduleFields(schema *enrollmentModels.FormSchema, target string) []enrollmentModels.FormField {
+func careUsageScheduleFields(schema *capability.FormSchema, target string) []enrollmentModels.FormField {
 	if schema == nil {
 		return nil
 	}
@@ -2142,13 +2145,13 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	if report == nil {
 		return fmt.Errorf("care usage report export audit: report required")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
+	phase, err := s.Phases.Phase(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("care usage report export audit: phase %d: %w", report.Phase.ID, err)
 	}
 	entry, err := exportAuditEntry("care usage report export audit", actorAccountID, actorRole,
 		auditModels.ResourceTypeEnrollmentPhaseExport,
-		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+		timezone.Date(phase.ServiceStartDate).BerlinMidnight(), timezone.Date(phase.ServiceEndDate).EndOfDay(), time.Now())
 	if err != nil {
 		return err
 	}
@@ -2182,13 +2185,13 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	if report == nil {
 		return fmt.Errorf("class roster report export audit: report required")
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
+	phase, err := s.Phases.Phase(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("class roster report export audit: phase %d: %w", report.Phase.ID, err)
 	}
 	entry, err := exportAuditEntry("class roster report export audit", actorAccountID, actorRole,
 		auditModels.ResourceTypeEnrollmentPhaseExport,
-		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+		timezone.Date(phase.ServiceStartDate).BerlinMidnight(), timezone.Date(phase.ServiceEndDate).EndOfDay(), time.Now())
 	if err != nil {
 		return err
 	}

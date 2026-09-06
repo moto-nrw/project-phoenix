@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
@@ -3013,20 +3015,31 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 
 // CreateTestEnrollmentPhase creates a minimal active enrollment phase for
 // the current test tenant covering the current school year.
-func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
+func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase {
 	tb.Helper()
-	ctx := TenantContext(fixtureTenantID(tb))
-	phase := &enrollment.Phase{
+	return createTestEnrollmentPhase(tb, db, nil)
+}
+
+// CreateTestEnrollmentPhaseForCalendarPeriod creates a phase linked to a real planning period.
+func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
+	tb.Helper()
+	return createTestEnrollmentPhase(tb, db, &periodID)
+}
+
+func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64) *enrollmentOwner.Phase {
+	tb.Helper()
+	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
+	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Testphase-%d", uniqueFixtureSuffix()),
 		Kind:                      "school_year",
-		ServiceStartDate:          timezone.TodayDate().AddDays(-30),
-		ServiceEndDate:            timezone.TodayDate().AddDays(300),
+		ServiceStartDate:          enrollmentOwner.Date(timezone.TodayDate().AddDays(-30)),
+		ServiceEndDate:            enrollmentOwner.Date(timezone.TodayDate().AddDays(300)),
 		CareOverflowMode:          "waitlist",
 		CareOfferingSelectionMode: "optional",
+		CalendarPeriodID:          periodID,
 		IsActive:                  true,
 	}
-	phase.SetTenantID(fixtureTenantID(tb))
-	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Returning("*").Exec(ctx)
+	err := enrollmentOwner.New().InsertPhase(ctx, phase)
 	if err != nil {
 		tb.Fatalf("create test enrollment phase: %v", err)
 	}
@@ -3047,11 +3060,8 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 		IsActive:           true,
 		CountsAsCare:       true,
 	}
-	offering.SetTenantID(fixtureTenantID(tb))
-	_, err := db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Returning("*").Exec(ctx)
-	if err != nil {
-		tb.Fatalf("create test care offering: %v", err)
-	}
+	offering.TenantID = fixtureTenantID(tb)
+	InsertTestCareOffering(tb, db, ctx, offering)
 	return offering
 }
 

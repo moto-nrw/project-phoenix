@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -42,7 +44,7 @@ func createPickupTimeOffering(
 		PickupTimes:    times,
 		IsActive:       true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
 	return offering
 }
@@ -57,7 +59,7 @@ func projectedPickupReader(env *decisionTestEnv) scheduleService.PickupScheduleS
 		nil,
 		scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		env.db,
@@ -88,13 +90,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	_, err := env.db.NewUpdate().
-		Model((*enrollmentModels.RequestChildOffering)(nil)).
-		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
-		Set("valid_until = ?", effectiveFrom).
-		Where(`"request_child_offering".request_child_id = ?`, childID).
-		Where(`"request_child_offering".care_offering_id = ?`, offering.ID).
-		Exec(ctx)
+	err := env.repos.Enrollment().ScheduleRequestChildOfferings(ctx, childID, capability.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
@@ -147,11 +143,11 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
 		ctx,
 		childID,
-		effectiveFrom,
-		[]*enrollmentModels.RequestChildOffering{{
+		capability.Date(effectiveFrom),
+		[]*capability.RequestChildOffering{{
 			CareOfferingID: newOffering.ID,
 			SelectedDays:   []string{"mon"},
 		}},

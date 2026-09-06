@@ -174,7 +174,7 @@ type classDayCoveringPhase struct {
 // runs must not put a child approved only there into "Bleiben in der
 // Betreuung" with stale offerings and pickup times.
 func (s *reportService) classDayPhases(ctx context.Context, date timezone.Date) ([]classDayCoveringPhase, error) {
-	phases, err := s.PhaseRepo.ListByTenant(ctx)
+	phases, err := s.Phases.Phases(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("class day report: list phases: %w", err)
 	}
@@ -183,10 +183,10 @@ func (s *reportService) classDayPhases(ctx context.Context, date timezone.Date) 
 		if phase == nil || !phase.IsActive {
 			continue
 		}
-		if date.Before(phase.ServiceStartDate) || date.After(phase.ServiceEndDate) {
+		if date.Before(timezone.Date(phase.ServiceStartDate)) || date.After(timezone.Date(phase.ServiceEndDate)) {
 			continue
 		}
-		covering = append(covering, classDayCoveringPhase{id: phase.ID, name: phase.Name, start: phase.ServiceStartDate})
+		covering = append(covering, classDayCoveringPhase{id: phase.ID, name: phase.Name, start: timezone.Date(phase.ServiceStartDate)})
 	}
 	sort.SliceStable(covering, func(i, j int) bool {
 		return covering[j].start.Before(covering[i].start)

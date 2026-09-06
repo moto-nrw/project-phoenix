@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -105,7 +107,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	person.SetTenantID(tenantID)
 	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Scan(ctx))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repos.FormSchema,
+		Owner:  repos.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []enrollmentModels.FormField{
@@ -113,57 +115,51 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	}, account.ID)
 	require.NoError(t, err)
 
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:             "takeover-lock-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		ServiceStartDate: capability.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:   capability.Date(timezone.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(tenantID)
-	require.NoError(t, repos.Phase.Create(ctx, phase))
+	phase.TenantID = tenantID
+	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
 	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           discardingOutbox{},
-		Settings:                 settings,
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       db,
-		Logger:                   slog.Default(),
+		Requests:         repos.Enrollment(),
+		Children:         repos.Enrollment(),
+		Guardians:        repos.Enrollment(),
+		CareOfferingRepo: repos.CareOffering,
+		Catalog:          repos.Enrollment(),
+		SchoolRepo:       repos.School,
+		RateLimitRepo:    repos.Enrollment(),
+		OutboxEnqueuer:   discardingOutbox{},
+		Settings:         settings,
+		FrontendURL:      "http://localhost:3000",
+		ParentsURL:       "http://parents.localhost:3000",
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	changeRequestSvc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        repos.ChangeRequest,
-		MessageRepo:              repos.ChangeRequestMessage,
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		GuardianProfileRepo:      repos.GuardianProfile,
-		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
-		StudentRepo:              repos.Student,
-		GuardianAuthorizer:       repos.StudentGuardian,
-		Settings:                 settings,
-		OutboxEnqueuer:           discardingOutbox{},
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       db,
-		Logger:                   slog.Default(),
+		Requests:            repos.Enrollment(),
+		Children:            repos.Enrollment(),
+		Guardians:           repos.Enrollment(),
+		LateInviteRepo:      repos.Enrollment(),
+		CareOfferingRepo:    repos.CareOffering,
+		Catalog:             repos.Enrollment(),
+		SchoolRepo:          repos.School,
+		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		StudentRepo:         repos.Student,
+		GuardianAuthorizer:  repos.StudentGuardian,
+		Settings:            settings,
+		OutboxEnqueuer:      discardingOutbox{},
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		DB:                  db,
+		Logger:              slog.Default(),
 	})
 
 	resource := enrollmentAPI.NewResource(

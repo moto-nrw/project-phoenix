@@ -4,11 +4,13 @@ import (
 	"context"
 	"testing"
 
+	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
@@ -20,7 +22,7 @@ import (
 // row.
 func setupChildOfferingTest(t *testing.T) (
 	*bun.DB,
-	enrollmentModels.RequestChildOfferingRepository,
+	*owner.Module,
 	int64, // tenantID
 	int64, // requestChildID
 	int64, // careOfferingID
@@ -30,24 +32,24 @@ func setupChildOfferingTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	phaseRepo := enrollmentCompose.New()
 	phaseName := uniquePhaseName("childoffering")
-	phase := makeValidPhase(phaseName)
+	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return phaseRepo.Create(ctx, phase)
+		return phaseRepo.InsertPhase(ctx, phase)
 	}))
 
-	reqRepo := enrollmentRepo.NewRequestRepository(db)
+	reqRepo := enrollmentCompose.New()
 	token := uniqueToken("childoffering")
-	req := makeRequest(phase.ID, token, "anna@example.test")
+	req := makeOwnerRequest(phase.ID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return reqRepo.Create(ctx, req)
+		return reqRepo.InsertRequest(ctx, req)
 	}))
 
-	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	childRepo := enrollmentCompose.New()
 	child := makeChild(req.ID, "Lara", "Beispiel")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return childRepo.Create(ctx, child)
+		return childRepo.InsertChild(ctx, child)
 	}))
 
 	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
@@ -67,7 +69,7 @@ func setupChildOfferingTest(t *testing.T) (
 		wipePhases(db, tenantID, phaseName)
 	})
 
-	return db, enrollmentRepo.NewRequestChildOfferingRepository(db), tenantID, child.ID, offering.ID
+	return db, enrollmentCompose.New(), tenantID, child.ID, offering.ID
 }
 
 // addGradedChild creates a sibling child under the same request with an
@@ -83,12 +85,12 @@ func addGradedChild(
 	status string,
 ) int64 {
 	t.Helper()
-	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	childRepo := enrollmentCompose.New()
 	child := makeChild(requestID, firstName, "Beispiel")
 	child.TargetGradeLevel = grade
 	child.Status = status
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return childRepo.Create(ctx, child)
+		return childRepo.InsertChild(ctx, child)
 	}))
 	t.Cleanup(func() {
 		bg := context.Background()
@@ -108,10 +110,10 @@ func addGradedChild(
 // siblings land under the same request (and the same cleanup).
 func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	t.Helper()
-	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	childRepo := enrollmentCompose.New()
 	var requestID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		child, err := childRepo.FindByID(ctx, childID)
+		child, err := childRepo.ChildByID(ctx, childID)
 		if err != nil {
 			return err
 		}
@@ -150,11 +152,9 @@ func phaseIDOfOffering(t *testing.T, db *bun.DB, tenantID, offeringID int64) int
 	return phaseID
 }
 
-// addRolloverSuccessorHolding reproduces what rollover leaves behind: a
-// successor phase whose request child holds the SAME care offering as the
-// source phase, because copyRolloverOfferings copies the id without cloning
-// or re-pointing it. Returns the successor phase and child ids and registers
-// the teardown.
+// addRolloverSuccessorHolding reproduces a historical rollover reference to
+// a source-phase offering. Capacity must count it even though current rollover
+// clones the catalog. Returns the successor phase and child IDs.
 func addRolloverSuccessorHolding(
 	t *testing.T,
 	db *bun.DB,
@@ -162,31 +162,31 @@ func addRolloverSuccessorHolding(
 	grade *int16,
 ) (int64, int64) {
 	t.Helper()
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
-	requestRepo := enrollmentRepo.NewRequestRepository(db)
-	childRepo := enrollmentRepo.NewRequestChildRepository(db)
-	offeringRepo := enrollmentRepo.NewRequestChildOfferingRepository(db)
+	phaseRepo := enrollmentCompose.New()
+	requestRepo := enrollmentCompose.New()
+	childRepo := enrollmentCompose.New()
+	offeringRepo := enrollmentCompose.New()
 	phaseName := uniquePhaseName("rolloverleak")
 	token := uniqueToken("rolloverleak")
 
 	var phaseID, childID int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		successor := makeValidPhase(phaseName)
-		if err := phaseRepo.Create(ctx, successor); err != nil {
+		successor := makeOwnerEligibilityPhase(phaseName)
+		if err := phaseRepo.InsertPhase(ctx, successor); err != nil {
 			return err
 		}
 		phaseID = successor.ID
-		req := makeRequest(successor.ID, token, "rolled@example.test")
-		if err := requestRepo.Create(ctx, req); err != nil {
+		req := makeOwnerRequest(successor.ID, token, "rolled@example.test")
+		if err := requestRepo.InsertRequest(ctx, req); err != nil {
 			return err
 		}
 		rolled := makeChild(req.ID, "Rolled", "Kind")
 		rolled.TargetGradeLevel = grade
-		if err := childRepo.Create(ctx, rolled); err != nil {
+		if err := childRepo.InsertChild(ctx, rolled); err != nil {
 			return err
 		}
 		childID = rolled.ID
-		return offeringRepo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return offeringRepo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: rolled.ID, CareOfferingID: careOfferingID,
 		})
 	}))
@@ -204,20 +204,21 @@ func addRolloverSuccessorHolding(
 
 // --- Create + ListByRequestChildID ----------------------------------------
 
-func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
+func TestOwnerOffering_Create_PersistsAndReturnsID(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 
 	notes := "Bitte Mo+Mi"
-	row := &enrollmentModels.RequestChildOffering{
+	row := &owner.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon", "wed"},
 		Notes:          &notes,
 	}
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, row)
+		return repo.InsertRequestChildOffering(ctx, row)
 	})
 	require.NoError(t, err)
 	assert.NotZero(t, row.ID)
@@ -239,33 +240,35 @@ func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T
 	}))
 	require.NotNil(t, row.ValidFrom)
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, window.Start, *row.ValidFrom)
-	assert.Equal(t, window.End.AddDays(1), *row.ValidUntil)
+	assert.Equal(t, owner.Date(window.Start), *row.ValidFrom)
+	assert.Equal(t, owner.Date(window.End.AddDays(1)), *row.ValidUntil)
 }
 
-func TestRequestChildOfferingRepository_Create_BoundsPartialValidityWindow(t *testing.T) {
+func TestOwnerOffering_Create_BoundsPartialValidityWindow(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 	validFrom := timezone.NewDate(2026, 10, 1)
-	row := &enrollmentModels.RequestChildOffering{
+	row := &owner.RequestChildOffering{
 		RequestChildID: childID,
 		CareOfferingID: offeringID,
-		ValidFrom:      &validFrom,
+		ValidFrom:      offeringDatePointer(validFrom),
 	}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, row)
+		return repo.InsertRequestChildOffering(ctx, row)
 	}))
 
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, timezone.NewDate(2027, 8, 1), *row.ValidUntil)
+	assert.Equal(t, owner.Date("2027-08-01"), *row.ValidUntil)
 }
 
-func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
+func TestOwnerOffering_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 
 	// Second offering so the child has two picks.
 	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
@@ -283,29 +286,30 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(
 	}))
 
 	for _, oid := range []int64{offeringID, o2.ID} {
-		row := &enrollmentModels.RequestChildOffering{
+		row := &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: oid,
 			SelectedDays:   nil,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, row)
+			return repo.InsertRequestChildOffering(ctx, row)
 		}))
 	}
 
-	var list []*enrollmentModels.RequestChildOffering
+	var list []*owner.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByRequestChildID(ctx, childID)
+		list, lErr = repo.RequestChildOfferingHistory(ctx, childID)
 		return lErr
 	}))
 	require.Len(t, list, 2)
 }
 
-func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testing.T) {
+func TestOwnerOffering_ListByRequestChildIDs_BatchLoad(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 
 	// Two offering links for the one child.
 	offering2Repo := carePlanTest.NewCareOfferingRepository(t, db)
@@ -321,27 +325,28 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testi
 	}))
 	for _, oid := range []int64{offeringID, o2.ID} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 				RequestChildID: childID,
 				CareOfferingID: oid,
 			})
 		}))
 	}
 
-	var list []*enrollmentModels.RequestChildOffering
+	var list []*owner.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByRequestChildIDs(ctx, []int64{childID})
+		list, lErr = repo.RequestChildOfferingHistoryForChildren(ctx, []int64{childID})
 		return lErr
 	}))
 	require.Len(t, list, 2)
 	assert.Equal(t, childID, list[0].RequestChildID)
 }
 
-func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
+func TestOwnerOffering_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 	offeringRepo := carePlanTest.NewCareOfferingRepository(t, db)
 	var first *enrollmentModels.CareOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -355,28 +360,28 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 	}))
 	onDate := timezone.NewDate(2026, 10, 1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		if err := repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidUntil:     &onDate,
+			ValidUntil:     offeringDatePointer(onDate),
 		}); err != nil {
 			return err
 		}
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: currentOffering.ID,
-			ValidFrom:      &onDate,
+			ValidFrom:      offeringDatePointer(onDate),
 		})
 	}))
 
-	var history, active []*enrollmentModels.RequestChildOffering
+	var history, active []*owner.RequestChildOffering
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		history, err = repo.ListByRequestChildIDs(ctx, []int64{childID})
+		history, err = repo.RequestChildOfferingHistoryForChildren(ctx, []int64{childID})
 		if err != nil {
 			return err
 		}
-		active, err = repo.ListByRequestChildIDsAtDate(ctx, []int64{childID}, onDate)
+		active, err = repo.RequestChildOfferingsForChildrenAtDate(ctx, []int64{childID}, owner.Date(onDate))
 		return err
 	}))
 	require.Len(t, history, 2, "batch history must retain expired offering intervals")
@@ -384,28 +389,30 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 	assert.Equal(t, currentOffering.ID, active[0].CareOfferingID)
 }
 
-func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {
+func TestOwnerOffering_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
-	var list []*enrollmentModels.RequestChildOffering
+	db, _, tenantID, _, _ := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
+	var list []*owner.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByRequestChildIDs(ctx, nil)
+		list, lErr = repo.RequestChildOfferingHistoryForChildren(ctx, nil)
 		return lErr
 	})
 	require.NoError(t, err)
 	assert.Empty(t, list)
 }
 
-func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
+func TestOwnerOffering_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
-	var list []*enrollmentModels.RequestChildOffering
+	db, _, tenantID, _, _ := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
+	var list []*owner.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var lErr error
-		list, lErr = repo.ListByRequestChildID(ctx, 9_999_999)
+		list, lErr = repo.RequestChildOfferingHistory(ctx, 9_999_999)
 		return lErr
 	})
 	require.NoError(t, err)
@@ -414,10 +421,11 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(
 
 // --- CountActiveByCareOffering -------------------------------------------
 
-func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTerminalStatuses(t *testing.T) {
+func TestOwnerOffering_CapacityPeak_ExcludesTerminalStatuses(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 
 	// Need three additional children with different statuses so we can
 	// verify the COUNT only includes non-terminal rows. Fetch the
@@ -429,7 +437,7 @@ func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTermin
 			Scan(ctx, &requestID)
 	}))
 
-	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	childRepo := enrollmentCompose.New()
 	statuses := []string{
 		enrollmentModels.ChildStatusSubmitted,
 		enrollmentModels.ChildStatusApproved,
@@ -442,38 +450,39 @@ func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTermin
 		c.Status = status
 		c.SortOrder = i + 100
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return childRepo.Create(ctx, c)
+			return childRepo.InsertChild(ctx, c)
 		}))
-		row := &enrollmentModels.RequestChildOffering{
+		row := &owner.RequestChildOffering{
 			RequestChildID: c.ID,
 			CareOfferingID: offeringID,
 		}
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-			return repo.Create(ctx, row)
+			return repo.InsertRequestChildOffering(ctx, row)
 		}))
 	}
 
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		count, cErr = repo.CountActiveByCareOffering(ctx, offeringID)
+		count, cErr = repo.OfferingCapacityPeak(ctx, offeringID, nil, "2026-09-01", "2027-08-01")
 		return cErr
 	})
 	require.NoError(t, err)
 	// 3 active (submitted/approved/waitlisted) of the 5 we added; the
 	// rejected + withdrawn rows MUST be excluded.
 	assert.Equal(t, 3, count,
-		"CountActiveByCareOffering must EXCLUDE rejected + withdrawn (capacity logic depends on it)")
+		"OfferingCapacityPeak must EXCLUDE rejected + withdrawn (capacity logic depends on it)")
 }
 
-func TestRequestChildOfferingRepository_CountActiveByCareOffering_ZeroWhenUnused(t *testing.T) {
+func TestOwnerOffering_CapacityPeak_ZeroWhenUnused(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	db, _, tenantID, _, _ := setupChildOfferingTest(t)
+	repo := enrollmentCompose.New()
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		count, cErr = repo.CountActiveByCareOffering(ctx, 9_999_999)
+		count, cErr = repo.OfferingCapacityPeak(ctx, 9_999_999, nil, "2026-09-01", "2027-08-01")
 		return cErr
 	})
 	require.NoError(t, err)

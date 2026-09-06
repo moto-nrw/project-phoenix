@@ -12,12 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockCareOfferingService struct {
@@ -118,7 +116,7 @@ func executeCareJSON(t *testing.T, router chi.Router, method, path string, body 
 
 func makeOfferingModel(id, phaseID int64, name string) *enrollmentModels.CareOffering {
 	return &enrollmentModels.CareOffering{
-		Model:          baseModel.Model{ID: id},
+		ID:             id,
 		PhaseID:        phaseID,
 		Name:           name,
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,

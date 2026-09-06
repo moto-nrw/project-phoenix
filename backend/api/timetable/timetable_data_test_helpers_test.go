@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -41,6 +43,10 @@ func testTimetableDataWithOfferingCallbacks(
 	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
+	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, boundRepos.Enrollment())
+	if err != nil {
+		panic(err)
+	}
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
 	var today func() timezone.Date
@@ -67,7 +73,7 @@ func testTimetableDataWithOfferingCallbacks(
 			usersRepo.NewStudentRepository(db),
 			educationRepo.NewClassArrivalTimeRepository(db),
 			scheduleRepo.NewClassArrivalExceptionRepository(db),
-			boundRepos.RequestChildOffering,
+			approvedOfferings,
 			boundRepos.CareOffering,
 			nil,
 		),
@@ -75,7 +81,7 @@ func testTimetableDataWithOfferingCallbacks(
 		PickupScheduleRepo:   boundRepos.StudentPickupSchedule,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			boundRepos.StudentPickupSchedule,
-			boundRepos.RequestChildOffering,
+			approvedOfferings,
 			boundRepos.CareOffering,
 		),
 		PickupExceptionRepo:        boundRepos.StudentPickupException,

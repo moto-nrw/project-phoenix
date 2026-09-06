@@ -11,17 +11,17 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -29,20 +29,20 @@ import (
 )
 
 type mockPhaseService struct {
-	listResult        []*enrollmentModels.Phase
+	listResult        []*capability.Phase
 	listErr           error
-	listPublicOpenRes []*enrollmentModels.Phase
+	listPublicOpenRes []*capability.Phase
 	listPublicOpenErr error
 	getByIDCalls      int
 	getByIDID         int64
-	getByIDResults    []*enrollmentModels.Phase
+	getByIDResults    []*capability.Phase
 	getByIDErrs       []error
-	getByIDResult     *enrollmentModels.Phase
+	getByIDResult     *capability.Phase
 	getByIDErr        error
-	createInput       *enrollmentModels.Phase
-	createResult      *enrollmentModels.Phase
+	createInput       *capability.Phase
+	createResult      *capability.Phase
 	createErr         error
-	updateInput       *enrollmentModels.Phase
+	updateInput       *capability.Phase
 	updateErr         error
 	deleteID          int64
 	deleteErr         error
@@ -51,13 +51,13 @@ type mockPhaseService struct {
 	deleteImpactErr   error
 }
 
-func (m *mockPhaseService) List(_ context.Context) ([]*enrollmentModels.Phase, error) {
+func (m *mockPhaseService) List(_ context.Context) ([]*capability.Phase, error) {
 	return m.listResult, m.listErr
 }
-func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*enrollmentModels.Phase, error) {
+func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*capability.Phase, error) {
 	return m.listPublicOpenRes, m.listPublicOpenErr
 }
-func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*capability.Phase, error) {
 	m.getByIDCalls++
 	m.getByIDID = id
 	idx := m.getByIDCalls - 1
@@ -69,11 +69,11 @@ func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*enrollmentMode
 	}
 	return m.getByIDResult, m.getByIDErr
 }
-func (m *mockPhaseService) Create(_ context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error) {
+func (m *mockPhaseService) Create(_ context.Context, phase *capability.Phase) (*capability.Phase, error) {
 	m.createInput = phase
 	return m.createResult, m.createErr
 }
-func (m *mockPhaseService) Update(_ context.Context, phase *enrollmentModels.Phase) error {
+func (m *mockPhaseService) Update(_ context.Context, phase *capability.Phase) error {
 	m.updateInput = phase
 	return m.updateErr
 }
@@ -116,15 +116,15 @@ func executePhaseJSON(t *testing.T, router chi.Router, method, path string, body
 	return w
 }
 
-func makePhaseModel(id int64, name string) *enrollmentModels.Phase {
-	return &enrollmentModels.Phase{
-		Model:            baseModel.Model{ID: id, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+func makePhaseModel(id int64, name string) *capability.Phase {
+	return &capability.Phase{
+		ID: id, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		Name:             name,
-		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		Kind:             capability.PhaseKindSchoolYear,
+		ServiceStartDate: "2026-09-01",
+		ServiceEndDate:   "2027-07-31",
 		IsActive:         true,
-		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOverflowMode: capability.PhaseCareOverflowWaitlist,
 	}
 }
 
@@ -152,7 +152,7 @@ func TestListPhasesHandler_NilServiceReturns500(t *testing.T) {
 func TestListPhasesHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockPhaseService{listResult: []*enrollmentModels.Phase{
+	mock := &mockPhaseService{listResult: []*capability.Phase{
 		makePhaseModel(1234, "Schuljahr 2026"),
 	}}
 	router := buildPhaseRouter(mock)
@@ -211,20 +211,20 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 		_, _ = db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, org.ID).Exec(context.Background())
 	})
 
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
-	targetPhase := makePhaseModel(now+300, "Target Tenant Phase")
-	otherPhase := makePhaseModel(now+400, "Other Tenant Phase")
+	phaseRepo := enrollmentCompose.New()
+	targetPhase := &capability.Phase{ID: now + 300, Name: "Target Tenant Phase", Kind: capability.PhaseKindSchoolYear, ServiceStartDate: "2026-09-01", ServiceEndDate: "2027-07-31", IsActive: true, CareOverflowMode: capability.PhaseCareOverflowWaitlist}
+	otherPhase := &capability.Phase{ID: now + 400, Name: "Other Tenant Phase", Kind: capability.PhaseKindSchoolYear, ServiceStartDate: "2026-09-01", ServiceEndDate: "2027-07-31", IsActive: true, CareOverflowMode: capability.PhaseCareOverflowWaitlist}
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, targetSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
-		return phaseRepo.Create(txCtx, targetPhase)
+		return phaseRepo.InsertPhase(txCtx, targetPhase)
 	}))
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, otherSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
-		return phaseRepo.Create(txCtx, otherPhase)
+		return phaseRepo.InsertPhase(txCtx, otherPhase)
 	}))
 
 	rs := &Resource{
 		SchoolService: platformSvc.NewSchoolService(schoolRepo),
 		PhaseService: enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
-			Repo: phaseRepo,
+			Owner: enrollmentCompose.New(),
 		}),
 		db: db,
 	}
@@ -600,7 +600,7 @@ func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockPhaseService{
-		getByIDResults: []*enrollmentModels.Phase{makePhaseModel(1234, "Updated")},
+		getByIDResults: []*capability.Phase{makePhaseModel(1234, "Updated")},
 		getByIDErrs:    []error{nil, errors.New("synthetic refetch boom")},
 	}
 	router := buildPhaseRouter(mock)

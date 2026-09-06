@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,11 +27,11 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	phaseRepo := enrollmentCompose.New()
 	phaseName := uniquePhaseName("offering")
-	phase := makeValidPhase(phaseName)
+	phase := makeOwnerEligibilityPhase(phaseName)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return phaseRepo.Create(ctx, phase)
+		return phaseRepo.InsertPhase(ctx, phase)
 	}))
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
@@ -322,12 +322,12 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	defer wipeOfferings(db, tenantID, phaseA)
 
 	// Second phase so we can prove the filter.
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
-	other := makeValidPhase(uniquePhaseName("otherphase"))
-	other.ServiceStartDate = timezone.NewDate(2027, 9, 1)
-	other.ServiceEndDate = timezone.NewDate(2028, 7, 31)
+	phaseRepo := enrollmentCompose.New()
+	other := makeOwnerEligibilityPhase(uniquePhaseName("otherphase"))
+	other.ServiceStartDate = "2027-09-01"
+	other.ServiceEndDate = "2028-07-31"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return phaseRepo.Create(ctx, other)
+		return phaseRepo.InsertPhase(ctx, other)
 	}))
 	t.Cleanup(func() {
 		wipeOfferings(db, tenantID, other.ID)
@@ -360,12 +360,12 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseA)
 
-	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
-	other := makeValidPhase(uniquePhaseName("ids-otherphase"))
-	other.ServiceStartDate = timezone.NewDate(2027, 9, 1)
-	other.ServiceEndDate = timezone.NewDate(2028, 7, 31)
+	phaseRepo := enrollmentCompose.New()
+	other := makeOwnerEligibilityPhase(uniquePhaseName("ids-otherphase"))
+	other.ServiceStartDate = "2027-09-01"
+	other.ServiceEndDate = "2028-07-31"
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return phaseRepo.Create(ctx, other)
+		return phaseRepo.InsertPhase(ctx, other)
 	}))
 	t.Cleanup(func() {
 		wipeOfferings(db, tenantID, other.ID)

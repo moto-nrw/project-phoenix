@@ -117,7 +117,7 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, err
 	}
-	return enrollmentExtraFieldsFromSchema(schema, customData), nil
+	return enrollmentExtraFieldsFromSchema(schema.Fields, customData), nil
 }
 
 func (rs *Resource) logEnrollmentSchemaLoadFailure(schemaID int64, err error) {
@@ -133,9 +133,9 @@ func (rs *Resource) logEnrollmentSchemaLoadFailure(schemaID int64, err error) {
 // enrollmentExtraFieldsFromSchema maps the child-applicable, populated fields of
 // a form schema to their response shape. Info blocks and fields not applicable
 // to children are skipped, as are keys absent from (or nil in) customData.
-func enrollmentExtraFieldsFromSchema(schema *enrollmentModels.FormSchema, customData map[string]any) []StudentEnrollmentExtraField {
-	out := make([]StudentEnrollmentExtraField, 0, len(schema.Fields))
-	for _, field := range schema.Fields {
+func enrollmentExtraFieldsFromSchema(fields []enrollmentModels.FormField, customData map[string]any) []StudentEnrollmentExtraField {
+	out := make([]StudentEnrollmentExtraField, 0, len(fields))
+	for _, field := range fields {
 		if !field.AppliesToCh || field.Type == enrollmentModels.FormFieldInfo {
 			continue
 		}

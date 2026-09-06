@@ -6,6 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/uptrace/bun"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,19 +52,18 @@ func newOfferingChangeServiceForTestWithCareRepo(
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentOfferingChangesLeadDays] = "14"
 	return enrollmentService.NewOfferingChangeRequestService(enrollmentService.OfferingChangeRequestServiceConfig{
-		ChangeRepo:               env.repos.OfferingChangeRequest,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestRepo:              env.repos.Request,
-		PhaseRepo:                env.repos.Phase,
-		CareOfferingRepo:         careOfferingRepo,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		StudentRepo:              env.repos.Student,
-		PersonRepo:               env.repos.Person,
-		CareWithdrawalRepo:       env.repos.CareWithdrawal,
-		ImpactRepo:               env.repos.OfferingChangeImpact,
-		Applier:                  changeRequestApplierForTest(t, env),
-		Settings:                 env.settings,
-		Logger:                   slog.Default(),
+		ChangeRepo:         env.repos.OfferingChangeRequest,
+		Children:           env.repos.Enrollment(),
+		Requests:           env.repos.Enrollment(),
+		Phases:             env.repos.Enrollment(),
+		CareOfferingRepo:   careOfferingRepo,
+		StudentRepo:        env.repos.Student,
+		PersonRepo:         env.repos.Person,
+		CareWithdrawalRepo: env.repos.CareWithdrawal,
+		ImpactRepo:         manualPlanningFixture{db: env.db},
+		Applier:            changeRequestApplierForTest(t, env),
+		Settings:           env.settings,
+		Logger:             slog.Default(),
 		// Mirrors newDecisionServiceForTest's fixed clock: the lead-day and
 		// earliest-date assertions in this file compare against this date.
 		Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
@@ -108,7 +112,7 @@ func setupOfferingChangeFixture(
 		newOffering:  newOffering,
 		oldGroupID:   oldGroup.ID,
 		newGroupID:   newGroup.ID,
-		switchDate:   env.sourcePhase.ServiceStartDate.AddDays(150),
+		switchDate:   timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150),
 		pastSwitchAt: timezone.NewDate(2026, 8, 24).AddDays(-1),
 	}
 }
@@ -135,7 +139,7 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, row.Status)
 	assert.Equal(t, fx.childID, row.RequestChildID)
-	assert.Equal(t, fx.switchDate, row.EffectiveFrom)
+	assert.Equal(t, fx.switchDate, timezone.Date(row.EffectiveFrom))
 	require.NotNil(t, row.ParentNote)
 	assert.Equal(t, "Neuer Arbeitsbeginn", *row.ParentNote)
 
@@ -181,7 +185,7 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, ReviewedBy: env.creatorID, Approve: true,
 	}))
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, capability.Date(fx.switchDate))
 	require.NoError(t, err)
 	for _, link := range links {
 		assert.NotEqual(t, automatic.ID, link.CareOfferingID,
@@ -204,7 +208,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	// This row represents an offering materialized from another selection. A
 	// crafted request must not be able to change its days and persist it as a
 	// manual booking.
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -449,12 +453,12 @@ func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *te
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 	exclusiveEnd := fx.switchDate.AddDays(1)
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, capability.Date(fx.switchDate))
 	require.NoError(t, err)
 	require.NotEmpty(t, links)
 	for _, link := range links {
 		require.NotNil(t, link.ValidUntil)
-		assert.False(t, link.ValidUntil.After(exclusiveEnd), "source booking must not outlive the child care interval")
+		assert.False(t, capability.Date(exclusiveEnd).Before(*link.ValidUntil), "source booking must not outlive the child care interval")
 	}
 	for _, enrollment := range listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID) {
 		if enrollment.ActivityGroupID != fx.newGroupID {
@@ -521,9 +525,9 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 
 	// The period start moves behind the requested date while the request waits.
 	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
-	env.sourcePhase.ServiceStartDate = phaseStart
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
-	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, fx.pastSwitchAt))
+	env.sourcePhase.ServiceStartDate = phaseFixture.Date(phaseStart)
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
+	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, enrollmentModels.OfferingChangeDate(fx.pastSwitchAt)))
 
 	pending, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
@@ -534,7 +538,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 		}
 	}
 	require.NotNil(t, queued, "the pending request must stay in the queue")
-	assert.Equal(t, phaseStart, queued.Request.EffectiveFrom,
+	assert.Equal(t, phaseStart, timezone.Date(queued.Request.EffectiveFrom),
 		"the queue must show the date an approval would actually apply")
 	assert.Equal(t, fx.pastSwitchAt, queued.RequestedEffectiveFrom,
 		"the queue must keep the date the family asked for, so the card can name it")
@@ -812,7 +816,7 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 
 	catalog, err := svc.Catalog(ctx, fx.studentID)
 	require.NoError(t, err)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate, catalog.LatestEffectiveFrom)
+	assert.Equal(t, timezone.Date(env.sourcePhase.ServiceEndDate), catalog.LatestEffectiveFrom)
 	assert.False(t, catalog.EarliestEffectiveFrom.Before(timezone.NewDate(2026, 8, 24)),
 		"a switch must not be offered for a date already gone")
 
@@ -916,7 +920,7 @@ func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.
 	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
-	assert.Equal(t, confirmed, decided.EffectiveFrom,
+	assert.Equal(t, confirmed, timezone.Date(decided.EffectiveFrom),
 		"the request must record the date the office confirmed, not the parents' wish")
 
 	rows := listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID)
@@ -990,7 +994,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateAfterTheCarePe
 	})
 	require.NoError(t, err)
 
-	confirmed := env.sourcePhase.ServiceEndDate.AddDays(1)
+	confirmed := timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:     row.ID,
 		Approve:       true,
@@ -1065,13 +1069,13 @@ func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(
 		}
 	}
 	require.NotNil(t, queued)
-	earliest := env.sourcePhase.ServiceStartDate
+	earliest := timezone.Date(env.sourcePhase.ServiceStartDate)
 	if today := decisionTestToday; earliest.Before(today) {
 		earliest = today
 	}
 	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,
 		"the office may switch from today, but never before the care period starts")
-	assert.Equal(t, env.sourcePhase.ServiceEndDate, queued.LatestEffectiveFrom)
+	assert.Equal(t, timezone.Date(env.sourcePhase.ServiceEndDate), queued.LatestEffectiveFrom)
 }
 
 // The preview is what the office decides from. A date the approval would refuse
@@ -1196,14 +1200,14 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID: fx.childID,
 		CareOfferingID: parentChoiceOffering.ID,
 		SelectedDays:   []string{},
 	}))
 
 	period := testpkg.CreateTestCalendarPeriod(
-		t, env.db, "Manual planning preview "+t.Name(), env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate,
+		t, env.db, "Manual planning preview "+t.Name(), timezone.Date(env.sourcePhase.ServiceStartDate), timezone.Date(env.sourcePhase.ServiceEndDate),
 	)
 	room := testpkg.CreateTestRoom(t, env.db, "Manual planning preview")
 	dateFor := func(weekday time.Weekday) timezone.Date {
@@ -1291,8 +1295,8 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	assert.False(t, preview.ArrivalExpectationsFollowBookings)
 
 	otherTenantCtx := testpkg.TenantContext(testpkg.Tenant(t) + 1)
-	foreignRows, err := env.repos.OfferingChangeImpact.ListManualPlanningOccurrences(
-		otherTenantCtx, fx.studentID, fx.switchDate, env.sourcePhase.ServiceEndDate,
+	foreignRows, err := (manualPlanningFixture{db: env.db}).ListManualPlanningOccurrences(
+		otherTenantCtx, fx.studentID, fx.switchDate.String(), string(env.sourcePhase.ServiceEndDate),
 	)
 	require.NoError(t, err)
 	assert.Empty(t, foreignRows, "the projection must not leak planning rows across tenants")
@@ -1316,7 +1320,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFu
 	manualGroup.Type, manualGroup.IsTemplate = activitiesModels.GroupTypeCare, true
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
 	period := testpkg.CreateTestCalendarPeriod(
-		t, env.db, "Manual full withdrawal "+t.Name(), env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate,
+		t, env.db, "Manual full withdrawal "+t.Name(), timezone.Date(env.sourcePhase.ServiceStartDate), timezone.Date(env.sourcePhase.ServiceEndDate),
 	)
 	room := testpkg.CreateTestRoom(t, env.db, "Manual full withdrawal")
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
@@ -1394,8 +1398,8 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 
 	// The period start moves into the future while the request waits.
 	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
-	env.sourcePhase.ServiceStartDate = phaseStart
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	env.sourcePhase.ServiceStartDate = phaseFixture.Date(phaseStart)
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 
 	// Tomorrow is after today but still before the period begins.
 	confirmed := timezone.NewDate(2026, 8, 24).AddDays(1)
@@ -1410,4 +1414,43 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 	stillPending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
+}
+
+type manualPlanningFixture struct{ db *bun.DB }
+
+func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
+	reader := repositories.NewManualPlanningQuery(nil)
+	for _, tc := range []struct {
+		name, from, to string
+	}{
+		{"missing start", "", "2026-09-30"},
+		{"missing end", "2026-09-01", ""},
+		{"invalid day", "2026-02-30", "2026-09-30"},
+		{"timestamp instead of date", "2026-09-01T00:00:00Z", "2026-09-30"},
+		{"reversed window", "2026-09-30", "2026-09-01"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rows, err := reader.ListManualPlanningOccurrences(testpkg.Ctx(t), student.ID, tc.from, tc.to)
+			require.EqualError(t, err, "valid planning date range is required")
+			assert.Nil(t, rows)
+		})
+	}
+	rows, err := reader.ListManualPlanningOccurrences(testpkg.Ctx(t), 0, "2026-09-01", "2026-09-30")
+	require.EqualError(t, err, "student id must be positive")
+	assert.Nil(t, rows)
+}
+
+func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]enrollmentService.ManualPlanningOccurrence, error) {
+	rows, err := repositories.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentService.ManualPlanningOccurrence, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, enrollmentService.ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date})
+	}
+	return result, nil
 }

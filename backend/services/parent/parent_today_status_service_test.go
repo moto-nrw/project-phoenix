@@ -74,7 +74,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *
 			nil,
 			scheduletest.NewPickupBaselineService(
 				repos.StudentPickupSchedule,
-				repos.RequestChildOffering,
+				approvedOfferingProjection(t),
 				repos.CareOffering,
 			),
 			db,

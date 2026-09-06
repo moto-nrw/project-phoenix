@@ -103,7 +103,7 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 		Offerings: []CareOfferingSelection{},
 	}
 	today := s.todayDate()
-	var period *enrollmentModels.StudentCarePeriod
+	var period *enrollmentSvc.StudentCarePeriod
 	var canRequest bool
 	var changesDisabledReason string
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -130,7 +130,7 @@ func (s *service) loadChildCareOfferings(
 	studentID int64,
 	today timezone.Date,
 	view *ChildCareOfferings,
-) (*enrollmentModels.StudentCarePeriod, error) {
+) (*enrollmentSvc.StudentCarePeriod, error) {
 	period, err := s.currentCarePeriod(ctx, studentID, today)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int
 	pending := &PendingOfferingChange{
 		ID:              view.Request.ID,
 		CreatedAt:       view.Request.CreatedAt,
-		EffectiveFrom:   view.Request.EffectiveFrom,
+		EffectiveFrom:   timezone.Date(view.Request.EffectiveFrom),
 		Diff:            view.Diff,
 		SubmittedBySelf: view.Request.SubmittedBy == accountID,
 	}
@@ -371,11 +371,11 @@ func (s *service) currentCarePeriod(
 	ctx context.Context,
 	studentID int64,
 	today timezone.Date,
-) (*enrollmentModels.StudentCarePeriod, error) {
-	if s.RequestChildRepo == nil {
+) (*enrollmentSvc.StudentCarePeriod, error) {
+	if s.CarePeriods == nil {
 		return nil, nil
 	}
-	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("list care periods: %w", err)
 	}
@@ -383,7 +383,7 @@ func (s *service) currentCarePeriod(
 		return nil, nil
 	}
 	// Repository order is latest window first.
-	var upcoming, past *enrollmentModels.StudentCarePeriod
+	var upcoming, past *enrollmentSvc.StudentCarePeriod
 	for _, candidate := range periods {
 		switch {
 		case !candidate.ServiceStartDate.After(today) && !candidate.ServiceEndDate.Before(today):
@@ -405,10 +405,10 @@ func (s *service) carePeriodOfferings(
 	requestChildID int64,
 	today timezone.Date,
 ) ([]CareOfferingSelection, error) {
-	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil {
+	if s.OfferingHistory == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
 	}
-	links, err := s.RequestChildOfferingRepo.ListHistoryByRequestChildID(ctx, requestChildID)
+	links, err := enrollmentSvc.ReadOfferingHistory(ctx, s.OfferingHistory, requestChildID)
 	if err != nil {
 		return nil, fmt.Errorf("list child offerings: %w", err)
 	}
@@ -428,7 +428,7 @@ func (s *service) carePeriodOfferings(
 	}
 	items := make([]CareOfferingSelection, 0, len(links))
 	for _, link := range links {
-		if link == nil || (link.ValidUntil != nil && !link.ValidUntil.After(today)) {
+		if link == nil || (link.ValidUntil != nil && !timezone.Date(*link.ValidUntil).After(today)) {
 			continue
 		}
 		item, ok := careOfferingSelection(offeringByID[link.CareOfferingID], link, today)
@@ -471,10 +471,10 @@ func careOfferingSelection(
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
-		ValidFrom:       link.ValidFrom,
-		ValidUntil:      link.ValidUntil,
+		ValidFrom:       (*timezone.Date)(link.ValidFrom),
+		ValidUntil:      (*timezone.Date)(link.ValidUntil),
 	}
-	item.StartsLater = link.ValidFrom != nil && link.ValidFrom.After(today)
+	item.StartsLater = link.ValidFrom != nil && timezone.Date(*link.ValidFrom).After(today)
 	if offering.Description != nil {
 		item.Description = *offering.Description
 	}
@@ -559,7 +559,7 @@ func (s *service) resolveOfferingChangeAvailabilityForStudent(
 	ctx context.Context,
 	child *parentChild,
 	studentID int64,
-	period *enrollmentModels.StudentCarePeriod,
+	period *enrollmentSvc.StudentCarePeriod,
 	today timezone.Date,
 ) (bool, string) {
 	if period == nil {
@@ -586,10 +586,10 @@ func (s *service) resolveOfferingChangeAvailabilityForStudent(
 // hasCarePeriodOnOrAfter mirrors the offering-change catalog's period
 // selection: a lead time may land in a pre-approved upcoming period.
 func (s *service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, date timezone.Date) bool {
-	if s.RequestChildRepo == nil {
+	if s.CarePeriods == nil {
 		return false
 	}
-	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
+	periods, err := enrollmentSvc.ReadStudentCarePeriods(ctx, s.CarePeriods, studentID)
 	if err != nil {
 		return false
 	}

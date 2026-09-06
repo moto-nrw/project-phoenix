@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -108,7 +110,7 @@ func selectedOfferingNames(child SubmitChild, openByID map[int64]*enrollmentMode
 
 // buildFieldsByKey indexes a schema's fields by key for condition
 // resolution. Returns nil for a nil schema.
-func buildFieldsByKey(schema *enrollmentModels.FormSchema) map[string]*enrollmentModels.FormField {
+func buildFieldsByKey(schema *capability.FormSchema) map[string]*enrollmentModels.FormField {
 	if schema == nil {
 		return nil
 	}
@@ -131,7 +133,7 @@ func buildFieldsByKey(schema *enrollmentModels.FormSchema) map[string]*enrollmen
 // stored in custom_data and, if the field carries a Target, written into
 // student data by the decision service on approval.
 func sanitizeVisibleAnswers(
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	appliesToChild bool,
 	values map[string]any,
 	ctx fieldVisibilityContext,
@@ -209,7 +211,7 @@ func sanitizeVisibleAnswers(
 func mergeEditableCustomData(
 	existing map[string]any,
 	submitted map[string]any,
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	appliesToChild bool,
 ) map[string]any {
 	out := make(map[string]any)
@@ -265,7 +267,7 @@ func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentModels.Reque
 		if child == nil || child.ID <= 0 || used[child.ID] {
 			continue
 		}
-		key := requestChildIdentityKey(child.FirstName, child.LastName, child.DateOfBirth.String())
+		key := requestChildIdentityKey(child.FirstName, child.LastName, string(child.DateOfBirth))
 		existingByIdentity[key] = append(existingByIdentity[key], child)
 	}
 	for i, incoming := range submitted {
@@ -301,11 +303,11 @@ func sameSubmittedIdentity(existing *enrollmentModels.RequestChild, submitted Su
 	if existing == nil {
 		return false
 	}
-	return requestChildIdentityKey(existing.FirstName, existing.LastName, existing.DateOfBirth.String()) ==
+	return requestChildIdentityKey(existing.FirstName, existing.LastName, string(existing.DateOfBirth)) ==
 		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
 }
 
-func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild bool) map[string]bool {
+func editableCustomDataKeys(schema *capability.FormSchema, appliesToChild bool) map[string]bool {
 	keys := make(map[string]bool)
 	if schema == nil {
 		return keys
@@ -333,7 +335,7 @@ func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild 
 // stale or scripted client can't bypass it — and so a field hidden by its
 // show-if condition never blocks an otherwise valid submit.
 func (s *requestService) validateRequiredCustomFields(
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) error {
@@ -422,7 +424,7 @@ func (s *requestService) validateRequiredCustomFields(
 // invariant. Mirrors the same defense-in-depth other submit-time field checks
 // apply so a submittable request can never get stuck at approval (#1694).
 func (s *requestService) validateAccompaniedCompanionNote(
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) error {
@@ -455,7 +457,7 @@ func (s *requestService) validateAccompaniedCompanionNote(
 // field is treated as not-accompanied: the decision service is the authoritative
 // guard and rejects a malformed value there.
 func childDepartureAllowsAccompanied(
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	child SubmitChild,
 	ctx fieldVisibilityContext,
 ) bool {
@@ -493,7 +495,7 @@ func childDepartureAllowsAccompanied(
 // pruneChildScheduleAnswers before persistence, so the gate must not reject it
 // and block the submit.
 func (s *requestService) validateConstrainedSchedules(
-	schema *enrollmentModels.FormSchema,
+	schema *capability.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
 	existingChildren ...[]*enrollmentModels.RequestChild,
@@ -745,7 +747,7 @@ func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormFie
 // decision service turns every persisted weekday into a pickup/arrival schedule
 // row, so an unpruned {"fri":"15:00"} for a Tue/Thu child would create a Friday
 // pickup the parent never had access to. Mutates answers in place.
-func pruneChildScheduleAnswers(schema *enrollmentModels.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
+func pruneChildScheduleAnswers(schema *capability.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
 	if schema == nil || answers == nil {
 		return
 	}

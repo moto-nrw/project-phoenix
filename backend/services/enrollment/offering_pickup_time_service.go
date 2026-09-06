@@ -146,7 +146,7 @@ func (s *decisionService) offeringPickupAffectedStudents(ctx context.Context, of
 	if offeringID <= 0 {
 		return nil, fmt.Errorf("%w: offering id is required", ErrCareOfferingInvalid)
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(
 		ctx,
 		[]int64{offeringID},
 		timezone.TodayDate(),

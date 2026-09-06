@@ -2,25 +2,52 @@ package enrollment
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 type phaseExpiryRepositoryStub struct {
-	snapshots      []*enrollmentModels.PhaseExpirySnapshot
+	snapshots      []*capability.PhaseExpirySnapshot
 	asOf           timezone.Date
 	warningThrough timezone.Date
+}
+
+func TestPhaseExpiryServiceRejectsMalformedDateWithoutPartialWarnings(t *testing.T) {
+	t.Parallel()
+	for _, completed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("completed=%t", completed), func(t *testing.T) {
+			t.Parallel()
+			invalid := &capability.PhaseExpirySnapshot{
+				SourcePhaseID: 4, FirstAffectedDate: "2027-02-30",
+				AffectedChildren: 1, UnresolvedChildren: 1,
+			}
+			if completed {
+				successorID := int64(12)
+				invalid.SuccessorPhaseID = &successorID
+				invalid.UnresolvedChildren = 0
+			}
+			repo := &phaseExpiryRepositoryStub{snapshots: []*capability.PhaseExpirySnapshot{
+				{SourcePhaseID: 3, FirstAffectedDate: "2027-02-01", AffectedChildren: 1, UnresolvedChildren: 1},
+				invalid,
+			}}
+			warnings, err := NewPhaseExpiryService(repo).ListWarnings(context.Background(), timezone.NewDate(2027, 1, 2))
+			require.Error(t, err)
+			require.ErrorContains(t, err, "list phase expiry warnings:")
+			assert.Nil(t, warnings)
+		})
+	}
 }
 
 func (s *phaseExpiryRepositoryStub) ListSnapshots(
 	_ context.Context,
 	asOf, warningThrough timezone.Date,
-) ([]*enrollmentModels.PhaseExpirySnapshot, error) {
+) ([]*capability.PhaseExpirySnapshot, error) {
 	s.asOf = asOf
 	s.warningThrough = warningThrough
 	return s.snapshots, nil
@@ -31,11 +58,11 @@ func TestPhaseExpiryService_ListWarnings_UsesThirtyDayHorizonAndOmitsCompletedSu
 
 	today := timezone.NewDate(2027, 1, 2)
 	successorID := int64(12)
-	repo := &phaseExpiryRepositoryStub{snapshots: []*enrollmentModels.PhaseExpirySnapshot{
+	repo := &phaseExpiryRepositoryStub{snapshots: []*capability.PhaseExpirySnapshot{
 		{
 			SourcePhaseID:      3,
 			SourcePhaseName:    "1. Halbjahr",
-			FirstAffectedDate:  timezone.NewDate(2027, 2, 1),
+			FirstAffectedDate:  capability.Date("2027-02-01"),
 			AffectedChildren:   204,
 			UnresolvedChildren: 204,
 		},
@@ -43,7 +70,7 @@ func TestPhaseExpiryService_ListWarnings_UsesThirtyDayHorizonAndOmitsCompletedSu
 			SourcePhaseID:      4,
 			SourcePhaseName:    "Vorjahr",
 			SuccessorPhaseID:   &successorID,
-			FirstAffectedDate:  timezone.NewDate(2027, 1, 1),
+			FirstAffectedDate:  capability.Date("2027-01-01"),
 			AffectedChildren:   20,
 			UnresolvedChildren: 2,
 		},
@@ -51,7 +78,7 @@ func TestPhaseExpiryService_ListWarnings_UsesThirtyDayHorizonAndOmitsCompletedSu
 			SourcePhaseID:      5,
 			SourcePhaseName:    "Erledigt",
 			SuccessorPhaseID:   &successorID,
-			FirstAffectedDate:  timezone.NewDate(2027, 1, 1),
+			FirstAffectedDate:  capability.Date("2027-01-01"),
 			AffectedChildren:   20,
 			UnresolvedChildren: 0,
 		},

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -45,7 +46,7 @@ func activationSummary(c *enrollmentModels.RequestChild) string {
 		mode = "Sofort"
 	}
 	if c.ActivateOn != nil {
-		return mode + " (" + c.ActivateOn.Format("02.01.2006") + ")"
+		return mode + " (" + timezone.Date(*c.ActivateOn).Format("02.01.2006") + ")"
 	}
 	return mode
 }

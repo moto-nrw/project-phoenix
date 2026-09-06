@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -512,7 +514,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	var (
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
-		guardians []*enrollmentModels.RequestGuardian
+		guardians []*capability.RequestGuardian
 		editMode  string
 		statusErr error
 	)
@@ -631,7 +633,7 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 	resp := EditDraftResponse{
 		RequestID:           strconv.FormatInt(draft.Request.ID, 10),
 		StatusToken:         draft.Request.StatusToken,
-		TenantID:            strconv.FormatInt(draft.Request.GetTenantID(), 10),
+		TenantID:            strconv.FormatInt(draft.Request.TenantID, 10),
 		PhaseID:             strconv.FormatInt(draft.Request.PhaseID, 10),
 		GuardianFirstName:   draft.Request.GuardianFirstName,
 		GuardianLastName:    draft.Request.GuardianLastName,
@@ -650,7 +652,7 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 	return resp
 }
 
-func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian) []EditDraftGuardianResponse {
+func toEditDraftGuardianResponses(guardians []*capability.RequestGuardian) []EditDraftGuardianResponse {
 	var responses []EditDraftGuardianResponse
 	for _, guardian := range guardians {
 		responses = append(responses, EditDraftGuardianResponse{
@@ -680,7 +682,7 @@ func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLink
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
 		LastName:          child.LastName,
-		DateOfBirth:       child.DateOfBirth.String(),
+		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
 		CustomData:        child.CustomData,

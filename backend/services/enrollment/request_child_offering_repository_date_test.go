@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(t *testing.T) {
+func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T) {
 	t.Parallel()
 
 	env, cleanup := setupDecisionTest(t)
@@ -19,16 +19,16 @@ func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
-	require.NoError(t, env.repos.RequestChildOffering.ReplaceForRequestChild(ctx, fx.childID, nil))
-	futureStart := env.sourcePhase.ServiceStartDate.AddDays(30)
-	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+	require.NoError(t, env.repos.Enrollment().ReplaceRequestChildOfferings(ctx, fx.childID, nil))
+	futureStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
+	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
-		futureStart,
-		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: fx.oldOffering.ID}},
+		owner.Date(futureStart),
+		[]*owner.RequestChildOffering{{CareOfferingID: fx.oldOffering.ID}},
 	))
 
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(
 		ctx,
 		fx.childID,
 		env.sourcePhase.ServiceStartDate,
@@ -43,7 +43,7 @@ func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(
 // the point-in-time predicate in Go disagrees here, and disagreeing means an
 // editor seeded empty while the save still finds a selection to replace.
 // Whoever removes this fallback must also revisit ListChildOfferings.
-func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
+func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
 	t.Parallel()
 
 	env, cleanup := setupDecisionTest(t)
@@ -51,20 +51,20 @@ func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "PreStartFallback")
 
-	beforeStart := env.sourcePhase.ServiceStartDate.AddDays(-10)
+	beforeStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(-10)
 
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, beforeStart)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, owner.Date(beforeStart))
 	require.NoError(t, err)
 	require.NotEmpty(t, links,
 		"before the service start the repository reports the upcoming interval, not 'nothing booked'")
 	for _, link := range links {
 		require.NotNil(t, link.ValidFrom)
-		assert.True(t, link.ValidFrom.After(beforeStart),
+		assert.True(t, owner.Date(beforeStart).Before(*link.ValidFrom),
 			"the fallback returns rows a plain point-in-time predicate would reject")
 	}
 }
 
-func TestRequestChildOfferingRepository_ListAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
+func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
 	t.Parallel()
 
 	env, cleanup := setupDecisionTest(t)
@@ -72,16 +72,16 @@ func TestRequestChildOfferingRepository_ListAtDates_DoesNotReturnHistoricalSelec
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
-	futureStart := env.sourcePhase.ServiceStartDate.AddDays(30)
-	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
+	futureStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
+	require.NoError(t, env.repos.Enrollment().ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
-		futureStart,
-		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: fx.newOffering.ID}},
+		owner.Date(futureStart),
+		[]*owner.RequestChildOffering{{CareOfferingID: fx.newOffering.ID}},
 	))
 
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDsAtDates(ctx, map[int64]timezone.Date{
-		fx.childID: futureStart,
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDates(ctx, map[int64]owner.Date{
+		fx.childID: owner.Date(futureStart),
 	})
 	require.NoError(t, err)
 	require.Len(t, links, 1)

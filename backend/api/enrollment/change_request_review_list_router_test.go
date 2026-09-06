@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -65,7 +67,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	require.NoError(t, db.NewInsert().Model(reviewer).ModelTableExpr("users.persons").Scan(ctx))
 
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
-		Repo:   repos.FormSchema,
+		Owner:  repos.Enrollment(),
 		Logger: slog.Default(),
 	})
 	schema, err := schemaSvc.CreateSchema(ctx, "Testformular "+t.Name(), []enrollmentModels.FormField{
@@ -73,58 +75,52 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	}, accountID)
 	require.NoError(t, err)
 
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:             "review-list-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: timezone.NewDate(2026, 9, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		ServiceStartDate: capability.Date(timezone.NewDate(2026, 9, 1)),
+		ServiceEndDate:   capability.Date(timezone.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(tenantID)
-	require.NoError(t, repos.Phase.Create(ctx, phase))
+	phase.TenantID = tenantID
+	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
 	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           discardingOutbox{},
-		Settings:                 settings,
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       db,
-		Logger:                   slog.Default(),
+		Requests:         repos.Enrollment(),
+		Children:         repos.Enrollment(),
+		Guardians:        repos.Enrollment(),
+		CareOfferingRepo: repos.CareOffering,
+		Catalog:          repos.Enrollment(),
+		SchoolRepo:       repos.School,
+		RateLimitRepo:    repos.Enrollment(),
+		OutboxEnqueuer:   discardingOutbox{},
+		Settings:         settings,
+		FrontendURL:      "http://localhost:3000",
+		ParentsURL:       "http://parents.localhost:3000",
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	changeRequestSvc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        repos.ChangeRequest,
-		MessageRepo:              repos.ChangeRequestMessage,
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		GuardianProfileRepo:      repos.GuardianProfile,
-		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
-		PersonRepo:               repos.Person,
-		StudentRepo:              repos.Student,
-		GuardianAuthorizer:       repos.StudentGuardian,
-		Settings:                 settings,
-		OutboxEnqueuer:           discardingOutbox{},
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       db,
-		Logger:                   slog.Default(),
+		Requests:            repos.Enrollment(),
+		Children:            repos.Enrollment(),
+		Guardians:           repos.Enrollment(),
+		LateInviteRepo:      repos.Enrollment(),
+		CareOfferingRepo:    repos.CareOffering,
+		Catalog:             repos.Enrollment(),
+		SchoolRepo:          repos.School,
+		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		PersonRepo:          repos.Person,
+		StudentRepo:         repos.Student,
+		GuardianAuthorizer:  repos.StudentGuardian,
+		Settings:            settings,
+		OutboxEnqueuer:      discardingOutbox{},
+		FrontendURL:         "http://localhost:3000",
+		ParentsURL:          "http://parents.localhost:3000",
+		DB:                  db,
+		Logger:              slog.Default(),
 	})
 
 	resource := enrollmentAPI.NewResource(
@@ -215,11 +211,20 @@ func (env *reviewListEnv) insertChangeRequest(
 		row.CreatedAt = occurredAt
 		row.UpdatedAt = occurredAt
 	}
-	row.SetTenantID(env.tenantID)
-	_, err := env.db.NewInsert().
-		Model(row).
-		ModelTableExpr("enrollment.change_requests").
-		Exec(testpkg.TenantContext(env.tenantID))
+	row.TenantID = env.tenantID
+	baseSnapshot, err := json.Marshal(row.BaseSnapshot)
+	require.NoError(t, err)
+	proposedSnapshot, err := json.Marshal(row.ProposedSnapshot)
+	require.NoError(t, err)
+	diff, err := json.Marshal(row.Diff)
+	require.NoError(t, err)
+	err = env.db.NewRaw(`INSERT INTO enrollment.change_requests
+		(tenant_id, request_id, request_child_id, origin, status, base_snapshot, proposed_snapshot, diff_json,
+		reviewed_by_account_id, reviewed_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?) RETURNING id`,
+		row.TenantID, row.RequestID, row.RequestChildID, row.Origin, row.Status,
+		string(baseSnapshot), string(proposedSnapshot), string(diff), row.ReviewedByAccountID,
+		row.ReviewedAt, row.CreatedAt, row.UpdatedAt).Scan(testpkg.TenantContext(env.tenantID), &row.ID)
 	require.NoError(t, err)
 	return row
 }

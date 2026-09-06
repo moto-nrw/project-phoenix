@@ -9,10 +9,13 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Sentinel errors for the admin restore flow (#2157). Mapped to HTTP
@@ -50,8 +53,21 @@ type RestoreOutcome struct {
 //
 // The append-only audit row (who restored what, when) is written in the
 // same tenant transaction; if it fails the restore rolls back with it.
-// Must run inside the handler-provided tenant transaction, like Decide.
+// Joins the handler transaction, or starts one for a standalone caller.
 func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error) {
+	var outcome *RestoreOutcome
+	err := tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		outcome, err = s.restoreWithdrawn(txCtx, requestID, restoredBy)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return outcome, nil
+}
+
+func (s *decisionService) restoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error) {
 	if requestID <= 0 {
 		return nil, ErrDecisionRequestNotFound
 	}
@@ -62,7 +78,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	// Lock the parent before its children — same order as Decide, cleanup,
 	// and the withdraw path, so restore serializes cleanly against all of
 	// them without lock inversion.
-	request, err := s.RequestRepo.FindByIDForUpdate(ctx, requestID)
+	request, err := intakeRequestByID(ctx, s.Requests, requestID, true)
 	if err != nil {
 		// Only a genuinely missing row becomes the 404 sentinel;
 		// connection and query failures keep flowing so the handler's
@@ -72,7 +88,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 		}
 		return nil, fmt.Errorf("restore: load request: %w", err)
 	}
-	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, requestID)
+	children, err := listIntakeChildren(ctx, s.Children, requestID, true)
 	if err != nil {
 		return nil, fmt.Errorf("restore: load children: %w", err)
 	}
@@ -87,7 +103,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 		return nil, ErrRestoreNothingWithdrawn
 	}
 
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	phase, err := s.Phases.Phase(ctx, request.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("restore: load phase: %w", err)
 	}
@@ -99,7 +115,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	// guardian email) before re-running the submit-time duplicate check,
 	// exactly like Submit does. The lock auto-releases at tx end.
 	emailLC := strings.ToLower(strings.TrimSpace(request.GuardianEmail))
-	if err := s.RequestRepo.AcquireSubmissionDedupLock(ctx, phase.ID, fnvHash64(emailLC)); err != nil {
+	if err := s.Requests.AcquireSubmissionDedupLock(ctx, phase.ID, fnvHash64(emailLC)); err != nil {
 		return nil, fmt.Errorf("restore: acquire dedup lock: %w", err)
 	}
 	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(withdrawn))
@@ -111,7 +127,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	}
 	// The error stays name-free on purpose: it flows into handler logs and
 	// the API response, and student names must not reach Info-level logs.
-	dupes, err := s.RequestRepo.FindActiveDuplicateExcludingRequest(ctx, phase.ID, request.GuardianEmail, dupKeys, request.ID)
+	dupes, err := s.Requests.ActiveDuplicateChildren(ctx, phase.ID, request.GuardianEmail, dupKeys, request.ID)
 	if err != nil {
 		return nil, fmt.Errorf("restore: duplicate check: %w", err)
 	}
@@ -126,10 +142,10 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 		if child.MatchedStudentID == nil {
 			continue
 		}
-		if err := s.RequestRepo.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
+		if err := s.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
 			return nil, fmt.Errorf("restore: acquire existing-student match lock: %w", err)
 		}
-		has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phase.ID, *child.MatchedStudentID, child.ID)
+		has, err := s.Requests.HasActiveRequestForMatchedStudent(ctx, phase.ID, *child.MatchedStudentID, child.ID)
 		if err != nil {
 			return nil, fmt.Errorf("restore: matched-student duplicate check: %w", err)
 		}
@@ -146,7 +162,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 		return nil, err
 	}
 
-	restoredIDs, err := s.RequestChildRepo.RestoreWithdrawnByRequestID(ctx, requestID, waitlistedIDs)
+	restoredIDs, err := s.Children.RestoreWithdrawnChildren(ctx, requestID, waitlistedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: update children: %w", err)
 	}
@@ -155,7 +171,7 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 	}
 
 	if request.WithdrawnAt != nil {
-		if err := s.RequestRepo.ClearWithdrawn(ctx, requestID); err != nil {
+		if err := s.Requests.SetRequestWithdrawal(ctx, requestID, nil); err != nil {
 			return nil, fmt.Errorf("restore: clear withdrawn_at: %w", err)
 		}
 	}
@@ -197,10 +213,10 @@ func (s *decisionService) RestoreWithdrawn(ctx context.Context, requestID, resto
 // closed with ErrCareOfferingClosed.
 func (s *decisionService) restoreCapacityWaitlist(
 	ctx context.Context,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	withdrawn []*enrollmentModels.RequestChild,
 ) ([]int64, error) {
-	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil {
+	if s.Children == nil || s.CareOfferingRepo == nil {
 		return nil, nil
 	}
 	offeringsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
@@ -215,26 +231,26 @@ func (s *decisionService) restoreCapacityWaitlist(
 	for _, child := range withdrawn {
 		childIDs = append(childIDs, child.ID)
 	}
-	rows, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	rows, err := readOwnerOfferingBatchHistory(ctx, s.Children, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("restore: load offering selections: %w", err)
 	}
 	capacityFrom := timezone.TodayDate()
-	if phase.ServiceStartDate.After(capacityFrom) {
-		capacityFrom = phase.ServiceStartDate
+	if timezone.Date(phase.ServiceStartDate).After(capacityFrom) {
+		capacityFrom = timezone.Date(phase.ServiceStartDate)
 	}
 	claimsByChild := make(map[int64][]OfferingClaim)
 	anyClaim := false
 	for _, row := range rows {
 		// ValidUntil is exclusive: an interval ending on or before the
 		// window start holds no remaining slot.
-		if row.ValidUntil != nil && !row.ValidUntil.After(capacityFrom) {
+		if row.ValidUntil != nil && !timezone.Date(*row.ValidUntil).After(capacityFrom) {
 			continue
 		}
 		claimsByChild[row.RequestChildID] = append(claimsByChild[row.RequestChildID], OfferingClaim{
 			OfferingID: row.CareOfferingID,
-			ValidFrom:  row.ValidFrom,
-			ValidUntil: row.ValidUntil,
+			ValidFrom:  (*timezone.Date)(row.ValidFrom),
+			ValidUntil: (*timezone.Date)(row.ValidUntil),
 		})
 		anyClaim = true
 	}
@@ -246,7 +262,7 @@ func (s *decisionService) restoreCapacityWaitlist(
 	for i, child := range withdrawn {
 		claims[i] = claimsByChild[child.ID]
 	}
-	overrides, err := applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.RequestChildOfferingRepo,
+	overrides, err := applyCapacityOverflowCore(ctx, s.CareOfferingRepo, s.Children,
 		func(ctx context.Context) (bool, error) {
 			return s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
 		},
