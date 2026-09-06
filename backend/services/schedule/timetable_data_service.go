@@ -48,7 +48,7 @@ type TimetableDataDependencies struct {
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
 	PickupBaselines        PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
-	VisitRepo              activeModel.VisitRepository
+	Presence               StudentVisitReader
 	RoomRepo               facilitiesModel.RoomRepository
 	ActivityCategoryRepo   activitiesModel.CategoryRepository
 	PlanningTrackRepo      scheduleModel.PlanningTrackRepository
@@ -415,10 +415,6 @@ func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, 
 
 func (s *TimetableDataService) GetPickupExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentPickupException, error) {
 	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
-}
-
-func (s *TimetableDataService) GetVisitsByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*activeModel.Visit, error) {
-	return s.deps.VisitRepo.FindByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
 }
 
 func (s *TimetableDataService) GetRoom(ctx context.Context, id int64) (*facilitiesModel.Room, error) {

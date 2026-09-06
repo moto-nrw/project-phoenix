@@ -94,7 +94,7 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 		ArrivalService:     unusedPlannedNowArrivalService{},
 		PickupService:      unusedPlannedNowPickupService{},
 		SupervisorRepo:     repos.GroupSupervisor,
-		VisitRepo:          repos.ActiveVisit,
+		Presence:           newPickupChangePresence(t, db),
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,

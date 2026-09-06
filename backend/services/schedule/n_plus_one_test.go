@@ -3,7 +3,6 @@ package schedule
 import (
 	"context"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -51,16 +50,6 @@ func (s *reopenStudentLockStub) FindByIDsForUpdate(ctx context.Context, ids []in
 		students[id] = student
 	}
 	return students, nil
-}
-
-func (r *reopenVisitStub) GetCurrentByStudentIDs(_ context.Context, ids []int64) (map[int64]*activeModel.Visit, error) {
-	visits := make(map[int64]*activeModel.Visit, len(ids))
-	for _, id := range ids {
-		if visit := r.current[id]; visit != nil {
-			visits[id] = visit
-		}
-	}
-	return visits, nil
 }
 
 func (r *absorbInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error) {

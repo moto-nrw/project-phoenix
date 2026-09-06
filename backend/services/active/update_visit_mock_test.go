@@ -9,14 +9,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type lockingAttendanceRepository struct {
-	activeModels.AttendanceRepository
+	StudentPresence
 	calls []string
-	row   *activeModels.Attendance
+	row   studentpresence.Attendance
 }
 
 func (r *lockingAttendanceRepository) LockStudentAttendance(context.Context, int64) error {
@@ -24,63 +25,230 @@ func (r *lockingAttendanceRepository) LockStudentAttendance(context.Context, int
 	return nil
 }
 
-func (r *lockingAttendanceRepository) FindByStudentAndDate(context.Context, int64, timezone.Date) ([]*activeModels.Attendance, error) {
+func (r *lockingAttendanceRepository) ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error) {
 	r.calls = append(r.calls, "find")
-	return []*activeModels.Attendance{r.row}, nil
+	return []studentpresence.Attendance{r.row}, nil
 }
 
-func (r *lockingAttendanceRepository) Update(context.Context, *activeModels.Attendance) error {
+func (r *lockingAttendanceRepository) ReviseAttendance(_ context.Context, row studentpresence.Attendance) (studentpresence.Attendance, error) {
 	r.calls = append(r.calls, "update")
-	return nil
+	return row, nil
 }
 
 type recordingAttendanceSyncer struct {
-	loaded   []*activeModels.Visit
-	mirrored []*activeModels.Visit
-	revised  [][2]*activeModels.Visit
-	mirrorAt []struct {
+	checkInErr  error
+	mirrorAtErr error
+	loaded      []*studentpresence.Visit
+	mirrored    []*studentpresence.Visit
+	revised     [][2]*studentpresence.Visit
+	mirrorAt    []struct {
 		studentID int64
 		at        time.Time
 	}
 }
 
-func (r *recordingAttendanceSyncer) MirrorCheckInForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
+func (r *recordingAttendanceSyncer) MirrorCheckInForVisit(_ context.Context, visit *studentpresence.Visit) (*AttendanceSnapshot, error) {
 	copy := *visit
 	r.mirrored = append(r.mirrored, &copy)
-	return &AttendanceSnapshot{Status: "present", InstanceID: 2}
+	if r.checkInErr != nil {
+		return nil, r.checkInErr
+	}
+	return &AttendanceSnapshot{Status: "present", InstanceID: 2}, nil
 }
 
-func (r *recordingAttendanceSyncer) MirrorCheckInAt(_ context.Context, studentID int64, at time.Time) *AttendanceSnapshot {
+func (r *recordingAttendanceSyncer) MirrorCheckInAt(_ context.Context, studentID int64, at time.Time) (*AttendanceSnapshot, error) {
 	r.mirrorAt = append(r.mirrorAt, struct {
 		studentID int64
 		at        time.Time
 	}{studentID: studentID, at: at})
+	return nil, r.mirrorAtErr
+}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutForVisit(_ context.Context, visit *studentpresence.Visit) (*AttendanceSnapshot, error) {
+	copy := *visit
+	r.loaded = append(r.loaded, &copy)
+	return &AttendanceSnapshot{Status: "present", InstanceID: 1}, nil
+}
+
+func (r *recordingAttendanceSyncer) MirrorVisitRevision(_ context.Context, previous, updated *studentpresence.Visit) error {
+	previousCopy := *previous
+	updatedCopy := *updated
+	r.revised = append(r.revised, [2]*studentpresence.Visit{&previousCopy, &updatedCopy})
 	return nil
 }
 
-func (r *recordingAttendanceSyncer) MirrorCheckOutForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
-	copy := *visit
-	r.loaded = append(r.loaded, &copy)
-	return &AttendanceSnapshot{Status: "present", InstanceID: 1}
+func (r *recordingAttendanceSyncer) MirrorCheckOutAt(context.Context, int64, time.Time) error {
+	return nil
 }
 
-func (r *recordingAttendanceSyncer) MirrorVisitRevision(_ context.Context, previous, updated *activeModels.Visit) {
-	previousCopy := *previous
-	updatedCopy := *updated
-	r.revised = append(r.revised, [2]*activeModels.Visit{&previousCopy, &updatedCopy})
+func (r *recordingAttendanceSyncer) MirrorCheckInAtBatch(context.Context, []int64, time.Time) error {
+	return nil
 }
 
-func (r *recordingAttendanceSyncer) MirrorCheckOutAt(context.Context, int64, time.Time) {}
+func (r *recordingAttendanceSyncer) MirrorCheckOutAtBatch(context.Context, []int64, time.Time) error {
+	return nil
+}
 
-func (r *recordingAttendanceSyncer) MirrorCheckInAtBatch(context.Context, []int64, time.Time) {}
-
-func (r *recordingAttendanceSyncer) MirrorCheckOutAtBatch(context.Context, []int64, time.Time) {}
-
-func (r *recordingAttendanceSyncer) MirrorCheckOutForVisits(_ context.Context, visits []*activeModels.Visit, _ time.Time) {
+func (r *recordingAttendanceSyncer) MirrorCheckOutForVisits(_ context.Context, visits []*studentpresence.Visit, _ time.Time) error {
 	for _, visit := range visits {
 		copy := *visit
 		r.loaded = append(r.loaded, &copy)
 	}
+	return nil
+}
+
+type failingTransferCheckoutSyncer struct {
+	recordingAttendanceSyncer
+	failAt int
+	err    error
+}
+
+func (r *failingTransferCheckoutSyncer) MirrorCheckOutForVisit(ctx context.Context, visit *studentpresence.Visit) (*AttendanceSnapshot, error) {
+	snapshot, err := r.recordingAttendanceSyncer.MirrorCheckOutForVisit(ctx, visit)
+	if len(r.loaded) == r.failAt {
+		return nil, r.err
+	}
+	return snapshot, err
+}
+
+func TestPresenceVisitValidation(t *testing.T) {
+	t.Parallel()
+
+	nowTime := time.Now()
+	futureTime := nowTime.Add(2 * time.Hour)
+	pastTime := nowTime.Add(-2 * time.Hour)
+
+	tests := []struct {
+		name    string
+		visit   *studentpresence.Visit
+		wantErr bool
+	}{
+		{
+			name: "Valid visit",
+			visit: &studentpresence.Visit{
+				StudentID:     1,
+				ActiveGroupID: 1,
+				EntryTime:     nowTime,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Valid visit with exit time",
+			visit: &studentpresence.Visit{
+				StudentID:     1,
+				ActiveGroupID: 1,
+				EntryTime:     nowTime,
+				ExitTime:      &futureTime,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Missing student ID",
+			visit: &studentpresence.Visit{
+				ActiveGroupID: 1,
+				EntryTime:     nowTime,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing active group ID",
+			visit: &studentpresence.Visit{
+				StudentID: 1,
+				EntryTime: nowTime,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing entry time",
+			visit: &studentpresence.Visit{
+				StudentID:     1,
+				ActiveGroupID: 1,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Exit time before entry time",
+			visit: &studentpresence.Visit{
+				StudentID:     1,
+				ActiveGroupID: 1,
+				EntryTime:     nowTime,
+				ExitTime:      &pastTime,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid student ID",
+			visit: &studentpresence.Visit{
+				StudentID:     -1,
+				ActiveGroupID: 1,
+				EntryTime:     nowTime,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid active group ID",
+			visit: &studentpresence.Visit{
+				StudentID:     1,
+				ActiveGroupID: 0,
+				EntryTime:     nowTime,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, !tt.wantErr, validPresenceVisit(tt.visit))
+			if tt.wantErr {
+				svc := &service{}
+				require.ErrorIs(t, svc.createVisit(context.Background(), tt.visit), ErrInvalidData)
+				require.ErrorIs(t, svc.updateVisit(context.Background(), tt.visit), ErrInvalidData)
+			}
+		})
+	}
+}
+
+func TestVisitTransferPropagatesSourceAndTargetCheckoutSyncFailures(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []struct {
+		name   string
+		failAt int
+	}{{"source", 1}, {"target", 2}} {
+		t.Run(stage.name, func(t *testing.T) {
+			injected := errors.New("transfer checkout sync failed")
+			syncer := &failingTransferCheckoutSyncer{failAt: stage.failAt, err: injected}
+			svc := &service{ServiceDependencies: ServiceDependencies{AttendanceSyncer: syncer}}
+			at := time.Now()
+			previous := &studentpresence.Visit{StudentID: 1, ActiveGroupID: 2, EntryTime: at.Add(-time.Hour)}
+			updated := &studentpresence.Visit{StudentID: 1, ActiveGroupID: 3, EntryTime: previous.EntryTime, ExitTime: &at}
+
+			source, target, err := svc.syncMovedVisitAttendance(context.Background(), previous, updated, at)
+
+			require.ErrorIs(t, err, injected)
+			assert.Nil(t, source)
+			assert.Nil(t, target)
+			assert.Len(t, syncer.loaded, stage.failAt)
+			assert.Len(t, syncer.mirrored, stage.failAt-1, "source failure must stop before target check-in")
+		})
+	}
+}
+
+func TestVisitTransferPropagatesTargetCheckInFailure(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("target check-in sync failed")
+	syncer := &recordingAttendanceSyncer{checkInErr: injected}
+	svc := &service{ServiceDependencies: ServiceDependencies{AttendanceSyncer: syncer}}
+	at := time.Now()
+	previous := &studentpresence.Visit{StudentID: 1, ActiveGroupID: 2, EntryTime: at.Add(-time.Hour)}
+	updated := &studentpresence.Visit{StudentID: 1, ActiveGroupID: 3, EntryTime: previous.EntryTime, ExitTime: &at}
+
+	source, target, err := svc.syncMovedVisitAttendance(context.Background(), previous, updated, at)
+
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, source)
+	assert.Nil(t, target)
+	assert.Len(t, syncer.loaded, 1, "failed target check-in must stop before target checkout")
+	assert.Len(t, syncer.mirrored, 1)
 }
 
 func TestGetVisitLookupErrorClassification(t *testing.T) {
@@ -89,8 +257,8 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return nil, base.ErrNotFound
 			},
 		}}}
@@ -103,8 +271,8 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 	})
 
 	t.Run("returns visit not found when lookup returns nil without error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return nil, nil
 			},
 		}}}
@@ -118,8 +286,8 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 
 	t.Run("preserves database lookup failures", func(t *testing.T) {
 		lookupErr := errors.New("visit query failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return nil, lookupErr
 			},
 		}}}
@@ -138,22 +306,22 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	ctx := context.Background()
 	entryTime := time.Now()
-	existingVisit := &activeModels.Visit{
-		Model:         base.Model{ID: 100},
+	existingVisit := &studentpresence.Visit{
+		ID:            100,
 		StudentID:     200,
 		ActiveGroupID: 300,
 		EntryTime:     entryTime,
 	}
-	updatedVisit := &activeModels.Visit{
-		Model:         base.Model{ID: existingVisit.ID},
+	updatedVisit := &studentpresence.Visit{
+		ID:            existingVisit.ID,
 		StudentID:     existingVisit.StudentID,
 		ActiveGroupID: 400,
 		EntryTime:     entryTime,
 	}
 
 	t.Run("returns visit not found when preload misses", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return nil, base.ErrNotFound
 			},
 		}},
@@ -166,8 +334,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns visit not found when preload returns nil without error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return nil, nil
 			},
 		}},
@@ -180,8 +348,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns active group not found when target lookup misses", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
@@ -199,8 +367,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	t.Run("preserves database errors from target lookup", func(t *testing.T) {
 		lookupErr := errors.New("target lookup failed")
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
@@ -217,8 +385,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns active group not found when target lookup returns nil without error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
@@ -236,8 +404,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	t.Run("returns active group not found when target group is inactive", func(t *testing.T) {
 		endTime := entryTime.Add(time.Hour)
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
@@ -258,17 +426,17 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	t.Run("updates without target lookup when active group does not change", func(t *testing.T) {
 		updateCalled := false
-		sameGroupVisit := &activeModels.Visit{
-			Model:         base.Model{ID: existingVisit.ID},
+		sameGroupVisit := &studentpresence.Visit{
+			ID:            existingVisit.ID,
 			StudentID:     existingVisit.StudentID,
 			ActiveGroupID: existingVisit.ActiveGroupID,
 			EntryTime:     entryTime,
 		}
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
-			updateFunc: func(context.Context, *activeModels.Visit) error {
+			updateFunc: func(context.Context, *studentpresence.Visit) error {
 				updateCalled = true
 				return nil
 			},
@@ -292,19 +460,21 @@ func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
 
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-time.Hour)
 	exitTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	existing := &activeModels.Visit{
-		Model: base.Model{ID: 101}, StudentID: 201, ActiveGroupID: 301, EntryTime: entryTime,
+	existing := &studentpresence.Visit{
+		ID: 101, StudentID: 201, ActiveGroupID: 301, EntryTime: entryTime,
 	}
 	updated := *existing
 	updated.ExitTime = &exitTime
-	attendance := &lockingAttendanceRepository{row: &activeModels.Attendance{
-		StudentID: existing.StudentID, Date: timezone.DateFromTime(entryTime), CheckInTime: entryTime,
+	attendance := &lockingAttendanceRepository{row: studentpresence.Attendance{
+		StudentID: existing.StudentID, Date: timezone.DateFromTime(entryTime).String(), CheckInTime: entryTime,
 	}}
-	svc := &service{ServiceDependencies: ServiceDependencies{
-		VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existing, nil },
+	attendance.StudentPresence = &mockVisitRepository{
+		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
+			return existing, nil
 		},
-		AttendanceRepo: attendance,
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		SchoolPresence: attendance,
 	}}
 
 	err := svc.UpdateVisit(context.Background(), &updated)
@@ -318,25 +488,25 @@ func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing
 
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
-	existingVisit := &activeModels.Visit{
-		Model:         base.Model{ID: 100},
+	existingVisit := &studentpresence.Visit{
+		ID:            100,
 		StudentID:     200,
 		ActiveGroupID: 300,
 		EntryTime:     entryTime,
 	}
-	updatedVisit := &activeModels.Visit{
-		Model:         base.Model{ID: existingVisit.ID},
+	updatedVisit := &studentpresence.Visit{
+		ID:            existingVisit.ID,
 		StudentID:     existingVisit.StudentID,
 		ActiveGroupID: 400,
 		EntryTime:     entryTime,
 	}
 	syncer := &recordingAttendanceSyncer{}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
-			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+			updateFunc: func(context.Context, *studentpresence.Visit) error { return nil },
 		},
 		GroupRepo: &mockGroupRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
@@ -362,14 +532,14 @@ func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	exitTime := time.Now()
-	existingVisit := &activeModels.Visit{
-		Model:         base.Model{ID: 100},
+	existingVisit := &studentpresence.Visit{
+		ID:            100,
 		StudentID:     200,
 		ActiveGroupID: 300,
 		EntryTime:     entryTime,
 	}
-	updatedVisit := &activeModels.Visit{
-		Model:         base.Model{ID: existingVisit.ID},
+	updatedVisit := &studentpresence.Visit{
+		ID:            existingVisit.ID,
 		StudentID:     existingVisit.StudentID,
 		ActiveGroupID: existingVisit.ActiveGroupID,
 		EntryTime:     entryTime,
@@ -377,11 +547,11 @@ func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
 	}
 	syncer := &recordingAttendanceSyncer{}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
-			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+			updateFunc: func(context.Context, *studentpresence.Visit) error { return nil },
 		},
 		AttendanceSyncer: syncer,
 	}}
@@ -400,25 +570,25 @@ func TestUpdateVisitOpenEntryTimeEditReconcilesSlot(t *testing.T) {
 
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
-	existingVisit := &activeModels.Visit{
-		Model:         base.Model{ID: 100},
+	existingVisit := &studentpresence.Visit{
+		ID:            100,
 		StudentID:     200,
 		ActiveGroupID: 300,
 		EntryTime:     entryTime,
 	}
-	updatedVisit := &activeModels.Visit{
-		Model:         base.Model{ID: existingVisit.ID},
+	updatedVisit := &studentpresence.Visit{
+		ID:            existingVisit.ID,
 		StudentID:     existingVisit.StudentID,
 		ActiveGroupID: existingVisit.ActiveGroupID,
 		EntryTime:     entryTime.Add(-time.Minute),
 	}
 	syncer := &recordingAttendanceSyncer{}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		VisitRepo: &mockVisitRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		SchoolPresence: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 				return existingVisit, nil
 			},
-			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+			updateFunc: func(context.Context, *studentpresence.Visit) error { return nil },
 		},
 		AttendanceSyncer: syncer,
 	}}
@@ -445,19 +615,21 @@ func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			existingVisit := &activeModels.Visit{
-				Model: base.Model{ID: 100}, StudentID: 200, ActiveGroupID: 300,
+			existingVisit := &studentpresence.Visit{
+				ID: 100, StudentID: 200, ActiveGroupID: 300,
 				EntryTime: entryTime, ExitTime: &exitTime,
 			}
-			updatedVisit := &activeModels.Visit{
-				Model: base.Model{ID: existingVisit.ID}, StudentID: existingVisit.StudentID,
+			updatedVisit := &studentpresence.Visit{
+				ID: existingVisit.ID, StudentID: existingVisit.StudentID,
 				ActiveGroupID: existingVisit.ActiveGroupID, EntryTime: entryTime, ExitTime: tt.updatedOut,
 			}
 			syncer := &recordingAttendanceSyncer{}
 			svc := &service{ServiceDependencies: ServiceDependencies{
-				VisitRepo: &mockVisitRepository{
-					findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existingVisit, nil },
-					updateFunc:   func(context.Context, *activeModels.Visit) error { return nil },
+				SchoolPresence: &mockVisitRepository{
+					findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
+						return existingVisit, nil
+					},
+					updateFunc: func(context.Context, *studentpresence.Visit) error { return nil },
 				},
 				GroupRepo:        &mockGroupRepository{},
 				AttendanceSyncer: syncer,

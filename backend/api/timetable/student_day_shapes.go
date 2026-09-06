@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -107,7 +107,7 @@ func mapEnrolledInstance(row *scheduleModel.ScheduledInstanceRow) InstanceDayRes
 // instance_students row. Status is synthesized as "present" (the visit
 // proves they were there), substatus/note stay nil, checked_in_at comes
 // from the visit's entry_time.
-func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit *activeModel.Visit) InstanceDayResponse {
+func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit studentpresence.Visit) InstanceDayResponse {
 	checkedIn := formatOptionalRFC3339(&visit.EntryTime)
 	return InstanceDayResponse{
 		ID:            inst.ID,

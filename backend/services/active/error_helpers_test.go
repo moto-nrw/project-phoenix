@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,7 +93,8 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 
 		ctx := testpkg.Ctx(t)
-		repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+		presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+		require.NoError(t, err)
 
 		// Hermetic fixtures.
 		student := testpkg.CreateTestStudent(t, db, "DupViol", "Student", "1a")
@@ -106,12 +107,12 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 
 		// Second insert: same (tenant_id, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.
-		duplicate := &activeModels.Visit{
+		duplicate := studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
-		err := repo.Create(ctx, duplicate)
+		duplicate, err = presence.RecordVisit(ctx, duplicate)
 
 		require.Error(t, err, "partial unique index from migration 1.15.47 must reject the second open visit")
 		assert.Equal(t, int64(0), duplicate.ID, "rejected insert must not assign an ID")

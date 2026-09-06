@@ -159,17 +159,6 @@ func (rs *Resource) filterActiveSupervisors(supervisors []*active.GroupSuperviso
 	return active
 }
 
-// countActiveStudents counts visits without an exit time (active students in session)
-func countActiveStudents(visits []*active.Visit) int {
-	count := 0
-	for _, visit := range visits {
-		if visit.ExitTime == nil {
-			count++
-		}
-	}
-	return count
-}
-
 func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *active.Group, supervisorIDs []int64) {
 	if activeGroup == nil || rs.TimetableData == nil {
 		return

@@ -131,7 +131,7 @@ type fakeAttendance struct {
 	err error
 }
 
-func (f fakeAttendance) ListOpenStudentIDsForDate(_ context.Context, _ string) ([]int64, error) {
+func (f fakeAttendance) ListOpenAttendanceStudentIDs(_ context.Context, _ string) ([]int64, error) {
 	return f.ids, f.err
 }
 

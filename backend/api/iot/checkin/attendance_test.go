@@ -20,8 +20,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -651,13 +652,11 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 		assert.Contains(t, data["message"], "Tschüss")
 	}
 
-	var records []*activeModel.Attendance
-	err = ctx.db.NewSelect().
-		Model(&records).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id = ?`, student.ID).
-		Where(`"attendance".date = ?`, timezone.TodayDate()).
-		Scan(context.Background())
+	presence := attendancePresence(t, ctx.db)
+	today := timezone.TodayDate().String()
+	records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+		StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
+	})
 	require.NoError(t, err)
 	require.Len(t, records, 1, "daily checkout must close the existing row instead of inserting a new one")
 	require.NotNil(t, records[0].CheckOutTime)
@@ -700,13 +699,11 @@ func TestToggleAttendance_DailyCheckoutZuhauseUsesAuthenticatedDeviceWithoutSupe
 	require.True(t, ok)
 	assert.Equal(t, "checked_out_daily", data["action"])
 
-	var records []*activeModel.Attendance
-	err := ctx.db.NewSelect().
-		Model(&records).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id = ?`, student.ID).
-		Where(`"attendance".date = ?`, timezone.TodayDate()).
-		Scan(context.Background())
+	presence := attendancePresence(t, ctx.db)
+	today := timezone.TodayDate().String()
+	records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+		StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
+	})
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.NotNil(t, records[0].CheckOutTime, "device-attributed daily checkout must close attendance")
@@ -997,26 +994,20 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	// ASSERT: success, attendance closed AND visit ended
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	var records []*activeModel.Attendance
-	err = ctx.db.NewSelect().
-		Model(&records).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id = ?`, student.ID).
-		Where(`"attendance".date = ?`, timezone.TodayDate()).
-		Scan(context.Background())
+	presence := attendancePresence(t, ctx.db)
+	today := timezone.TodayDate().String()
+	records, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+		StudentIDs: []int64{student.ID}, FromDate: today, UntilDate: today,
+	})
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.NotNil(t, records[0].CheckOutTime, "daily checkout must close the attendance row")
 	require.NotNil(t, records[0].CheckedOutBy, "daily checkout must write the device supervisor as checkout principal")
 	assert.Equal(t, staff.ID, *records[0].CheckedOutBy)
 
-	endedVisit := new(activeModel.Visit)
-	err = ctx.db.NewSelect().
-		Model(endedVisit).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".id = ?`, visit.ID).
-		Scan(context.Background())
+	endedVisit, err := attendancePresence(t, ctx.db).FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
+	require.NotNil(t, endedVisit)
 	require.NotNil(t, endedVisit.ExitTime, "daily checkout must end the open room visit (issue #895)")
 }
 
@@ -1080,13 +1071,9 @@ func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
 		assert.Equal(t, "checked_out", data["action"])
 	}
 
-	endedVisit := new(activeModel.Visit)
-	err = ctx.db.NewSelect().
-		Model(endedVisit).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".id = ?`, visit.ID).
-		Scan(context.Background())
+	endedVisit, err := attendancePresence(t, ctx.db).FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
+	require.NotNil(t, endedVisit)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open room visit (issue #895)")
 }
 
@@ -1125,4 +1112,11 @@ func TestToggleAttendance_AlumnusRejected(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertNotFound(t, rr)
+}
+
+func attendancePresence(t *testing.T, db *bun.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

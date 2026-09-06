@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -74,7 +76,7 @@ func (s *capacityRejectedActiveService) CountActiveVisitsByRoomID(_ context.Cont
 	return s.roomOccupancy, nil
 }
 
-func (s *capacityRejectedActiveService) CreateVisit(_ context.Context, _ *active.Visit) error {
+func (s *capacityRejectedActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
 	return &activeService.RoomCapacityError{RoomID: 42, RoomName: constants.WCRoomName, CurrentOccupancy: 1, MaxCapacity: 1}
 }
 

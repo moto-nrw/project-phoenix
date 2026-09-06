@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -20,10 +21,23 @@ type ConsentRetentionResolver interface {
 	ResolveDataRetentionDays(ctx context.Context, consent *userModels.PrivacyConsent) int
 }
 
+type AttendanceCleanup interface {
+	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
+	CloseStaleAttendance(context.Context, int64, time.Time, time.Time) (int64, error)
+}
+
+type PresenceRetention interface {
+	AttendanceCleanup
+	ListVisitRetentionCounts(context.Context) ([]studentpresence.VisitRetentionCount, error)
+	CountExpiredVisits(context.Context) (int64, error)
+	OldestExpiredVisitDate(context.Context) (*time.Time, error)
+	ListExpiredVisitMonths(context.Context) ([]studentpresence.VisitMonthCount, error)
+	DeleteCompletedVisitsBefore(context.Context, int64, time.Time) (int64, error)
+}
+
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
-	visitRepo          active.VisitRepository
-	attendanceRepo     active.AttendanceRepository
+	presence           PresenceRetention
 	supervisorRepo     active.GroupSupervisorRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
@@ -42,8 +56,7 @@ func (s *cleanupService) todayDate() timezone.Date {
 
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
-	visitRepo active.VisitRepository,
-	attendanceRepo active.AttendanceRepository,
+	presence PresenceRetention,
 	supervisorRepo active.GroupSupervisorRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	dataDeletionRepo audit.DataDeletionRepository,
@@ -52,8 +65,7 @@ func NewCleanupService(
 	today ...func() timezone.Date,
 ) CleanupService {
 	service := &cleanupService{
-		visitRepo:          visitRepo,
-		attendanceRepo:     attendanceRepo,
+		presence:           presence,
 		supervisorRepo:     supervisorRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
@@ -114,26 +126,34 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 	}
 
 	// Get total expired visits count
-	count, err := s.visitRepo.CountExpiredVisits(ctx)
+	count, err := s.presence.CountExpiredVisits(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count expired visits: %w", err)
 	}
 	stats.TotalExpiredVisits = count
 
 	// Get per-student statistics
-	studentStats, err := s.visitRepo.GetVisitRetentionStats(ctx)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
 	stats.StudentsAffected = len(studentStats)
 
 	// Get oldest expired visit
-	if oldest, err := s.visitRepo.OldestExpiredVisitDate(ctx); err == nil && oldest != nil {
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
+	}
+	if oldest != nil {
 		stats.OldestExpiredVisit = oldest
 
 		// Get monthly breakdown
-		if monthly, err := s.visitRepo.ExpiredVisitMonthlyCounts(ctx); err == nil {
-			stats.ExpiredVisitsByMonth = monthly
+		monthly, err := s.presence.ListExpiredVisitMonths(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get monthly expired visits: %w", err)
+		}
+		for _, row := range monthly {
+			stats.ExpiredVisitsByMonth[row.Month] = row.Count
 		}
 	}
 
@@ -147,24 +167,28 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	}
 
 	// Get per-student statistics
-	studentStats, err := s.visitRepo.GetVisitRetentionStats(ctx)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
 
-	preview.StudentVisitCounts = studentStats
+	for _, row := range studentStats {
+		preview.StudentVisitCounts[row.StudentID] = row.Count
+	}
 
 	// Calculate total
 	var total int64
 	for _, count := range studentStats {
-		total += int64(count)
+		total += int64(count.Count)
 	}
 	preview.TotalVisits = total
 
 	// Get oldest visit that would be deleted
-	if oldest, err := s.visitRepo.OldestExpiredVisitDate(ctx); err == nil && oldest != nil {
-		preview.OldestVisit = oldest
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
 	}
+	preview.OldestVisit = oldest
 
 	return preview, nil
 }
@@ -209,7 +233,7 @@ func (s *cleanupService) processStudent(ctx context.Context, student userModels.
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
 		// Delete expired visits
-		count, err := s.visitRepo.DeleteExpiredVisits(ctx, student.StudentID, student.DataRetentionDays)
+		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, time.Now().AddDate(0, 0, -student.DataRetentionDays))
 		if err != nil {
 			return err
 		}
@@ -250,7 +274,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	today := s.todayDate()
 
 	// Find all attendance records from before today that don't have check-out times
-	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
+	staleRecords, err := s.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{BeforeDate: today.String(), OpenOnly: true})
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -271,7 +295,13 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		// Calculate appropriate check-out time:
 		// - Normally use 23:59:59 of the record's date
 		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
-		endOfDay := record.Date.EndOfDay()
+		date, err := timezone.ParseDate(record.Date)
+		if err != nil {
+			result.Success = false
+			result.CompletedAt = time.Now()
+			return result, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
+		}
+		endOfDay := date.EndOfDay()
 		checkOutTime := endOfDay
 		if record.CheckInTime.After(endOfDay) {
 			// check_in_time is after end of day - this is a data integrity issue
@@ -280,21 +310,23 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		}
 
 		// Update the record
-		record.CheckOutTime = &checkOutTime
-		record.UpdatedAt = time.Now()
-		if _, err := s.attendanceRepo.UpdateColumns(ctx, record, "check_out_time", "updated_at"); err != nil {
+		closed, err := s.presence.CloseStaleAttendance(ctx, record.ID, checkOutTime, time.Now())
+		if err != nil {
 			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
 			continue
 		}
 
+		if closed == 0 {
+			continue
+		}
 		result.RecordsClosed++
 		studentsAffected[record.StudentID] = true
 
 		// Track oldest record
-		if oldestRecord == nil || record.Date.Before(*oldestRecord) {
-			oldestRecord = &record.Date
+		if oldestRecord == nil || date.Before(*oldestRecord) {
+			oldestRecord = &date
 		}
 	}
 
@@ -315,7 +347,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	today := s.todayDate()
 
 	// Find all stale attendance records
-	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
+	staleRecords, err := s.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{BeforeDate: today.String(), OpenOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to preview stale attendance records: %w", err)
 	}
@@ -328,12 +360,15 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		preview.StudentRecords[record.StudentID]++
 
 		// Track per-date counts
-		dateStr := record.Date.String()
-		preview.RecordsByDate[dateStr]++
+		date, err := timezone.ParseDate(record.Date)
+		if err != nil {
+			return nil, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
+		}
+		preview.RecordsByDate[record.Date]++
 
 		// Track oldest record
-		if preview.OldestRecord == nil || record.Date.Before(*preview.OldestRecord) {
-			preview.OldestRecord = &record.Date
+		if preview.OldestRecord == nil || date.Before(*preview.OldestRecord) {
+			preview.OldestRecord = &date
 		}
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -42,7 +43,7 @@ type UserContextRepositories struct {
 	EducationGroupRepo education.GroupRepository
 	ActivityGroupRepo  activities.GroupRepository
 	ActiveGroupRepo    active.GroupRepository
-	VisitsRepo         active.VisitRepository
+	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
 	ProfileRepo        users.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
@@ -65,7 +66,7 @@ type userContextService struct {
 	educationGroupRepo education.GroupRepository
 	activityGroupRepo  activities.GroupRepository
 	activeGroupRepo    active.GroupRepository
-	visitsRepo         active.VisitRepository
+	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
@@ -91,7 +92,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		educationGroupRepo: repos.EducationGroupRepo,
 		activityGroupRepo:  repos.ActivityGroupRepo,
 		activeGroupRepo:    repos.ActiveGroupRepo,
-		visitsRepo:         repos.VisitsRepo,
+		presence:           repos.Presence,
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
@@ -708,7 +709,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	}
 
 	// Get all visits for this group
-	visits, err := s.visitsRepo.FindByActiveGroupID(ctx, groupID)
+	visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
 	}
@@ -741,7 +742,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 }
 
 // GetGroupVisits retrieves active visits for a specific group where the current user has access
-func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
+func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error) {
 	// Check access to the group
 	_, err := s.checkGroupAccess(ctx, groupID)
 	if err != nil {
@@ -749,13 +750,13 @@ func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) 
 	}
 
 	// Get active visits for this group
-	visits, err := s.visitsRepo.FindByActiveGroupID(ctx, groupID)
+	visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, &UserContextError{Op: "get group visits", Err: err}
 	}
 
 	// Filter to only include active visits (no end time)
-	var activeVisits []*active.Visit
+	var activeVisits []studentpresence.Visit
 	for _, visit := range visits {
 		if visit.ExitTime == nil {
 			activeVisits = append(activeVisits, visit)

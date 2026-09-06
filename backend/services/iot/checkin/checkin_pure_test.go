@@ -32,7 +32,7 @@ func (s *stubActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*faci
 	return nil, nil
 }
 
-func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeSvc.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -59,7 +59,7 @@ func (s *stubActiveService) CountActiveVisitsByActiveGroupID(ctx context.Context
 func TestShouldSkipCheckin_NilRoomID(t *testing.T) {
 	t.Parallel()
 
-	result := checkin.ShouldSkipCheckin(nil, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
+	result := checkin.ShouldSkipCheckin(nil, true, &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
@@ -67,7 +67,7 @@ func TestShouldSkipCheckin_NotCheckedOut(t *testing.T) {
 	t.Parallel()
 
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, false, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
+	result := checkin.ShouldSkipCheckin(&roomID, false, &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
@@ -83,7 +83,7 @@ func TestShouldSkipCheckin_NilActiveGroup(t *testing.T) {
 	t.Parallel()
 
 	roomID := int64(1)
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{}, time.Now())
+	result := checkin.ShouldSkipCheckin(&roomID, true, &activeSvc.VisitWithRoom{}, time.Now())
 	assert.False(t, result)
 }
 
@@ -92,7 +92,7 @@ func TestShouldSkipCheckin_SameRoom(t *testing.T) {
 
 	roomID := int64(1)
 	now := time.Now()
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
+	result := checkin.ShouldSkipCheckin(&roomID, true, &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1, StartTime: now}}, now)
 	assert.True(t, result)
 }
 
@@ -101,7 +101,7 @@ func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
 
 	roomID := int64(2)
 	now := time.Now()
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
+	result := checkin.ShouldSkipCheckin(&roomID, true, &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1, StartTime: now}}, now)
 	assert.False(t, result)
 }
 
@@ -110,8 +110,8 @@ func TestShouldSkipCheckin_PreviousDaySameRoom(t *testing.T) {
 
 	roomID := int64(1)
 	now := time.Now()
-	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{
-		ActiveGroup: &active.Group{RoomID: roomID, StartTime: now.AddDate(0, 0, -1)},
+	result := checkin.ShouldSkipCheckin(&roomID, true, &activeSvc.VisitWithRoom{
+		ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: roomID, StartTime: now.AddDate(0, 0, -1)},
 	}, now)
 	assert.False(t, result)
 }
@@ -265,9 +265,9 @@ func TestRoomNameForResponse_WithActiveGroupRoom(t *testing.T) {
 	t.Parallel()
 
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
-	currentVisit := &active.Visit{
-		ActiveGroup: &active.Group{
-			Room: &facilityModels.Room{Name: "Library"},
+	currentVisit := &activeSvc.VisitWithRoom{
+		ActiveGroup: &activeSvc.VisitRoomGroup{
+			Room: &activeSvc.VisitRoom{Name: "Library"},
 		},
 	}
 
@@ -327,9 +327,9 @@ func TestProcessStudentCheckin_SkippedCheckin_GetsRoomName(t *testing.T) {
 		RoomID:      &roomID,
 		SkipCheckin: true,
 		CheckedOut:  true,
-		CurrentVisit: &active.Visit{
-			ActiveGroup: &active.Group{
-				Room: &facilityModels.Room{Name: "SkipCheckinRoom"},
+		CurrentVisit: &activeSvc.VisitWithRoom{
+			ActiveGroup: &activeSvc.VisitRoomGroup{
+				Room: &activeSvc.VisitRoom{Name: "SkipCheckinRoom"},
 			},
 		},
 	}

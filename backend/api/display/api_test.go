@@ -21,9 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -68,6 +68,8 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	rooms, err := repositories.NewFacilities(db)
 	require.NoError(t, err)
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	svc := displayService.NewService(displayService.Dependencies{
@@ -75,10 +77,9 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 		SchoolRepo:        repos.School,
 		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
-		VisitRepo:         repos.ActiveVisit,
+		Presence:          presence,
 		ActivityGroupRepo: repos.ActivityGroup,
 		InstanceRepo:      repos.ActivityInstance,
-		AttendanceRepo:    repos.Attendance,
 		PickupSchedule: schedule.NewPickupScheduleServiceWithBulk(
 			repos.StudentPickupSchedule,
 			repos.StudentPickupException,
@@ -459,20 +460,7 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 func createAttendanceForTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID, deviceID int64, now time.Time, checkOut *time.Time) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	attendance := &activeModels.Attendance{
-		StudentID:    studentID,
-		Date:         timezone.DateFromTime(now),
-		CheckInTime:  now.Add(-4 * time.Hour),
-		CheckOutTime: checkOut,
-		CheckedInBy:  staffID,
-		DeviceID:     deviceID,
-	}
-	attendance.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(attendance).ModelTableExpr("active.attendance").Exec(ctx)
-	require.NoError(t, err, "failed to create attendance")
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, staffID, deviceID, timezone.DateFromTime(now), now.Add(-4*time.Hour), checkOut)
 }
 
 func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64, weekday int, staffID int64, pickupHHMM string) {

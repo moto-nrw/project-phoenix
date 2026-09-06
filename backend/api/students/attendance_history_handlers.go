@@ -19,6 +19,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -101,7 +103,7 @@ type attendanceStatusEntry struct {
 }
 
 type attendanceHistorySources struct {
-	Attendance []*active.Attendance
+	Attendance []*studentpresence.Attendance
 	Statuses   []*active.StudentStatusDay
 	Slots      []*scheduleModel.ScheduledInstanceRow
 	// SlotExpectation reports whether assignment hints apply to the loaded
@@ -232,8 +234,8 @@ func (rs *Resource) loadAttendanceHistorySources(
 // failed, in which case the caller falls back to attendance-only days.
 func (rs *Resource) loadRoomVisitsByDate(
 	ctx context.Context, studentID int64, start, end, endOfToday, roomCutoff time.Time, roomCap int, logger *slog.Logger,
-) (map[string][]*active.Visit, bool) {
-	visitsByDate := map[string][]*active.Visit{}
+) (map[string][]*activeService.VisitHistoryEntry, bool) {
+	visitsByDate := map[string][]*activeService.VisitHistoryEntry{}
 	if roomCap <= 0 || start.After(endOfToday) {
 		return visitsByDate, false
 	}
@@ -355,7 +357,7 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 // Days older than roomCutoff have RoomDetailAvailable=false.
 // If visitQueryFailed is true, all days are marked as RoomDetailAvailable=false
 // because the visit data could not be loaded.
-func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.StudentStatusDay, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
+func buildAttendanceHistoryDays(rows []*studentpresence.Attendance, statusRows []*active.StudentStatusDay, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
 	dayMap, dayOrder := groupAttendanceRowsByDate(rows)
 	dayOrder = appendStatusDays(dayMap, dayOrder, statusRows)
 
@@ -369,12 +371,12 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 // groupAttendanceRowsByDate groups attendance rows by calendar date, preserving
 // first-seen order in dayOrder. Multiple rows on the same day are consolidated
 // into one attendance record (see mergeAttendanceRow).
-func groupAttendanceRowsByDate(rows []*active.Attendance) (map[string]*attendanceHistoryDay, []string) {
+func groupAttendanceRowsByDate(rows []*studentpresence.Attendance) (map[string]*attendanceHistoryDay, []string) {
 	dayOrder := make([]string, 0, len(rows))
 	dayMap := make(map[string]*attendanceHistoryDay, len(rows))
 
 	for _, row := range rows {
-		dateKey := row.Date.String()
+		dateKey := row.Date
 		existing, seen := dayMap[dateKey]
 		if !seen {
 			dayMap[dateKey] = newAttendanceHistoryDay(dateKey, row)
@@ -386,7 +388,7 @@ func groupAttendanceRowsByDate(rows []*active.Attendance) (map[string]*attendanc
 	return dayMap, dayOrder
 }
 
-func newAttendanceHistoryDay(dateKey string, row *active.Attendance) *attendanceHistoryDay {
+func newAttendanceHistoryDay(dateKey string, row *studentpresence.Attendance) *attendanceHistoryDay {
 	day := newEmptyAttendanceHistoryDay(dateKey)
 	day.Attendance = &attendanceDayRecord{
 		CheckInTime:  row.CheckInTime,
@@ -411,7 +413,7 @@ func newEmptyAttendanceHistoryDay(dateKey string) *attendanceHistoryDay {
 // mergeAttendanceRow folds an additional same-day attendance row into an
 // existing record: earliest check-in wins, latest check-out wins, and a nil
 // check-out (still checked in) takes precedence over any completed one.
-func mergeAttendanceRow(rec *attendanceDayRecord, row *active.Attendance) {
+func mergeAttendanceRow(rec *attendanceDayRecord, row *studentpresence.Attendance) {
 	rec.Sessions = append(rec.Sessions, newAttendanceSession(row))
 	if row.CheckInTime.Before(rec.CheckInTime) {
 		rec.CheckInTime = row.CheckInTime
@@ -455,7 +457,7 @@ func appendStatusDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string
 
 // assembleAttendanceHistoryDays materializes the ordered days, computing each
 // day's duration and attaching room-detail visits within the retention cutoff.
-func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
+func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, visitsByDate map[string][]*activeService.VisitHistoryEntry, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
 	days := make([]attendanceHistoryDay, 0, len(dayOrder))
 	for _, dateKey := range dayOrder {
 		day := dayMap[dateKey]
@@ -476,20 +478,14 @@ func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayO
 }
 
 // attendanceVisitEntries maps visit rows to their response shape.
-func attendanceVisitEntries(visits []*active.Visit) []attendanceVisitEntry {
+func attendanceVisitEntries(visits []*activeService.VisitHistoryEntry) []attendanceVisitEntry {
 	entries := make([]attendanceVisitEntry, 0, len(visits))
 	for _, v := range visits {
 		entry := attendanceVisitEntry{
 			EntryTime: v.EntryTime,
 			ExitTime:  v.ExitTime,
 		}
-		if v.ActiveGroup != nil {
-			roomID := v.ActiveGroup.RoomID
-			entry.RoomID = &roomID
-			if v.ActiveGroup.Room != nil {
-				entry.RoomName = v.ActiveGroup.Room.Name
-			}
-		}
+		entry.RoomID, entry.RoomName = v.RoomID, v.RoomName
 		if v.ExitTime != nil {
 			mins := int(v.ExitTime.Sub(v.EntryTime).Minutes())
 			entry.DurationMinutes = &mins
@@ -499,7 +495,7 @@ func attendanceVisitEntries(visits []*active.Visit) []attendanceVisitEntry {
 	return entries
 }
 
-func newAttendanceSession(row *active.Attendance) attendanceSessionRecord {
+func newAttendanceSession(row *studentpresence.Attendance) attendanceSessionRecord {
 	return attendanceSessionRecord{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}
 }
 
@@ -523,7 +519,7 @@ func calculateAttendanceDuration(attendance *attendanceDayRecord) {
 func attachSlotAttendance(
 	days []attendanceHistoryDay,
 	rows []*scheduleModel.ScheduledInstanceRow,
-	visitsByDate map[string][]*active.Visit,
+	visitsByDate map[string][]*activeService.VisitHistoryEntry,
 	roomCutoff time.Time,
 	visitQueryFailed bool,
 ) []attendanceHistoryDay {

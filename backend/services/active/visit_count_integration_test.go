@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns zero for empty room", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "CountEmptyRoom")
@@ -99,7 +98,7 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns zero for empty group", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "count-empty-group")
@@ -208,7 +207,7 @@ func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns current visit", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "current-visit-ref")

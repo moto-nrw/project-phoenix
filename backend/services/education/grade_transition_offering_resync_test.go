@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -73,8 +72,7 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
-		VisitRepo:        activeRepo.NewVisitRepository(db),
-		AttendanceRepo:   activeRepo.NewAttendanceRepository(db),
+		Presence:         graduationPresence(t, db),
 		RosterReconciler: &orderRecordingReconciler{log: &log},
 		DB:               db,
 	})
@@ -114,8 +112,7 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 		TransitionRepo: newGradeTransitionRepository(t, db),
 		StudentRepo:    usersRepo.NewStudentRepository(db),
 		PersonRepo:     usersRepo.NewPersonRepository(db),
-		VisitRepo:      activeRepo.NewVisitRepository(db),
-		AttendanceRepo: activeRepo.NewAttendanceRepository(db),
+		Presence:       graduationPresence(t, db),
 		DB:             db,
 		Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})

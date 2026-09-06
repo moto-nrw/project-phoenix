@@ -76,6 +76,22 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 	return student, true
 }
 
+func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {
+	batch, ok := rs.SettingsService.(configService.BatchSettingsService)
+	if !ok {
+		return ctx, nil
+	}
+	snapshot, err := batch.ResolveMany(ctx, []string{
+		configModel.KeyEnrollmentBookingsAuthoritative,
+		configModel.KeyPresenceMode,
+		configModel.KeyStudentPhotosEnabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+}
+
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
@@ -108,21 +124,27 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	params.careStatusOn = planningDate
 	params.careStatusToday = timezone.DateFromTime(now)
 	accessCtx := rs.determineStudentAccess(r)
+	settingsCtx, err := rs.prefetchListSettings(r.Context())
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	r = r.WithContext(settingsCtx)
 
 	// Fetch students based on parameters
 	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	if errors.Is(err, ErrInvalidRequest) {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	if err != nil {
-		if errors.Is(err, ErrInvalidRequest) {
-			renderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Bulk load all related data
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot := common.LoadStudentDataSnapshot(
+	dataSnapshot, err := common.LoadStudentDataSnapshot(
 		r.Context(),
 		rs.PersonService,
 		rs.EducationService,
@@ -131,6 +153,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		personIDs,
 		groupIDs,
 	)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	// Resolve once per request. populatePhotoFields runs per student.
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
@@ -508,17 +534,22 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
+	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
-			Student:       student,
-			Person:        person,
-			Group:         group,
-			HasFullAccess: hasFullAccess,
-			PhotosEnabled: photosEnabled,
-		}, StudentResponseServices{
-			ActiveService: rs.ActiveService,
-			PersonService: rs.PersonService,
-		}),
+		StudentResponse:       studentResponse,
 		HasFullAccess:         hasFullAccess,
 		HasWriteAccess:        hasWriteAccess,
 		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
@@ -867,7 +898,7 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
 		Group:         group,
@@ -876,7 +907,12 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
-	}), "Student created successfully")
+	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, response, "Student created successfully")
 }
 
 // createStudent handles creating a new student with their person record
@@ -1587,7 +1623,7 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
@@ -1597,6 +1633,10 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
 	})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response.CompanionsChanged = &companionsChanged
 	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }

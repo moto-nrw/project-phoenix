@@ -101,7 +101,11 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	accessCtx := rs.determineStudentAccess(r)
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)

@@ -395,45 +395,6 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 	return student
 }
 
-// CreateTestAttendance creates a real attendance record in the database
-// This requires a student, staff, and device to already exist
-//
-// Note: The Date field is set to today's local date (not derived from checkInTime)
-// to match the repository's GetStudentCurrentStatus query which always queries
-// for today's date using local timezone. This ensures tests work correctly
-// regardless of when they run (e.g., 00:40 CET is still the same calendar day locally).
-func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
-	return CreateTestAttendanceForDate(tb, db, studentID, staffID, deviceID, timezone.TodayDate(), checkInTime, checkOutTime)
-}
-
-// CreateTestAttendanceForDate creates an attendance row on an explicit
-// calendar date. Fixed-date tests use this variant so the fixture date cannot
-// drift away from their injected service clock.
-func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, date timezone.Date, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	attendance := &active.Attendance{
-		StudentID:    studentID,
-		Date:         date,
-		CheckInTime:  checkInTime,
-		CheckOutTime: checkOutTime,
-		CheckedInBy:  staffID,
-		DeviceID:     deviceID,
-	}
-	attendance.SetTenantID(fixtureTenantID(tb))
-
-	err := db.NewInsert().
-		Model(attendance).
-		ModelTableExpr(`active.attendance`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test attendance record")
-
-	return attendance
-}
-
 // ============================================================================
 // Education Domain Fixtures
 // ============================================================================
@@ -580,31 +541,6 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 	require.NoError(tb, err, "Failed to create test active group")
 
 	return activeGroup
-}
-
-// CreateTestVisit creates a real visit record in the database.
-// This requires a Student and ActiveGroup to already exist.
-func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	visit := &active.Visit{
-		StudentID:     studentID,
-		ActiveGroupID: activeGroupID,
-		EntryTime:     entryTime,
-		ExitTime:      exitTime,
-	}
-	visit.SetTenantID(fixtureTenantID(tb))
-
-	err := db.NewInsert().
-		Model(visit).
-		ModelTableExpr(`active.visits`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test visit")
-
-	return visit
 }
 
 // CreateTestGroupSupervisor creates a real group supervisor record in the database.
@@ -2201,30 +2137,6 @@ func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, 
 	require.NoError(tb, err, "Failed to create test active group with explicit IDs for tenant")
 
 	return activeGroup
-}
-
-// CreateTestVisitForTenant creates a visit belonging to a specific tenant.
-func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	visit := &active.Visit{
-		StudentID:     studentID,
-		ActiveGroupID: activeGroupID,
-		EntryTime:     entryTime,
-		ExitTime:      exitTime,
-	}
-	visit.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(visit).
-		ModelTableExpr(`active.visits`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test visit for tenant")
-
-	return visit
 }
 
 // CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.

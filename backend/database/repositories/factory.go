@@ -202,12 +202,10 @@ type Factory struct {
 
 	// Active domain
 	ActiveGroup      activeModels.GroupRepository
-	ActiveVisit      activeModels.VisitRepository
 	GroupSupervisor  activeModels.GroupSupervisorRepository
 	CrossTenant      CrossTenantQuery
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
-	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
 	Statistics activeModels.StatisticsRepository
@@ -362,7 +360,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, newStudentPresence(f.db).CountAttendanceRecords)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -458,9 +456,6 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	if f.Student != nil {
 		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
 	}
-	if f.ActiveVisit != nil {
-		f.ActiveVisit = groupVisitRepository{VisitRepository: f.ActiveVisit, groups: groups}
-	}
 	if f.GroupSupervisor != nil {
 		f.GroupSupervisor = groupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, groups: groups}
 	}
@@ -517,12 +512,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		panic("repository factory: timetable and projection dependencies are required")
 	}
 	timetableCapability := timetableDependencies.Capability
+	presenceCapability := newStudentPresence(db)
 	var now func() time.Time
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
-	attendance := active.NewAttendanceRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := users.NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
@@ -587,7 +582,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, enrollmentModule, careExitAssignments{capability: timetableCapability}),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db, enrollmentModule, careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
@@ -664,12 +659,10 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Active repositories
 		ActiveGroup:                     active.NewGroupRepository(db),
-		ActiveVisit:                     active.NewVisitRepository(db),
 		GroupSupervisor:                 groupSupervisor,
 		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
-		Attendance:                      attendance,
 		StudentStatusDay:                nil, // bound to Care Plan below
 		Statistics:                      active.NewStatisticsRepository(db),
 		CourseStatistics:                timetableCourseStatisticsRepository{timetable: timetableCapability},
@@ -803,7 +796,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability)
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.

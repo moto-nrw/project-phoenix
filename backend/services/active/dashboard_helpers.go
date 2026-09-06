@@ -11,12 +11,13 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
 type dashboardBaseData struct {
-	activeVisits             []*active.Visit
-	todaysAttendance         []*active.Attendance
+	activeVisits             []studentpresence.Visit
+	todaysAttendance         []studentpresence.Attendance
 	allRooms                 []*facilityModels.Room
 	activeGroups             []*active.Group
 	allEducationGroups       []*educationModels.Group
@@ -24,7 +25,7 @@ type dashboardBaseData struct {
 	activityGroupsByID       map[int64]*activitiesModels.Group
 	activityCategories       int
 	supervisorsToday         int
-	visitsByGroupID          map[int64][]*active.Visit
+	visitsByGroupID          map[int64][]studentpresence.Visit
 	studentsWithActiveVisits map[int64]bool
 	studentsWithAttendance   map[int64]bool
 	studentsPresent          map[int64]bool
@@ -58,12 +59,12 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 		studentsWithActiveVisits: make(map[int64]bool),
 		studentsWithAttendance:   make(map[int64]bool),
 		studentsPresent:          make(map[int64]bool),
-		visitsByGroupID:          make(map[int64][]*active.Visit),
+		visitsByGroupID:          make(map[int64][]studentpresence.Visit),
 		activityGroupsByID:       make(map[int64]*activitiesModels.Group),
 	}
 
 	// Get active visits
-	activeVisits, err := s.VisitRepo.FindActiveVisits(ctx)
+	activeVisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	}
 
 	// Get today's attendance
-	todaysAttendance, err := s.AttendanceRepo.FindForDate(ctx, today)
+	todaysAttendance, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: today.String(), UntilDate: today.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +276,7 @@ func isOGSGroupTemplate(template *activitiesModels.Group) bool {
 
 // processActiveGroups calculates metrics from active groups.
 // Returns total active count, OGS-only count, and unique students in rooms.
-func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]*active.Visit, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
+func processActiveGroups(activeGroups []*active.Group, visitsByGroupID map[int64][]studentpresence.Visit, activityGroupsByID map[int64]*activitiesModels.Group, roomData *dashboardRoomData) (int, int, map[int64]struct{}) {
 	ogsGroupsCount := 0
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{})
 
@@ -321,7 +322,7 @@ func isPlaygroundRoom(room *facilityModels.Room) bool {
 }
 
 // calculateLocationMetrics calculates student location-based metrics
-func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupData *dashboardGroupData, activeVisits []*active.Visit, activeGroups []*active.Group) *locationMetrics {
+func (s *service) calculateLocationMetrics(roomData *dashboardRoomData, groupData *dashboardGroupData, activeVisits []studentpresence.Visit, activeGroups []*active.Group) *locationMetrics {
 	metrics := &locationMetrics{}
 
 	// Process each room's student set
@@ -368,13 +369,13 @@ func countStudentsInHomeRoom(studentSet map[int64]struct{}, roomID int64, studen
 }
 
 // countStudentsInIndoorRooms counts unique students in rooms excluding playground areas
-func (s *service) countStudentsInIndoorRooms(activeVisits []*active.Visit, activeGroups []*active.Group, roomData *dashboardRoomData) int {
+func (s *service) countStudentsInIndoorRooms(activeVisits []studentpresence.Visit, activeGroups []*active.Group, roomData *dashboardRoomData) int {
 	// Build group ID to room lookup for O(1) access
 	groupToRoom := buildActiveGroupRoomLookup(activeGroups, roomData)
 
 	uniqueStudentsInRooms := make(map[int64]struct{})
 	for _, visit := range activeVisits {
-		if !visit.IsActive() {
+		if visit.ExitTime != nil {
 			continue
 		}
 		if _, isIndoor := groupToRoom[visit.ActiveGroupID]; isIndoor {
@@ -577,7 +578,7 @@ func resolveRoomName(roomID int64, roomByID map[int64]*facilityModels.Room) stri
 }
 
 // extractUniqueStudentIDs extracts unique student IDs from visits
-func extractUniqueStudentIDs(visits []*active.Visit) []int64 {
+func extractUniqueStudentIDs(visits []studentpresence.Visit) []int64 {
 	studentIDSet := make(map[int64]struct{})
 	studentIDs := make([]int64, 0, len(visits))
 

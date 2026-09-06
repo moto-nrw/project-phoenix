@@ -1,6 +1,7 @@
 package students_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -157,14 +158,34 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 
 	// Create a student with an active visit to test visit history
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "History", "VH1")
-	testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
-	testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
+	room := testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
+	group := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+	entry := testpkg.TodayDate().BerlinMidnight().Add(8 * time.Hour)
+	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, entry, nil)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/visit-history", student.ID), nil)
 
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Should return visit history. Body: %s", rr.Body.String())
+	var response struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.Len(t, response.Data, 1)
+	expectedVisit := fmt.Sprintf(`{"id":%d,"created_at":%q,"updated_at":%q,"tenant_id":%d,"student_id":%d,"active_group_id":%d,"entry_time":%q}`,
+		visit.ID, visit.CreatedAt.Format(time.RFC3339Nano), visit.UpdatedAt.Format(time.RFC3339Nano),
+		testpkg.Tenant(t), student.ID, group.ID, entry.Format(time.RFC3339Nano))
+	assert.JSONEq(t, expectedVisit, string(response.Data[0]))
+	currentRequest := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
+	currentResponse := authExec(t, tc, currentRequest, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, currentResponse.Code)
+	var currentBody struct {
+		Data json.RawMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(currentResponse.Body.Bytes(), &currentBody))
+	assert.JSONEq(t, expectedVisit, string(currentBody.Data))
 }
 
 // =============================================================================

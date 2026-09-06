@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -163,7 +164,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		activeVisits  []*active.Visit
+		activeVisits  []studentpresence.Visit
 		activeGroups  []*active.Group
 		rooms         []*facilityModels.Room
 		expectedCount int
@@ -171,7 +172,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 	}{
 		{
 			name: "Students in indoor rooms only",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 				{StudentID: 2, ActiveGroupID: 100},
 			},
@@ -186,7 +187,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "Students in playground excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 				{StudentID: 2, ActiveGroupID: 200},
 			},
@@ -203,7 +204,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "All students on playground",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 200},
 				{StudentID: 2, ActiveGroupID: 200},
 			},
@@ -218,7 +219,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "Visit with ended group excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100},
 			},
 			activeGroups: []*active.Group{
@@ -232,7 +233,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "Exited visit excluded",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 100, ExitTime: ptrtest.Ptr(time.Now())},
 			},
 			activeGroups: []*active.Group{
@@ -246,7 +247,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name:          "Empty visits and groups",
-			activeVisits:  []*active.Visit{},
+			activeVisits:  []studentpresence.Visit{},
 			activeGroups:  []*active.Group{},
 			rooms:         []*facilityModels.Room{},
 			expectedCount: 0,
@@ -254,7 +255,7 @@ func TestCountStudentsInIndoorRooms(t *testing.T) {
 		},
 		{
 			name: "Visit to group not in active groups (outdoor/unknown)",
-			activeVisits: []*active.Visit{
+			activeVisits: []studentpresence.Visit{
 				{StudentID: 1, ActiveGroupID: 999},
 			},
 			activeGroups: []*active.Group{

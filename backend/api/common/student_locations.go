@@ -2,11 +2,8 @@ package common
 
 import (
 	"context"
-	"maps"
-	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
@@ -44,8 +41,11 @@ const YardLocationLabel = activeService.YardLocationLabel
 // fields become irrelevant because the resolver won't read them anyway.
 func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service, studentIDs []int64) (*StudentLocationSnapshot, error) {
 	uniqueIDs := sliceutil.Unique(studentIDs)
-	mode := svc.GetPresenceMode(ctx)
-	snapshot := newEmptyLocationSnapshot(mode)
+	mode, err := svc.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, err
+	}
+	snapshot := activeService.NewStudentLocationSnapshot(mode)
 
 	if len(uniqueIDs) == 0 {
 		return snapshot, nil
@@ -81,7 +81,7 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	snapshot.Visits = coalesce(visits, snapshot.Visits)
 
 	// Load groups for active visits
-	groupIDs := extractActiveGroupIDs(snapshot.Visits)
+	groupIDs := snapshot.ActiveGroupIDs()
 	if len(groupIDs) == 0 {
 		return snapshot, nil
 	}
@@ -95,21 +95,6 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	return snapshot, nil
 }
 
-// newEmptyLocationSnapshot creates a new snapshot with initialized empty maps.
-// mode defaults to "detailed" when empty so old test fixtures (which construct
-// a bare snapshot without setting Mode) keep the existing behavior.
-func newEmptyLocationSnapshot(mode string) *StudentLocationSnapshot {
-	if mode == "" {
-		mode = PresenceModeDetailed
-	}
-	return &StudentLocationSnapshot{
-		Mode:        mode,
-		Attendances: make(map[int64]*activeService.AttendanceStatus),
-		Visits:      make(map[int64]*activeModels.Visit),
-		Groups:      make(map[int64]*activeModels.Group),
-	}
-}
-
 // filterCheckedInStudents returns IDs of students with checked_in status
 func filterCheckedInStudents(attendances map[int64]*activeService.AttendanceStatus) []int64 {
 	result := make([]int64, 0, len(attendances))
@@ -119,17 +104,6 @@ func filterCheckedInStudents(attendances map[int64]*activeService.AttendanceStat
 		}
 	}
 	return result
-}
-
-// extractActiveGroupIDs extracts unique group IDs from visits
-func extractActiveGroupIDs(visits map[int64]*activeModels.Visit) []int64 {
-	groupIDSet := make(map[int64]struct{})
-	for _, visit := range visits {
-		if visit != nil && visit.ActiveGroupID > 0 {
-			groupIDSet[visit.ActiveGroupID] = struct{}{}
-		}
-	}
-	return slices.Collect(maps.Keys(groupIDSet))
 }
 
 // coalesce returns m if non-nil, otherwise fallback.

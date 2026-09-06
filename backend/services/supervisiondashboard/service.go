@@ -620,7 +620,7 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext)
 	fullAccess := access.HasFullAccess()
 
-	openVisits := make([]*activeModels.VisitWithStudentDisplay, 0, len(rows))
+	openVisits := make([]*activeService.VisitWithStudentDisplay, 0, len(rows))
 	studentIDs := make([]int64, 0, len(rows))
 	seen := map[int64]struct{}{}
 	for _, row := range rows {
@@ -660,7 +660,7 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	return s.loadPlanningTimes(ctx, projection, studentIDs, fullAccess, businessDay)
 }
 
-func buildVisits(rows []*activeModels.VisitWithStudentDisplay, attendance map[int64]*activeService.AttendanceStatus, fullAccess, photosEnabled bool) []Visit {
+func buildVisits(rows []*activeService.VisitWithStudentDisplay, attendance map[int64]*activeService.AttendanceStatus, fullAccess, photosEnabled bool) []Visit {
 	result := make([]Visit, 0, len(rows))
 	for _, row := range rows {
 		visit := Visit{

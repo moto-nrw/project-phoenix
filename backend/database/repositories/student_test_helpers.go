@@ -41,7 +41,6 @@ type StudentTestRepositories struct {
 	DataDeletion                 auditModels.DataDeletionRepository
 	ParentMessageThread          usersModels.ParentMessageThreadRepository
 	ParentMessage                usersModels.ParentMessageRepository
-	Attendance                   activeModels.AttendanceRepository
 }
 
 func (r StudentTestRepositories) BindTimetable(capability timetable.Capability) {
@@ -82,7 +81,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable)
+	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable, newStudentPresence(db).CountAttendanceRecords)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
@@ -106,5 +105,5 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
 		ParentMessageThread: usersRepo.NewParentMessageThreadRepository(db), ParentMessage: usersRepo.NewParentMessageRepository(db),
-		Attendance: activeRepo.NewAttendanceRepository(db)}, nil
+	}, nil
 }

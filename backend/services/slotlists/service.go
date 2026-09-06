@@ -23,6 +23,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -83,12 +84,9 @@ type instanceStudentReader interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error)
 }
 
-type visitReader interface {
-	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*activeModel.Visit, error)
-}
-
-type attendanceReader interface {
-	FindForDate(ctx context.Context, date timezone.Date) ([]*activeModel.Attendance, error)
+type PresenceReader interface {
+	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
+	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
 }
 
 // statusDayReader loads the broad day statuses (sick / excused / class trip)
@@ -167,8 +165,7 @@ type settingsReader interface {
 type Dependencies struct {
 	InstanceRepo        instanceReader
 	InstanceStudentRepo instanceStudentReader
-	VisitRepo           visitReader
-	AttendanceRepo      attendanceReader
+	Presence            PresenceReader
 	StatusDayRepo       statusDayReader
 	CareDayService      careDayReader
 	PickupExceptionRepo partialAbsenceReader
@@ -196,8 +193,7 @@ type slotListUserContext interface {
 type service struct {
 	instanceRepo        instanceReader
 	instanceStudentRepo instanceStudentReader
-	visitRepo           visitReader
-	attendanceRepo      attendanceReader
+	presence            PresenceReader
 	statusDayRepo       statusDayReader
 	careDayService      careDayReader
 	pickupExceptionRepo partialAbsenceReader
@@ -235,8 +231,7 @@ func NewService(deps Dependencies) Service {
 	return &service{
 		instanceRepo:        deps.InstanceRepo,
 		instanceStudentRepo: deps.InstanceStudentRepo,
-		visitRepo:           deps.VisitRepo,
-		attendanceRepo:      deps.AttendanceRepo,
+		presence:            deps.Presence,
 		statusDayRepo:       deps.StatusDayRepo,
 		careDayService:      deps.CareDayService,
 		pickupExceptionRepo: deps.PickupExceptionRepo,
@@ -436,8 +431,8 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	if err := s.requireTimetableEnabled(ctx); err != nil {
 		return nil, err
 	}
-	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.visitRepo == nil ||
-		s.attendanceRepo == nil || s.statusDayRepo == nil || s.careDayService == nil ||
+	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.presence == nil ||
+		s.statusDayRepo == nil || s.careDayService == nil ||
 		s.pickupBaselines == nil || s.studentRepo == nil ||
 		s.personRepo == nil || s.educationGroupRepo == nil || s.roomRepo == nil ||
 		s.pickupService == nil || s.arrivalService == nil || s.listExport == nil {
@@ -745,9 +740,9 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 		// Bulk-load the visits of every classified instance that has been started,
 		// exactly as loadSlotPresence does: presence is keyed by active-group ID
-		// (only a started occurrence carries one), and a nil visitRepo simply
+		// (only a started occurrence carries one), and nil presence simply
 		// contributes no evidence.
-		if s.visitRepo != nil {
+		if s.presence != nil {
 			activeGroupIDs := make([]int64, 0, len(classifiedIDs))
 			for _, id := range classifiedIDs {
 				if activeGroupID := activeGroupByInstance[id]; activeGroupID != nil {
@@ -755,14 +750,11 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 				}
 			}
 			if len(activeGroupIDs) > 0 {
-				visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+				visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: activeGroupIDs})
 				if err != nil {
 					return nil, err
 				}
 				for _, visit := range visits {
-					if visit == nil {
-						continue
-					}
 					byStudent := presentByGroup[visit.ActiveGroupID]
 					if byStudent == nil {
 						byStudent = map[int64]bool{}
@@ -1311,14 +1303,11 @@ func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, d
 	// planned times would drop documented attendance, omitting present
 	// children from Ist lists and printing attended children as "Fehlt" in the
 	// Abgleich (#1565 review pass 2).
-	visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+	visits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: activeGroupIDs})
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	for _, visit := range visits {
-		if visit == nil {
-			continue
-		}
 		byStudent := presentByGroup[visit.ActiveGroupID]
 		if byStudent == nil {
 			byStudent = map[int64]bool{}
@@ -1825,7 +1814,9 @@ func includePickupParticipant(careDay scheduleSvc.CareDayStatus, present bool) b
 func (s *service) loadPickupCandidates(
 	ctx context.Context, date timezone.Date,
 ) ([]*userModel.Student, []int64, map[int64]struct{}, error) {
-	attendanceRows, err := s.attendanceRepo.FindForDate(ctx, date)
+	attendanceRows, err := s.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{
+		FromDate: date.String(), UntilDate: date.String(), StudentOrder: true,
+	})
 	if err != nil {
 		return nil, nil, nil, err
 	}

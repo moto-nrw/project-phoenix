@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -86,7 +88,7 @@ func (s *stubActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*faci
 	return nil, nil
 }
 
-func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeSvc.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -111,7 +113,9 @@ func (s *stubActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 }
 func (s *stubActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
 func (s *stubActiveService) SetTenantRuntime(_ tenant.UnitOfWork)            {}
-func (s *stubActiveService) GetPresenceMode(_ context.Context) string        { return "detailed" }
+func (s *stubActiveService) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
+}
 func (s *stubActiveService) GetActiveGroup(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -132,35 +136,36 @@ func (s *stubActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64
 	return nil, nil
 }
 func (s *stubActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (s *stubActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64) (*activeModel.Group, error) {
+func (s *stubActiveService) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) CreateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (s *stubActiveService) UpdateVisit(_ context.Context, _ *activeModel.Visit) error { return nil }
-func (s *stubActiveService) DeleteVisit(_ context.Context, _ int64) error              { return nil }
-func (s *stubActiveService) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Visit, error) {
+func (s *stubActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (s *stubActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (s *stubActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (s *stubActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (s *stubActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
+func (s *stubActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (s *stubActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeSvc.VisitWithRoom, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
+func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
 func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -157,7 +159,7 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int) (*use
 // validateStudentForCheckin checks if the student is in a valid state for check-in
 func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int64) *checkinError {
 	// Check if student already has an active visit
-	currentVisit, visitErr := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	currentVisit, visitErr := rs.currentPresenceVisit(ctx, studentID)
 	if visitErr != nil {
 		// ErrVisitNotFound is expected when student has no active visit - proceed with check-in
 		if !errors.Is(visitErr, activeService.ErrVisitNotFound) {
@@ -197,8 +199,8 @@ func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int
 }
 
 // createCheckinVisit creates the visit record for check-in
-func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinContext) (*activeModels.Visit, *checkinError) {
-	visit := &activeModels.Visit{
+func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinContext) (*studentpresence.Visit, *checkinError) {
+	visit := &studentpresence.Visit{
 		StudentID:     checkinCtx.studentID,
 		ActiveGroupID: checkinCtx.request.ActiveGroupID,
 		EntryTime:     time.Now(),
@@ -245,7 +247,7 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 }
 
 // respondCheckinSuccess sends the success response for check-in
-func (rs *Resource) respondCheckinSuccess(w http.ResponseWriter, r *http.Request, ctx context.Context, visit *activeModels.Visit, checkinCtx *checkinContext) {
+func (rs *Resource) respondCheckinSuccess(w http.ResponseWriter, r *http.Request, ctx context.Context, visit *studentpresence.Visit, checkinCtx *checkinContext) {
 	responseData := map[string]interface{}{
 		"student_id":      checkinCtx.studentID,
 		"action":          "checked_in",

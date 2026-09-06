@@ -17,7 +17,7 @@ type settingsResolver interface {
 }
 
 type attendanceReader interface {
-	ListOpenStudentIDsForDate(ctx context.Context, date string) ([]int64, error)
+	ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, error)
 }
 
 type pickupReader interface {

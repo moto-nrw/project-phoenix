@@ -27,6 +27,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,10 +42,9 @@ type Dependencies struct {
 	SchoolRepo        platformModels.SchoolRepository
 	Facilities        facilitiesModule.Query
 	ActiveGroupRepo   activeModels.GroupRepository
-	VisitRepo         activeModels.VisitRepository
+	Presence          PresenceReader
 	ActivityGroupRepo activitiesModels.GroupRepository
 	InstanceRepo      scheduleModels.ActivityInstanceRepository
-	AttendanceRepo    activeModels.AttendanceRepository
 	PickupSchedule    schedule.PickupScheduleService
 	// SettingsService resolves the display.enabled opt-in toggle. The feature
 	// defaults off; a school must explicitly enable it before the public
@@ -318,7 +318,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("active groups: %w", err)
 	}
 
-	visits, err := s.VisitRepo.FindActiveVisits(ctx)
+	visits, err := s.Presence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("active visits: %w", err)
 	}
@@ -333,7 +333,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("activity instances: %w", err)
 	}
 
-	attendance, err := s.AttendanceRepo.FindForDate(ctx, today)
+	attendance, err := s.Presence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: today.String(), UntilDate: today.String()})
 	if err != nil {
 		return nil, fmt.Errorf("attendance: %w", err)
 	}
@@ -371,7 +371,7 @@ func roomNamesByID(rooms []facilitiesModule.Room) map[int64]string {
 func buildRoomOccupancy(
 	rooms []facilitiesModule.Room,
 	groups []*activeModels.Group,
-	visits []*activeModels.Visit,
+	visits []studentpresence.Visit,
 	templates []*activitiesModels.Group,
 ) ([]RoomOccupancy, int) {
 	templateByID := make(map[int64]*activitiesModels.Group, len(templates))
@@ -447,7 +447,7 @@ func joinedNames(values []string) *string {
 // spontaneous sessions fall back to today's linked activity instance title.
 func buildRunningActivities(
 	activeGroups []*activeModels.Group,
-	visits []*activeModels.Visit,
+	visits []studentpresence.Visit,
 	templates []*activitiesModels.Group,
 	instances []*scheduleModels.ActivityInstance,
 	roomNames map[int64]string,
@@ -559,7 +559,7 @@ func buildUpcomingActivities(
 // leave this function — never identities.
 func (s *service) buildPickupBuckets(
 	ctx context.Context,
-	attendance []*activeModels.Attendance,
+	attendance []studentpresence.Attendance,
 	today timezone.Date,
 	now time.Time,
 ) ([]PickupBucket, int) {
