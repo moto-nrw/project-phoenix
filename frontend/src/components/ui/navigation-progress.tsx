@@ -61,7 +61,6 @@ function createStore(): NavigationProgressStore {
   };
   const isPending = () =>
     pendingNavigations.length > 0 || pendingHistoryNavigation !== null;
-  const isFallbackSuppressed = isPending;
   const update = (change: () => void) => {
     const wasPending = isPending();
     change();
@@ -115,7 +114,6 @@ function createStore(): NavigationProgressStore {
       };
     },
     isPending,
-    isFallbackSuppressed,
     startNavigation,
     startLinkNavigation: (target) => {
       const id = startNavigation(target);
@@ -209,15 +207,6 @@ export function useNavigationProgressPending() {
   return useSyncExternalStore(
     store?.subscribe ?? NO_SUBSCRIPTION,
     store?.isPending ?? NOT_PENDING,
-    NOT_PENDING,
-  );
-}
-
-export function useNavigationFallbackSuppressed() {
-  const store = useContext(NavigationProgressContext);
-  return useSyncExternalStore(
-    store?.subscribe ?? NO_SUBSCRIPTION,
-    store?.isFallbackSuppressed ?? NOT_PENDING,
     NOT_PENDING,
   );
 }

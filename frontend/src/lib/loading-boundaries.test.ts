@@ -37,10 +37,8 @@ function loadingBoundary(pageDirectory: string): string | null {
 
 const ALLOWED_SHARED_BOUNDARIES = new Set([
   "loading.tsx",
-  "[tenant]/(protected)/loading.tsx",
   "[tenant]/(protected)/database/loading.tsx",
 ]);
-const ALLOWED_ORPHANED_BOUNDARIES = new Set(["[tenant]/(protected)"]);
 
 /**
  * Die Regel im Personal-Portal (#2828): eine Seite hat entweder eine eigene,
@@ -49,12 +47,9 @@ const ALLOWED_ORPHANED_BOUNDARIES = new Set(["[tenant]/(protected)"]);
  * Fortschrittsbalken der Hülle zeigt, dass etwas läuft.
  *
  * Was es nicht mehr geben darf, ist eine geteilte sichtbare Hülle während
- * eines Seitenwechsels. `(protected)/loading.tsx` zeigt nur beim ersten
- * Aufruf einen Platzhalter im Portalrahmen; bei einer gemeldeten Navigation
- * bleibt sie leer, damit die bisherige Seite sichtbar bleibt. Die alte
- * Fassung zeigte bei jedem Wechsel einen allgemeinen Ladekringel in
- * Inhaltshöhe: erst sprang das Layout auf Kringelhöhe zusammen, dann auf das
- * Skelett der Zielseite, dann auf den Inhalt.
+ * eines Seitenwechsels. Sie ersetzt in Next.js die aktuelle Seite; ein
+ * allgemeiner Ladekringel ließe den Inhalt deshalb erst auf Kringelhöhe
+ * zusammen- und dann auf das Skelett der Zielseite springen.
  * Gemessen (`pnpm run perf:nav`, 150 ms RTT) trat das auf /settings und
  * /statistics bei jedem Wechsel auf.
  *
@@ -79,7 +74,7 @@ describe("App Router loading boundaries", () => {
       .filter((directory) => !existsSync(path.join(directory, "page.tsx")))
       .map((directory) => path.relative(APP_DIR, directory));
 
-    expect(orphaned).toEqual([...ALLOWED_ORPHANED_BOUNDARIES]);
+    expect(orphaned).toEqual([]);
   });
 
   it("has no shared visible loading boundary between the shell and a staff page", () => {

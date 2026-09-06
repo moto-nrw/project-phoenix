@@ -100,7 +100,7 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
       run: async (page) => {
         // Zwei Suchfelder (mobil + Desktop); nur das sichtbare tippen.
         const input = page
-          .getByPlaceholder("Name suchen...")
+          .getByPlaceholder("Name suchen…")
           .filter({ visible: true })
           .first();
         await input.click();

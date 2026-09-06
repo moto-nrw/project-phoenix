@@ -68,7 +68,6 @@ import {
   NavigationProgressBar,
   NavigationProgressProvider,
 } from "./navigation-progress";
-import ProtectedLoading from "~/app/[tenant]/(protected)/loading";
 
 const appRouter = router as unknown as AppRouterInstance;
 type NextLinkNavigationEvent = Parameters<
@@ -117,29 +116,22 @@ describe("NavigationProgress", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("tracks a NavigationLink before its loading boundary renders", () => {
+  it("tracks a NavigationLink before its route commits", () => {
     const rendered = renderShell(
-      <>
-        <ProtectedLoading />
-        <Link href="/calendar-periods">Planungszeiträume</Link>
-      </>,
+      <Link href="/calendar-periods">Planungszeiträume</Link>,
     );
-
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.getByTestId("navigation-progress")).toHaveClass(
       "moto-nav-progress",
     );
     expect(screen.getByRole("status")).toHaveTextContent("Seite wird geladen");
-    expect(screen.queryByLabelText("Lädt...")).toBeNull();
 
     navigateTo("/calendar-periods");
     rendered.rerender(
       <AppRouterContext.Provider value={appRouter}>
         <NavigationProgressProvider>
           <NavigationProgressBar />
-          <ProtectedLoading />
           <Link href="/calendar-periods">Planungszeiträume</Link>
         </NavigationProgressProvider>
       </AppRouterContext.Provider>,
@@ -148,12 +140,9 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
-  it("tracks a ButtonLink before its loading boundary renders", () => {
+  it("tracks a ButtonLink before its route commits", () => {
     renderShell(
-      <>
-        <ProtectedLoading />
-        <ButtonLink href="/calendar-periods">Planungszeiträume</ButtonLink>
-      </>,
+      <ButtonLink href="/calendar-periods">Planungszeiträume</ButtonLink>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
@@ -161,28 +150,21 @@ describe("NavigationProgress", () => {
     expect(screen.getByTestId("navigation-progress")).toHaveClass(
       "moto-nav-progress",
     );
-    expect(screen.queryByLabelText("Lädt...")).toBeNull();
   });
 
   it("cancels ButtonLink progress when onNavigate blocks the link", () => {
     renderShell(
-      <>
-        <ProtectedLoading />
-        <ButtonLink
-          href="/calendar-periods"
-          onNavigate={(event: NextLinkNavigationEvent) =>
-            event.preventDefault()
-          }
-        >
-          Planungszeiträume
-        </ButtonLink>
-      </>,
+      <ButtonLink
+        href="/calendar-periods"
+        onNavigate={(event: NextLinkNavigationEvent) => event.preventDefault()}
+      >
+        Planungszeiträume
+      </ButtonLink>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("does not start progress when a Link click is cancelled", () => {
@@ -203,18 +185,14 @@ describe("NavigationProgress", () => {
 
   it("cancels progress when a later capture guard blocks a NavigationLink", () => {
     renderShell(
-      <>
-        <ProtectedLoading />
-        <div onClickCapture={(event) => event.preventDefault()}>
-          <Link href="/calendar-periods">Planungszeiträume</Link>
-        </div>
-      </>,
+      <div onClickCapture={(event) => event.preventDefault()}>
+        <Link href="/calendar-periods">Planungszeiträume</Link>
+      </div>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("completes a redirected Link without a second pending entry", () => {
@@ -418,53 +396,21 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
-  it("shows the protected fallback initially but not during a pending navigation", () => {
-    function ProgrammaticNavigation() {
-      const progressRouter = useProgressRouter();
-      return (
-        <button
-          type="button"
-          onClick={() => progressRouter?.push("/calendar-periods")}
-        >
-          Zu den Planungszeiträumen
-        </button>
-      );
-    }
-
+  it("does not start progress when a native Link click is cancelled", () => {
     renderShell(
-      <>
-        <ProtectedLoading />
-        <ProgrammaticNavigation />
-      </>,
-    );
-
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Zu den Planungszeiträumen" }),
-    );
-
-    expect(screen.queryByLabelText("Lädt...")).toBeNull();
-  });
-
-  it("does not suppress the fallback when a native Link click is cancelled", () => {
-    renderShell(
-      <>
-        <ProtectedLoading />
-        <NextLink
-          href="/calendar-periods"
-          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
-            event.preventDefault()
-          }
-        >
-          Planungszeiträume
-        </NextLink>
-      </>,
+      <NextLink
+        href="/calendar-periods"
+        onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+          event.preventDefault()
+        }
+      >
+        Planungszeiträume
+      </NextLink>,
     );
 
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
-    expect(screen.getByLabelText("Lädt...")).toBeVisible();
   });
 
   it("does not show progress when router.back cannot traverse history", () => {
