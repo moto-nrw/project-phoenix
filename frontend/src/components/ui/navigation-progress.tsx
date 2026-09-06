@@ -9,6 +9,7 @@ import {
   Suspense,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -249,7 +250,7 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     window.m = (href) => {
       const target = navigationTarget(href);
       if (target === null || target === currentUrl()) return;
