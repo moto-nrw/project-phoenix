@@ -141,7 +141,10 @@ export function CoursesSection({
   }
 
   const requestable =
-    courses.enabled && !careEnded && !courses.other_request_pending;
+    courses.enabled &&
+    !careEnded &&
+    !courses.other_request_pending &&
+    !courses.pending_request_id;
 
   return (
     <ParentSection

@@ -29,6 +29,12 @@ func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun
 		"activity groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ActivityGroupsByID(ctx, db, tenantID, ids)
 		},
+		"lock course groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.LockCourseGroups(ctx, db, tenantID, ids)
+		},
+		"course occupancy": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date)
+		},
 		"manual planning": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
 		},
@@ -102,6 +108,14 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, groups)
 	assert.Empty(t, groups)
+	locked, err := timetableprojection.LockCourseGroups(ctx, tx, testpkg.Tenant(t), nil)
+	require.NoError(t, err)
+	assert.NotNil(t, locked)
+	assert.Empty(t, locked)
+	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4))
+	require.NoError(t, err)
+	assert.NotNil(t, courseCounts)
+	assert.Empty(t, courseCounts)
 	counts, err := timetableprojection.CountRunningEnrollmentsAfter(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4), "[]")
 	require.NoError(t, err)
 	assert.NotNil(t, counts)

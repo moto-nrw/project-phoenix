@@ -39,6 +39,22 @@ func TestCourseRequestsEnabledReturnsSettingsFailure(t *testing.T) {
 	require.ErrorIs(t, err, want)
 }
 
+func TestCourseRequestsDisabledWhenCareOfferingsDisabled(t *testing.T) {
+	t.Parallel()
+
+	svc := &offeringChangeRequestService{OfferingChangeRequestServiceConfig: OfferingChangeRequestServiceConfig{
+		Settings: courseSettingsStub{values: map[string]bool{
+			configModel.KeyEnrollmentOfferingChangesEnabled: true,
+			configModel.KeyEnrollmentCareOfferingsEnabled:   false,
+		}},
+		Logger: slog.Default(),
+	}}
+
+	enabled, err := svc.courseRequestsEnabled(context.Background())
+	require.NoError(t, err)
+	assert.False(t, enabled)
+}
+
 func (s courseSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
 	if key == s.errKey && s.err != nil {
 		return false, s.err
@@ -146,6 +162,22 @@ func TestCourseItemsFromGroupsKeepsOnlyCourses(t *testing.T) {
 	assert.Equal(t, "Fußball", items[1].Name)
 	assert.True(t, items[1].Booked, "a held course is marked as attended")
 	assert.Equal(t, int64(70), items[1].ActivityGroupID)
+}
+
+func TestCourseGroupMatchesTarget(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(3)
+	catalog := &OfferingChangeCatalog{TargetGradeLevel: &grade, TargetSchoolClass: " 3B "}
+	assert.True(t, courseGroupMatchesTarget(enrollmentModels.CourseGroup{
+		SourceGradeLevels: []int{3}, SourceSchoolClasses: []string{"3b"},
+	}, catalog))
+	assert.False(t, courseGroupMatchesTarget(enrollmentModels.CourseGroup{
+		SourceGradeLevels: []int{2},
+	}, catalog))
+	assert.False(t, courseGroupMatchesTarget(enrollmentModels.CourseGroup{
+		SourceSchoolClasses: []string{"3a"},
+	}, catalog))
 }
 
 // TestAddedCourseIDs separates a course request from a care-offering change:

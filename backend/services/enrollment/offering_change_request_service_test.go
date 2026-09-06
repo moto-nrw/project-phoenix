@@ -57,8 +57,6 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		StudentRepo:              env.repos.Student,
 		PersonRepo:               env.repos.Person,
 		CareWithdrawalRepo:       env.repos.CareWithdrawal,
-		ActivityGroupRepo:        env.repos.ActivityGroup,
-		StudentEnrollmentRepo:    env.repos.StudentEnrollment,
 		ImpactRepo:               env.repos.OfferingChangeImpact,
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,

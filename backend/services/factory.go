@@ -2499,8 +2499,6 @@ func newFactory(
 		PersonRepo:               repos.Person,
 		CareWithdrawalRepo:       repos.CareWithdrawal,
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		StudentEnrollmentRepo:    repos.StudentEnrollment,
 		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,
 		DirectApplier:            directOfferingApplier,

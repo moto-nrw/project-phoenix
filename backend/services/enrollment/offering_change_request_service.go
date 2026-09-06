@@ -26,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -140,7 +139,11 @@ type OfferingChangeCatalog struct {
 	// choose a later approved period, but not a day after their enrollment.
 	EarliestEffectiveFrom timezone.Date
 	LatestEffectiveFrom   timezone.Date
-	Items                 []OfferingChangeCatalogItem
+	// TargetGradeLevel and TargetSchoolClass stay internal to the catalog. A
+	// sourced course may narrow its offering to a grade or a concrete class.
+	TargetGradeLevel  *int16
+	TargetSchoolClass string
+	Items             []OfferingChangeCatalogItem
 }
 
 // OfferingChangeDiffEntry is one "current → requested" line, shared by the
@@ -438,11 +441,6 @@ type OfferingChangeRequestServiceConfig struct {
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
 	CareWithdrawalRepo       usersModels.CareWithdrawalCompletionRepository
-	// ActivityGroupRepo and StudentEnrollmentRepo answer the course side of a
-	// capacity question (#3075): a Kurs is a care offering bound to an AG, and
-	// the AG carries its own Teilnehmergrenze and its own roster.
-	ActivityGroupRepo     activitiesModels.GroupRepository
-	StudentEnrollmentRepo activitiesModels.StudentEnrollmentRepository
 	// OfferingAdjustmentRepo backs the direct-correction feed of the central
 	// history (#2436); the same append-only log the decision service writes.
 	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
@@ -786,7 +784,11 @@ func (s *offeringChangeRequestService) catalogAt(
 		SelectionMode:         phase.CareOfferingSelectionMode,
 		EarliestEffectiveFrom: earliest,
 		LatestEffectiveFrom:   latest,
+		TargetGradeLevel:      child.TargetGradeLevel,
 		Items:                 make([]OfferingChangeCatalogItem, 0, len(allowed)),
+	}
+	if child.TargetSchoolClass != nil {
+		catalog.TargetSchoolClass = *child.TargetSchoolClass
 	}
 	for _, offering := range allowed {
 		if offering == nil {
@@ -2416,7 +2418,7 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 		// against its actual roster (#3075). Both limits are maintained by the
 		// school, so the stricter one decides; an approval must not silently
 		// overbook the AG because only the offering had room.
-		if err := s.assertCourseCapacityAvailable(ctx, offering, effectiveFrom); err != nil {
+		if err := s.assertCourseCapacityAvailable(ctx, requestChildID, offering, effectiveFrom); err != nil {
 			return err
 		}
 		if offering.Capacity == nil {

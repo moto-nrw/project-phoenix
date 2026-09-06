@@ -40,3 +40,31 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
 		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, from, to,
 	)
 }
+
+func (r *OfferingChangeImpactRepository) CourseGroupsForOfferings(
+	ctx context.Context,
+	offerings []enrollmentModels.CourseOfferingReference,
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.CourseGroupsForOfferings(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), offerings,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) LockCourseGroups(
+	ctx context.Context,
+	groupIDs []int64,
+) ([]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.LockCourseGroups(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) CountActiveCourseEnrollments(
+	ctx context.Context,
+	groupIDs []int64,
+	onDate timezone.Date,
+) (map[int64]int, error) {
+	return timetableprojection.CountActiveCourseEnrollments(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, onDate,
+	)
+}

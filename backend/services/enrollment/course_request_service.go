@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -131,7 +130,7 @@ func (s *offeringChangeRequestService) courseRequestsEnabled(ctx context.Context
 		return false, nil
 	}
 	if err := s.changesEnabled(ctx); err != nil {
-		if errors.Is(err, ErrOfferingChangeDisabled) {
+		if errors.Is(err, ErrOfferingChangeDisabled) || errors.Is(err, ErrCareOfferingsDisabled) {
 			return false, nil
 		}
 		return false, err
@@ -207,7 +206,7 @@ func (s *offeringChangeRequestService) CourseCatalog(
 func (s *offeringChangeRequestService) courseItems(
 	ctx context.Context,
 	catalog *OfferingChangeCatalog,
-) ([]CourseCatalogItem, map[int64][]*activitiesModels.Group, error) {
+) ([]CourseCatalogItem, map[int64][]enrollmentModels.CourseGroup, error) {
 	offeringIDs := make([]int64, 0, len(catalog.Items))
 	for _, item := range catalog.Items {
 		if item.IsActive {
@@ -255,47 +254,62 @@ func (s *offeringChangeRequestService) courseGroups(
 	ctx context.Context,
 	catalog *OfferingChangeCatalog,
 	offeringIDs []int64,
-) (map[int64][]*activitiesModels.Group, error) {
-	groups := make(map[int64][]*activitiesModels.Group, len(offeringIDs))
-	if s.ActivityGroupRepo == nil || len(offeringIDs) == 0 {
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	groups := make(map[int64][]enrollmentModels.CourseGroup, len(offeringIDs))
+	if s.ImpactRepo == nil || len(offeringIDs) == 0 {
 		return groups, nil
 	}
-	// The legacy link points from the offering at one group, so it has to be
-	// read per offering. Schools set up this way have a handful of them.
+	wanted := make(map[int64]bool, len(offeringIDs))
+	for _, offeringID := range offeringIDs {
+		wanted[offeringID] = true
+	}
+	references := make([]enrollmentModels.CourseOfferingReference, 0, len(offeringIDs))
 	for _, item := range catalog.Items {
-		if !item.IsActive || item.ActivityGroupID == nil || *item.ActivityGroupID <= 0 {
-			continue
-		}
-		group, err := s.ActivityGroupRepo.FindByID(ctx, *item.ActivityGroupID)
-		if err != nil {
-			return nil, fmt.Errorf("course request: load course %d: %w", *item.ActivityGroupID, err)
-		}
-		if isCourseGroup(group) {
-			groups[item.OfferingID] = append(groups[item.OfferingID], group)
+		if item.IsActive && wanted[item.OfferingID] {
+			references = append(references, enrollmentModels.CourseOfferingReference{
+				OfferingID: item.OfferingID, ActivityGroupID: item.ActivityGroupID,
+			})
 		}
 	}
-	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
+	projected, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, references)
 	if err != nil {
-		return nil, fmt.Errorf("course request: list templates fed by offerings: %w", err)
+		return nil, fmt.Errorf("course request: list course groups: %w", err)
 	}
-	for _, template := range templates {
-		if !isCourseGroup(template) {
-			continue
-		}
-		for _, offeringID := range template.SourceCareOfferingIDs {
-			if !slices.ContainsFunc(groups[offeringID], func(g *activitiesModels.Group) bool {
-				return g.ID == template.ID
-			}) {
-				groups[offeringID] = append(groups[offeringID], template)
+	for offeringID, list := range projected {
+		seen := make(map[int64]bool, len(list))
+		for _, group := range list {
+			if seen[group.ID] || !courseGroupMatchesTarget(group, catalog) {
+				continue
 			}
+			seen[group.ID] = true
+			groups[offeringID] = append(groups[offeringID], group)
 		}
-	}
-	for offeringID := range groups {
-		slices.SortFunc(groups[offeringID], func(a, b *activitiesModels.Group) int {
+		slices.SortFunc(groups[offeringID], func(a, b enrollmentModels.CourseGroup) int {
 			return int(a.ID - b.ID)
 		})
 	}
 	return groups, nil
+}
+
+func courseGroupMatchesTarget(group enrollmentModels.CourseGroup, catalog *OfferingChangeCatalog) bool {
+	if len(group.SourceGradeLevels) > 0 {
+		if catalog.TargetGradeLevel == nil || !slices.Contains(group.SourceGradeLevels, int(*catalog.TargetGradeLevel)) {
+			return false
+		}
+	}
+	if len(group.SourceSchoolClasses) == 0 {
+		return true
+	}
+	wanted := strings.ToLower(strings.TrimSpace(catalog.TargetSchoolClass))
+	if wanted == "" {
+		return false
+	}
+	for _, schoolClass := range group.SourceSchoolClasses {
+		if strings.ToLower(strings.TrimSpace(schoolClass)) == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // markCourseDiffEntries flags the diff lines that are about a Kurs. Both the
@@ -306,64 +320,37 @@ func (s *offeringChangeRequestService) markCourseDiffEntries(
 	entries []OfferingChangeDiffEntry,
 	offerings map[int64]*enrollmentModels.CareOffering,
 ) error {
-	if s.ActivityGroupRepo == nil || len(entries) == 0 {
+	if s.ImpactRepo == nil || len(entries) == 0 {
 		return nil
 	}
-	offeringIDs := make([]int64, 0, len(entries))
-	groupIDs := make([]int64, 0, len(entries))
+	references := make([]enrollmentModels.CourseOfferingReference, 0, len(entries))
 	for _, entry := range entries {
-		offeringIDs = append(offeringIDs, entry.OfferingID)
-		if offering := offerings[entry.OfferingID]; offering != nil &&
-			offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
-			groupIDs = append(groupIDs, *offering.ActivityGroupID)
+		offering := offerings[entry.OfferingID]
+		if offering == nil {
+			continue
 		}
+		references = append(references, enrollmentModels.CourseOfferingReference{
+			OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
+		})
 	}
-	if len(offeringIDs) == 0 {
+	if len(references) == 0 {
 		return nil
 	}
-	groups, err := s.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
-	if err != nil {
-		return fmt.Errorf("offering change: load legacy course groups: %w", err)
-	}
-	groupsByID := make(map[int64]*activitiesModels.Group, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			groupsByID[group.ID] = group
-		}
-	}
-	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOfferings(ctx, offeringIDs)
+	groups, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, references)
 	if err != nil {
 		return fmt.Errorf("offering change: mark course diff lines: %w", err)
 	}
-	courses := make(map[int64]bool, len(templates))
-	for _, template := range templates {
-		if !isCourseGroup(template) {
-			continue
-		}
-		for _, offeringID := range template.SourceCareOfferingIDs {
-			courses[offeringID] = true
-		}
-	}
 	for i := range entries {
-		offering := offerings[entries[i].OfferingID]
-		legacyCourse := offering != nil && offering.ActivityGroupID != nil &&
-			isCourseGroup(groupsByID[*offering.ActivityGroupID])
-		if legacyCourse || courses[entries[i].OfferingID] {
+		if len(groups[entries[i].OfferingID]) > 0 {
 			entries[i].IsCourse = true
 		}
 	}
 	return nil
 }
 
-func isCourseGroup(group *activitiesModels.Group) bool {
-	return group != nil &&
-		group.Type == activitiesModels.GroupTypeActivity &&
-		group.ArchivedAt == nil
-}
-
 // courseGroupIDs is the id-only projection the catalog and the create path
 // pass around.
-func courseGroupIDs(groups map[int64][]*activitiesModels.Group) map[int64][]int64 {
+func courseGroupIDs(groups map[int64][]enrollmentModels.CourseGroup) map[int64][]int64 {
 	ids := make(map[int64][]int64, len(groups))
 	for offeringID, list := range groups {
 		for _, group := range list {
@@ -432,7 +419,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 	ctx context.Context,
 	catalog *OfferingChangeCatalog,
 	courses []CourseCatalogItem,
-	groupsByOffering map[int64][]*activitiesModels.Group,
+	groupsByOffering map[int64][]enrollmentModels.CourseGroup,
 	pending *enrollmentModels.OfferingChangeRequest,
 ) error {
 	groupIDs := make([]int64, 0, len(courses))
@@ -460,7 +447,7 @@ func (s *offeringChangeRequestService) applyCourseCapacity(
 		// would promise a seat the approval then refuses.
 		for _, group := range groupsByOffering[course.OfferingID] {
 			capacity, free = effectiveCourseCapacity(
-				group.ParticipantLimit(), taken[group.ID], capacity, free,
+				group.ParticipantLimit, taken[group.ID], capacity, free,
 			)
 		}
 		course.Capacity, course.FreeSlots = capacity, free
@@ -511,12 +498,10 @@ func (s *offeringChangeRequestService) courseOccupancy(
 	groupIDs []int64,
 	onDate timezone.Date,
 ) (map[int64]int, error) {
-	if s.StudentEnrollmentRepo == nil {
+	if s.ImpactRepo == nil {
 		return map[int64]int{}, nil
 	}
-	counts, err := s.StudentEnrollmentRepo.CountActiveByGroupIDs(
-		ctx, groupIDs, activitiesModels.Date(onDate.String()),
-	)
+	counts, err := s.ImpactRepo.CountActiveCourseEnrollments(ctx, groupIDs, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("course request: count course rosters: %w", err)
 	}
@@ -609,18 +594,30 @@ func courseWasAdded(
 // an AG without a Teilnehmergrenze.
 func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 	ctx context.Context,
+	requestChildID int64,
 	offering *enrollmentModels.CareOffering,
 	effectiveFrom timezone.Date,
 ) error {
-	if offering == nil || s.ActivityGroupRepo == nil || s.StudentEnrollmentRepo == nil {
+	if offering == nil || s.ImpactRepo == nil {
 		return nil
 	}
-	groups, err := s.offeringCourseGroups(ctx, offering)
+	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
+	if err != nil {
+		return fmt.Errorf("course request: load request child: %w", err)
+	}
+	if child == nil {
+		return fmt.Errorf("course request: request child %d not found", requestChildID)
+	}
+	groups, err := s.offeringCourseGroups(ctx, offering, child.TargetGradeLevel, child.TargetSchoolClass)
 	if err != nil {
 		return err
 	}
 	if len(groups) == 0 {
 		return nil
+	}
+	groups, err = s.lockCourseGroups(ctx, groups)
+	if err != nil {
+		return err
 	}
 	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
@@ -631,38 +628,56 @@ func (s *offeringChangeRequestService) assertCourseCapacityAvailable(
 		return err
 	}
 	for _, group := range groups {
-		if group.HasParticipantLimit() && !group.HasAvailableSpots(taken[group.ID]) {
+		if group.ParticipantLimit != nil && taken[group.ID] >= *group.ParticipantLimit {
 			return fmt.Errorf("%w: %s", ErrOfferingChangeCapacityFull, offering.Name)
 		}
 	}
 	return nil
 }
 
+// lockCourseGroups serializes every approval that can consume the same AG
+// capacity. Offering locks alone do not suffice: several offerings may feed a
+// single group through their source templates.
+func (s *offeringChangeRequestService) lockCourseGroups(
+	ctx context.Context,
+	groups []enrollmentModels.CourseGroup,
+) ([]enrollmentModels.CourseGroup, error) {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	locked, err := s.ImpactRepo.LockCourseGroups(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("course request: lock course capacity: %w", err)
+	}
+	return locked, nil
+}
+
 // offeringCourseGroups resolves both link shapes for a single offering.
 func (s *offeringChangeRequestService) offeringCourseGroups(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-) ([]*activitiesModels.Group, error) {
-	groups := make([]*activitiesModels.Group, 0, 2)
-	if offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
-		group, err := s.ActivityGroupRepo.FindByID(ctx, *offering.ActivityGroupID)
-		if err != nil {
-			return nil, fmt.Errorf("course request: load course %d: %w", *offering.ActivityGroupID, err)
-		}
-		if isCourseGroup(group) {
-			groups = append(groups, group)
-		}
-	}
-	templates, err := s.ActivityGroupRepo.FindTemplatesBySourceOffering(ctx, offering.ID)
+	gradeLevel *int16,
+	schoolClass *string,
+) ([]enrollmentModels.CourseGroup, error) {
+	projected, err := s.ImpactRepo.CourseGroupsForOfferings(ctx, []enrollmentModels.CourseOfferingReference{{
+		OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID,
+	}})
 	if err != nil {
-		return nil, fmt.Errorf("course request: list templates fed by offering %d: %w", offering.ID, err)
+		return nil, fmt.Errorf("course request: list course groups: %w", err)
 	}
-	for _, template := range templates {
-		if !isCourseGroup(template) {
-			continue
-		}
-		if !slices.ContainsFunc(groups, func(g *activitiesModels.Group) bool { return g.ID == template.ID }) {
-			groups = append(groups, template)
+	catalog := &OfferingChangeCatalog{TargetGradeLevel: gradeLevel}
+	if schoolClass != nil {
+		catalog.TargetSchoolClass = *schoolClass
+	}
+	groups := make([]enrollmentModels.CourseGroup, 0, len(projected[offering.ID]))
+	seen := make(map[int64]bool, len(projected[offering.ID]))
+	for _, group := range projected[offering.ID] {
+		if !seen[group.ID] && courseGroupMatchesTarget(group, catalog) {
+			seen[group.ID] = true
+			groups = append(groups, group)
 		}
 	}
 	return groups, nil

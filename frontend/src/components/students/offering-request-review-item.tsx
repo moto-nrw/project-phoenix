@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import {
@@ -150,6 +151,7 @@ export function OfferingRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
+  const t = useTranslations("parentMasterData");
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
@@ -434,7 +436,11 @@ export function OfferingRequestReviewItem({
                 {/* Eine Kursanfrage sieht sonst aus wie jede andere
                     Angebotsänderung (#3075). */}
                 {entry.is_course && (
-                  <StatusBadge tone="green" label="Kurs" showDot={false} />
+                  <StatusBadge
+                    tone="green"
+                    label={t("courses.title")}
+                    showDot={false}
+                  />
                 )}
                 {entry.automatic && (
                   <StatusBadge

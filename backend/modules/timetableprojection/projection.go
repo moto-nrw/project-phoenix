@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -57,6 +58,141 @@ func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []i
 		return nil, fmt.Errorf("timetable projection: list activity groups: %w", err)
 	}
 	return groups, nil
+}
+
+// CourseGroupsForOfferings projects active activity templates that a care
+// offering reaches, through either its legacy group id or a source-offering
+// declaration. Enrollment consumes this named, tenant-safe projection instead
+// of timetable repositories.
+func CourseGroupsForOfferings(
+	ctx context.Context,
+	db bun.IDB,
+	tenantID int64,
+	offerings []enrollmentModels.CourseOfferingReference,
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
+	result := make(map[int64][]enrollmentModels.CourseGroup, len(offerings))
+	legacyToOffering := make(map[int64]int64, len(offerings))
+	offeringIDs := make([]int64, 0, len(offerings))
+	legacyIDs := make([]int64, 0, len(offerings))
+	for _, offering := range offerings {
+		if offering.OfferingID <= 0 {
+			continue
+		}
+		offeringIDs = append(offeringIDs, offering.OfferingID)
+		if offering.ActivityGroupID != nil && *offering.ActivityGroupID > 0 {
+			legacyToOffering[*offering.ActivityGroupID] = offering.OfferingID
+			legacyIDs = append(legacyIDs, *offering.ActivityGroupID)
+		}
+	}
+	if len(offeringIDs) == 0 {
+		return result, nil
+	}
+	var groups []*activitiesModels.Group
+	query := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".type = ?`, activitiesModels.GroupTypeActivity).
+		Where(`"group".archived_at IS NULL`).
+		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			if len(legacyIDs) > 0 {
+				q = q.WhereOr(`"group".id IN (?)`, bun.List(legacyIDs))
+			}
+			return q.WhereOr(`"group".is_template = TRUE AND EXISTS (
+				SELECT 1 FROM jsonb_array_elements_text(COALESCE("group".source_care_offering_ids, '[]'::jsonb)) AS source(id)
+				WHERE source.id::bigint IN (?)
+			)`, bun.List(offeringIDs))
+		})
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("timetable projection: list course groups: %w", err)
+	}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		course := enrollmentModels.CourseGroup{
+			ID:                  group.ID,
+			ParticipantLimit:    group.ParticipantLimit(),
+			SourceGradeLevels:   append([]int(nil), group.SourceGradeLevels...),
+			SourceSchoolClasses: append([]string(nil), group.SourceSchoolClasses...),
+		}
+		if offeringID := legacyToOffering[group.ID]; offeringID > 0 {
+			result[offeringID] = append(result[offeringID], course)
+		}
+		for _, offeringID := range group.SourceCareOfferingIDs {
+			if !slices.Contains(offeringIDs, offeringID) {
+				continue
+			}
+			result[offeringID] = append(result[offeringID], course)
+		}
+	}
+	return result, nil
+}
+
+// LockCourseGroups serializes capacity checks and the enrollment write for
+// every shared course group. IDs are ordered so overlapping approvals cannot
+// deadlock.
+func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64) ([]enrollmentModels.CourseGroup, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
+	ids := append([]int64(nil), groupIDs...)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	if len(ids) == 0 {
+		return []enrollmentModels.CourseGroup{}, nil
+	}
+	var groups []*activitiesModels.Group
+	err := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".id IN (?)`, bun.List(ids)).
+		Where(`"group".type = ?`, activitiesModels.GroupTypeActivity).
+		Where(`"group".archived_at IS NULL`).
+		OrderExpr(`"group".id`).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("timetable projection: lock course groups: %w", err)
+	}
+	locked := make([]enrollmentModels.CourseGroup, 0, len(groups))
+	for _, group := range groups {
+		if group != nil {
+			locked = append(locked, enrollmentModels.CourseGroup{
+				ID:               group.ID,
+				ParticipantLimit: group.ParticipantLimit(),
+			})
+		}
+	}
+	return locked, nil
+}
+
+// CountActiveCourseEnrollments returns the roster occupancy at a date. A seat
+// is held for the full enrollment window, independently of individual days.
+func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, onDate timezone.Date) (map[int64]int, error) {
+	if tenantID <= 0 {
+		return nil, ErrInvalidTenantID
+	}
+	counts := make(map[int64]int, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return counts, nil
+	}
+	var rows []struct {
+		GroupID int64 `bun:"activity_group_id"`
+		Count   int   `bun:"count"`
+	}
+	err := db.NewRaw(`SELECT activity_group_id, COUNT(DISTINCT student_id)::int AS count
+		FROM activities.student_enrollments
+		WHERE tenant_id = ? AND activity_group_id IN (?)
+		  AND valid_from <= ? AND (valid_until IS NULL OR valid_until > ?)
+		GROUP BY activity_group_id`, tenantID, bun.List(groupIDs), onDate, onDate).Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("timetable projection: count active course enrollments: %w", err)
+	}
+	for _, row := range rows {
+		counts[row.GroupID] = row.Count
+	}
+	return counts, nil
 }
 
 func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]enrollmentModels.ManualPlanningOccurrence, error) {
