@@ -12,6 +12,7 @@
  */
 
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { isValidTenantSlug } from "~/lib/tenant-slug";
 
 /** The non-standard Chrome event; not in lib.dom.d.ts. Module-internal. */
 interface BeforeInstallPromptEvent extends Event {
@@ -206,6 +207,30 @@ function isCurrentDeviceSettingsPath(): boolean {
   );
 }
 
+function isCurrentPathTenantDeviceSettingsPath(): boolean {
+  const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
+  if (!tenantDomain) {
+    throw new Error("NEXT_PUBLIC_TENANT_DOMAIN is not set.");
+  }
+  if (
+    window.location.hostname.toLowerCase() !==
+    tenantDomain.toLowerCase().replace(/\.$/, "")
+  ) {
+    return false;
+  }
+
+  const match = /^\/([^/]+)(\/.*)?$/.exec(window.location.pathname);
+  const tenantSlug = match?.[1];
+  return (
+    match?.[2] === "/profile" &&
+    Boolean(
+      tenantSlug &&
+      isValidTenantSlug(tenantSlug) &&
+      !RESERVED_SLUGS.has(tenantSlug),
+    )
+  );
+}
+
 // Never suppress Chrome unless the replacement card can actually render, or the
 // visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
@@ -213,7 +238,10 @@ function canCaptureInstallPrompt(): boolean {
   // Angebot in der Gerätekarte. Überall sonst behält Chrome sein eigenes
   // Installationssymbol, so wie bisher.
   if (isDesktopDevice(window.navigator)) {
-    return isCurrentInstallHost() && isCurrentDeviceSettingsPath();
+    return (
+      (isCurrentInstallHost() && isCurrentDeviceSettingsPath()) ||
+      isCurrentPathTenantDeviceSettingsPath()
+    );
   }
   if (isCurrentTenantInstallHost()) {
     return isCurrentProtectedTenantPath() && isInstallHintEligible(window);

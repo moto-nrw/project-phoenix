@@ -108,6 +108,25 @@ describe("instrumentation-client", () => {
     expect(canPromptInstall()).toBe(false);
   });
 
+  it("captures Chrome's install prompt on the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(canPromptInstall()).toBe(true);
+  });
+
   it.each([
     "/",
     "/display",
