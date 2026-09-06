@@ -28,6 +28,7 @@
     "knip": "knip",
     "knip:production": "knip --production --include files",
     "perf:trace": "playwright test -c playwright.perf.config.ts",
+    "perf:nav": "playwright test -c playwright.perf-nav.config.ts",
     "perf:render": "playwright test -c playwright.perf-dev.config.ts",
     "perf:report": "node scripts/perf/report.mjs",
     "perf:bundle": "node scripts/perf/analyze.mjs",
