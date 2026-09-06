@@ -68,6 +68,8 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 
 	assert.Equal(t, false, settings["enrollment.require_captcha"])
 	assert.Equal(t, false, seen["enrollment.require_captcha"])
+	assert.Equal(t, true, settings["enrollment.parent_course_requests_enabled"])
+	assert.Equal(t, true, seen["enrollment.parent_course_requests_enabled"])
 }
 
 func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
@@ -188,9 +190,12 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	step := parentEnrollmentSeedStep{}
 	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
 	require.NoError(t, err)
-	require.Len(t, received, 4)
+	require.Len(t, received, 6)
 
-	expectedTimes := map[string]string{"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00"}
+	expectedTimes := map[string]string{
+		"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00",
+		"Fußball-AG": "", "Theater-AG": "",
+	}
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
 		require.True(t, ok, offering.Name)

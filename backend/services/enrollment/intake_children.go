@@ -101,12 +101,14 @@ func offeringChildrenByID(ctx context.Context, owner OfferingChildrenReader, ids
 // needs the window to decide which care period is the current one for a child
 // that is enrolled across several school years (#1665).
 type StudentCarePeriod struct {
-	RequestChildID   int64
-	RequestID        int64
-	PhaseID          int64
-	PhaseName        string
-	ServiceStartDate timezone.Date
-	ServiceEndDate   timezone.Date
+	RequestChildID    int64
+	RequestID         int64
+	PhaseID           int64
+	PhaseName         string
+	ServiceStartDate  timezone.Date
+	ServiceEndDate    timezone.Date
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
 }
 
 type StudentCarePeriodReader interface {
@@ -128,7 +130,7 @@ func ReadStudentCarePeriods(ctx context.Context, owner StudentCarePeriodReader, 
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, &StudentCarePeriod{RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID, PhaseName: period.PhaseName, ServiceStartDate: start, ServiceEndDate: end})
+		result = append(result, &StudentCarePeriod{RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID, PhaseName: period.PhaseName, ServiceStartDate: start, ServiceEndDate: end, TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass})
 	}
 	return result, nil
 }
