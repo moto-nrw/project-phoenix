@@ -111,6 +111,30 @@ describe("instrumentation-client", () => {
     expect(canPromptInstall()).toBe(true);
   });
 
+  it("retains Chrome's desktop prompt from a public portal page", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://eltern.moto-app.de/login";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it("leaves Chrome's native prompt enabled on unrelated settings pages", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://school-a.moto-app.de/settings";
+    await import("./instrumentation-client");
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("captures Chrome's install prompt on the path-routed tenant profile", async () => {
     vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
     window.location.href = "https://moto-app.de/school-a/profile";

@@ -196,15 +196,17 @@ function isCurrentParentSettingsPath(): boolean {
  * Installationswerbung; überall sonst bleibt sie unangetastet (#2831).
  */
 function isCurrentDeviceSettingsPath(): boolean {
-  const pathname = window.location.pathname.replace(
-    /^\/(parents|school)(?=\/|$)/,
-    "",
-  );
-  return (
-    pathname === "/profile" ||
-    pathname === "/settings" ||
-    pathname === "/einstellungen"
-  );
+  if (isCurrentTenantInstallHost()) {
+    return window.location.pathname === "/profile";
+  }
+  if (isCurrentParentInstallHost()) return isCurrentParentSettingsPath();
+  if (isCurrentSchoolInstallHost()) {
+    return (
+      window.location.pathname.replace(/^\/school(?=\/|$)/, "") ===
+      "/einstellungen"
+    );
+  }
+  return false;
 }
 
 function isCurrentPathTenantDeviceSettingsPath(): boolean {
@@ -237,19 +239,6 @@ function currentPathTenantSlug(): string | null {
     return null;
   }
   return tenantSlug;
-}
-
-function isCurrentProtectedInstallPortal(): boolean {
-  if (isCurrentTenantInstallHost()) return isCurrentProtectedTenantPath();
-  if (isCurrentParentInstallHost()) return isCurrentProtectedParentPath();
-  if (isCurrentSchoolInstallHost()) return isCurrentProtectedSchoolPath();
-  const tenantSlug = currentPathTenantSlug();
-  if (!tenantSlug) return false;
-  const pathname = window.location.pathname.slice(tenantSlug.length + 1) || "/";
-  return !PUBLIC_TENANT_PATHS.some((publicPath) => {
-    if (publicPath === "/") return pathname === publicPath;
-    return pathname === publicPath || pathname.startsWith(`${publicPath}/`);
-  });
 }
 
 // Never suppress Chrome unless the replacement card can actually render, or the
@@ -346,9 +335,9 @@ if (typeof window !== "undefined") {
     }
     if (isDesktopDevice(window.navigator)) {
       // Chrome delivers this event only once. Keep it while the person moves
-      // from a protected start page to the device settings, but leave Chrome's
-      // native affordance untouched until the replacement card is present.
-      if (!isCurrentProtectedInstallPortal()) return;
+      // from any portal page to the device settings, but leave Chrome's native
+      // affordance untouched until the replacement card is present.
+      if (!isCurrentInstallHost() && currentPathTenantSlug() === null) return;
       if (canCaptureInstallPrompt()) event.preventDefault();
       deferredPrompt = event as BeforeInstallPromptEvent;
       notify();
