@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
 import { Alert } from "~/components/ui/alert";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
@@ -263,7 +263,7 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
   const ownLastMessage = row.lastSenderKind === "guardian";
 
   return (
-    <Link
+    <NavigationLink
       href={parentPath(`/parents/messages/${row.studentId}`)}
       className="flex min-h-[88px] w-full items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100 sm:px-5"
     >
@@ -329,6 +329,6 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
         className="shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </Link>
+    </NavigationLink>
   );
 }
