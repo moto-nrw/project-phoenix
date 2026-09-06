@@ -147,7 +147,9 @@ describe("StudentFeedbackHistoryPage", () => {
   it("renders loading state initially", () => {
     render(<StudentFeedbackHistoryPage />);
 
-    expect(screen.getByTestId("feedback-history-skeleton")).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (aria-busy), nicht mehr aus
+    // einem eigenen Seiten-Skelett.
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
   it("renders student name as page heading", async () => {

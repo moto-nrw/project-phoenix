@@ -27,7 +27,7 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo:      newGradeTransitionRepository(t, db),

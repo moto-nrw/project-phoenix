@@ -2,9 +2,7 @@
 
 import { use } from "react";
 import { AdminEnrollmentPhaseDetail } from "~/components/enrollment/admin-enrollment-phase-detail";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
-import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {
@@ -14,18 +12,19 @@ interface PageProps {
 export default function AdminEnrollmentPhasePage({ params }: PageProps) {
   const { phaseId } = use(params);
   const { isReady } = useRequireAdmin();
-  if (!isReady)
-    return (
-      <SkeletonRegion label="Anmeldephase wird geladen" className="space-y-4">
-        <Skeleton className="h-6 w-56 rounded" />
-        <DetailSkeleton sections={2} fieldsPerSection={4} />
-      </SkeletonRegion>
-    );
 
-  return (
-    <div className="w-full">
-      <MobileBackButton />
-      <AdminEnrollmentPhaseDetail phaseId={phaseId} />
-    </div>
-  );
+  if (!isReady) {
+    return (
+      <TenantPage
+        title="Anmeldephase"
+        back
+        backHref="/admin/enrollments"
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        statsLoading
+        loading
+      />
+    );
+  }
+
+  return <AdminEnrollmentPhaseDetail phaseId={phaseId} />;
 }

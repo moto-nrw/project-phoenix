@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useSession } from "next-auth/react";
 import StudentRoomHistoryPage from "./page";
 
 const mockPush = vi.fn();
@@ -44,6 +45,17 @@ vi.mock("~/components/ui/loading", () => ({
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
+  ),
+}));
+
+vi.mock("./history-charts", () => ({
+  default: () => (
+    <div>
+      <h2>Anwesenheit</h2>
+      <p>Tägliche Aufenthaltsdauer in Stunden</p>
+      <h2>Aktivität</h2>
+      <p>Raumwechsel pro Tag</p>
+    </div>
   ),
 }));
 
@@ -205,7 +217,9 @@ describe("StudentRoomHistoryPage", () => {
   it("renders loading state initially", () => {
     mockFetch.mockResolvedValue(mockStudentResponse());
     render(<StudentRoomHistoryPage />);
-    expect(screen.getByTestId("room-history-skeleton")).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (aria-busy), nicht mehr aus
+    // einem eigenen Seiten-Skelett.
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
   // ─── Student header ─────────────────────────────────────────────────────────
@@ -312,7 +326,7 @@ describe("StudentRoomHistoryPage", () => {
     });
   });
 
-  it("renders zurück button on error page and navigates", async () => {
+  it("rendert im Fehlerfall den Rückweg zur Herkunftsliste", async () => {
     setupFetch({
       ok: false,
       status: 404,
@@ -324,13 +338,9 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    // Find the styled zurück button (not the BackButton component)
-    const buttons = screen.getAllByRole("button");
-    const zurueckButton = buttons.find(
-      (b) => b.textContent === "Zurück" && b.className.includes("rounded-lg"),
-    );
-    expect(zurueckButton).toBeDefined();
-    fireEvent.click(zurueckButton!);
+    // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
+    // BackButton mit dem Referrer der Herkunftsliste.
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
   });
 
@@ -705,6 +715,210 @@ describe("StudentRoomHistoryPage", () => {
     // Should still render without crashing
     await waitFor(() => {
       expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+    });
+  });
+
+  // ─── Bemerkung und Korrektur (#2898) ────────────────────────────────────────
+
+  describe("Bemerkung und Korrektur", () => {
+    // Die Session wird hier je Test gesetzt. vi.clearAllMocks() im äußeren
+    // beforeEach löscht nur die Aufrufe, nicht die Implementierung — ohne das
+    // Zurücksetzen hier würde die letzte Überschreibung in andere Tests lecken.
+    const defaultSession = {
+      data: { user: { token: "test-token" } },
+    } as unknown as ReturnType<typeof useSession>;
+
+    afterEach(() => {
+      vi.mocked(useSession).mockReturnValue(defaultSession);
+    });
+
+    // Die freie Bemerkung wird während der Betreuung geschrieben. Vor #2898 war
+    // sie nach Tagesende nirgends mehr zu sehen — diese Seite ist der Ort, an
+    // dem sie wieder auffindbar wird.
+    it("zeigt die Bemerkung eines Betreuungsblocks", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "501",
+            instance_status: "completed",
+            title: "Fußball-AG",
+            start_time: "14:00",
+            end_time: "15:00",
+            status: "present",
+            substatus: "late",
+            note: "Hat sich am Knie gestoßen, Eltern informiert.",
+            is_unplanned: false,
+          },
+        ],
+      };
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Hat sich am Knie gestoßen, Eltern informiert\./),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("blendet die Bemerkungszeile aus, wenn keine Bemerkung vorliegt", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "501",
+            instance_status: "completed",
+            title: "Fußball-AG",
+            start_time: "14:00",
+            end_time: "15:00",
+            status: "present",
+            is_unplanned: false,
+          },
+        ],
+      };
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+
+      await waitFor(() => {
+        expect(screen.getByText("Fußball-AG")).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/^Bemerkung:/)).not.toBeInTheDocument();
+    });
+
+    // Korrigieren ist ein Eingriff in einen abgeschlossenen Datensatz und hängt
+    // an schedules:manage — dieselbe Berechtigung, die das Backend auf der
+    // Korrektur-Route verlangt.
+    it("zeigt Korrigieren nur mit der Berechtigung schedules:manage", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "501",
+            instance_status: "completed",
+            title: "Fußball-AG",
+            start_time: "14:00",
+            end_time: "15:00",
+            status: "present",
+            note: "Bemerkung der Betreuung",
+            is_unplanned: false,
+          },
+        ],
+      };
+
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "test-token", permissions: [] } },
+      } as unknown as ReturnType<typeof useSession>);
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      const withoutPermission = render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+      await waitFor(() => {
+        expect(screen.getByText("Fußball-AG")).toBeInTheDocument();
+      });
+      expect(screen.getByText(/Bemerkung der Betreuung/)).toBeInTheDocument();
+      expect(screen.queryByText("Korrigieren")).not.toBeInTheDocument();
+      withoutPermission.unmount();
+
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["schedules:manage"] },
+        },
+      } as unknown as ReturnType<typeof useSession>);
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+      await waitFor(() => {
+        expect(screen.getAllByText("Korrigieren").length).toBeGreaterThan(0);
+      });
+    });
+
+    it("bietet Korrigieren nur für abgeschlossene Termine an", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "501",
+            instance_status: "planned",
+            title: "Geplante AG",
+            start_time: "14:00",
+            end_time: "15:00",
+            status: "expected",
+            is_unplanned: false,
+          },
+        ],
+      };
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["schedules:manage"] },
+        },
+      } as unknown as ReturnType<typeof useSession>);
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+
+      await waitFor(() => {
+        expect(screen.getByText("Geplante AG")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Korrigieren")).not.toBeInTheDocument();
+    });
+
+    // Beobachtete Sitzungen, die keinem geplanten Block zugeordnet werden
+    // konnten, erscheinen als "Ohne Zuordnung" mit negativer Kennung. Dahinter
+    // steht keine Anwesenheitszeile, es gibt also nichts zu korrigieren.
+    it("bietet für synthetische Ohne-Zuordnung-Zeilen kein Korrigieren an", async () => {
+      const slotDay = {
+        ...fullDay,
+        slots: [
+          {
+            instance_id: "-1",
+            title: "Ohne Zuordnung",
+            start_time: "08:05",
+            end_time: "15:30",
+            status: "present",
+            is_unplanned: false,
+          },
+        ],
+      };
+
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["schedules:manage"] },
+        },
+      } as unknown as ReturnType<typeof useSession>);
+      setupFetch(mockAttendanceHistoryResponse([slotDay]));
+      render(<StudentRoomHistoryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 Angebot/)).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText(/Montag, 06/).closest("tr")!);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ohne Zuordnung")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Korrigieren")).not.toBeInTheDocument();
     });
   });
 });

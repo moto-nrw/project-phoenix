@@ -20,7 +20,7 @@ const {
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/parents/enroll/status/tok/edit",
+  usePathname: () => "/parents/anmeldung/status/tok/edit",
   useRouter: () => ({ push: vi.fn() }),
 }));
 

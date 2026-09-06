@@ -26,7 +26,7 @@ import (
 // ============================================================================
 
 type wsMockStaffShiftRepository struct {
-	findByStaffIDsAndDateFunc func(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*scheduleModels.StaffShift, error)
+	findByStaffIDsAndDateFunc func(ctx context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
 }
 
 func (m *wsMockStaffShiftRepository) Create(_ context.Context, _ *scheduleModels.StaffShift) error {
@@ -43,22 +43,22 @@ func (m *wsMockStaffShiftRepository) Update(_ context.Context, _ *scheduleModels
 
 func (m *wsMockStaffShiftRepository) Delete(_ context.Context, _ any) error { return nil }
 
-func (m *wsMockStaffShiftRepository) FindByDateRange(_ context.Context, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (m *wsMockStaffShiftRepository) FindByDateRange(_ context.Context, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffShiftRepository) FindByStaffAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (m *wsMockStaffShiftRepository) FindByStaffAndDateRange(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	if m.findByStaffIDsAndDateFunc != nil {
 		return m.findByStaffIDsAndDateFunc(ctx, staffIDs, date)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []timezone.Date) ([]*scheduleModels.StaffShift, error) {
+func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, nil
 }
 
@@ -80,11 +80,11 @@ func (m *wsMockStaffShiftRepository) UpdateColumns(_ context.Context, _ *schedul
 	return 0, nil
 }
 
-func (m *wsMockStaffShiftRepository) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
+func (m *wsMockStaffShiftRepository) FindUsedCalendarWeeks(_ context.Context, _, _ scheduleModels.Date) ([]scheduleModels.Date, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffShiftRepository) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
+func (m *wsMockStaffShiftRepository) DeleteUpcomingByStaffID(context.Context, int64, scheduleModels.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -92,11 +92,11 @@ func (m *wsMockStaffShiftRepository) BulkCreate(context.Context, []*scheduleMode
 	return nil
 }
 
-func (m *wsMockStaffShiftRepository) DeleteNonDetachedBySeriesFrom(context.Context, int64, timezone.Date) (int64, error) {
+func (m *wsMockStaffShiftRepository) DeleteNonDetachedBySeriesFrom(context.Context, int64, scheduleModels.Date) (int64, error) {
 	return 0, nil
 }
 
-func (m *wsMockStaffShiftRepository) RepointDetachedSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
+func (m *wsMockStaffShiftRepository) RepointDetachedSeriesFrom(context.Context, int64, int64, scheduleModels.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -127,7 +127,7 @@ func autoCheckoutFixture(openSessions []*activeModels.WorkSession, shifts []*sch
 		}
 		return nil, sql.ErrNoRows
 	}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		return shifts, nil
 	}
 	return service, sessionRepo, breakRepo, auditRepo, shiftRepo
@@ -136,7 +136,7 @@ func autoCheckoutFixture(openSessions []*activeModels.WorkSession, shifts []*sch
 func shiftFor(staffID int64, date timezone.Date, startHour, endHour int) *scheduleModels.StaffShift {
 	return &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: wallClock(startHour, 0),
 		EndTime:   wallClock(endHour, 0),
 	}
@@ -781,7 +781,7 @@ func TestAutoCheckout_EndsActiveSupervisions(t *testing.T) {
 	sessionRepo.lockOpenByIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return session, nil
 	}
-	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{shift}, nil
 	}
 	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
@@ -835,6 +835,6 @@ func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
 
 // FindByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock
 // exercises the single-staff path only.
-func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*scheduleModels.StaffShift, error) {
+func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDateRange(context.Context, []int64, scheduleModels.Date, scheduleModels.Date) (map[int64][]*scheduleModels.StaffShift, error) {
 	return nil, nil
 }

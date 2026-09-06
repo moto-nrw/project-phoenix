@@ -58,7 +58,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unified plan derives legacy mirrors", func(t *testing.T) {
@@ -429,7 +429,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	if !companionNoteColumnExists(t, db) {
@@ -509,7 +509,7 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("untouched stale plan does not revert a committed change", func(t *testing.T) {

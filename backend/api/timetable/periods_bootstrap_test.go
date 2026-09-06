@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,7 +38,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 
 	res := NewResource(Dependencies{
 		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
-			Repo: repositories.NewFactory(db).CalendarPeriod,
+			Repo: mustTimetableTestRepositories(db).CalendarPeriod,
 		}),
 		DB: db,
 	})

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Cake } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { createLogger } from "~/lib/logger";
 import { fetchBirthdayOptOut, updateBirthdayOptOut } from "~/lib/birthdays-api";
@@ -69,17 +70,12 @@ export function BirthdayVisibilitySection() {
   if (!available) return null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Cake className="h-5 w-5 text-gray-800" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-gray-900">Geburtstag</h3>
-      </div>
-
-      <p className="mb-4 text-sm text-gray-600">
-        Ihr Name erscheint an Ihrem Geburtstag auf der Startseite, ohne
-        Geburtsjahr.
-      </p>
-
+    <SectionCard
+      icon={Cake}
+      headingLevel={3}
+      title="Geburtstag"
+      description="Ihr Name erscheint an Ihrem Geburtstag auf der Startseite, ohne Geburtsjahr."
+    >
       {error && (
         <div className="mb-3">
           <Alert type="error" message={error} />
@@ -101,6 +97,6 @@ export function BirthdayVisibilitySection() {
           />
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }

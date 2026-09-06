@@ -38,7 +38,7 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Attendance
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Attendance
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 

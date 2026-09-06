@@ -4,9 +4,10 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -24,7 +25,7 @@ import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import { DevicesMasterDetail } from "@/components/devices/devices-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -55,7 +56,7 @@ function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
 
 export default function DevicesPage() {
   return (
-    <NfcModeGuard>
+    <NfcModeGuard title="Geräte">
       <Suspense fallback={null}>
         <DevicesPageContent />
       </Suspense>
@@ -73,7 +74,6 @@ function DevicesPageContent() {
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [savingDevice, setSavingDevice] = useState(false);
   // The list response never carries `api_key` (it's a one-time create-only
   // secret). We snapshot the freshly-created device here so the detail panel
@@ -118,6 +118,13 @@ function DevicesPageContent() {
   // async and useSearchParams lags one render behind it, so any effect that
   // compares createdDevice.id to selectedId would race the URL update and
   // wipe the api_key before it could render.
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Geräteliste.
+  const statusLine = useMemo(() => {
+    const devices = devicesData ?? [];
+    const online = devices.filter((d) => d.is_online).length;
+    return `${formatCount(devices.length)} ${devices.length === 1 ? "Gerät" : "Geräte"} · ${formatCount(online)} online`;
+  }, [devicesData]);
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -218,9 +225,6 @@ function DevicesPageContent() {
     setShowCreateModal(false);
   }, []);
 
-  const handleEditClick = useCallback(() => setShowEditModal(true), []);
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
-
   const handleCreateDevice = useCallback(
     async (data: Partial<Device>) => {
       try {
@@ -272,7 +276,6 @@ function DevicesPageContent() {
         // Editing closes the api_key flash — the snapshot would otherwise
         // overlay the freshly-edited list values on the next render.
         setCreatedDevice(null);
-        setShowEditModal(false);
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -337,11 +340,91 @@ function DevicesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredDevices.length === 0 && selectedDevice === null
+          ? {
+              title: searchTerm
+                ? "Keine Geräte gefunden"
+                : "Keine Geräte vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Registrieren Sie das erste Gerät, um Karten zu lesen.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.devices.icon}
+                  tone={MOTO_CONCEPTS.devices.tone}
+                  size={48}
+                />
+              ),
+              action: searchTerm ? undefined : (
+                <DatabaseCreateAction
+                  label="Gerät"
+                  ariaLabel="Gerät registrieren"
+                  onClick={() => setShowCreateModal(true)}
+                />
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Device>
+            isOpen={showCreateModal}
+            onClose={handleCloseCreateModal}
+            mode="create"
+            config={devicesConfig}
+            onSubmit={handleCreateDevice}
+          />
+
+          {selectedDevice && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteDevice())}
+              title="Gerät löschen?"
+              description={
+                <>
+                  Möchten Sie das Gerät{" "}
+                  <span className="font-medium">
+                    {selectedDevice.name ?? selectedDevice.device_id}
+                  </span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={savingDevice}
+              error=""
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Geräte",
+        description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={DEVICES_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
+            ) : null}
+            <DatabaseCreateAction
+              label="Gerät"
+              ariaLabel="Gerät registrieren"
+              onClick={() => setShowCreateModal(true)}
+            />
+          </div>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Geräte" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -356,38 +439,16 @@ function DevicesPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Geräte suchen...",
+            placeholder: "Geräte suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={DEVICES_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-              ) : null}
-              <DatabaseCreateAction
-                label="Gerät"
-                ariaLabel="Gerät registrieren"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <DevicesMasterDetail
@@ -395,70 +456,11 @@ function DevicesPageContent() {
             selectedId={selectedId}
             selectedDevice={selectedDevice}
             onSelect={handleSelectDevice}
-            onEditClick={handleEditClick}
+            onSaveDevice={handleUpdateDevice}
             onDeleteClick={handleDeleteClick}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.devices.icon}
-              tone={MOTO_CONCEPTS.devices.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm ? "Keine Geräte gefunden" : "Keine Geräte vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie einen anderen Suchbegriff."
-              : "Es wurden noch keine Geräte registriert."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Device>
-        isOpen={showCreateModal}
-        onClose={handleCloseCreateModal}
-        mode="create"
-        config={devicesConfig}
-        onSubmit={handleCreateDevice}
-      />
-
-      {selectedDevice && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteDevice())}
-          title="Gerät löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmVariant="danger"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie das Gerät{" "}
-            <span className="font-medium">
-              {selectedDevice.name ?? selectedDevice.device_id}
-            </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedDevice && (
-        <DatabaseFormModal<Device>
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          mode="edit"
-          config={devicesConfig}
-          initialData={selectedDevice}
-          onSubmit={handleUpdateDevice}
-          isLoading={savingDevice}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

@@ -35,7 +35,7 @@ func (s lifecycleSettingsStub) ResolveBool(context.Context, string) (bool, error
 
 func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(2026, 8, 13),
+		Date:      scheduleModel.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -347,7 +347,7 @@ func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *tes
 	require.Len(t, exceptionRepo.created, 1)
 	created := exceptionRepo.created[0]
 	assert.Equal(t, groupID, created.ActivityGroupID)
-	assert.Equal(t, date, created.ExceptionDate)
+	assert.Equal(t, scheduleModel.Date(date), created.ExceptionDate)
 	assert.Equal(t, scheduleModel.ActivityExceptionCancelled, created.ExceptionType)
 	require.NotNil(t, created.Reason)
 	assert.Equal(t, deletedSlotReason, *created.Reason)
@@ -406,7 +406,7 @@ func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *te
 	reason := "Raumwechsel"
 	existing := &scheduleModel.ActivityException{
 		ActivityGroupID: groupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModel.Date(date),
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &start,
 		EndTime:         &end,
@@ -514,7 +514,7 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 
 func deleteUnitInstance(id int64, groupID *int64, date timezone.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:            date,
+		Date:            scheduleModel.Date(date),
 		ActivityGroupID: groupID,
 		Title:           "Delete unit test",
 		StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -547,7 +547,7 @@ func (r *deleteUnitInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleMo
 	return r.instance, nil
 }
 
-func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *deleteUnitInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	r.sameDayCalls++
 	if r.sameDayErr != nil {
 		return nil, r.sameDayErr
@@ -576,7 +576,7 @@ type deleteUnitExceptionRepo struct {
 	updated   []*scheduleModel.ActivityException
 }
 
-func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) (*scheduleModel.ActivityException, error) {
+func (r *deleteUnitExceptionRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ scheduleModel.Date) (*scheduleModel.ActivityException, error) {
 	r.findCalls++
 	if r.findErr != nil {
 		return nil, r.findErr

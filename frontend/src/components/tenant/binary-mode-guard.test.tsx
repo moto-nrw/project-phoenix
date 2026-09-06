@@ -50,22 +50,21 @@ describe("BinaryModeGuard", () => {
     expect(screen.getByText("protected-content")).toBeInTheDocument();
   });
 
-  it("triggers notFound() in binary mode", () => {
-    // React 18 logs the caught error via an error boundary; silence that to
-    // keep test output readable. The assertion verifies the throw itself.
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  // Verhaltensänderung, ausdrücklich freigegeben: eine nicht eingeschaltete
+  // Funktion ist ein Zustand, kein „nicht gefunden".
+  it('zeigt den Zustand „nicht eingeschaltet" statt einer 404 im Binärmodus', () => {
+    render(
+      <TenantProvider tenantSlug="demo" tenant={makeTenant("binary")}>
+        <BinaryModeGuard>
+          <div>protected-content</div>
+        </BinaryModeGuard>
+      </TenantProvider>,
+    );
 
-    expect(() =>
-      render(
-        <TenantProvider tenantSlug="demo" tenant={makeTenant("binary")}>
-          <BinaryModeGuard>
-            <div>protected-content</div>
-          </BinaryModeGuard>
-        </TenantProvider>,
-      ),
-    ).toThrow("NEXT_NOT_FOUND");
-
-    errorSpy.mockRestore();
+    expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Diese Funktion ist nicht eingeschaltet"),
+    ).toBeInTheDocument();
   });
 
   it("renders children when no tenant context (safe default is detailed)", () => {

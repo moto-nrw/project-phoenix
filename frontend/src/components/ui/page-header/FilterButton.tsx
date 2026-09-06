@@ -34,7 +34,10 @@ export function FilterButton({
       onClick={onClick}
       data-testid={testId}
       aria-label={showCountBadge ? `Filter (${activeCount} aktiv)` : "Filter"}
-      className={`relative rounded-2xl p-2.5 transition-all duration-200 ${
+      // `aspect-square` statt fester Breite: die Kopfkarte erzwingt die
+      // Bedienhöhe (40/44 px) per Nachfahren-Selektor — mit fester Breite
+      // wurde der runde Knopf dabei zum Oval. So folgt die Breite der Höhe.
+      className={`relative flex aspect-square h-10 items-center justify-center rounded-2xl transition-all duration-200 ${
         isOpen
           ? "border-moto-blue bg-moto-blue border text-white"
           : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"

@@ -49,7 +49,7 @@ func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]
 func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsenceRequestService) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:       repos.ParentChild,

@@ -21,17 +21,21 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
+	candidateOnlyExternal, err := candidateOnlyExternalPackages(project, candidate, createdPackages)
+	if err != nil {
+		return err
+	}
 	deletedLegacySymbols, err := candidateDeletedLegacySymbols(project, base, candidate)
 	if err != nil {
 		return err
 	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, deletedLegacySymbols)
+	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
 }
 
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, deletedLegacySymbols map[string]struct{}) error {
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
-	problems = append(problems, classificationLoosenings(base, candidate, createdPackages)...)
+	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
 	problems = append(problems, importLoosenings(base, candidate)...)
@@ -62,7 +66,11 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 	candidateOwners := ownersByID(candidate)
 	for id, owner := range candidateOwners {
 		if _, exists := baseOwners[id]; !exists {
-			if owner.Kind != "projection" || !ownerPackagesAreCandidateCreated(candidate, id, createdPackages) {
+			candidateOnlyOwner := ownerPackagesAreCandidateCreated(candidate, id, createdPackages)
+			approvedCanonicalAddition := candidate.ModulePath == "github.com/moto-nrw/project-phoenix" &&
+				candidate.PolicyEpoch > base.PolicyEpoch && candidateOnlyOwner &&
+				(owner.Kind == "domain" || owner.Kind == "platform")
+			if (owner.Kind != "projection" || !candidateOnlyOwner) && !approvedCanonicalAddition {
 				problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
 			}
 		}
@@ -89,7 +97,7 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 	return problems
 }
 
-func classificationLoosenings(base, candidate *Policy, createdPackages map[string]struct{}) []string {
+func classificationLoosenings(base, candidate *Policy, createdPackages, candidateOnlyExternal map[string]struct{}) []string {
 	basePackages := base.packageMap()
 	var problems []string
 	for path, current := range candidate.packageMap() {
@@ -121,7 +129,9 @@ func classificationLoosenings(base, candidate *Policy, createdPackages map[strin
 	for path, current := range candidate.externalPackageMap() {
 		previous, exists := baseExternal[path]
 		if !exists {
-			problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
+			if _, candidateOnly := candidateOnlyExternal[path]; !candidateOnly {
+				problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
+			}
 		} else if current.Class != previous.Class {
 			problems = append(problems, fmt.Sprintf("external package %s changed class from %s to %s", path, previous.Class, current.Class))
 		}

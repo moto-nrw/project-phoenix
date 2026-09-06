@@ -1,8 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { parseISODate, toISODate } from "../src/lib/date-helpers";
 
-// Planung-Redesign (docs/planung-redesign/docs/03): flache
-// flache Sidebar-Einträge statt des Planung-Akkordeons, /planung und die
+// Flache Sidebar-Einträge statt des Planung-Akkordeons, /planung und die
 // Alt-Stubs als Redirects mit Parameter-Übersetzung in das neue
 // Drei-Parameter-Schema (d, view, block/verlauf).
 

@@ -755,7 +755,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
 			return err
 		}
 		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
@@ -810,7 +810,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: staffID,
 	}
@@ -859,7 +859,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
-		NoteDate:  noteDate,
+		NoteDate:  schedule.Date(noteDate),
 		Content:   req.Content,
 		CreatedBy: existingNote.CreatedBy, // Preserve original creator
 	}

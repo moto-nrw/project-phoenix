@@ -380,7 +380,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	}
 	if result.GroupID != nil && activityNames[*result.GroupID] != "" {
 		session.ActualGroup = &activities.Group{
-			Model: modelBase.Model{ID: *result.GroupID},
+			Model: activities.Model{ID: *result.GroupID},
 			Name:  activityNames[*result.GroupID],
 		}
 	}

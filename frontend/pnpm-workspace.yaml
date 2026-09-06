@@ -1,6 +1,20 @@
 minimumReleaseAge: 10080
 trustPolicy: no-downgrade
 
+# Security releases: fast-uri closes the September authority-parsing advisories;
+# Storybook 10.6.0 replaces vulnerable image-size with probe-image-size.
+# Keep the seven-day delay for every other package/version.
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.7
+  - storybook@10.6.0
+  - "@storybook/addon-a11y@10.6.0"
+  - "@storybook/nextjs-vite@10.6.0"
+  - "@storybook/react@10.6.0"
+  - "@storybook/react-dom-shim@10.6.0"
+  - "@storybook/react-vite@10.6.0"
+  - "@storybook/builder-vite@10.6.0"
+  - vite-plugin-storybook-nextjs@10.6.0
+
 # next-auth has exactly ONE provenance-signed release in its 727-version history:
 # 0.0.0-manual.2824fa11 (canary, 2025-10-26). Under trustPolicy: no-downgrade that
 # single canary permanently poisons the baseline, so every later publish (including
@@ -44,7 +58,7 @@ overrides:
   "nanoid@<3.3.18": 3.3.18
   "dompurify@<=3.4.12": 3.4.13
   "undici@>=7.0.0 <7.29.0": 7.29.0
-  "fast-uri@>=3.0.0 <3.1.5": 3.1.5
+  "fast-uri@>=3.0.0 <3.1.7": 3.1.7
   "brace-expansion@>=4.0.0 <5.0.9": 5.0.9
 
 peerDependencyRules:

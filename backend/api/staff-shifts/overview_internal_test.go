@@ -51,7 +51,7 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 	member := &users.Staff{Person: &users.Person{FirstName: "Ada", LastName: "Lovelace"}}
 	member.ID = 7
 	shift := &scheduleModel.StaffShift{
-		StaffID: 7, Date: from, StartTime: overviewClock(t, "08:00"), EndTime: overviewClock(t, "12:00"), BreakMinutes: 30,
+		StaffID: 7, Date: scheduleModel.Date(from), StartTime: overviewClock(t, "08:00"), EndTime: overviewClock(t, "12:00"), BreakMinutes: 30,
 	}
 	shift.ID = 8
 	service := &fakeOverviewService{result: &scheduleSvc.StaffScheduleOverview{

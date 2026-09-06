@@ -685,8 +685,16 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	})
 }
 
+func newStudentTestRepositories(db *bun.DB) repositories.StudentTestRepositories {
+	repos, err := repositories.NewStudentTestRepositories(db, repositories.NewTestAuditStore(db))
+	if err != nil {
+		panic(err)
+	}
+	return repos
+}
+
 func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := newStudentTestRepositories(db)
 	var clock func() time.Time
 	if len(clocks) > 0 {
 		clock = clocks[0]

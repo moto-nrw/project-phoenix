@@ -37,7 +37,7 @@ func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activ
 	}
 }
 
-func buildInstance(tenantID, roomID int64, activityID *int64, date timezone.Date, start, end time.Time, title string) *scheduleModels.ActivityInstance {
+func buildInstance(tenantID, roomID int64, activityID *int64, date scheduleModels.Date, start, end time.Time, title string) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
 		Date:            date,
 		ActivityGroupID: activityID,
@@ -65,7 +65,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		inst := buildInstance(
 			testpkg.Tenant(t), fx.roomID, &fx.activityID,
-			timezone.NewDate(2026, 9, 15),
+			scheduleModels.NewDate(2026, 9, 15),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 			"Lernzeit",
@@ -83,7 +83,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		inst := buildInstance(
 			testpkg.Tenant(t), fx.roomID, nil,
-			timezone.NewDate(2026, 9, 16),
+			scheduleModels.NewDate(2026, 9, 16),
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
 			"Spontanes Kochen",
@@ -109,7 +109,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
-			timezone.NewDate(2026, 9, 17),
+			scheduleModels.NewDate(2026, 9, 17),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 			"Broken",
@@ -124,7 +124,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-spon-dup")
 		defer fx.cleanup()
 
-		date := timezone.NewDate(2026, 9, 18)
+		date := scheduleModels.NewDate(2026, 9, 18)
 		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 
@@ -141,7 +141,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-linked-spon-dup")
 		defer fx.cleanup()
 
-		date := timezone.NewDate(2026, 9, 18)
+		date := scheduleModels.NewDate(2026, 9, 18)
 		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 
@@ -158,7 +158,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-dup")
 		defer fx.cleanup()
 
-		date := timezone.NewDate(2026, 9, 19)
+		date := scheduleModels.NewDate(2026, 9, 19)
 		start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
@@ -181,7 +181,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 9, 21)
+	date := scheduleModels.NewDate(2026, 9, 21)
 	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 	var createdIDs []int64
@@ -217,7 +217,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent-invalid")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 9, 22)
+	date := scheduleModels.NewDate(2026, 9, 22)
 	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
@@ -274,7 +274,7 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 
 	inst := buildInstance(
 		testpkg.Tenant(t), fx.roomID, &fx.activityID,
-		timezone.NewDate(2026, 9, 15),
+		scheduleModels.NewDate(2026, 9, 15),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit",
@@ -321,7 +321,7 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 
 	inst := buildInstance(
 		testpkg.Tenant(t), fx.roomID, &fx.activityID,
-		timezone.NewDate(2026, 9, 16),
+		scheduleModels.NewDate(2026, 9, 16),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit Lifecycle",
@@ -358,7 +358,7 @@ func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryS
 
 	inst := buildInstance(
 		testpkg.Tenant(t), fx.roomID, &fx.activityID,
-		timezone.NewDate(2026, 9, 17),
+		scheduleModels.NewDate(2026, 9, 17),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Session-End",
@@ -393,8 +393,8 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "by-date")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 9, 20)
-	other := timezone.NewDate(2026, 9, 21)
+	date := scheduleModels.NewDate(2026, 9, 20)
+	other := scheduleModels.NewDate(2026, 9, 21)
 
 	a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -440,10 +440,10 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "range")
 	defer fx.cleanup()
 
-	start := timezone.NewDate(2026, 9, 22)
-	mid := timezone.NewDate(2026, 9, 24)
-	end := timezone.NewDate(2026, 9, 26)
-	outside := timezone.NewDate(2026, 10, 5)
+	start := scheduleModels.NewDate(2026, 9, 22)
+	mid := scheduleModels.NewDate(2026, 9, 24)
+	end := scheduleModels.NewDate(2026, 9, 26)
+	outside := scheduleModels.NewDate(2026, 10, 5)
 
 	s1 := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, start,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -486,7 +486,7 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "grp-date")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 10, 1)
+	date := scheduleModels.NewDate(2026, 10, 1)
 
 	a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -524,7 +524,7 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 
 		inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
-			timezone.NewDate(2026, 10, 14),
+			scheduleModels.NewDate(2026, 10, 14),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			"linked")
@@ -554,7 +554,7 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 
 	ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 
-	date := timezone.NewDate(2026, 10, 13)
+	date := scheduleModels.NewDate(2026, 10, 13)
 
 	first := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -613,7 +613,7 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 	defer fx.cleanup()
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
-		timezone.NewDate(2026, 10, 7),
+		scheduleModels.NewDate(2026, 10, 7),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		"List-entry")
@@ -692,7 +692,7 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	fx := newActivityInstanceFixtures(t, db, "dev-preserve")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 9, 21)
+	date := scheduleModels.NewDate(2026, 9, 21)
 
 	// plain: no deviation → deleted.
 	plain := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -766,7 +766,7 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 	fx := newActivityInstanceFixtures(t, db, "dev-harddelete")
 	defer fx.cleanup()
 
-	date := timezone.NewDate(2026, 9, 28)
+	date := scheduleModels.NewDate(2026, 9, 28)
 
 	// A deviated instance: acknowledged shortfall AND an absent staff row.
 	dev := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -801,7 +801,7 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 
 	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db, func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+		return scheduleModels.NewDate(2026, 8, 24).BerlinMidnight()
 	})
 	legacyWeekendRepo, ok := any(repo).(interface {
 		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
@@ -810,7 +810,7 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 	fx := newActivityInstanceFixtures(t, db, "legacy-weekend-delete")
 	defer fx.cleanup()
 
-	saturday := timezone.NewDate(2026, 8, 24).AddDays(1)
+	saturday := scheduleModels.NewDate(2026, 8, 24).AddDays(1)
 	for saturday.Weekday() != time.Saturday {
 		saturday = saturday.AddDays(1)
 	}
@@ -864,13 +864,13 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 	other := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Other-listkind-%d", time.Now().UnixNano()))
 	otherID := other.ID
 
-	today := timezone.TodayDate()
+	today := scheduleModels.Date(timezone.TodayDate())
 
 	// mkInstance builds + persists an instance and registers cleanup. Each row
 	// gets a distinct start hour so same-(template,date) rows do not collide on
 	// the (tenant, date, activity_group_id, start_time) unique index.
 	startHour := 8
-	mkInstance := func(name string, activityID *int64, date timezone.Date, listKind *string, mutate func(*scheduleModels.ActivityInstance)) *scheduleModels.ActivityInstance {
+	mkInstance := func(name string, activityID *int64, date scheduleModels.Date, listKind *string, mutate func(*scheduleModels.ActivityInstance)) *scheduleModels.ActivityInstance {
 		start := time.Date(2024, 1, 1, startHour, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, startHour+1, 0, 0, 0, time.UTC)
 		startHour++
@@ -951,14 +951,14 @@ func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 		defer fx.cleanup()
 
 		later := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
-			timezone.NewDate(2026, 9, 20),
+			scheduleModels.NewDate(2026, 9, 20),
 			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			"Later")
 		require.NoError(t, repo.Create(ctx, later))
 
 		earlier := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
-			timezone.NewDate(2026, 9, 18),
+			scheduleModels.NewDate(2026, 9, 18),
 			time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 			"Earlier")

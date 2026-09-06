@@ -18,7 +18,7 @@ import (
 // Note: setupActiveService already exists in session_conflict_test.go, so we use a different name
 func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active

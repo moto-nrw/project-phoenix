@@ -202,9 +202,10 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 			coverage.checkInNano = row.Attendance.CheckedInAt.UnixNano()
 			coverage.hasCheckIn = true
 		}
-		coverageByDate[row.Instance.Date] = append(coverageByDate[row.Instance.Date], coverage)
+		instanceDate := timezone.Date(row.Instance.Date)
+		coverageByDate[instanceDate] = append(coverageByDate[instanceDate], coverage)
 		entries = append(entries, sortableExportRow{
-			date:  row.Instance.Date,
+			date:  instanceDate,
 			clock: row.Instance.StartTime.Format("15:04:05"),
 			row:   slotExportRow(row),
 		})

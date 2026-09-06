@@ -42,7 +42,7 @@ func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
 }
 
 func newBirthdayService(db *bun.DB, settings *configtest.Mock, now func() time.Time) usersService.BirthdayService {
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return usersService.NewBirthdayService(usersService.BirthdayServiceDependencies{
 		StudentRepo:     repos.Student,
 		StaffRepo:       repos.Staff,
@@ -493,7 +493,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	today := timezone.TodayDate()
@@ -541,7 +541,7 @@ func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	students, err := repos.Student.FindBirthdaysOn(ctx, nil)

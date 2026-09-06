@@ -10,13 +10,14 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -24,18 +25,18 @@ import (
 // FormSchemaResponse is the wire shape returned to admin UIs. The id is
 // stringified so the frontend can keep its int64-as-string convention.
 type FormSchemaResponse struct {
-	ID               string                            `json:"id"`
-	Name             string                            `json:"name"`
-	Version          int                               `json:"version"`
-	IsActive         bool                              `json:"is_active"`
-	Fields           []enrollmentModels.FormField      `json:"fields"`
-	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
-	LegalBlocks      []enrollmentModels.FormLegalBlock `json:"legal_blocks"`
-	CreatedBy        string                            `json:"created_by"`
-	CreatedAt        time.Time                         `json:"created_at"`
+	ID               string                      `json:"id"`
+	Name             string                      `json:"name"`
+	Version          int                         `json:"version"`
+	IsActive         bool                        `json:"is_active"`
+	Fields           []capability.FormField      `json:"fields"`
+	CoreRequirements capability.CoreRequirements `json:"core_requirements"`
+	LegalBlocks      []capability.FormLegalBlock `json:"legal_blocks"`
+	CreatedBy        string                      `json:"created_by"`
+	CreatedAt        time.Time                   `json:"created_at"`
 }
 
-func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
+func toFormSchemaResponse(s *capability.FormSchema) FormSchemaResponse {
 	return FormSchemaResponse{
 		ID:               strconv.FormatInt(s.ID, 10),
 		Name:             s.Name,
@@ -49,16 +50,16 @@ func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 	}
 }
 
-func coreRequirementsValue(value enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+func coreRequirementsValue(value capability.CoreRequirements) capability.CoreRequirements {
 	if value == nil {
-		return enrollmentModels.CoreRequirements{}
+		return capability.CoreRequirements{}
 	}
 	return value
 }
 
-func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModels.FormLegalBlock {
+func legalBlocksValue(value []capability.FormLegalBlock) []capability.FormLegalBlock {
 	if value == nil {
-		return []enrollmentModels.FormLegalBlock{}
+		return []capability.FormLegalBlock{}
 	}
 	return value
 }
@@ -68,17 +69,17 @@ func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModel
 // when empty it falls back to updating/creating the default
 // "Standardformular" schema (legacy single-schema flow).
 type PublishSchemaRequest struct {
-	Name             string                             `json:"name"`
-	Fields           []enrollmentModels.FormField       `json:"fields"`
-	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
-	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
+	Name             string                       `json:"name"`
+	Fields           []capability.FormField       `json:"fields"`
+	CoreRequirements *capability.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]capability.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
 // service so we don't duplicate it here.
 func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
-		req.Fields = []enrollmentModels.FormField{}
+		req.Fields = []capability.FormField{}
 	}
 	return nil
 }
@@ -91,15 +92,15 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 // name is inherited from the source schema, keeping every version of a
 // logical schema under one shared name.
 type UpdateSchemaRequest struct {
-	Name             *string                            `json:"name,omitempty"`
-	Fields           []enrollmentModels.FormField       `json:"fields"`
-	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
-	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
+	Name             *string                      `json:"name,omitempty"`
+	Fields           []capability.FormField       `json:"fields"`
+	CoreRequirements *capability.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]capability.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
-		req.Fields = []enrollmentModels.FormField{}
+		req.Fields = []capability.FormField{}
 	}
 	return nil
 }
@@ -125,10 +126,10 @@ func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
 // form. The fields array carries everything the dynamic renderer
 // consumes (label, type, options, validation).
 type PublicFormSchemaResponse struct {
-	ID               string                            `json:"id"`
-	Version          int                               `json:"version"`
-	Fields           []enrollmentModels.FormField      `json:"fields"`
-	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
+	ID               string                      `json:"id"`
+	Version          int                         `json:"version"`
+	Fields           []capability.FormField      `json:"fields"`
+	CoreRequirements capability.CoreRequirements `json:"core_requirements"`
 }
 
 type SchemaPreviewBootstrapResponse struct {
@@ -149,8 +150,8 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 	}
 
 	var (
-		schema *enrollmentModels.FormSchema
-		phases []*enrollmentModels.Phase
+		schema *capability.FormSchema
+		phases []*capability.Phase
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		if schemaID > 0 {
@@ -210,7 +211,7 @@ func parseSchemaPreviewSchemaID(w http.ResponseWriter, r *http.Request) (int64, 
 	return parsed, true
 }
 
-func countAssignedPreviewPhases(phases []*enrollmentModels.Phase, schema *enrollmentModels.FormSchema) (int, int) {
+func countAssignedPreviewPhases(phases []*capability.Phase, schema *capability.FormSchema) (int, int) {
 	assigned := 0
 	active := 0
 	for _, phase := range phases {
@@ -252,7 +253,7 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
@@ -325,7 +326,7 @@ func (rs *Resource) getActiveSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.GetActive(ctx)
 		schema = s
@@ -351,7 +352,7 @@ func (rs *Resource) listSchemaVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schemas []*enrollmentModels.FormSchema
+	var schemas []*capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.ListVersions(ctx)
 		schemas = s
@@ -384,14 +385,18 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.GetByID(ctx, id)
 		schema = s
 		return innerErr
 	})
 	if txErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(txErr))
+		if errors.Is(txErr, sql.ErrNoRows) || errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(txErr))
 		return
 	}
 
@@ -421,7 +426,7 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, publishErr := rs.FormSchemaService.PublishForm(ctx, enrollmentService.PublishFormInput{
 			Name:             req.Name,
@@ -474,7 +479,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, publishErr := rs.FormSchemaService.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
 			ID:               id,
@@ -544,7 +549,7 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var schema *enrollmentModels.FormSchema
+	var schema *capability.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, innerErr := rs.FormSchemaService.RenameSchema(ctx, id, req.Name)
 		schema = s

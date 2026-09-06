@@ -39,7 +39,7 @@ func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *r
 
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
 		TokenAuth:   tokenAuth,

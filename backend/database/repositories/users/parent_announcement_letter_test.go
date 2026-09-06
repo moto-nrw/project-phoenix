@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +23,7 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -70,7 +72,7 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -100,7 +102,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -168,7 +170,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,

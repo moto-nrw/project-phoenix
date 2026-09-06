@@ -42,7 +42,7 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewFactory(db).StudentDataChangeRequest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDataChangeRequest
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	pending := coverageChangeRequest(chain.StudentID, chain.AccountID, chain.TenantID,
@@ -91,7 +91,7 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentDataChangeRequest
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentDataChangeRequest
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, db)
 	ctxA := testpkg.TenantContext(chainA.TenantID)

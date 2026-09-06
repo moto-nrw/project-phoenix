@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -22,7 +21,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	t.Parallel()
 
 	tc := setupStudentsRoute(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(
 		tc.resource.StudentService,
 		repos.Student,

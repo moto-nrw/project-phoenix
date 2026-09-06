@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { cn } from "~/lib/utils";
 
+// Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
+declare global {
+  interface Window {
+    m?: (href: string) => void;
+  }
+}
+
 type ButtonVariant =
   | "primary"
   | "secondary"
@@ -26,12 +33,16 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 interface ButtonLinkProps extends Omit<
   React.ComponentProps<typeof Link>,
-  "className"
+  "className" | "href"
 > {
+  readonly href: string;
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
 }
+type ButtonLinkNavigationEvent = Parameters<
+  NonNullable<ButtonLinkProps["onNavigate"]>
+>[0];
 
 function buttonClassName({
   variant,
@@ -64,7 +75,9 @@ function buttonClassName({
     // Apple HIG (44pt) und Material (48dp).
     touch: "min-h-12 rounded-xl px-5 text-[17px] font-semibold",
     compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
-    icon: "h-8 w-8 rounded-md disabled:cursor-not-allowed",
+    // `aspect-square` statt `w-8`: erzwingt die Kopfkarte ihre Bedienhöhe
+    // (40/44 px), folgt die Breite — sonst wird der quadratische Knopf oval.
+    icon: "aspect-square h-8 rounded-md disabled:cursor-not-allowed",
     card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {
@@ -115,6 +128,7 @@ export function Button({
     <button
       type="submit"
       disabled={isLoading}
+      data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className })}
       {...props}
     >
@@ -134,6 +148,16 @@ export function ButtonLink({
     <Link
       className={buttonClassName({ variant, size, className })}
       {...props}
+      onNavigate={(event: ButtonLinkNavigationEvent) => {
+        let cancelled: boolean | undefined;
+        props.onNavigate?.({
+          preventDefault() {
+            cancelled = true;
+            event.preventDefault();
+          },
+        });
+        if (!cancelled) window.m?.(props.href);
+      }}
     />
   );
 }

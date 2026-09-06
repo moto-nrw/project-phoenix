@@ -108,8 +108,8 @@ describe("instrumentation-client", () => {
   it.each([
     "/",
     "/display",
-    "/enroll",
-    "/enroll/phase-1",
+    "/anmeldung",
+    "/anmeldung/phase-1",
     "/invite",
     "/reset-password",
   ])(
@@ -235,7 +235,7 @@ describe("instrumentation-client", () => {
     expect(canPromptInstall()).toBe(true);
   });
 
-  it.each(["/login", "/reset-password", "/enroll/status/abc"])(
+  it.each(["/login", "/reset-password", "/anmeldung/status/abc"])(
     "leaves the native prompt uncaptured on public parent path %s",
     async (path) => {
       window.location.href = `https://eltern.moto-app.de${path}`;

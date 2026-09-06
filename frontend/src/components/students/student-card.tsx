@@ -2,6 +2,7 @@
 // Shared student card component used across OGS groups and active supervisions pages
 
 import type { ReactNode } from "react";
+import { TILE_CARD_SURFACE } from "~/components/ui/tile-card";
 import {
   Clock,
   AlertTriangle,
@@ -162,7 +163,7 @@ export function StudentCard({
     ? `${firstName} ${lastName} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
     : checkinMode
       ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
-      : `${firstName} ${lastName} - Tippen für mehr Infos`;
+      : `${firstName} ${lastName} - Details öffnen`;
 
   // A selected card gets a brand-green ring on top of the resting shadow.
   // Inline style (not an arbitrary-value class) so the hex stays sourced from
@@ -188,21 +189,12 @@ export function StudentCard({
       data-checkin-state={checkinMode ? checkinState : undefined}
       data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
       style={selectedRingStyle}
-      className={`group moto-content-surface moto-hover-elevated relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
-        // Click-time scale skipped in check-in mode: sub-pixel aliasing
-        // during the scale animation flashes a 1px white seam at the
-        // body→tap-strip boundary. Pending spinner gives the click feedback.
-        checkinMode ? "" : "active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
-      }`}
+      className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
     >
       <div
-        className={`relative ${checkinMode && !selectMode ? "p-6 pb-0" : "p-6 pb-5"}`}
+        className={`relative ${checkinMode && !selectMode ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
       >
-        {!checkinMode && (
-          <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-        )}
-
-        {/* Card body content sits above the decorative layers */}
+        {/* Card body content */}
         <div className="relative">
           {/* Header with student name */}
           <div className="mb-3 flex items-start justify-between gap-3">
@@ -239,22 +231,22 @@ export function StudentCard({
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
-                      {firstName}
+                  {/* Ein Name, eine Zeile — dieselbe Bauart wie die
+                      Personal-Kachel. Der Umbruch zwischen Vor- und Nachname
+                      ließ jede Karte wie zwei Personen aussehen. */}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <h3 className="truncate text-base font-bold text-gray-900">
+                      {firstName} {lastName}
                     </h3>
                     {/* Arrow hint only points to navigation; in check-in mode the
                       bottom strip carries the action signal instead. */}
                     {!checkinMode && (
                       <ChevronRight
-                        className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
+                        className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                         aria-hidden="true"
                       />
                     )}
                   </div>
-                  <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-200 md:group-hover:text-gray-800">
-                    {lastName}
-                  </p>
                 </div>
               </div>
               {/* Extra content slot (school class, group name, etc.) */}
@@ -271,13 +263,6 @@ export function StudentCard({
               locationBadge
             )}
           </div>
-
-          {/* Bottom hint in navigation mode only. */}
-          {!checkinMode && (
-            <p className="text-xs text-gray-400 transition-colors duration-200 md:group-hover:text-gray-500">
-              Tippen für mehr Infos
-            </p>
-          )}
         </div>
       </div>
 
@@ -389,7 +374,7 @@ export function AbsenceIcon() {
  * and student search pages. Normalizes the three rendering branches:
  *   1. Has planned or actual time → show status-aware time row
  *   2. Exception without time → show exception reason
- *   3. Neither → show "Abholzeit: —" fallback
+ *   3. Neither → show "Abholzeit: –" fallback
  */
 function ArrivalTimeIcon() {
   return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
@@ -457,7 +442,7 @@ function TimeStatusRow({
   if (!status.displayTime) {
     const fallbackIcon =
       kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
-    return <StudentInfoRow icon={fallbackIcon}>{label}: —</StudentInfoRow>;
+    return <StudentInfoRow icon={fallbackIcon}>{label}: –</StudentInfoRow>;
   }
 
   const icon = isException ? (
@@ -588,7 +573,7 @@ export function StudentPendingExcusedRow({
  * Shared arrival time display row, mirror of PickupTimeRow:
  *   1. isAbsent → "Kommt heute nicht" (with reason if provided)
  *   2. Has arrivalTime → show time with urgency/exception icon
- *   3. Neither → show "Ankunftszeit: —" fallback
+ *   3. Neither → show "Ankunftszeit: –" fallback
  */
 export function ArrivalTimeRow({
   arrivalTime,

@@ -34,7 +34,11 @@ export function StaffExportButton({
   }, [formOpen]);
 
   return (
-    <div className="relative" ref={containerRef}>
+    // `data-icon-only`: in den Aktionen der Kopfkarte ist dieses Div das
+    // Kind, das die Kopfkarte unter sm sortiert -- ohne die Markierung
+    // hielte sie das Kebab für einen Textknopf und gäbe ihm eine eigene,
+    // volle Zeile unter der Statuszeile (Zeiterfassung).
+    <div className="relative" data-icon-only="" ref={containerRef}>
       <OverflowMenu
         ariaLabel="Menü öffnen"
         onOpen={() => setFormOpen(false)}

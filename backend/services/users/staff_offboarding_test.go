@@ -16,6 +16,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -43,7 +44,8 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
@@ -692,7 +694,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 
 	makeInstance := func(title string) *scheduleModels.ActivityInstance {
 		inst := &scheduleModels.ActivityInstance{
-			Date:          today,
+			Date:          scheduleModels.Date(today),
 			Title:         title,
 			StartTime:     time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			EndTime:       time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -860,7 +862,7 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 	makeShift := func(date timezone.Date, startHour int) *scheduleModels.StaffShift {
 		shift := &scheduleModels.StaffShift{
 			StaffID:   staff.ID,
-			Date:      date,
+			Date:      scheduleModels.Date(date),
 			StartTime: time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 			EndTime:   time.Date(1, 1, 1, startHour+4, 0, 0, 0, time.UTC),
 			CreatedBy: staff.ID,

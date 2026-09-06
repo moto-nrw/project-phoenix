@@ -21,11 +21,11 @@ func (m *shiftMoveExceptionRepo) Create(ctx context.Context, exception *schedule
 	return nil
 }
 
-func (*shiftMoveExceptionRepo) FindDatesBySeriesID(context.Context, int64) ([]timezone.Date, error) {
+func (*shiftMoveExceptionRepo) FindDatesBySeriesID(context.Context, int64) ([]scheduleModels.Date, error) {
 	return nil, nil
 }
 
-func (*shiftMoveExceptionRepo) RepointToSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
+func (*shiftMoveExceptionRepo) RepointToSeriesFrom(context.Context, int64, int64, scheduleModels.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -62,7 +62,7 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 		ShiftID:       existing.ID,
 		SourceStaffID: existing.StaffID,
 		TargetStaffID: 8,
-		Date:          existing.Date.AddDays(1),
+		Date:          timezone.Date(existing.Date.AddDays(1)),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,
@@ -105,7 +105,7 @@ func TestShiftService_MoveRetryReturnsAlreadyMovedRowWithoutWriting(t *testing.T
 		ShiftID:       alreadyMoved.ID,
 		SourceStaffID: 7,
 		TargetStaffID: alreadyMoved.StaffID,
-		Date:          alreadyMoved.Date,
+		Date:          timezone.Date(alreadyMoved.Date),
 		StartTime:     alreadyMoved.StartTime,
 		EndTime:       alreadyMoved.EndTime,
 		BreakMinutes:  alreadyMoved.BreakMinutes,
@@ -129,7 +129,7 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
-	var exceptionDate timezone.Date
+	var exceptionDate scheduleModels.Date
 	svc.SetSeriesExceptionRepo(&shiftMoveExceptionRepo{
 		createFunc: func(_ context.Context, row *scheduleModels.StaffShiftSeriesException) error {
 			exceptionDate = row.Date
@@ -141,7 +141,7 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 		ShiftID:       existing.ID,
 		SourceStaffID: existing.StaffID,
 		TargetStaffID: existing.StaffID,
-		Date:          existing.Date.AddDays(1),
+		Date:          timezone.Date(existing.Date.AddDays(1)),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,
@@ -184,7 +184,7 @@ func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
 		ShiftID:       existing.ID,
 		SourceStaffID: existing.StaffID,
 		TargetStaffID: existing.StaffID,
-		Date:          existing.Date,
+		Date:          timezone.Date(existing.Date),
 		StartTime:     existing.StartTime,
 		EndTime:       existing.EndTime,
 		BreakMinutes:  existing.BreakMinutes,

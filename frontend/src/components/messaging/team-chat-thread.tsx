@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
@@ -29,6 +30,49 @@ import type { TeamChatPortal } from "~/lib/team-chat-portal";
 
 const logger = createLogger({ component: "TeamChatThread" });
 
+const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
+const DISABLED_DESCRIPTION =
+  "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
+
+/**
+ * Was die Hülle eines Portals vom Chat-Fenster bekommt. Wie beim Posteingang
+ * ist die Logik eine; das OGS-Portal setzt `TenantPage` darum, das
+ * Schul-Portal seine eigene Fläche.
+ */
+export interface TeamChatThreadParts {
+  /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
+  readonly title: string;
+  /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
+  readonly roleLabel: string | null;
+  /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
+  readonly stats: string;
+  readonly statsLoading: boolean;
+  /**
+   * `ready`: Verlauf (oder sein Skelett) steht in `body`.
+   * `disabled`: die Schule hat den Chat aus — `empty` beschreibt es.
+   * `error`: der Verlauf ist nicht ladbar oder es gibt ihn nicht —
+   * `errorMessage` sagt, was.
+   */
+  readonly state: "ready" | "disabled" | "error";
+  readonly empty: {
+    readonly icon: ReactNode;
+    readonly title: string;
+    readonly description: string;
+  };
+  readonly errorMessage: string;
+  /** Skelett statt Verlauf. */
+  readonly loading: boolean;
+  /** Zurück-Navigation des Portals, unverändert durchgereicht. */
+  readonly backNav: ReactNode;
+  /**
+   * Der Container, der die Viewport-Sperre trägt; die Hülle hängt ihn an das
+   * Element, das Verlauf und Composer umschließt.
+   */
+  readonly containerRef: RefObject<HTMLDivElement | null>;
+  /** Verlauf (oder Skelett), Sendefehler und Composer. */
+  readonly body: ReactNode;
+}
+
 /**
  * One conversation, shared by both portals (#2208). The back navigation is a
  * slot because the OGS portal routes through the tenant router and the
@@ -40,12 +84,18 @@ export function TeamChatThread({
   threadID,
   myAccountId,
   backNav,
+  frame,
 }: {
   readonly portal: TeamChatPortal;
   readonly threadID: string;
   /** The viewer's account id — decides which bubbles are "mine". */
   readonly myAccountId: string;
   readonly backNav: ReactNode;
+  /**
+   * Hülle des Portals. Ohne Angabe die Fläche des Schul-Portals; das
+   * OGS-Portal reicht hier `TenantPage` herein.
+   */
+  readonly frame?: (parts: TeamChatThreadParts) => ReactNode;
 }) {
   const { api } = portal;
   const flagSaysEnabled = portal.flagSaysEnabled !== false;
@@ -71,7 +121,7 @@ export function TeamChatThread({
       // not retain the preceding session's conversation during its request.
       keepPreviousData: false,
       // "Die Schule hat den Chat ausgeschaltet" ist kein transienter Fehler:
-      // SWR wuerde ihn sonst mit Backoff endlos wiederholen, und weil
+      // SWR würde ihn sonst mit Backoff endlos wiederholen, und weil
       // isLoading als (!data && isValidating) definiert ist, bliebe die Seite
       // dauerhaft im Skelett stehen statt den Aus-Zustand zu zeigen.
       shouldRetryOnError: (err: unknown) => !isStaffMessagingDisabled(err),
@@ -83,12 +133,12 @@ export function TeamChatThread({
     },
   );
 
-  // Die Schule kann den Chat abschalten, WAEHREND diese Seite offen steht. Dann
-  // laedt der Verlauf laengst, nur das Senden faellt in den 403. Ohne diesen
+  // Die Schule kann den Chat abschalten, WÄHREND diese Seite offen steht. Dann
+  // lädt der Verlauf längst, nur das Senden fällt in den 403. Ohne diesen
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
   // denselben Fehler.
   const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
-  // Das Gegenueber hat die Schule verlassen, waehrend diese Seite offen stand.
+  // Das Gegenüber hat die Schule verlassen, während diese Seite offen stand.
   // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
   const [counterpartGone, setCounterpartGone] = useState(false);
 
@@ -103,7 +153,7 @@ export function TeamChatThread({
   const chatDisabled =
     !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
   const threadLoadFailed = Boolean(loadError) && !disabledByBackend;
-  // Getrennt vom Aus-Zustand: der Chat laeuft, nur DIESE Unterhaltung ist zu.
+  // Getrennt vom Aus-Zustand: der Chat läuft, nur DIESE Unterhaltung ist zu.
   const readOnlyThread = !chatDisabled && counterpartGone;
 
   const [draft, setDraft] = useState("");
@@ -129,7 +179,7 @@ export function TeamChatThread({
     refetchOnFocus: true,
     // Diese Seite schiebt den Lesecursor vor. Ein eigener Send aus einem
     // anderen Tab darf sie deshalb nicht wecken - sonst markiert sie als
-    // gelesen, was das Gegenueber in der Zwischenzeit geschrieben hat.
+    // gelesen, was das Gegenüber in der Zwischenzeit geschrieben hat.
     ignoreOwnSource: myAccountId || null,
   });
 
@@ -196,7 +246,7 @@ export function TeamChatThread({
     Boolean(thread) && !isLoading,
   );
 
-  // Ein Fehler beendet das Skelett. Ohne das `!loadError` haelt jede laufende
+  // Ein Fehler beendet das Skelett. Ohne das `!loadError` hält jede laufende
   // SWR-Wiederholung isLoading wahr und die Seite zeigt ewig Platzhalter statt
   // zu sagen, was los ist.
   const showSkeleton = !thread && isLoading && !loadError && !chatDisabled;
@@ -206,25 +256,142 @@ export function TeamChatThread({
     portal.kind,
   );
 
-  if (!showSkeleton && !thread) {
-    return (
-      <div className="-mt-1.5 w-full">
-        {backNav}
-        {chatDisabled ? (
-          <EmptyState
-            icon={<MessagesSquare size={48} className="text-gray-400" />}
-            title="Der Team-Chat ist ausgeschaltet"
-            description="Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten."
+  const state: TeamChatThreadParts["state"] =
+    showSkeleton || thread ? "ready" : chatDisabled ? "disabled" : "error";
+
+  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
+  // Unterhaltung und wer sie sehen kann.
+  const stats = `${messages.length} ${
+    messages.length === 1 ? "Nachricht" : "Nachrichten"
+  } · nur Sie beide sehen sie`;
+
+  const body = (
+    <>
+      {showSkeleton ? (
+        <TeamThreadSkeleton />
+      ) : (
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+        >
+          {threadLoadFailed && messages.length > 0 && (
+            <Alert
+              type="error"
+              message="Der Verlauf konnte nicht aktualisiert werden."
+            />
+          )}
+
+          {messages.length > 0 ? (
+            messages.map((message) => (
+              <ChatBubble
+                key={message.id}
+                body={message.body}
+                own={message.sender_account_id === myAccountId}
+                senderName={message.sender_name}
+                createdAt={message.created_at}
+                // One counterpart per conversation, so the viewer's own
+                // name on their own bubbles is pure noise.
+                showOwnSenderName={false}
+              />
+            ))
+          ) : threadLoadFailed ? (
+            <Alert
+              type="error"
+              message="Der Verlauf konnte nicht geladen werden."
+            />
+          ) : (
+            <EmptyState
+              title="Noch keine Nachrichten"
+              description="Schreiben Sie die erste Nachricht in dieser Unterhaltung."
+            />
+          )}
+        </div>
+      )}
+
+      {sendError && (
+        <div className="mt-3">
+          <Alert type="error" message={sendError} />
+        </div>
+      )}
+
+      <div className="mt-4">
+        {readOnlyThread ? (
+          <Alert
+            type="info"
+            message="Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den Verlauf lesen, aber nicht mehr schreiben."
+          />
+        ) : chatEnabled ? (
+          <MessageComposer
+            value={draft}
+            onChange={setDraft}
+            onSend={() => void handleSend()}
+            sending={isSending}
+            disabled={showSkeleton}
+            placeholder="Nachricht schreiben…"
           />
         ) : (
           <Alert
-            type="error"
-            message={
-              loadError
-                ? "Der Verlauf konnte nicht geladen werden."
-                : "Diese Unterhaltung gibt es nicht."
-            }
+            type="info"
+            message="Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben."
           />
+        )}
+      </div>
+    </>
+  );
+
+  const parts: TeamChatThreadParts = {
+    title: thread?.counterpart_name ?? "Unterhaltung",
+    roleLabel: roleLabel ?? null,
+    stats,
+    statsLoading: showSkeleton,
+    state,
+    empty: {
+      icon: <MessagesSquare size={48} className="text-gray-400" />,
+      title: DISABLED_TITLE,
+      description: DISABLED_DESCRIPTION,
+    },
+    errorMessage: loadError
+      ? "Der Verlauf konnte nicht geladen werden."
+      : "Diese Unterhaltung gibt es nicht.",
+    loading: showSkeleton,
+    backNav,
+    containerRef,
+    body,
+  };
+
+  return frame ? frame(parts) : <DefaultThreadFrame parts={parts} />;
+}
+
+/** Die Hülle des Schul-Portals: Zurück-Navigation und eine Fläche. */
+function DefaultThreadFrame({
+  parts,
+}: {
+  readonly parts: TeamChatThreadParts;
+}) {
+  const {
+    title,
+    roleLabel,
+    state,
+    empty,
+    errorMessage,
+    loading,
+    backNav,
+    containerRef,
+    body,
+  } = parts;
+
+  if (state !== "ready") {
+    return (
+      <div className="-mt-1.5 w-full">
+        {backNav}
+        {state === "disabled" ? (
+          <EmptyState
+            icon={empty.icon}
+            title={empty.title}
+            description={empty.description}
+          />
+        ) : (
+          <Alert type="error" message={errorMessage} />
         )}
       </div>
     );
@@ -238,89 +405,22 @@ export function TeamChatThread({
       {backNav}
 
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-        {showSkeleton ? (
-          <TeamThreadSkeleton />
-        ) : (
-          <>
-            <div className="mb-4 min-w-0">
-              <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-                {thread?.counterpart_name}
-                {roleLabel && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    {roleLabel}
-                  </span>
-                )}
-              </h1>
-              <p className="mt-0.5 text-sm text-gray-500">
-                Nur Sie beide sehen diese Nachrichten.
-              </p>
-            </div>
-
-            <div
-              ref={scrollRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
-            >
-              {threadLoadFailed && messages.length > 0 && (
-                <Alert
-                  type="error"
-                  message="Der Verlauf konnte nicht aktualisiert werden."
-                />
+        {!loading && (
+          <div className="mb-4 min-w-0">
+            <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+              {title}
+              {roleLabel && (
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  {roleLabel}
+                </span>
               )}
-
-              {messages.length > 0 ? (
-                messages.map((message) => (
-                  <ChatBubble
-                    key={message.id}
-                    body={message.body}
-                    own={message.sender_account_id === myAccountId}
-                    senderName={message.sender_name}
-                    createdAt={message.created_at}
-                    // One counterpart per conversation, so the viewer's own
-                    // name on their own bubbles is pure noise.
-                    showOwnSenderName={false}
-                  />
-                ))
-              ) : threadLoadFailed ? (
-                <Alert
-                  type="error"
-                  message="Der Verlauf konnte nicht geladen werden."
-                />
-              ) : (
-                <p className="py-6 text-center text-sm text-gray-500">
-                  Noch keine Nachrichten. Schreiben Sie die erste.
-                </p>
-              )}
-            </div>
-          </>
-        )}
-
-        {sendError && (
-          <div className="mt-3">
-            <Alert type="error" message={sendError} />
+            </h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Nur Sie beide sehen diese Nachrichten.
+            </p>
           </div>
         )}
-
-        <div className="mt-4">
-          {readOnlyThread ? (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den
-              Verlauf lesen, aber nicht mehr schreiben.
-            </p>
-          ) : chatEnabled ? (
-            <MessageComposer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void handleSend()}
-              sending={isSending}
-              disabled={showSkeleton}
-              placeholder="Nachricht schreiben..."
-            />
-          ) : (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben.
-            </p>
-          )}
-        </div>
+        {body}
       </div>
     </div>
   );

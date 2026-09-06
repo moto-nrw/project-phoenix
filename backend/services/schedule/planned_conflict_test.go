@@ -43,7 +43,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("PC-Room-%d", suffix))

@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -34,7 +33,7 @@ func coverageClock(t *testing.T, value string) time.Time {
 
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
-	db, services := testutil.SetupAPITest(t)
+	db, services := testutil.SetupTimetableModule(t)
 	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
@@ -44,12 +43,12 @@ func setupShiftCoverageRoute(t *testing.T) chi.Router {
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
 	t.Helper()
 	shift := &scheduleModel.StaffShift{
-		StaffID: staffID, Date: date,
+		StaffID: staffID, Date: scheduleModel.Date(date),
 		StartTime: coverageClock(t, start), EndTime: coverageClock(t, end),
 		CreatedBy: staffID,
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(s.db).StaffShift.Create(s.ctx, shift))
+	require.NoError(t, mustTimetableTestRepositories(s.db).StaffShift.Create(s.ctx, shift))
 	return shift
 }
 
@@ -142,13 +141,13 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 	createCoverageShift(t, s, activator.ID, weekA, "07:00", "08:00")
 	createCoverageShift(t, s, activator.ID, weekB, "07:00", "08:00")
 
-	anchor := weekA
+	anchor := scheduleModel.Date(weekA)
 	period := &scheduleModel.CalendarPeriod{
 		Name: fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), PeriodType: scheduleModel.PeriodTypeSchoolYear,
-		StartDate: weekA, EndDate: weekB.AddDays(6), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
+		StartDate: scheduleModel.Date(weekA), EndDate: scheduleModel.Date(weekB.AddDays(6)), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, period))
+	require.NoError(t, mustTimetableTestRepositories(s.db).CalendarPeriod.Create(s.ctx, period))
 	weekPattern := 1
 
 	recorder := postShiftCoverage(t, router, ShiftCoverageRequest{

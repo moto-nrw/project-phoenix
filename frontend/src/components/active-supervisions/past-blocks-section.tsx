@@ -95,7 +95,6 @@ export function PastBlocksSection() {
 
   return (
     <SectionCard
-      kicker="Rückblick"
       title="Beendete und abgelaufene Blöcke"
       icon={History}
       collapsible

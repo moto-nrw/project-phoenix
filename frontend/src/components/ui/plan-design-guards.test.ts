@@ -4,8 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Design guard for docs/planung-redesign/docs/04-designsprache.md Abschnitt 5
- * (Verbote) and the planning-redesign Fertig-Kriterium 9:
+ * Design guards for the shared planning components:
  *
  *   (a) No gradients (`bg-gradient`, `from-[`, `to-[`) anywhere in scope,
  *       except the single sanctioned `repeating-linear-gradient` hatch that
@@ -47,7 +46,7 @@ const GRADIENT_PATTERN = /bg-gradient|from-\[|to-\[/g;
 const BRIGHT_COLOR_PATTERN =
   /(text|bg|border)-(red|green|blue|sky|orange|purple|amber|yellow|emerald|pink|rose|indigo|violet|cyan|teal|lime|fuchsia)-\d+/g;
 
-// The one sanctioned hatch pattern (docs/04-designsprache.md 4/5/6.2),
+// The one sanctioned hatch pattern,
 // centralized in plan-block.tsx. It is CSS (`repeating-linear-gradient(...)`
 // as an inline style value), not a Tailwind gradient utility class, so it
 // never actually matches GRADIENT_PATTERN — but we guard the encapsulation

@@ -456,9 +456,6 @@ func (m *mockRoomRepo) FindByName(_ context.Context, _ string) (*facilities.Room
 func (m *mockRoomRepo) FindByBuilding(_ context.Context, _ string) ([]*facilities.Room, error) {
 	return nil, nil
 }
-func (m *mockRoomRepo) FindByCategory(_ context.Context, _ string) ([]*facilities.Room, error) {
-	return nil, nil
-}
 func (m *mockRoomRepo) FindByFloor(_ context.Context, _ string, _ int) ([]*facilities.Room, error) {
 	return nil, nil
 }

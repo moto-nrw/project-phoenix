@@ -50,7 +50,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

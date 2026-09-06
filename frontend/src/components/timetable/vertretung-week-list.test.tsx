@@ -94,7 +94,11 @@ const thuCancelledInstance = makeInstance({
   ],
 });
 
-const INSTANCES = [monGapInstance, wedUndisturbedInstance, thuCancelledInstance];
+const INSTANCES = [
+  monGapInstance,
+  wedUndisturbedInstance,
+  thuCancelledInstance,
+];
 const GAPS: GapInstance[] = [
   makeGap({ instanceId: "10", date: MON, title: "Frühstück" }),
 ];
@@ -154,10 +158,10 @@ describe("VertretungWeekList", () => {
       screen.queryByTestId("vertretung-day-list-row-20"),
     ).not.toBeInTheDocument();
     expect(
-      within(daySection(WED)).getByText("Keine Störungen an diesem Tag."),
+      within(daySection(WED)).getByText("Keine Störungen an diesem Tag"),
     ).toBeInTheDocument();
     expect(
-      within(daySection(TUE)).getByText("Keine Termine an diesem Tag."),
+      within(daySection(TUE)).getByText("Keine Termine an diesem Tag"),
     ).toBeInTheDocument();
   });
 
@@ -205,7 +209,9 @@ describe("VertretungWeekList", () => {
     renderWeekList();
 
     expect(within(daySection(WED)).getByText("Heute")).toBeInTheDocument();
-    expect(within(daySection(MON)).queryByText("Heute")).not.toBeInTheDocument();
+    expect(
+      within(daySection(MON)).queryByText("Heute"),
+    ).not.toBeInTheDocument();
   });
 
   it("löst onSelectDay mit dem ISO-Datum der geklickten Kopfzeile aus", () => {

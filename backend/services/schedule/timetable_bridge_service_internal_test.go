@@ -106,7 +106,7 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 
 	instances := &bridgeInstanceRepoStub{
 		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
-			activeGroupID: {Date: date, Title: "Hausaufgaben"},
+			activeGroupID: {Date: scheduleModel.Date(date), Title: "Hausaufgaben"},
 		},
 		completed: completedResult,
 		calls:     &calls,
@@ -174,7 +174,7 @@ func TestTimetableBridgeUndoesStatusDayAbsenceForUnbookedChild(t *testing.T) {
 
 	instances := &bridgeInstanceRepoStub{
 		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
-			activeGroupID: {Date: date, Title: "Hausaufgaben"},
+			activeGroupID: {Date: scheduleModel.Date(date), Title: "Hausaufgaben"},
 		},
 		completed: 1,
 		calls:     &calls,
@@ -224,7 +224,7 @@ func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testin
 
 	instances := &bridgeInstanceRepoStub{
 		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
-			activeGroupID: {Date: timezone.NewDate(2026, 4, 20)},
+			activeGroupID: {Date: scheduleModel.NewDate(2026, 4, 20)},
 		},
 		calls: &calls,
 	}
@@ -252,7 +252,7 @@ func TestTimetableBridgeAllowsSystemCompleteBeforePlannedEnd(t *testing.T) {
 	const activeGroupID int64 = 8810
 	date := timezone.NewDate(2026, 5, 4)
 	inst := &scheduleModel.ActivityInstance{
-		Date:      date,
+		Date:      scheduleModel.Date(date),
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC),
 	}

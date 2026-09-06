@@ -13,13 +13,12 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { hasPermission } from "~/lib/auth-utils";
 import { useTenantRouter } from "~/lib/tenant-router";
-import {
-  SkeletonRegion,
-  CardSkeleton,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   Drawer,
   DrawerClose,
@@ -33,6 +32,15 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { OriginChip } from "~/components/ui/origin-chip";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
@@ -99,7 +107,6 @@ import {
   formatDuration,
   formatTime,
   getWeekDays,
-  getWeekNumber,
   balanceSessionEnd,
   calculateNetMinutes,
   indexWorkSessionMinutesByBerlinDate,
@@ -107,6 +114,7 @@ import {
 } from "~/lib/time-tracking-helpers";
 import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
+import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
@@ -160,19 +168,20 @@ function friendlyError(err: unknown, fallback: string): string {
   const code = match?.[1] ?? msg;
 
   const map: Record<string, string> = {
-    "already checked in": "Du bist bereits eingestempelt.",
-    "already checked out today": "Du hast heute bereits gearbeitet.",
+    "already checked in": "Sie sind bereits eingestempelt.",
+    "already checked out today": "Sie haben heute bereits gearbeitet.",
     "no active session found": "Kein aktiver Eintrag vorhanden.",
     "no session found for today": "Kein Eintrag für heute vorhanden.",
     "session not found": "Eintrag nicht gefunden.",
-    "can only update own sessions": "Du kannst nur eigene Einträge bearbeiten.",
+    "can only update own sessions":
+      "Sie können nur eigene Einträge bearbeiten.",
     "break already active": "Eine Pause läuft bereits.",
     "no active break found": "Keine aktive Pause vorhanden.",
     "absence not found": "Abwesenheit nicht gefunden.",
     "can only update own absences":
-      "Du kannst nur eigene Abwesenheiten bearbeiten.",
+      "Sie können nur eigene Abwesenheiten bearbeiten.",
     "can only delete own absences":
-      "Du kannst nur eigene Abwesenheiten löschen.",
+      "Sie können nur eigene Abwesenheiten löschen.",
     "invalid absence type": "Ungültiger Abwesenheitstyp.",
   };
 
@@ -386,7 +395,7 @@ const STAMP_BUTTON_BASE =
 function getCheckInButtonClassName(mode: WorkMode | null): string {
   const base = `${STAMP_BUTTON_BASE} h-16 w-16 disabled:cursor-not-allowed`;
   if (mode === null)
-    return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
+    return `${base} border-gray-500/40 text-gray-500/60 cursor-not-allowed`;
   if (mode === "home_office")
     return `${base} border-moto-blue text-moto-blue hover:bg-moto-blue/5`;
   return `${base} border-moto-green text-moto-green hover:bg-moto-green/5`;
@@ -399,9 +408,9 @@ function getBreakButtonClassName(
   breakMins: number,
 ): string {
   const base = `${STAMP_BUTTON_BASE} h-12 w-12 disabled:opacity-60`;
-  if (isOnBreak) return `${base} border-[#F78C10] text-[#F78C10]`;
+  if (isOnBreak) return `${base} border-moto-orange text-moto-orange`;
   if (breakMins > 0)
-    return `${base} border-[#F78C10] text-[#F78C10] hover:bg-[#F78C10]/10`;
+    return `${base} border-moto-orange text-moto-orange hover:bg-moto-orange/10`;
   return `${base} border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500`;
 }
 
@@ -540,10 +549,10 @@ function renderTimerContent(
   ) {
     return (
       <>
-        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
+        <span className="text-moto-orange text-4xl font-light tabular-nums">
           {formatCountdown(countdownRemainingSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
+        <span className="text-moto-orange mt-0.5 text-xs font-medium">
           Pause ({plannedBreakDurationMins} Min)
         </span>
         <span className="text-moto-amber-strong mt-0.5 text-center text-xs font-medium">
@@ -558,10 +567,10 @@ function renderTimerContent(
   if (isOnBreak) {
     return (
       <>
-        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
+        <span className="text-moto-orange text-4xl font-light tabular-nums">
           {formatCountdown(activeBreakElapsedSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
+        <span className="text-moto-orange mt-0.5 text-xs font-medium">
           Pause läuft
         </span>
       </>
@@ -935,18 +944,15 @@ function ClockInCard({
   );
 
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm">
-      <div className="relative p-4 sm:p-6">
-        {/* Title + status badge */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Stempeluhr
-          </h2>
-          {statusBadge && (
-            <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
-          )}
-        </div>
-
+    <SectionCard
+      title="Stempeluhr"
+      actions={
+        statusBadge ? (
+          <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
+        ) : undefined
+      }
+    >
+      <div className="relative">
         {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
             Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
             Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
@@ -973,7 +979,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={onAddAbsence}
-                className={`${STAMP_BUTTON_BASE} h-16 w-16 border-[#FF3130] text-[#FF3130] hover:bg-[#FF3130]/5`}
+                className={`${STAMP_BUTTON_BASE} border-moto-red text-moto-red hover:bg-moto-red/5 h-16 w-16`}
                 aria-label="Abwesenheit melden"
               >
                 <svg
@@ -1142,7 +1148,7 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
-                className={`${STAMP_BUTTON_BASE} h-12 w-12 border-gray-300 text-gray-500 hover:border-[#FF3130] hover:text-[#FF3130] disabled:opacity-50`}
+                className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
                 {actionLoading ? (
@@ -1244,7 +1250,7 @@ function ClockInCard({
           </div>
         )}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1484,7 +1490,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-[#70b525]";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green-hover";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1511,7 +1517,7 @@ function BreakActivityLog({
         {formatTimeFromDate(seg.start)}
       </span>
       <span
-        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-[#F78C10]/60" : "text-gray-300"}`}
+        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-moto-orange/60" : "text-gray-300"}`}
       >
         &rarr;
       </span>
@@ -1573,12 +1579,11 @@ function BreakActivityLog({
 
 type StatusTone = "green" | "amber" | "gray";
 
-// Standalone value text on a white card, so it follows the app's tone map —
-// the same one KpiCard (staff-time-views), detail-modal-components and
-// school-overview-section use, so the identical Saldo reads the same on
-// /staff/[id] and here. The kit's darkened orange (#8A5600) is deliberately
-// NOT used: it is a foreground for TINTED surfaces (Alert warning, StatusBadge
-// orange) and turns brown on white.
+// Standalone value text on a white card, so it follows the app's tone map:
+// the same one StaffSessionTable and KpiCard (staff-time-views) use, so the
+// identical Saldo reads the same on /staff/[id] and here. moto-amber-strong
+// (#92400E) is the ramp step that stays legible on white; the older
+// text-amber-600 (#D97706) missed WCAG AA for normal text.
 const STATUS_TEXT: Record<StatusTone, string> = {
   green: "text-moto-green",
   amber: "text-moto-amber-strong",
@@ -1586,8 +1591,8 @@ const STATUS_TEXT: Record<StatusTone, string> = {
 };
 
 const STATUS_BAR: Record<StatusTone, string> = {
-  green: "bg-[#83CD2D]",
-  amber: "bg-[#F78C10]",
+  green: "bg-moto-green",
+  amber: "bg-moto-orange",
   gray: "bg-gray-400",
 };
 
@@ -1600,6 +1605,9 @@ function OwnZeiterfassungSection({
   ownStaffId,
   schedule,
   onEditDay,
+  viewMode,
+  weekAnchor,
+  monthAnchor,
 }: {
   readonly ownStaffId: string | null;
   readonly schedule: import("~/lib/staff-api").StaffSchedule | null;
@@ -1608,6 +1616,11 @@ function OwnZeiterfassungSection({
     session: WorkSessionHistory | null,
     absence: StaffAbsence | null,
   ) => void;
+  /** Zeitfenster und Auflösung kommen aus der Bedienleiste der Kopfkarte
+   *  (Bauart 3, Regel 1) — die Fläche navigiert nicht mehr selbst. */
+  readonly viewMode: ViewMode;
+  readonly weekAnchor: Date;
+  readonly monthAnchor: Date;
 }) {
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // section stays mounted all day, and `new Date()` frozen at mount would keep
@@ -1616,19 +1629,6 @@ function OwnZeiterfassungSection({
   // (#1842). The backend derives its month from timezone.TodayDate().
   const todayISO = useBerlinToday();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = parseISODate(berlinTodayISO());
-    const day = (d.getDay() + 6) % 7; // Mon = 0
-    d.setDate(d.getDate() - day);
-    return d;
-  });
-  const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
-    const d = parseISODate(berlinTodayISO());
-    d.setDate(1);
-    return d;
-  });
-
   const visibleFrom = useMemo(() => {
     if (viewMode === "month") {
       return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
@@ -1820,163 +1820,8 @@ function OwnZeiterfassungSection({
     onEditDay(date, session, absence);
   };
 
-  const handlePrev = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(
-        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-      );
-    } else {
-      setWeekAnchor((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() - 7);
-        return d;
-      });
-    }
-  };
-  const handleNext = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(
-        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-      );
-    } else {
-      setWeekAnchor((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() + 7);
-        return d;
-      });
-    }
-  };
-  const handleToday = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(new Date(today.getFullYear(), today.getMonth(), 1));
-    } else {
-      const d = new Date(today);
-      const day = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - day);
-      d.setHours(0, 0, 0, 0);
-      setWeekAnchor(d);
-    }
-  };
-  const isOnCurrent = useMemo(() => {
-    if (viewMode === "month") {
-      return isCurrentMonth;
-    }
-    const cur = new Date(today);
-    const day = (cur.getDay() + 6) % 7;
-    cur.setDate(cur.getDate() - day);
-    cur.setHours(0, 0, 0, 0);
-    return cur.getTime() === weekAnchor.getTime();
-  }, [viewMode, isCurrentMonth, weekAnchor, today]);
-
-  const labelRange = useMemo(() => {
-    if (viewMode === "month") {
-      return monthAnchor.toLocaleDateString("de-DE", {
-        timeZone: "Europe/Berlin",
-        month: "long",
-        year: "numeric",
-      });
-    }
-    const weekNum = getWeekNumber(visibleFrom);
-    const start = visibleFrom.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
-      day: "numeric",
-      month: "short",
-    });
-    const end = visibleTo.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-    return `KW ${weekNum}: ${start} bis ${end}`;
-  }, [viewMode, monthAnchor, visibleFrom, visibleTo]);
-
-  const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
-
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-          Zeiterfassung
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          {ownStaffId && (
-            <StaffExportButton
-              staffId={ownStaffId}
-              yearStart={startOfYear(today)}
-            />
-          )}
-        </div>
-      </div>
-      <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
-        <div className="hidden sm:block" />
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handlePrev}
-            aria-label={
-              viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
-            }
-            className="!rounded-full"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </Button>
-          <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
-            {labelRange}
-          </h3>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handleNext}
-            aria-label={
-              viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
-            }
-            className="!rounded-full"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Button>
-        </div>
-        <div className="flex justify-center sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={handleToday}
-            disabled={isOnCurrent}
-            className="!rounded-full shadow-none disabled:opacity-40"
-          >
-            {todayLabel}
-          </Button>
-        </div>
-      </div>
+    <SectionCard title="Zeiterfassung">
       {viewMode === "month" && (
         <div className="mb-4">
           <Monatskarte
@@ -1995,10 +1840,9 @@ function OwnZeiterfassungSection({
         </div>
       )}
       {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
-        // NOT the kit <Loading />: page.test.tsx pins this placeholder by its
-        // literal "..." text ("shows loading indicator in weekly total when
-        // history is loading"), and that test predates this migration.
-        <div className="py-10 text-center text-sm text-gray-400">...</div>
+        <SkeletonRegion label="Einträge werden geladen…">
+          <TableSkeleton rows={7} columns={5} />
+        </SkeletonRegion>
       ) : (
         <>
           {shiftsError ? (
@@ -2040,7 +1884,7 @@ function OwnZeiterfassungSection({
           />
         </>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -2559,7 +2403,7 @@ function EditSessionModal({
     <ModalActions
       onCancel={onClose}
       onConfirm={handleSave}
-      confirmLabel={saving ? "Speichern..." : "Speichern"}
+      confirmLabel={saving ? "Speichern…" : "Speichern"}
       confirmDisabled={
         saving || !startTime || !notes.trim() || hasInvalidTimeRange
       }
@@ -2574,7 +2418,7 @@ function EditSessionModal({
     <ModalActions
       onCancel={onClose}
       onConfirm={handleAbsenceSave}
-      confirmLabel={absenceSaving ? "Speichern..." : "Speichern"}
+      confirmLabel={absenceSaving ? "Speichern…" : "Speichern"}
       confirmDisabled={absenceSaving || !absDateStart || !absDateEnd}
     />
   );
@@ -2594,328 +2438,343 @@ function EditSessionModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} footer={footer}>
-      <div className="space-y-4">
-        <p className="text-sm font-medium text-gray-500">
-          {dayName}, {formatDateGerman(date)}
-        </p>
-
-        {/* Section switcher for a session or a backfillable half-day alongside
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[640px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{modalTitle}</SlideOverTitle>
+            <SlideOverDescription>
+              {dayName}, {formatDateGerman(date)}
+            </SlideOverDescription>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {/* Section switcher for a session or a backfillable half-day alongside
             an absence. The kit
             SegmentedControl, NOT ui/Tabs: Radix tabs activate on mousedown, and
             the existing modal tests drive this switcher with fireEvent.click. */}
-        {hasBothSections && (
-          <SegmentedControl
-            ariaLabel="Abschnitt"
-            fullWidth
-            items={EDIT_SECTION_ITEMS}
-            value={effectiveTab}
-            onChange={setActiveTab}
-          />
-        )}
-
-        {!hasSession &&
-          hasBackfillableAbsence &&
-          effectiveTab === "session" && (
-            <MissingSessionHint date={date} canManage={onBackfill !== null} />
+          {hasBothSections && (
+            <SegmentedControl
+              ariaLabel="Abschnitt"
+              fullWidth
+              items={EDIT_SECTION_ITEMS}
+              value={effectiveTab}
+              onChange={setActiveTab}
+            />
           )}
 
-        {/* ── Session section ──────────────────────────────────────────── */}
-        {hasSession && effectiveTab === "session" && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                id="edit-start"
-                name="edit-start"
-                label="Start"
-                controlSize="compact"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-              <Input
-                id="edit-end"
-                name="edit-end"
-                label="Ende"
-                controlSize="compact"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
-
-            {hasInvalidTimeRange && (
-              <Alert type="error" message="Ende muss nach Start liegen." />
+          {!hasSession &&
+            hasBackfillableAbsence &&
+            effectiveTab === "session" && (
+              <MissingSessionHint date={date} canManage={onBackfill !== null} />
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Break section */}
-              <div>
-                {hasIndividualBreaks ? (
-                  <div>
-                    <span className="mb-1 block text-sm font-medium text-gray-700">
-                      Pausen
-                    </span>
-                    <div className="space-y-2">
-                      {session.breaks.map((brk) => (
-                        <div key={brk.id} className="flex items-center gap-2">
-                          <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
-                            {formatTime(brk.startedAt)}
-                          </span>
-                          <div className="flex-1">
-                            <CustomSelect
-                              ariaLabel={`Pausendauer ab ${formatTime(brk.startedAt)}`}
-                              value={(
-                                breakDurations.get(brk.id) ??
-                                brk.durationMinutes
-                              ).toString()}
-                              onChange={(next) =>
-                                handleBreakDurationChange(
-                                  brk.id,
-                                  Number.parseInt(next, 10),
-                                )
-                              }
-                              options={BREAK_DURATION_OPTIONS.map((m) => ({
-                                value: m.toString(),
-                                label: `${m} min`,
-                              }))}
-                            />
+          {/* ── Session section ──────────────────────────────────────────── */}
+          {hasSession && effectiveTab === "session" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  id="edit-start"
+                  name="edit-start"
+                  label="Start"
+                  controlSize="compact"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+                <Input
+                  id="edit-end"
+                  name="edit-end"
+                  label="Ende"
+                  controlSize="compact"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
+
+              {hasInvalidTimeRange && (
+                <Alert type="error" message="Ende muss nach Start liegen." />
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Break section */}
+                <div>
+                  {hasIndividualBreaks ? (
+                    <div>
+                      <span className="mb-1 block text-sm font-medium text-gray-700">
+                        Pausen
+                      </span>
+                      <div className="space-y-2">
+                        {session.breaks.map((brk) => (
+                          <div key={brk.id} className="flex items-center gap-2">
+                            <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
+                              {formatTime(brk.startedAt)}
+                            </span>
+                            <div className="flex-1">
+                              <CustomSelect
+                                ariaLabel={`Pausendauer ab ${formatTime(brk.startedAt)}`}
+                                value={(
+                                  breakDurations.get(brk.id) ??
+                                  brk.durationMinutes
+                                ).toString()}
+                                onChange={(next) =>
+                                  handleBreakDurationChange(
+                                    brk.id,
+                                    Number.parseInt(next, 10),
+                                  )
+                                }
+                                options={BREAK_DURATION_OPTIONS.map((m) => ({
+                                  value: m.toString(),
+                                  label: `${m} min`,
+                                }))}
+                              />
+                            </div>
                           </div>
+                        ))}
+                        <div className="flex items-center justify-between border-t border-gray-100 pt-1.5">
+                          <span className="text-xs font-medium text-gray-500">
+                            Gesamt
+                          </span>
+                          <span className="text-sm font-medium text-gray-700 tabular-nums">
+                            {editedBreak} min
+                          </span>
                         </div>
-                      ))}
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-1.5">
-                        <span className="text-xs font-medium text-gray-500">
-                          Gesamt
-                        </span>
-                        <span className="text-sm font-medium text-gray-700 tabular-nums">
-                          {editedBreak} min
-                        </span>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label
-                      id="edit-break-label"
-                      htmlFor="edit-break"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Pause (Min)
-                    </label>
-                    <CustomSelect
-                      id="edit-break"
-                      ariaLabelledBy="edit-break-label"
-                      value={breakMins}
-                      onChange={setBreakMins}
-                      options={[0, 15, 30, 45, 60].map((m) => ({
-                        value: m.toString(),
-                        label: `${m} min`,
-                      }))}
-                    />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label
-                  id="edit-status-label"
-                  htmlFor="edit-status"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Ort
-                </label>
-                <CustomSelect
-                  id="edit-status"
-                  ariaLabelledBy="edit-status-label"
-                  value={status}
-                  onChange={(next) => setStatus(next as SessionStatus)}
-                  options={[
-                    { value: "present", label: "In der OGS" },
-                    { value: "home_office", label: "Homeoffice" },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="edit-notes"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Grund der Änderung <span className="text-moto-red">*</span>
-              </label>
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {EDIT_REASON_PRESETS.map((reason) => (
-                  <Button
-                    key={reason}
-                    type="button"
-                    variant={notes === reason ? "primary" : "secondary"}
-                    size="compact"
-                    aria-pressed={notes === reason}
-                    onClick={() => setNotes(reason)}
-                    className="!rounded-full shadow-none hover:shadow-none"
-                  >
-                    {reason}
-                  </Button>
-                ))}
-              </div>
-              <Textarea
-                id="edit-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                maxLength={2000}
-                placeholder="Oder eigenen Grund eingeben..."
-              />
-            </div>
-
-            {warnings.length > 0 && (
-              <div className="space-y-2">
-                {warnings.map((w) => (
-                  <Alert key={w} type="warning" message={w} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Absence section ──────────────────────────────────────────── */}
-        {hasAbsence && effectiveTab === "absence" && (
-          <div className="space-y-4">
-            {isManagerControlledAbsence ? (
-              <div className="space-y-4">
-                <Alert
-                  type="info"
-                  message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
-                />
-                <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="font-medium text-gray-500">Zeitraum</dt>
-                    <dd className="mt-1 text-gray-900">
-                      {absence.dateStart} bis {absence.dateEnd}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-gray-500">Umfang</dt>
-                    <dd className="mt-1 text-gray-900">
-                      {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
-                    </dd>
-                  </div>
-                  {absence.note && (
-                    <div className="sm:col-span-2">
-                      <dt className="font-medium text-gray-500">Bemerkung</dt>
-                      <dd className="mt-1 text-gray-900">{absence.note}</dd>
+                  ) : (
+                    <div>
+                      <label
+                        id="edit-break-label"
+                        htmlFor="edit-break"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Pause (Min)
+                      </label>
+                      <CustomSelect
+                        id="edit-break"
+                        ariaLabelledBy="edit-break-label"
+                        value={breakMins}
+                        onChange={setBreakMins}
+                        options={[0, 15, 30, 45, 60].map((m) => ({
+                          value: m.toString(),
+                          label: `${m} min`,
+                        }))}
+                      />
                     </div>
                   )}
-                </dl>
+                </div>
+                <div>
+                  <label
+                    id="edit-status-label"
+                    htmlFor="edit-status"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Ort
+                  </label>
+                  <CustomSelect
+                    id="edit-status"
+                    ariaLabelledBy="edit-status-label"
+                    value={status}
+                    onChange={(next) => setStatus(next as SessionStatus)}
+                    options={[
+                      { value: "present", label: "In der OGS" },
+                      { value: "home_office", label: "Homeoffice" },
+                    ]}
+                  />
+                </div>
               </div>
-            ) : (
-              <>
-                {/* Absence type */}
-                <div>
-                  <label
-                    id="edit-abs-type-label"
-                    htmlFor="edit-abs-type"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Art der Abwesenheit
-                  </label>
-                  <ListboxDropdown
-                    {...absenceTypeSelect}
-                    id="edit-abs-type"
-                    ariaLabelledBy="edit-abs-type-label"
-                    testId="edit-absence-type-select"
-                  />
-                </div>
 
-                {/* Date range */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="edit-notes"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Grund der Änderung <span className="text-moto-red">*</span>
+                </label>
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {EDIT_REASON_PRESETS.map((reason) => (
+                    <Button
+                      key={reason}
+                      type="button"
+                      variant={notes === reason ? "primary" : "secondary"}
+                      size="compact"
+                      aria-pressed={notes === reason}
+                      onClick={() => setNotes(reason)}
+                      className="!rounded-full shadow-none hover:shadow-none"
+                    >
+                      {reason}
+                    </Button>
+                  ))}
+                </div>
+                <Textarea
+                  id="edit-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="Oder eigenen Grund eingeben…"
+                />
+              </div>
+
+              {warnings.length > 0 && (
+                <div className="space-y-2">
+                  {warnings.map((w) => (
+                    <Alert key={w} type="warning" message={w} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Absence section ──────────────────────────────────────────── */}
+          {hasAbsence && effectiveTab === "absence" && (
+            <div className="space-y-4">
+              {isManagerControlledAbsence ? (
+                <div className="space-y-4">
+                  <Alert
+                    type="info"
+                    message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
+                  />
+                  <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="font-medium text-gray-500">Zeitraum</dt>
+                      <dd className="mt-1 text-gray-900">
+                        {absence.dateStart} bis {absence.dateEnd}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-gray-500">Umfang</dt>
+                      <dd className="mt-1 text-gray-900">
+                        {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
+                      </dd>
+                    </div>
+                    {absence.note && (
+                      <div className="sm:col-span-2">
+                        <dt className="font-medium text-gray-500">Bemerkung</dt>
+                        <dd className="mt-1 text-gray-900">{absence.note}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              ) : (
+                <>
+                  {/* Absence type */}
                   <div>
                     <label
-                      htmlFor="edit-abs-start"
+                      id="edit-abs-type-label"
+                      htmlFor="edit-abs-type"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
-                      Von
+                      Art der Abwesenheit
                     </label>
-                    <ISODatePicker
-                      id="edit-abs-start"
-                      value={absDateStart}
-                      onChange={setAbsDateStart}
-                      calendarLayout="popover"
-                      hideClearButton
+                    <ListboxDropdown
+                      {...absenceTypeSelect}
+                      id="edit-abs-type"
+                      ariaLabelledBy="edit-abs-type-label"
+                      testId="edit-absence-type-select"
                     />
                   </div>
-                  <div>
-                    <label
-                      htmlFor="edit-abs-end"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Bis
-                    </label>
-                    <ISODatePicker
-                      id="edit-abs-end"
-                      value={absDateEnd}
-                      min={absDateStart || undefined}
-                      onChange={setAbsDateEnd}
-                      calendarLayout="popover"
-                      hideClearButton
-                    />
+
+                  {/* Date range */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="edit-abs-start"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Von
+                      </label>
+                      <ISODatePicker
+                        id="edit-abs-start"
+                        value={absDateStart}
+                        onChange={setAbsDateStart}
+                        calendarLayout="popover"
+                        hideClearButton
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="edit-abs-end"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Bis
+                      </label>
+                      <ISODatePicker
+                        id="edit-abs-end"
+                        value={absDateEnd}
+                        min={absDateStart || undefined}
+                        onChange={setAbsDateEnd}
+                        calendarLayout="popover"
+                        hideClearButton
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Half day toggle */}
-                <div className="flex items-center gap-3">
-                  <BooleanField
-                    ariaLabel="Halber Tag"
-                    value={absHalfDay}
-                    onChange={setAbsHalfDay}
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Halber Tag
-                  </span>
-                </div>
-
-                {/* Absence note */}
-                <div>
-                  <label
-                    htmlFor="edit-abs-note"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Bemerkung{" "}
-                    <span className="font-normal text-gray-400">
-                      (optional)
+                  {/* Half day toggle */}
+                  <div className="flex items-center gap-3">
+                    <BooleanField
+                      ariaLabel="Halber Tag"
+                      value={absHalfDay}
+                      onChange={setAbsHalfDay}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Halber Tag
                     </span>
-                  </label>
-                  <Textarea
-                    id="edit-abs-note"
-                    value={absNote}
-                    onChange={(e) => setAbsNote(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                    placeholder="z.B. Arzttermin, Schulung ..."
-                  />
-                </div>
+                  </div>
 
-                {/* Destructive action */}
-                <div className="pt-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="compact"
-                    onClick={handleAbsenceDelete}
-                    disabled={absenceDeleting}
-                    className="text-moto-red hover:text-moto-red-strong px-0 text-sm hover:bg-transparent"
-                  >
-                    {absenceDeleting
-                      ? "Abwesenheit wird gelöscht..."
-                      : "Abwesenheit löschen"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </Modal>
+                  {/* Absence note */}
+                  <div>
+                    <label
+                      htmlFor="edit-abs-note"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Bemerkung{" "}
+                      <span className="font-normal text-gray-400">
+                        (optional)
+                      </span>
+                    </label>
+                    <Textarea
+                      id="edit-abs-note"
+                      value={absNote}
+                      onChange={(e) => setAbsNote(e.target.value)}
+                      rows={2}
+                      maxLength={2000}
+                      placeholder="z. B. Arzttermin, Schulung …"
+                    />
+                  </div>
+
+                  {/* Destructive action */}
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      onClick={handleAbsenceDelete}
+                      disabled={absenceDeleting}
+                      className="text-moto-red hover:text-moto-red-hover px-0 text-sm hover:bg-transparent"
+                    >
+                      {absenceDeleting
+                        ? "Abwesenheit wird gelöscht…"
+                        : "Abwesenheit löschen"}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 
@@ -2998,7 +2857,7 @@ function CreateAbsenceModal({
         <ModalActions
           onCancel={onClose}
           onConfirm={handleSave}
-          confirmLabel={saving ? "Speichern..." : "Speichern"}
+          confirmLabel={saving ? "Speichern…" : "Speichern"}
           confirmDisabled={saving || !dateStart || !dateEnd}
         />
       }
@@ -3081,7 +2940,7 @@ function CreateAbsenceModal({
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={2000}
-            placeholder="z.B. Arzttermin, Schulung ..."
+            placeholder="z. B. Arzttermin, Schulung …"
           />
         </div>
       </div>
@@ -3111,6 +2970,94 @@ function TimeTrackingContent() {
   // anymore (the table owns its own range state). Kept as a constant so the
   // chart's data window stays anchored at "now".
   const weekOffset = 0;
+
+  // Zeitnavigation der Seite (Bauart 3, Regel 1). Sie sitzt in der Kopfkarte
+  // und steuert die Zeiterfassungs-Fläche darunter; die Fläche selbst trägt
+  // keine Pfeilknöpfe mehr.
+  const navToday = useMemo(() => parseISODate(todayISO), [todayISO]);
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
+    const d = parseISODate(berlinTodayISO());
+    const day = (d.getDay() + 6) % 7; // Mon = 0
+    d.setDate(d.getDate() - day);
+    return d;
+  });
+  const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
+    const d = parseISODate(berlinTodayISO());
+    d.setDate(1);
+    return d;
+  });
+
+  const goToPreviousRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() - 7);
+        return d;
+      });
+    }
+  }, [viewMode]);
+
+  const goToNextRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() + 7);
+        return d;
+      });
+    }
+  }, [viewMode]);
+
+  const goToCurrentRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(new Date(navToday.getFullYear(), navToday.getMonth(), 1));
+    } else {
+      const d = new Date(navToday);
+      const day = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - day);
+      d.setHours(0, 0, 0, 0);
+      setWeekAnchor(d);
+    }
+  }, [viewMode, navToday]);
+
+  const isOnCurrentRange = useMemo(() => {
+    if (viewMode === "month") {
+      return (
+        monthAnchor.getFullYear() === navToday.getFullYear() &&
+        monthAnchor.getMonth() === navToday.getMonth()
+      );
+    }
+    const cur = new Date(navToday);
+    const day = (cur.getDay() + 6) % 7;
+    cur.setDate(cur.getDate() - day);
+    cur.setHours(0, 0, 0, 0);
+    return cur.getTime() === weekAnchor.getTime();
+  }, [viewMode, monthAnchor, weekAnchor, navToday]);
+
+  // Dasselbe Wochenetikett wie in Dienstplan, Vertretung und Betreuungsplan
+  // ("KW 31 · 27.07.–31.07.2026"). Die eigene Schreibweise
+  // ("KW 31: 27. Juli bis 31. Juli 2026") hat der Dienstplan verworfen, weil
+  // vier Flächen dieselbe Woche verschieden schrieben.
+  const rangeLabel = useMemo(() => {
+    if (viewMode === "month") {
+      return monthAnchor.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
+        month: "long",
+        year: "numeric",
+      });
+    }
+    const end = new Date(weekAnchor);
+    end.setDate(end.getDate() + 6);
+    return formatWeekLabel(weekAnchor, end);
+  }, [viewMode, monthAnchor, weekAnchor]);
   const [editModal, setEditModal] = useState<{
     date: Date;
     session: WorkSessionHistory | null;
@@ -3651,21 +3598,221 @@ function TimeTrackingContent() {
     [mutateAbsences, refreshTableData, toast],
   );
 
-  if (authStatus === "loading") {
-    return <TimeTrackingPageSkeleton />;
-  }
+  // Statuszeile aus denselben server-gerechneten Zahlen wie die
+  // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält das
+  // Gerüst ein Skelett an der Stelle.
+  const metricsPending =
+    ownMetrics.week === null || ownMetrics.accountBalanceMinutes === null;
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Page header - only visible on mobile where breadcrumbs are hidden */}
-      <h1 className="mb-6 text-2xl font-bold text-gray-900 md:hidden">
-        Zeiterfassung
-      </h1>
+    <TenantPage
+      title="Zeiterfassung"
+      statsLoading={metricsPending}
+      // Laden kommt aus dem Gerüst (Bauart 3, Regel 5) — kein eigenes
+      // Seiten-Skelett neben den Zuständen der TenantPage.
+      loading={authStatus === "loading"}
+      loadingLabel="Zeiterfassung wird geladen…"
+      stats={
+        metricsPending ? undefined : (
+          <TenantPageStats
+            items={[
+              {
+                value: formatDuration(ownMetrics.week!.ist),
+                label: "Ist",
+              },
+              {
+                value: formatDuration(ownMetrics.week!.soll),
+                label: "Soll",
+              },
+              {
+                value: formatSignedDuration(ownMetrics.accountBalanceMinutes!),
+                label: "Saldo",
+              },
+            ]}
+          />
+        )
+      }
+      // Bauart 3, Regel 4: Exportieren steht im Kebab der Kopfkarte, nicht
+      // mitten in einer Inhaltskarte.
+      actions={
+        ownStaffId ? (
+          <StaffExportButton
+            staffId={ownStaffId}
+            yearStart={startOfYear(parseISODate(todayISO))}
+          />
+        ) : undefined
+      }
+      // Bauart 3, Regel 1: eine Zeitnavigation im Bedienband der Kopfkarte,
+      // dieselbe wie in Dienstplan, Vertretung und Betreuungsplan.
+      searchSlot={
+        <PlanningContextBar
+          withoutContextRow
+          dateLabel={rangeLabel}
+          onPrevious={goToPreviousRange}
+          onNext={goToNextRange}
+          previousLabel={
+            viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
+          }
+          nextLabel={viewMode === "month" ? "Nächster Monat" : "Nächste Woche"}
+          onToday={isOnCurrentRange ? undefined : goToCurrentRange}
+          todayLabel={viewMode === "month" ? "Dieser Monat" : "Diese Woche"}
+          viewSwitcher={<ViewToggle value={viewMode} onChange={setViewMode} />}
+        />
+      }
+      // Dialoge und Slide-overs gehören in den overlays-Slot des Gerüsts,
+      // nicht in die Inhalte: sonst hängt TenantPage sie im Lade-, Leer- und
+      // Fehlerzustand aus.
+      overlays={
+        <>
+          {/* Edit modal */}
+          <EditSessionModal
+            isOpen={editModal !== null}
+            onClose={handleCloseEditModal}
+            session={editModal?.session ?? null}
+            date={editModal?.date ?? null}
+            onSave={handleEditSave}
+            absence={editModal?.absence ?? null}
+            onUpdateAbsence={handleUpdateAbsence}
+            onDeleteAbsence={handleDeleteAbsence}
+            canManage={canManageTimeTracking}
+            ownStaffId={ownStaffId}
+          />
 
+          {/* Create absence modal */}
+          <CreateAbsenceModal
+            isOpen={absenceModalOpen}
+            onClose={handleCloseAbsenceModal}
+            onSave={handleCreateAbsence}
+            canManageAbsenceTypes={canManageTimeTracking}
+          />
+
+          {/* Check-in confirmation when absence exists */}
+          <Modal
+            isOpen={pendingCheckIn !== null}
+            onClose={handleClosePendingCheckIn}
+            title="Abwesenheit eingetragen"
+            footer={
+              <ModalActions
+                onCancel={() => setPendingCheckIn(null)}
+                onConfirm={() => {
+                  const status = pendingCheckIn;
+                  setPendingCheckIn(null);
+                  if (status) void executeCheckIn(status);
+                }}
+                confirmLabel="Trotzdem einstempeln"
+              />
+            }
+          >
+            <div className="py-4 text-center">
+              <div className="bg-moto-orange/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
+                <svg
+                  className="text-moto-orange-strong h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                  />
+                </svg>
+              </div>
+              <p className="mt-2 text-gray-600">
+                Für heute ist eine Abwesenheit eingetragen
+                {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.
+                Trotzdem einstempeln?
+              </p>
+            </div>
+          </Modal>
+
+          {/* F9: stamping outside the tolerance window around the planned shift
+              needs a reason that lands in the audit trail. */}
+          <Modal
+            isOpen={pendingDeviation !== null}
+            onClose={handleClosePendingDeviation}
+            title="Abweichung vom Dienstplan"
+            footer={
+              <ModalActions
+                onCancel={handleClosePendingDeviation}
+                cancelDisabled={deviationSubmitting}
+                onConfirm={confirmDeviationReason}
+                confirmDisabled={
+                  deviationSubmitting || deviationReason.trim() === ""
+                }
+                confirmLabel={
+                  pendingDeviation?.action === "check_in"
+                    ? "Mit Begründung einstempeln"
+                    : "Mit Begründung ausstempeln"
+                }
+              />
+            }
+          >
+            <div className="py-2">
+              <p className="text-sm text-gray-600">
+                {pendingDeviation?.action === "check_in" ? (
+                  <>
+                    Du stempelst
+                    {pendingDeviation?.deviationMinutes ? (
+                      <span className="font-medium text-gray-900">
+                        {" "}
+                        {pendingDeviation.deviationMinutes} Minuten
+                      </span>
+                    ) : (
+                      " deutlich"
+                    )}{" "}
+                    vor deinem geplanten Dienstbeginn
+                    {pendingDeviation?.plannedTime
+                      ? ` (${pendingDeviation.plannedTime} Uhr)`
+                      : ""}{" "}
+                    ein.
+                  </>
+                ) : (
+                  <>
+                    Du stempelst
+                    {pendingDeviation?.deviationMinutes ? (
+                      <span className="font-medium text-gray-900">
+                        {" "}
+                        {pendingDeviation.deviationMinutes} Minuten
+                      </span>
+                    ) : (
+                      " deutlich"
+                    )}{" "}
+                    nach deinem geplanten Dienstende
+                    {pendingDeviation?.plannedTime
+                      ? ` (${pendingDeviation.plannedTime} Uhr)`
+                      : ""}{" "}
+                    aus.
+                  </>
+                )}{" "}
+                Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der
+                Sitzung gespeichert.
+              </p>
+              <label
+                htmlFor="deviation-reason"
+                className="mt-4 block text-xs font-medium text-gray-700"
+              >
+                Grund
+              </label>
+              <Textarea
+                id="deviation-reason"
+                value={deviationReason}
+                onChange={(e) => setDeviationReason(e.target.value)}
+                disabled={deviationSubmitting}
+                placeholder="z. B. Elterngespräch lief länger"
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </Modal>
+        </>
+      }
+    >
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
           50/50 nebeneinander. Drunter eine Placeholder-Section für den
           Urlaubs-Workflow (kommt in eigenem Chat). */}
-      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
           breaks={currentBreaks}
@@ -3686,13 +3833,9 @@ function TimeTrackingContent() {
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
           #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
-      <div className="mb-4 md:mb-6">
-        <BetreuungsplanHeuteCard />
-      </div>
+      <BetreuungsplanHeuteCard />
 
-      <div className="mb-4 md:mb-6">
-        <LeaveRequestsCard />
-      </div>
+      <LeaveRequestsCard />
 
       {/* Zeiterfassung — gleiche Struktur wie auf /staff/[id], damit es
           zwischen Admin-Sicht und MA-Sicht keinen Drift gibt. Die externe
@@ -3701,174 +3844,29 @@ function TimeTrackingContent() {
       <OwnZeiterfassungSection
         ownStaffId={ownStaffId}
         schedule={ownSchedule ?? null}
+        viewMode={viewMode}
+        weekAnchor={weekAnchor}
+        monthAnchor={monthAnchor}
         onEditDay={(date, session, absence) =>
           setEditModal({ date, session, absence })
         }
       />
-
-      {/* Edit modal */}
-      <EditSessionModal
-        isOpen={editModal !== null}
-        onClose={handleCloseEditModal}
-        session={editModal?.session ?? null}
-        date={editModal?.date ?? null}
-        onSave={handleEditSave}
-        absence={editModal?.absence ?? null}
-        onUpdateAbsence={handleUpdateAbsence}
-        onDeleteAbsence={handleDeleteAbsence}
-        canManage={canManageTimeTracking}
-        ownStaffId={ownStaffId}
-      />
-
-      {/* Create absence modal */}
-      <CreateAbsenceModal
-        isOpen={absenceModalOpen}
-        onClose={handleCloseAbsenceModal}
-        onSave={handleCreateAbsence}
-        canManageAbsenceTypes={canManageTimeTracking}
-      />
-
-      {/* Check-in confirmation when absence exists */}
-      <Modal
-        isOpen={pendingCheckIn !== null}
-        onClose={handleClosePendingCheckIn}
-        title="Abwesenheit eingetragen"
-        footer={
-          <ModalActions
-            onCancel={() => setPendingCheckIn(null)}
-            onConfirm={() => {
-              const status = pendingCheckIn;
-              setPendingCheckIn(null);
-              if (status) void executeCheckIn(status);
-            }}
-            confirmLabel="Trotzdem einstempeln"
-          />
-        }
-      >
-        <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
-            <svg
-              className="h-6 w-6 text-[#8A5600]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-              />
-            </svg>
-          </div>
-          <p className="mt-2 text-gray-600">
-            Für heute ist eine Abwesenheit eingetragen
-            {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.
-            Trotzdem einstempeln?
-          </p>
-        </div>
-      </Modal>
-
-      {/* F9: stamping outside the tolerance window around the planned shift
-          needs a reason that lands in the audit trail. */}
-      <Modal
-        isOpen={pendingDeviation !== null}
-        onClose={handleClosePendingDeviation}
-        title="Abweichung vom Dienstplan"
-        footer={
-          <ModalActions
-            onCancel={handleClosePendingDeviation}
-            cancelDisabled={deviationSubmitting}
-            onConfirm={confirmDeviationReason}
-            confirmDisabled={
-              deviationSubmitting || deviationReason.trim() === ""
-            }
-            confirmLabel={
-              pendingDeviation?.action === "check_in"
-                ? "Mit Begründung einstempeln"
-                : "Mit Begründung ausstempeln"
-            }
-          />
-        }
-      >
-        <div className="py-2">
-          <p className="text-sm text-gray-600">
-            {pendingDeviation?.action === "check_in" ? (
-              <>
-                Du stempelst
-                {pendingDeviation?.deviationMinutes ? (
-                  <span className="font-medium text-gray-900">
-                    {" "}
-                    {pendingDeviation.deviationMinutes} Minuten
-                  </span>
-                ) : (
-                  " deutlich"
-                )}{" "}
-                vor deinem geplanten Dienstbeginn
-                {pendingDeviation?.plannedTime
-                  ? ` (${pendingDeviation.plannedTime} Uhr)`
-                  : ""}{" "}
-                ein.
-              </>
-            ) : (
-              <>
-                Du stempelst
-                {pendingDeviation?.deviationMinutes ? (
-                  <span className="font-medium text-gray-900">
-                    {" "}
-                    {pendingDeviation.deviationMinutes} Minuten
-                  </span>
-                ) : (
-                  " deutlich"
-                )}{" "}
-                nach deinem geplanten Dienstende
-                {pendingDeviation?.plannedTime
-                  ? ` (${pendingDeviation.plannedTime} Uhr)`
-                  : ""}{" "}
-                aus.
-              </>
-            )}{" "}
-            Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der Sitzung
-            gespeichert.
-          </p>
-          <label
-            htmlFor="deviation-reason"
-            className="mt-4 block text-xs font-medium text-gray-700"
-          >
-            Grund
-          </label>
-          <Textarea
-            id="deviation-reason"
-            value={deviationReason}
-            onChange={(e) => setDeviationReason(e.target.value)}
-            disabled={deviationSubmitting}
-            placeholder="z. B. Elterngespräch lief länger"
-            rows={3}
-            className="mt-1"
-          />
-        </div>
-      </Modal>
-    </div>
+    </TenantPage>
   );
 }
 
 // ─── Page Export ───────────────────────────────────────────────────────────────
 
+/** Ladezustand der Seite: der eingebaute Zustand des Gerüsts, kein eigenes
+ *  Skelett daneben (Bauart 3, Regel 5). */
 function TimeTrackingPageSkeleton() {
   return (
-    <SkeletonRegion label="Zeiterfassung wird geladen">
-      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
-        <CardSkeleton rows={4} />
-        <CardSkeleton rows={4} />
-      </div>
-      <div className="mb-4 md:mb-6">
-        <CardSkeleton rows={2} />
-      </div>
-      <div className="mb-4 md:mb-6">
-        <CardSkeleton rows={2} />
-      </div>
-      <TableSkeleton rows={7} columns={5} />
-    </SkeletonRegion>
+    <TenantPage
+      title="Zeiterfassung"
+      statsLoading
+      loading
+      loadingLabel="Zeiterfassung wird geladen…"
+    />
   );
 }
 

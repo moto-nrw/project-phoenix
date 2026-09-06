@@ -254,8 +254,7 @@ describe("GET /api/sse/events", () => {
 
   it("treats a pending upstream read as normal cleanup after downstream cancellation", async () => {
     let resolveRead:
-      | ((value: ReadableStreamReadResult<Uint8Array>) => void)
-      | null = null;
+      ((value: ReadableStreamReadResult<Uint8Array>) => void) | null = null;
     const cancelSpy = vi.fn(async () => {
       resolveRead?.({ done: true, value: undefined });
     });

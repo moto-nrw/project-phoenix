@@ -15,6 +15,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,10 +34,12 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		repositories.NewFactory(db).InstanceStudent,
-		repositories.NewFactory(db).StudentEnrollment,
+		repos.InstanceStudent,
+		repos.StudentEnrollment,
 		nil,
 	)
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -79,7 +82,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       validFrom,
+		ValidFrom:       activitiesModel.Date(validFrom),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -177,7 +180,7 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: enrolledGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -323,7 +326,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -381,10 +384,12 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationService.GradeTransitionService {
 	t.Helper()
 
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
-		repositories.NewFactory(db).InstanceStudent,
-		repositories.NewFactory(db).StudentEnrollment,
+		repos.InstanceStudent,
+		repos.StudentEnrollment,
 		nil,
 		func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) },
 	)
@@ -513,7 +518,7 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
@@ -598,7 +603,7 @@ func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-30),
+		ValidFrom:       activitiesModel.Date(today.AddDays(-30)),
 	}
 	enrollment.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)

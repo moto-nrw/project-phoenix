@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/require"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -25,7 +27,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	draft := &usersModels.ParentAnnouncement{
@@ -81,7 +83,7 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	draft := &usersModels.ParentAnnouncement{

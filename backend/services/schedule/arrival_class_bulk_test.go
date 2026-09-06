@@ -40,7 +40,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -101,7 +101,7 @@ func TestStoredArrivalScheduleStatusCountsOnlyOwnTimes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -121,7 +121,7 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 
@@ -171,7 +171,7 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -197,7 +197,7 @@ func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -222,7 +222,7 @@ func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -243,7 +243,7 @@ func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	// unplanned even when the stored exception has an arrival time.
 	require.NoError(t, svc.CreateStudentArrivalException(ctx, &scheduleModel.StudentArrivalException{
 		StudentID:       student.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModel.Date(monday),
 		ExpectedArrival: &arrivalTime,
 		CreatedBy:       staff.ID,
 	}))
@@ -263,7 +263,7 @@ func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -293,7 +293,7 @@ func TestArrivalScheduleForWeekdayProjectsBookedDayWithoutStoredRow(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -318,7 +318,7 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -374,7 +374,7 @@ func TestArrivalDataForDateRangeDropsCareDayAfterBookingEnds(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -435,7 +435,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	wantErr := errors.New("class-time lookup failed")
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
@@ -471,7 +471,7 @@ func TestBookingModeWeeklyWritePreservesInactiveRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -508,7 +508,7 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassTimes(t, repos)
 

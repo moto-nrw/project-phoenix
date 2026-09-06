@@ -455,7 +455,11 @@ describe("DienstplanView", () => {
       // formatWeekLabel und lautet damit wie in Vertretung und Betreuungsplan
       // "KW 38 · 14.09.–18.09.2026"; die Zeitzonen-Aussage dieses Tests bleibt
       // unverändert.
-      const label = screen.getByText(/KW 38 ·/);
+      // Der Zeitraum steht genau einmal: als Datum in der Zeitnavigation.
+      // Die Statuszeile der Kopfkarte nennt ihn nicht noch einmal.
+      const labels = screen.getAllByText(/KW 38 ·/);
+      expect(labels).toHaveLength(1);
+      const label = labels[labels.length - 1]!;
       expect(label).toHaveTextContent(/^KW 38 · 14\.09\./);
       expect(label).toHaveTextContent(/–18\.09\./);
       expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
@@ -586,10 +590,7 @@ describe("DienstplanView", () => {
     mocks.search.value = "";
     window.history.replaceState(null, "", "/acme/dienstplan");
     render(<DienstplanView />);
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Halbjahr" }), {
-      button: 0,
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Halbjahr" }));
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get("view")).toBe(
         "halbjahr",
@@ -641,10 +642,10 @@ describe("DienstplanView", () => {
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Halbjahr" }),
+      screen.queryByRole("button", { name: "Halbjahr" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Woche" }),
+      screen.queryByRole("button", { name: "Woche" }),
     ).not.toBeInTheDocument();
   });
 
@@ -653,7 +654,9 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
-    expect(screen.getByRole("tab", { name: "Halbjahr" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Halbjahr" }),
+    ).toBeInTheDocument();
   });
 
   it("hides the Halbjahr tab without time_tracking:manage", () => {
@@ -678,7 +681,7 @@ describe("DienstplanView", () => {
 
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Halbjahr" }),
+      screen.queryByRole("button", { name: "Halbjahr" }),
     ).not.toBeInTheDocument();
   });
 
@@ -687,11 +690,10 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
-    expect(
-      screen.getByRole("button", {
-        name: "Dienstplan drucken oder exportieren",
-      }),
-    ).toBeInTheDocument();
+    // Die Aktion liegt im Menü neben dem Titel, nicht als zweiter Knopf
+    // daneben: neben dem Titel steht eine sichtbare Aktion.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(screen.getByText("Drucken oder exportieren")).toBeInTheDocument();
   });
 
   it("hides export without the permission to read staff names", () => {
@@ -705,9 +707,7 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.queryByRole("button", {
-        name: "Dienstplan drucken oder exportieren",
-      }),
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
   });
 

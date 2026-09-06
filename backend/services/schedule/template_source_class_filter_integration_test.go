@@ -147,7 +147,7 @@ func TestTemplateSourceClassFilter_SeedsOnlyTheFilteredClass(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 	// Same Jahrgang as the filtered class, different Klasse: the case the
@@ -172,7 +172,7 @@ func TestTemplateSourceClassFilter_MatchesCaseInsensitively(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], " 1B ")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -189,7 +189,7 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -213,7 +213,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 
 	rosterFrom := monday.AddDays(-30)
@@ -257,7 +257,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 
 	result := createClassSourcedTemplate(t, s, offering, "1b", []string{"1b"}, monday.AddDays(-30))
@@ -287,7 +287,7 @@ func TestTemplateSourceClassFilter_UpdateSwitchesFromGradeToClass(t *testing.T) 
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 
@@ -347,7 +347,7 @@ func TestTemplateSourceClassFilter_RejectsCombinedFilters(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 
 	_, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
 		Name:                  fmt.Sprintf("Randstunde-Konflikt-%d", time.Now().UnixNano()),
@@ -407,7 +407,7 @@ func createMultiDayCareOffering(
 	availableDays []string,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	_, err := s.db.NewRaw(
 		`UPDATE enrollment.care_offerings SET available_days = ?::jsonb WHERE id = ?`,
 		mustJSON(t, availableDays), offering.ID,
@@ -511,7 +511,7 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 	monday := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 
-	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	offering := createSourceCareOffering(t, s, timezone.Date(s.period.StartDate), timezone.Date(s.period.EndDate))
 	linkApprovedChildToOffering(t, s, offering, s.students[0], "1b")
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
 

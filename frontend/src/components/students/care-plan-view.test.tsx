@@ -58,9 +58,9 @@ function setSWR(
 
 // Radix activates a tab on pointer-down; a plain click does nothing in jsdom.
 const selectTab = (name: string) => {
-  const tab = screen.getByRole("tab", { name });
+  const tab = screen.getByRole("button", { name });
   fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
-  fireEvent.mouseDown(tab, { button: 0 });
+  fireEvent.click(tab);
 };
 
 describe("CarePlanView", () => {

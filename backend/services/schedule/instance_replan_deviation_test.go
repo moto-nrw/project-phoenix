@@ -167,7 +167,7 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 
 	// Second planned supervisor B so the occurrence has TWO absent-able positions.
 	staffB := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Second", fmt.Sprintf("Planned-%d", time.Now().UnixNano()))
-	supB := &activitiesModels.SupervisorPlanned{StaffID: staffB.ID, GroupID: s.template.ID, ValidFrom: date.AddDays(-30)}
+	supB := &activitiesModels.SupervisorPlanned{StaffID: staffB.ID, GroupID: s.template.ID, ValidFrom: activitiesModels.Date(date.AddDays(-30))}
 	supB.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(supB).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)

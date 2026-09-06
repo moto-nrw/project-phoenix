@@ -22,7 +22,7 @@ describe("EmptyStudentResults", () => {
     render(<EmptyStudentResults totalCount={100} filteredCount={0} />);
 
     expect(
-      screen.getByText("Versuche deine Suchkriterien anzupassen."),
+      screen.getByText("Versuchen Sie, Ihre Suchkriterien anzupassen."),
     ).toBeInTheDocument();
   });
 

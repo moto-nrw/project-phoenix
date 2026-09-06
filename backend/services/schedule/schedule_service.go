@@ -4,7 +4,6 @@ package schedule
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -23,6 +23,7 @@ const (
 
 // service implements the schedule.Service interface
 type service struct {
+	recurrenceEvents                    RecurrenceEventQuery
 	dateframeRepo                       schedule.DateframeRepository
 	timeframeRepo                       schedule.TimeframeRepository
 	recurrenceRuleRepo                  schedule.RecurrenceRuleRepository
@@ -30,8 +31,14 @@ type service struct {
 	validateCareOfferingTimeframeChange func(context.Context, int64, *schedule.Timeframe) error
 }
 
+// RecurrenceEventQuery is the consumer-owned expansion port.
+type RecurrenceEventQuery interface {
+	GenerateRecurrenceEvents(context.Context, int64, time.Time, time.Time) ([]time.Time, error)
+}
+
 // ServiceConfig carries the cross-domain guard needed by timeframe deletion.
 type ServiceConfig struct {
+	RecurrenceEvents                    RecurrenceEventQuery
 	DateframeRepo                       schedule.DateframeRepository
 	TimeframeRepo                       schedule.TimeframeRepository
 	RecurrenceRuleRepo                  schedule.RecurrenceRuleRepository
@@ -42,7 +49,11 @@ type ServiceConfig struct {
 // NewServiceWithConfig builds the schedule service with recurrence-aware
 // timeframe deletion validation.
 func NewServiceWithConfig(cfg ServiceConfig) Service {
+	if cfg.RecurrenceEvents == nil {
+		panic("schedule service: recurrence event query is required")
+	}
 	return &service{
+		recurrenceEvents:                    cfg.RecurrenceEvents,
 		dateframeRepo:                       cfg.DateframeRepo,
 		timeframeRepo:                       cfg.TimeframeRepo,
 		recurrenceRuleRepo:                  cfg.RecurrenceRuleRepo,
@@ -57,7 +68,10 @@ func NewServiceWithConfig(cfg ServiceConfig) Service {
 func (s *service) GetDateframe(ctx context.Context, id int64) (*schedule.Dateframe, error) {
 	dateframe, err := s.dateframeRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get dateframe", Err: ErrDateframeNotFound}
+		if base.IsNoRows(err) {
+			err = ErrDateframeNotFound
+		}
+		return nil, &ScheduleError{Op: "get dateframe", Err: err}
 	}
 	return dateframe, nil
 }
@@ -100,7 +114,7 @@ func (s *service) DeleteDateframe(ctx context.Context, id int64) error {
 
 // ListDateframes retrieves all dateframes matching the provided filters
 func (s *service) ListDateframes(ctx context.Context, options *base.QueryOptions) ([]*schedule.Dateframe, error) {
-	dateframes, err := s.dateframeRepo.List(ctx, options)
+	dateframes, err := legacyList[*schedule.Dateframe](ctx, s.dateframeRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list dateframes", Err: err}
 	}
@@ -140,7 +154,10 @@ func (s *service) FindOverlappingDateframes(ctx context.Context, startDate, endD
 func (s *service) GetTimeframe(ctx context.Context, id int64) (*schedule.Timeframe, error) {
 	timeframe, err := s.timeframeRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get timeframe", Err: ErrTimeframeNotFound}
+		if base.IsNoRows(err) {
+			err = ErrTimeframeNotFound
+		}
+		return nil, &ScheduleError{Op: "get timeframe", Err: err}
 	}
 	return timeframe, nil
 }
@@ -216,7 +233,7 @@ func (s *service) validateTimeframeCareOfferingChange(
 
 // ListTimeframes retrieves all timeframes matching the provided filters
 func (s *service) ListTimeframes(ctx context.Context, options *base.QueryOptions) ([]*schedule.Timeframe, error) {
-	timeframes, err := s.timeframeRepo.List(ctx, options)
+	timeframes, err := legacyList[*schedule.Timeframe](ctx, s.timeframeRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list timeframes", Err: err}
 	}
@@ -255,7 +272,10 @@ func (s *service) FindTimeframesByTimeRange(ctx context.Context, startTime, endT
 func (s *service) GetRecurrenceRule(ctx context.Context, id int64) (*schedule.RecurrenceRule, error) {
 	rule, err := s.recurrenceRuleRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get recurrence rule", Err: ErrRecurrenceRuleNotFound}
+		if base.IsNoRows(err) {
+			err = ErrRecurrenceRuleNotFound
+		}
+		return nil, &ScheduleError{Op: "get recurrence rule", Err: err}
 	}
 	return rule, nil
 }
@@ -298,7 +318,7 @@ func (s *service) DeleteRecurrenceRule(ctx context.Context, id int64) error {
 
 // ListRecurrenceRules retrieves all recurrence rules matching the provided filters
 func (s *service) ListRecurrenceRules(ctx context.Context, options *base.QueryOptions) ([]*schedule.RecurrenceRule, error) {
-	rules, err := s.recurrenceRuleRepo.List(ctx, options)
+	rules, err := legacyList[*schedule.RecurrenceRule](ctx, s.recurrenceRuleRepo, options)
 	if err != nil {
 		return nil, &ScheduleError{Op: "list recurrence rules", Err: err}
 	}
@@ -328,205 +348,20 @@ func (s *service) FindRecurrenceRulesByWeekday(ctx context.Context, weekday stri
 
 // Advanced operations
 
-// GenerateEvents generates events based on a recurrence rule within a date range
+// GenerateEvents delegates recurrence expansion to its owner while retaining
+// the established service error wrapper at legacy callers.
 func (s *service) GenerateEvents(ctx context.Context, ruleID int64, startDate, endDate time.Time) ([]time.Time, error) {
-	// Get the recurrence rule
-	rule, err := s.recurrenceRuleRepo.FindByID(ctx, ruleID)
-	if err != nil {
-		return nil, &ScheduleError{Op: opGenerateEvents, Err: ErrRecurrenceRuleNotFound}
+	events, err := s.recurrenceEvents.GenerateRecurrenceEvents(ctx, ruleID, startDate, endDate)
+	if err == nil {
+		return events, nil
 	}
-
-	// Validate date range
-	if startDate.After(endDate) {
-		return nil, &ScheduleError{Op: opGenerateEvents, Err: ErrInvalidDateRange}
+	switch {
+	case errors.Is(err, timetable.ErrRecurrenceRuleNotFound):
+		err = ErrRecurrenceRuleNotFound
+	case errors.Is(err, timetable.ErrInvalidRecurrenceRange):
+		err = ErrInvalidDateRange
 	}
-
-	// Check if rule has an end date that precedes startDate
-	if rule.EndDate != nil && rule.EndDate.Before(startDate) {
-		return []time.Time{}, nil // Rule doesn't apply to this range
-	}
-
-	// Adjust endDate if rule has an earlier end date
-	if rule.EndDate != nil && rule.EndDate.Before(endDate) {
-		endDate = *rule.EndDate
-	}
-
-	// Generate the events based on the rule's frequency
-	var events []time.Time
-
-	switch rule.Frequency {
-	case schedule.FrequencyDaily:
-		events = s.generateDailyEvents(rule, startDate, endDate)
-	case schedule.FrequencyWeekly:
-		events = s.generateWeeklyEvents(rule, startDate, endDate)
-	case schedule.FrequencyMonthly:
-		events = s.generateMonthlyEvents(rule, startDate, endDate)
-	case schedule.FrequencyYearly:
-		events = s.generateYearlyEvents(rule, startDate, endDate)
-	default:
-		return nil, &ScheduleError{Op: opGenerateEvents, Err: fmt.Errorf("unsupported frequency: %s", rule.Frequency)}
-	}
-
-	// If count is specified, limit the number of events
-	if rule.Count != nil && len(events) > *rule.Count {
-		events = events[:*rule.Count]
-	}
-
-	return events, nil
-}
-
-// Helper functions for GenerateEvents
-
-// generateDailyEvents generates daily events based on the rule
-func (s *service) generateDailyEvents(rule *schedule.RecurrenceRule, startDate, endDate time.Time) []time.Time {
-	var events []time.Time
-
-	// Normalize times to start of day if needed
-	currentDate := startDate
-
-	for !currentDate.After(endDate) {
-		events = append(events, currentDate)
-		// Advance by interval count days
-		currentDate = currentDate.AddDate(0, 0, rule.IntervalCount)
-	}
-
-	return events
-}
-
-// generateWeeklyEvents generates weekly events based on the rule
-func (s *service) generateWeeklyEvents(rule *schedule.RecurrenceRule, startDate, endDate time.Time) []time.Time {
-	var events []time.Time
-
-	// If no weekdays specified, use the weekday of the start date
-	weekdays := rule.Weekdays
-	if len(weekdays) == 0 {
-		// Get the weekday of the start date
-		weekdayNum := int(startDate.Weekday())
-		if weekdayNum == 0 { // Sunday
-			weekdayNum = 7
-		}
-		weekday := []string{"", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}[weekdayNum]
-		weekdays = []string{weekday}
-	}
-
-	// Map weekday strings to time.Weekday values
-	weekdayValues := map[string]time.Weekday{
-		"MON": time.Monday,
-		"TUE": time.Tuesday,
-		"WED": time.Wednesday,
-		"THU": time.Thursday,
-		"FRI": time.Friday,
-		"SAT": time.Saturday,
-		"SUN": time.Sunday,
-	}
-
-	// Start from the start date
-	currentDate := startDate
-
-	// Loop until we pass the end date
-	for !currentDate.After(endDate) {
-		currentWeekday := currentDate.Weekday()
-
-		// Check if the current day is one of the rule's weekdays
-		for _, wd := range weekdays {
-			if weekdayValues[wd] == currentWeekday {
-				events = append(events, currentDate)
-				break
-			}
-		}
-
-		// Advance to the next day
-		currentDate = currentDate.AddDate(0, 0, 1)
-
-		// If we've advanced to a new week, apply the interval count
-		if currentDate.Weekday() == time.Monday && rule.IntervalCount > 1 {
-			currentDate = currentDate.AddDate(0, 0, 7*(rule.IntervalCount-1))
-		}
-	}
-
-	return events
-}
-
-// generateMonthlyEvents generates monthly events based on the rule
-func (s *service) generateMonthlyEvents(rule *schedule.RecurrenceRule, startDate, endDate time.Time) []time.Time {
-	var events []time.Time
-
-	// If no month days specified, use the day of month of the start date
-	monthDays := rule.MonthDays
-	if len(monthDays) == 0 {
-		monthDays = []int{startDate.Day()}
-	}
-
-	// Start from the first day of the start date's month
-	currentYear := startDate.Year()
-	currentMonth := startDate.Month()
-	startHour, startMin, startSec := startDate.Clock()
-
-	// Loop through months until we pass the end date
-	for {
-		// For each specified day of the month
-		for _, day := range monthDays {
-			// Check if the day is valid for this month
-			lastDayOfMonth := time.Date(currentYear, currentMonth+1, 0, 0, 0, 0, 0, startDate.Location()).Day()
-			if day > lastDayOfMonth {
-				day = lastDayOfMonth // Use the last day if specified day exceeds month length
-			}
-
-			// Create the event date
-			eventDate := time.Date(currentYear, currentMonth, day, startHour, startMin, startSec, 0, startDate.Location())
-
-			// Add the event if it falls within our range
-			if !eventDate.Before(startDate) && !eventDate.After(endDate) {
-				events = append(events, eventDate)
-			}
-		}
-
-		// Advance to the next month based on interval
-		currentMonth += time.Month(rule.IntervalCount)
-		for currentMonth > 12 {
-			currentMonth -= 12
-			currentYear++
-		}
-
-		// Check if we've gone past the end date
-		if time.Date(currentYear, currentMonth, 1, 0, 0, 0, 0, startDate.Location()).After(endDate) {
-			break
-		}
-	}
-
-	return events
-}
-
-// generateYearlyEvents generates yearly events based on the rule
-func (s *service) generateYearlyEvents(rule *schedule.RecurrenceRule, startDate, endDate time.Time) []time.Time {
-	var events []time.Time
-
-	// Use start date's month and day for yearly events
-	startMonth := startDate.Month()
-	startDay := startDate.Day()
-	startHour, startMin, startSec := startDate.Clock()
-
-	// Iterate through years from start year to end year
-	for year := startDate.Year(); year <= endDate.Year(); year += rule.IntervalCount {
-		// Check if it's a leap year issue with February 29
-		maxDay := startDay
-		if startMonth == time.February && startDay == 29 {
-			isLeapYear := (year%4 == 0 && year%100 != 0) || year%400 == 0
-			if !isLeapYear {
-				maxDay = 28
-			}
-		}
-
-		// Create the event date
-		eventDate := time.Date(year, startMonth, maxDay, startHour, startMin, startSec, 0, startDate.Location())
-
-		// Add the event if it falls within our range
-		if !eventDate.Before(startDate) && !eventDate.After(endDate) {
-			events = append(events, eventDate)
-		}
-	}
-
-	return events
+	return nil, &ScheduleError{Op: opGenerateEvents, Err: err}
 }
 
 // CheckConflict checks if there are any conflicts for the given time range

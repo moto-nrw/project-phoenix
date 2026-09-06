@@ -4,6 +4,7 @@ import { SidebarSubItem } from "./sidebar-sub-item";
 
 // Mock next/link
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     href,
     children,

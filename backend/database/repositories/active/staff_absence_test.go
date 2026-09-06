@@ -21,7 +21,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsence
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
@@ -165,7 +165,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsence
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all staff absences", func(t *testing.T) {
@@ -215,7 +215,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsence
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absences in date range", func(t *testing.T) {
@@ -287,7 +287,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsence
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absence for specific date", func(t *testing.T) {
@@ -351,7 +351,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffAbsence
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns absence map for today", func(t *testing.T) {
@@ -449,7 +449,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 			BaseType: active.AbsenceTypeOther,
 			IsActive: true,
 		}
-		require.NoError(t, repositories.NewFactory(db).StaffAbsenceType.Create(ctx, absenceType))
+		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsenceType.Create(ctx, absenceType))
 
 		customAbsence := &active.StaffAbsence{
 			StaffID:       staff1.ID,

@@ -1,0 +1,33 @@
+{
+  "name": "moto-lsp",
+  "version": "1.0.0",
+  "description": "Repository-pinned Go and frontend TypeScript language servers",
+  "author": { "name": "moto" },
+  "lspServers": {
+    "go": {
+      "command": "${CLAUDE_PROJECT_DIR}/scripts/editor-tool.sh",
+      "args": ["gopls"],
+      "extensionToLanguage": { ".go": "go" }
+    },
+    "typescript": {
+      "command": "${CLAUDE_PROJECT_DIR}/scripts/editor-tool.sh",
+      "args": ["typescript", "--stdio"],
+      "workspaceFolder": "${CLAUDE_PROJECT_DIR}/frontend",
+      "initializationOptions": {
+        "tsserver": {
+          "path": "frontend/node_modules/typescript/lib/tsserver.js"
+        }
+      },
+      "extensionToLanguage": {
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".mts": "typescript",
+        ".cts": "typescript",
+        ".mjs": "javascript",
+        ".cjs": "javascript"
+      }
+    }
+  }
+}

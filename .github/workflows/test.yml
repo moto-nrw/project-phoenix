@@ -421,7 +421,7 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed demo data
+      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \
@@ -442,6 +442,12 @@ jobs:
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
+
+      - name: Read enrollment demo profiles
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
+          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
 
       - name: Check seed coverage ratchet
         working-directory: backend

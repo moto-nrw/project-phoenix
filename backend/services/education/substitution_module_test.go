@@ -50,7 +50,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Supervisor names come from the People Directory composition (#2661),
 	// so the module is built on the composed repositories the graph uses.
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	now := fixedNow
@@ -137,7 +137,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Werken")
@@ -221,7 +221,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
@@ -247,7 +247,7 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
@@ -278,7 +278,7 @@ func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
@@ -307,7 +307,7 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
@@ -366,7 +366,7 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
 		Audit: repos.SubstitutionChange, DB: db, Now: func() time.Time { return fixedNow },
@@ -429,7 +429,7 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
 		Audit: repos.SubstitutionChange, DB: db, Now: func() time.Time { return fixedNow },
@@ -529,7 +529,7 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
 		Audit: repos.SubstitutionChange, DB: db, Now: func() time.Time { return fixedNow },
@@ -578,7 +578,7 @@ func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
 		Audit: failingAudit{}, DB: db, Now: func() time.Time { return fixedNow },
@@ -616,7 +616,7 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
@@ -656,7 +656,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")

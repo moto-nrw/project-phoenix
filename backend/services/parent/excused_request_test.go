@@ -66,7 +66,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,

@@ -57,7 +57,7 @@ type testContext struct {
 func setupImportRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupImportModule(t)
 	// Create import resource
 	resource := importAPI.NewResource(svc.Import, svc.StaffImport, svc.ClassListImport, svc.Users, db)
 

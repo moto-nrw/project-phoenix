@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // Grade-1 concrete-class collection (#1663). Grade 1 is opt-in (#1833), and the
@@ -68,7 +68,7 @@ func TestCollectsGrade1Class(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			phase := &enrollmentModels.Phase{
+			phase := &capability.Phase{
 				AvailableSchoolClasses: tc.available,
 				EligibleSchoolClasses:  tc.eligible,
 			}
@@ -89,7 +89,7 @@ func TestCollectsGrade1Class_NilPhase(t *testing.T) {
 func TestCollectsGrade1Class_StableUnderFormNarrowing(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		AvailableSchoolClasses: []string{"Bienen", "2a", "3a"},
 		EligibleSchoolClasses:  []string{"Bienen"},
 	}
@@ -107,8 +107,8 @@ func TestCollectsGrade1Class_StableUnderFormNarrowing(t *testing.T) {
 func TestValidateAndNormalizeSchoolClasses_Grade1KeepsPrefixlessEligibleClass(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
-		Audience:               enrollmentModels.PhaseAudienceOpen,
+	phase := &capability.Phase{
+		Audience:               capability.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"Bienen"},
 		EligibleSchoolClasses:  []string{"Bienen"},
 		EligibleGradeLevels:    []int{1},
@@ -133,8 +133,8 @@ func TestValidateAndNormalizeSchoolClasses_Grade1KeepsPrefixlessEligibleClass(t 
 func TestValidateAndNormalizeSchoolClasses_Grade1RequiresPrefixlessEligibleClass(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
-		Audience:               enrollmentModels.PhaseAudienceOpen,
+	phase := &capability.Phase{
+		Audience:               capability.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"Bienen"},
 		EligibleSchoolClasses:  []string{"Bienen"},
 		RequireSchoolClass:     true,
@@ -152,8 +152,8 @@ func TestValidateAndNormalizeSchoolClasses_Grade1RequiresPrefixlessEligibleClass
 func TestValidateAndNormalizeSchoolClasses_Grade1StaysClasslessForGrade2Restriction(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
-		Audience:               enrollmentModels.PhaseAudienceOpen,
+	phase := &capability.Phase{
+		Audience:               capability.PhaseAudienceOpen,
 		AvailableSchoolClasses: []string{"1a", "2a"},
 		EligibleSchoolClasses:  []string{"2a"},
 		RequireSchoolClass:     true,

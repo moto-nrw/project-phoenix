@@ -186,7 +186,7 @@ func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) 
 		if period.WeekCycleLength <= 1 || period.WeekCycleAnchor == nil {
 			continue
 		}
-		if date.Before(period.StartDate) || date.After(period.EndDate) {
+		if date.Before(timezone.Date(period.StartDate)) || date.After(timezone.Date(period.EndDate)) {
 			continue
 		}
 		return period, nil

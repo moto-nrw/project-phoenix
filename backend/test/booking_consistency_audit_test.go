@@ -7,13 +7,14 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/uptrace/bun"
 )
 
 func bookingConsistencyAuditTestRepository(t *testing.T) any {
 	t.Helper()
 	db := SetupTestDB(t)
-	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, AuditTenantIDFromContext))
+	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, AuditTenantIDFromContext), enrollmentTest.New())
 	// The audit reads the alumnus exclusion through the People Directory port
 	// (#2662); this package serves it straight from the table it may read.
 	repo.(interface {

@@ -23,7 +23,7 @@ import (
 // Directory (#2661), then the school projections on top.
 func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)

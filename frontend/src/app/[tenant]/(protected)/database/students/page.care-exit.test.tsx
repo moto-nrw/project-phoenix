@@ -43,8 +43,32 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
-  DatabasePageLayout: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
+  DatabasePageLayout: ({
+    children,
+    intro,
+    search,
+  }: {
+    children: ReactNode;
+    intro?: { title: string; actions?: ReactNode };
+    search?: ReactNode;
+  }) => (
+    <div>
+      {intro?.actions}
+      {search}
+      {children}
+    </div>
+  ),
+}));
+
+// Die Sekundär-Navigation liegt seit der Kopfkarte im echten OverflowMenu
+// (PageIntro.actions) statt in der Kopfzeile; hier flach gerendert.
+vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
+  OverflowMenu: ({ items }: { items: Array<{ label: string }> }) => (
+    <ul data-testid="overflow-menu">
+      {items.map((entry) => (
+        <li key={entry.label}>{entry.label}</li>
+      ))}
+    </ul>
   ),
 }));
 

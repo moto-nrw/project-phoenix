@@ -40,7 +40,7 @@ func windowInstance(id, roomID int64, startHHMM, endHHMM, status string) *schedu
 		return t
 	}
 	inst := &scheduleModels.ActivityInstance{
-		Date:      windowTestDate,
+		Date:      scheduleModels.Date(windowTestDate),
 		Title:     "Block",
 		StartTime: parse(startHHMM),
 		EndTime:   parse(endHHMM),
@@ -266,7 +266,7 @@ func TestDetectWindowConflicts_DifferentDaysNeverConflict(t *testing.T) {
 	shared := []*scheduleModels.InstanceStudent{studentRow(200, scheduleModels.AttendanceStatusExpected)}
 	a := windowInstance(1, 10, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
 	b := windowInstance(2, 11, "14:00", "15:00", scheduleModels.InstanceStatusPlanned)
-	b.Date = windowTestDate.AddDays(1)
+	b.Date = scheduleModels.Date(windowTestDate.AddDays(1))
 
 	out := scheduleSvc.DetectWindowConflicts([]scheduleSvc.WindowConflictInput{
 		{Instance: a, Students: shared},
@@ -322,8 +322,8 @@ func TestDetectWindowConflicts_FingerprintChangesWithTimeDateAndInstances(t *tes
 	assert.NotEqual(t, base, shifted, "a changed overlap window must re-surface the warning")
 
 	movedDay := windowStudentFingerprint(t, func(a, b *scheduleModels.ActivityInstance) {
-		a.Date = windowTestDate.AddDays(7)
-		b.Date = windowTestDate.AddDays(7)
+		a.Date = scheduleModels.Date(windowTestDate.AddDays(7))
+		b.Date = scheduleModels.Date(windowTestDate.AddDays(7))
 	})
 	assert.NotEqual(t, base, movedDay, "another date is another conflict")
 

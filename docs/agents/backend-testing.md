@@ -55,6 +55,15 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 - From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test ./test/ -run TestHermeticTestPatterns -v`
 - Preserve test contracts; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
 
+## Local test-server lifetime
+
+Database clones are cleaned separately from their PostgreSQL server. Managed
+local servers now stop after 15 minutes without a live test-process lease;
+this updates ADR 0004's original always-running-container choice while retaining
+templates and volumes. No per-worktree teardown hook or personal machine service
+is needed. See [test-server operations](operations.md#test-database) for supported
+hosts, status, legacy-container migration and the startup/cleanup lock contract.
+
 ## Test commands
 
 ```bash

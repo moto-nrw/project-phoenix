@@ -3,7 +3,7 @@
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import { timetableRequiredMark } from "../timetable-style";
@@ -99,9 +99,10 @@ export function StepWiederholung({
           <span className="text-xs font-semibold text-gray-700">
             Wiederholt sich
           </span>
-          <Tabs
+          <SegmentedControl
+            ariaLabel="Wiederholung"
             value={form.repeat}
-            onValueChange={(value) => {
+            onChange={(value) => {
               const nextRepeat = value as RepeatMode;
               updateRepeat(nextRepeat);
               if (nextRepeat !== "none" && form.weekdays.length === 0) {
@@ -112,24 +113,16 @@ export function StepWiederholung({
                 );
               }
             }}
-          >
-            <TabsList aria-label="Wiederholung" className="w-fit">
-              {REPEAT_OPTIONS.map((option) => (
-                <TabsTrigger
-                  key={option.value}
-                  value={option.value}
-                  disabled={
-                    (isEditingSeries && option.value === "none") ||
-                    (!isEditingSeries &&
-                      option.value === "biweekly" &&
-                      biweeklyUnavailable)
-                  }
-                >
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+            items={REPEAT_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+              disabled:
+                (isEditingSeries && option.value === "none") ||
+                (!isEditingSeries &&
+                  option.value === "biweekly" &&
+                  biweeklyUnavailable),
+            }))}
+          />
         </div>
       ) : (
         <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
@@ -162,18 +155,18 @@ export function StepWiederholung({
           <span className="text-xs font-semibold text-gray-700">
             Wochenrhythmus
           </span>
-          <Tabs
+          <SegmentedControl
+            ariaLabel="A/B-Woche"
             value={form.weekPattern === 1 ? "A" : "B"}
-            onValueChange={(value) => {
+            onChange={(value) => {
               manualWeekPattern.current = value === "A" ? 1 : 2;
               update("weekPattern", value === "A" ? 1 : 2);
             }}
-          >
-            <TabsList aria-label="A/B-Woche" className="w-fit">
-              <TabsTrigger value="A">Woche A</TabsTrigger>
-              <TabsTrigger value="B">Woche B</TabsTrigger>
-            </TabsList>
-          </Tabs>
+            items={[
+              { value: "A", label: "Woche A" },
+              { value: "B", label: "Woche B" },
+            ]}
+          />
           <p className="text-xs text-gray-500">{abWeekHint}</p>
           {fieldErrors.weekPattern && (
             <p role="alert" className="text-moto-red mt-1 text-xs">

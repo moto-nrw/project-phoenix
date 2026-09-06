@@ -33,6 +33,9 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// capacity and pending-request queue through this bounded service scenario.
+	"api.parent.child_courses": {max: 14},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
@@ -80,7 +83,6 @@ var queryBudgets = map[string]queryBudget{
 	"services.users.list_guardians.reads":                  {max: 2},
 	"services.users.student_guardians.reads":               {max: 4},
 	"repositories.active.combined_group_with_groups.reads": {max: 3, exact: true},
-	"repositories.activities.supervisors_by_staff.reads":   {max: 2, exact: true},
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},
@@ -93,6 +95,20 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
+	"modules.timetable.groups.list":              {max: 1, exact: true},
+	"modules.timetable.group_targets.list":       {max: 1, exact: true},
+	"modules.timetable.enrollments.list":         {max: 1, exact: true},
+	"modules.timetable.timeframes.list":          {max: 1, exact: true},
+	"modules.timetable.planning_tracks.list":     {max: 1, exact: true},
+	"modules.timetable.recurrence_rules.list":    {max: 1, exact: true},
+	"modules.timetable.activity_exceptions.list": {max: 1, exact: true},
+	"modules.timetable.activity_instances.list":  {max: 1, exact: true},
+	"modules.timetable.instance_staff.list":      {max: 1, exact: true},
+	"modules.timetable.instance_students.list":   {max: 1, exact: true},
+	"modules.timetable.schedules.list":           {max: 1, exact: true},
+	"modules.timetable.supervisors.list":         {max: 1, exact: true},
+	"modules.timetable.target_students.list":     {max: 1, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},

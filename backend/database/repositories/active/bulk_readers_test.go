@@ -203,7 +203,7 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkVisitRoom")

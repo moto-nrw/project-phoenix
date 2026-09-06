@@ -188,6 +188,25 @@ func registerEnrollmentCareOfferings() {
 		Validation:      &config.ValidationRules{Min: &minLeadDays, Max: &maxLeadDays},
 		DependsOn:       config.DependsOnEq(config.KeyEnrollmentOfferingChangesEnabled, true),
 	})
+
+	// Kursanmeldung durch Eltern (#3075, SH 4.3, ADR 0012). Läuft über den
+	// Angebotsweg: ein Kurs ist ein Betreuungsangebot, das an einer AG hängt,
+	// und die Anfrage ist dieselbe Änderungsanfrage. Deshalb hängt der
+	// Schalter sichtbar an den Änderungsanfragen — ohne sie gibt es keine
+	// Strecke, auf der eine Kursanfrage entschieden werden könnte.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentParentCourseRequestsEnabled,
+		Label:           "Kursanfragen durch Eltern erlauben",
+		Description:     "Eltern sehen in der Eltern-App die Kurse ihrer Schule und können ihr Kind dafür anfragen. Die Anfrage gilt erst nach Freigabe durch die OGS. Ist ein Kurs voll, entsteht ein Platz auf der Warteliste.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       33,
+		DependsOn:       config.DependsOnEq(config.KeyEnrollmentOfferingChangesEnabled, true),
+	})
 }
 
 func registerEnrollmentNotifications() {

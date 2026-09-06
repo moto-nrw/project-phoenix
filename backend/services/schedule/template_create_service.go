@@ -359,7 +359,7 @@ func (s *TimetableDataService) createTemplateLocked(
 			ActivityGroupID:  group.ID,
 			WeekPattern:      in.WeekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
-			ValidFrom:        cloneOptionalDate(in.ScheduleValidFrom),
+			ValidFrom:        activityDatePtr(in.ScheduleValidFrom),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
@@ -491,14 +491,14 @@ func (s *TimetableDataService) createTemplateRoster(
 		return &ScheduleError{Op: "create template: resolve roster", Err: err}
 	}
 
-	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
+	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
 		return &ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
 	for _, row := range roster.Students {
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  groupID,
-			ValidFrom:        in.RosterValidFrom,
+			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
@@ -508,7 +508,7 @@ func (s *TimetableDataService) createTemplateRoster(
 		}
 	}
 
-	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
+	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
 		return &ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
 	for _, row := range roster.Staff {
@@ -516,7 +516,7 @@ func (s *TimetableDataService) createTemplateRoster(
 			StaffID:          row.PersonID,
 			GroupID:          groupID,
 			IsPrimary:        row.IsPrimary,
-			ValidFrom:        in.RosterValidFrom,
+			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}

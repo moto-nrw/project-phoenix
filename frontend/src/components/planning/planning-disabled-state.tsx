@@ -1,5 +1,5 @@
-import { timetableSurface } from "~/components/timetable/timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 interface PlanningDisabledStateProps {
   readonly pageTitle: string;
@@ -8,6 +8,12 @@ interface PlanningDisabledStateProps {
   readonly testId: string;
 }
 
+/**
+ * Abgeschalteter Planungsbereich. Auch dieser Zustand rendert das
+ * Seitengerüst: Kopfkarte mit dem Seitentitel, darunter der Leerzustand des
+ * Gerüsts. Die Erklärung steht im Leerzustand, nicht als Erklärsatz in der
+ * Statuszeile — dort gehören nur Zahlen hin.
+ */
 export function PlanningDisabledState({
   pageTitle,
   heading,
@@ -15,17 +21,14 @@ export function PlanningDisabledState({
   testId,
 }: PlanningDisabledStateProps) {
   return (
-    <div className="flex flex-col gap-4" data-testid={testId}>
-      <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
-      <div className={`${timetableSurface} p-10 text-center`}>
-        <MotoConceptIcon concept="closingDays" size={42} className="mx-auto" />
-        <h2 className="mt-4 text-base font-semibold text-gray-900">
-          {heading}
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-          {description}
-        </p>
-      </div>
-    </div>
+    <TenantPage
+      title={pageTitle}
+      testId={testId}
+      empty={{
+        title: heading,
+        description,
+        icon: <MotoConceptIcon concept="closingDays" size={42} />,
+      }}
+    />
   );
 }

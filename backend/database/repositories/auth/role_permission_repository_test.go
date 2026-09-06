@@ -19,7 +19,7 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates role permission mapping", func(t *testing.T) {
@@ -73,7 +73,7 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions by role ID", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates role permission mapping", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all permissions for a role", func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all roles for a permission", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).RolePermission
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).RolePermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all role permissions", func(t *testing.T) {

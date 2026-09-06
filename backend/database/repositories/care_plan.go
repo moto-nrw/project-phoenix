@@ -9,7 +9,6 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -49,7 +48,9 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if err != nil {
 		return nil, err
 	}
-	if repository, ok := slots.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := slots.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	return capability, nil
@@ -109,7 +110,7 @@ func CarePlanStatusSlots(repository scheduleModels.InstanceStudentRepository) ca
 }
 
 func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {
-	return d.repository.ApplyStatusDay(ctx, studentID, carePlanLegacy.ScheduleDate(date), statusDayID, substatus)
+	return d.repository.ApplyStatusDay(ctx, studentID, scheduleModels.Date(date), statusDayID, substatus)
 }
 
 func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
@@ -153,9 +154,7 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 		repository.BindCompanionRepository(companion)
 	}
 	f.bindCarePlanAuditDirectory()
-	if repository, ok := f.PhaseExpiry.(*enrollmentRepo.PhaseExpiryRepository); ok {
-		repository.BindCarePlan(phaseExpiryCarePlanDirectory{query: capability})
-	}
+
 	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
 	}
@@ -165,7 +164,9 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	if repository, ok := f.StudentDeletion.(*usersRepo.StudentDeletionRepository); ok {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: capability})
 	}
-	if repository, ok := f.InstanceStudent.(*scheduleRepo.InstanceStudentRepository); ok {
+	if repository, ok := f.InstanceStudent.(interface {
+		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
 	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
@@ -211,7 +212,7 @@ func (d studentDeletionCarePlanDirectory) CountCarePlanDeletionRecords(ctx conte
 }
 
 type pickupExceptionDirectory struct {
-	query careplan.Query
+	query carePlanCompose.ExceptionQueries
 }
 
 func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {
@@ -327,23 +328,6 @@ func (d auditCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]audit.
 			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
 			IsActive: value.IsActive, IsRequired: value.IsRequired,
 			CountsAsCare: value.CountsAsCare, PickupTimes: value.PickupTimes,
-		})
-	}
-	return result, nil
-}
-
-type phaseExpiryCarePlanDirectory struct{ query careplan.Query }
-
-func (d phaseExpiryCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]enrollmentRepo.CareOfferingProjection, error) {
-	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]enrollmentRepo.CareOfferingProjection, 0, len(values))
-	for _, value := range values {
-		result = append(result, enrollmentRepo.CareOfferingProjection{
-			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
-			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
 		})
 	}
 	return result, nil

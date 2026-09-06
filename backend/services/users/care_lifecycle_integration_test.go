@@ -36,7 +36,7 @@ import (
 func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return activeService.NewService(activeService.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -88,7 +88,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	today := timezone.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
@@ -199,7 +199,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db)
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
@@ -228,7 +228,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	booking := &activityModels.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: activityGroup.ID,
-		ValidFrom:       today.AddDays(-60),
+		ValidFrom:       activityModels.Date(today.AddDays(-60)),
 	}
 	booking.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
@@ -288,11 +288,11 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	})
 
 	t.Run("the offering ends at the last care day", func(t *testing.T) {
-		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, today)
+		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
 		require.NoError(t, err)
 		assert.Len(t, stillToday, 1)
 
-		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, today.AddDays(1))
+		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
 		require.NoError(t, err)
 		assert.Empty(t, tomorrow)
 	})

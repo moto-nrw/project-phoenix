@@ -19,7 +19,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrTemplateSeriesFullyEnded is returned when a template id resolves to a
@@ -64,9 +63,7 @@ func loadTemplateSeriesSegments(
 	if len(groupIDs) == 0 {
 		return []templateSeriesSegment{}, nil
 	}
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().In("activity_group_id", int64FilterArgs(groupIDs)...)
-	scheduleRows, err := scheduleRepo.List(ctx, options)
+	scheduleRows, err := scheduleRepo.FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, &ScheduleError{Op: "load template series: load schedules", Err: err}
 	}

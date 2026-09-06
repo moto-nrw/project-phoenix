@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,36 +74,6 @@ vi.mock("~/lib/format-utils", () => ({
   getInitials: () => "MM",
 }));
 
-vi.mock("@radix-ui/react-tabs", () => ({
-  Content: ({
-    children,
-    value,
-  }: {
-    children: React.ReactNode;
-    value: string;
-  }) => <div data-tab-content={value}>{children}</div>,
-}));
-
-vi.mock("~/components/ui/tabs", () => ({
-  Tabs: ({
-    children,
-    defaultValue,
-  }: {
-    children: React.ReactNode;
-    defaultValue: string;
-  }) => <div data-default-tab={defaultValue}>{children}</div>,
-  TabsList: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
-  TabsTrigger: ({
-    children,
-    disabled,
-  }: {
-    children: React.ReactNode;
-    disabled?: boolean;
-  }) => <button disabled={disabled}>{children}</button>,
-}));
-
 vi.mock("~/components/staff/uebersicht-tab", () => ({
   UebersichtTab: () => <div data-testid="uebersicht-tab" />,
 }));
@@ -176,20 +146,16 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
-    expect(
-      screen.getByRole("button", { name: "Übersicht" }),
-    ).toBeInTheDocument();
+    // Seitenreiter tragen jetzt die Rolle „tab"; nur der aktive Reiter
+    // rendert seinen Inhalt.
+    expect(screen.getByRole("tab", { name: "Übersicht" })).toBeInTheDocument();
     expect(screen.getByTestId("uebersicht-tab")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Zeiterfassung" }),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Zeiterfassung" }));
     expect(screen.getByTestId("zeiterfassung-tab")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Arbeitszeitmodell" }),
+      screen.queryByRole("tab", { name: "Arbeitszeitmodell" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Stammdaten" }),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
     expect(
       screen.getByRole("button", { name: "Bearbeiten" }),
     ).toBeInTheDocument();
@@ -265,6 +231,7 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
+    fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
     expect(screen.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
       "href",
       "/payroll",
@@ -293,10 +260,9 @@ describe("StaffDetailContent permissions", () => {
 
       render(<StaffDetailContent />);
 
-      expect(
-        screen.getByRole("button", { name: "Arbeitszeitmodell" }),
-      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Arbeitszeitmodell" }));
       expect(screen.getByTestId("arbeitszeitmodell-tab")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("tab", { name: "Abwesenheiten" }));
       expect(screen.getByTestId("abwesenheiten-tab")).toBeInTheDocument();
       expect(staffService.getStaffById).toHaveBeenCalledWith("42");
       expect(replaceMock).not.toHaveBeenCalled();
@@ -323,7 +289,7 @@ describe("StaffDetailContent permissions", () => {
       render(<StaffDetailContent />);
 
       expect(
-        screen.getByRole("button", { name: "Stammdaten" }),
+        screen.getByRole("tab", { name: "Stammdaten" }),
       ).toBeInTheDocument();
       expect(replaceMock).not.toHaveBeenCalled();
     },
@@ -346,9 +312,7 @@ describe("StaffDetailContent permissions", () => {
 
     render(<StaffDetailContent />);
 
-    expect(
-      screen.getByRole("button", { name: "Dokumente" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Dokumente" })).toBeInTheDocument();
     expect(staffService.getDocumentProfile).toHaveBeenCalledWith("42");
     expect(replaceMock).not.toHaveBeenCalled();
   });
@@ -373,13 +337,13 @@ describe("StaffDetailContent permissions", () => {
 
       render(<StaffDetailContent />);
 
-      expect(
-        screen.getByRole("button", { name: "Dokumente" }),
-      ).toBeInTheDocument();
-      expect(document.querySelector("[data-default-tab]")).toHaveAttribute(
-        "data-default-tab",
-        "dokumente",
+      // Der Deep-Link öffnet den Reiter direkt: er ist ausgewählt und sein
+      // Inhalt steht auf der Seite.
+      expect(screen.getByRole("tab", { name: "Dokumente" })).toHaveAttribute(
+        "aria-selected",
+        "true",
       );
+      expect(screen.getByTestId("dokumente-tab")).toBeInTheDocument();
     },
   );
 

@@ -630,7 +630,7 @@ func (s *careScheduleRequestService) GetPendingForStudent(ctx context.Context, s
 
 func (s *careScheduleRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestReviewItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListPendingForTenant(ctx, probeLimit(filters))
+	rows, err := s.requestRepo.ListPendingForTenant(ctx, scheduleQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("schedule: list pending care requests: %w", err)
 	}
@@ -654,9 +654,22 @@ func probeLimit(filters modelBase.RequestQueueFilters) modelBase.RequestQueueFil
 	return filters
 }
 
+func scheduleQueueFilters(filters modelBase.RequestQueueFilters) scheduleModels.RequestQueueFilters {
+	return scheduleModels.RequestQueueFilters{
+		UrgentOnly:    filters.UrgentOnly,
+		UrgentDate:    filters.UrgentDate,
+		StudentIDs:    filters.StudentIDs,
+		StudentID:     filters.StudentID,
+		Search:        filters.Search,
+		BeforeInstant: filters.BeforeInstant,
+		BeforeID:      filters.BeforeID,
+		Limit:         filters.Limit,
+	}
+}
+
 func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*CareRequestHistoryItem, *usersService.HistoryCursor, error) {
 	// limit+1 probes for an older page without a second count query.
-	rows, err := s.requestRepo.ListDecidedForTenant(ctx, probeLimit(filters))
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, scheduleQueueFilters(probeLimit(filters)))
 	if err != nil {
 		return nil, nil, fmt.Errorf("schedule: list decided care requests: %w", err)
 	}
@@ -850,7 +863,7 @@ func careDiffEntriesFromSnapshot(snapshot *scheduleModels.CareRequestDecisionSna
 }
 
 func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {
-	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange, modelBase.RequestQueueFilters{})
+	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange, scheduleModels.RequestQueueFilters{})
 	if err != nil {
 		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
 	}
@@ -989,7 +1002,7 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 	}
 	old, _ := req.Payload["previous_pickup_time"].(string)
 	if old == "" && s.pickupExceptions != nil {
-		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 		if findErr != nil {
 			return nil, findErr
 		}
@@ -1361,7 +1374,7 @@ func pickupImpactToken(blocks []scheduleModels.PartialAbsenceBlock) string {
 }
 
 func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, date timezone.Date, pickupTime time.Time, reason string, staffID int64) (int64, error) {
-	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, scheduleModels.Date(date))
 	if err != nil {
 		return 0, fmt.Errorf("schedule: load pickup exception for request: %w", err)
 	}
@@ -1381,9 +1394,9 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 		return existing.ID, nil
 	}
 	exception := &scheduleModels.StudentPickupException{
-		TenantModel:   modelBase.TenantModel{TenantID: req.TenantID},
+		TenantModel:   scheduleModels.TenantModel{TenantID: req.TenantID},
 		StudentID:     req.StudentID,
-		ExceptionDate: date,
+		ExceptionDate: scheduleModels.Date(date),
 		PickupTime:    &pickupTime,
 		Reason:        &reason,
 		Source:        scheduleModels.ExceptionSourceStaff,

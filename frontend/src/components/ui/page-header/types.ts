@@ -140,6 +140,8 @@ export interface PageHeaderWithSearchProps {
 
   // Layout options
   readonly className?: string;
+  /** Innerhalb einer Kopfkarte (PageIntro): kein eigener Außenabstand unten. */
+  readonly embedded?: boolean;
 }
 
 /**

@@ -70,9 +70,13 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 const subscribers = new Set<() => void>();
 
+// Die englischen `/enroll`-Pfade stehen weiter in Elternbriefen; der Proxy
+// leitet sie auf `/anmeldung` um. Sie bleiben hier gelistet, damit auch der
+// kurze Zwischenschritt keinen Installations-Dialog auslöst (#2829).
 const PUBLIC_TENANT_PATHS = [
   "/",
   "/display",
+  "/anmeldung",
   "/enroll",
   "/invite",
   "/reset-password",
@@ -83,6 +87,7 @@ const PUBLIC_PARENT_PATHS = [
   "/reset-password",
   "/email-confirm",
   "/accept-guardian-invite",
+  "/anmeldung/status",
   "/enroll/status",
 ] as const;
 

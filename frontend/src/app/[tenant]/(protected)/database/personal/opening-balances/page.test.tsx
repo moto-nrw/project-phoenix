@@ -131,13 +131,13 @@ describe("OpeningBalanceImportPage", () => {
     render(<OpeningBalanceImportPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Eröffnungssalden importieren" }),
+      screen.getByRole("heading", { name: "Eröffnungssalden" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Schritt 2: Stichtag und Begründung"),
+      screen.getByRole("heading", { name: "Stichtag und Begründung" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Schritt 3: Datei hochladen")).toBeInTheDocument();
   });
@@ -151,7 +151,9 @@ describe("OpeningBalanceImportPage", () => {
     global.URL.revokeObjectURL = vi.fn();
 
     render(<OpeningBalanceImportPage />);
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vorlage herunterladen" }),
+    );
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(

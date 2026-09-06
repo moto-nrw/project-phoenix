@@ -1,12 +1,13 @@
 "use client";
 
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronRight, SlidersHorizontal } from "lucide-react";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
@@ -25,140 +26,94 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { DashboardSkeleton } from "./page-skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { formatStatusDate } from "~/lib/date-helpers";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { CustomizeDashboardModal } from "~/components/dashboard/customize-dashboard-modal";
+import { Button } from "~/components/ui/button";
+import {
+  isHomeBlockVisible,
+  resolveHomeBlocks,
+  type HomeBlockKey,
+} from "~/lib/home-blocks";
+import { useHomeLayout } from "~/lib/hooks/use-home-layout";
 
 const logger = createLogger({ component: "DashboardPage" });
 
-// Stat Card Component - matches database page style
-interface StatCardProps {
-  readonly title: string;
-  readonly value: string | number;
-  readonly icon: PhosphorIcon;
-  readonly tone: MotoDuotoneTone;
-  readonly subtitle?: string;
-  readonly loading?: boolean;
-  readonly href?: string;
-}
+// Alles, was aus den Betriebszahlen (/analytics) lebt. Ist nichts davon
+// sichtbar, wird die Abfrage gar nicht erst gestellt (#2875) — eine
+// ausgeblendete Kachel darf keine Last erzeugen.
+const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
+  "tile.students_present",
+  "tile.students_in_rooms",
+  "tile.students_in_transit",
+  "tile.students_on_playground",
+  "tile.students_sick",
+  "tile.students_excused",
+  "tile.students_home",
+  "tile.active_activities",
+  "tile.capacity_utilization",
+  "section.recent_activity",
+  "section.current_activities",
+  "section.active_groups",
+];
 
-const StatCard: React.FC<StatCardProps> = ({
+/**
+ * Listenkarte der Startseite: dieselbe Sektionskarte wie überall, mit dem
+ * Konzeptsymbol als Vorspann und dem Weiterlink als Aktion. Vorher war das
+ * eine eigene Kartenfläche mit eigenem Radius und eigenem Kopf.
+ */
+function ListCard({
   title,
-  value,
-  icon,
-  tone,
-  subtitle,
-  loading,
-  href,
-}) => {
-  const cardContent = (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
-      <div className="relative p-4 md:p-6">
-        <div className="mb-3 flex items-start justify-between">
-          <div className="p-0.5">
-            <MotoDuotoneIcon icon={icon} tone={tone} />
-          </div>
-          {loading && (
-            <div className="h-2 w-2 animate-pulse rounded-full bg-gray-400"></div>
-          )}
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-gray-600 md:text-sm">
-            {title}
-          </p>
-          <p className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {loading ? "..." : value}
-          </p>
-          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
-        </div>
-      </div>
-    </div>
-  );
-
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className="focus-visible:ring-moto-blue group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-      >
-        {cardContent}
-      </Link>
-    );
-  }
-
-  return cardContent;
-};
-
-// Info Card Component for lists
-interface InfoCardProps {
-  readonly title: string;
-  readonly children: React.ReactNode;
-  readonly concept: MotoConceptKey;
-  readonly href?: string;
-  readonly linkText?: string;
-}
-
-const InfoCard: React.FC<InfoCardProps> = ({
-  title,
-  children,
   concept,
   href,
-  linkText,
-}) => {
-  const cardContent = (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
-      <div className="relative p-4 md:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="rounded-xl bg-gray-100 p-2">
-              <MotoConceptIcon concept={concept} size={20} />
-            </div>
-            <h3 className="text-base font-semibold text-gray-900 md:text-lg">
-              {title}
-            </h3>
-          </div>
-          {href ? (
-            <span className="flex items-center gap-1 text-xs font-medium text-gray-600 transition-colors group-hover:text-gray-900 md:text-sm">
-              {linkText ? <span>{linkText}</span> : null}
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </span>
-          ) : null}
-        </div>
-        {children}
-      </div>
-    </div>
+  linkText = "Ansehen",
+  children,
+}: Readonly<{
+  title: string;
+  concept: MotoConceptKey;
+  href?: string;
+  linkText?: string;
+  children: ReactNode;
+}>) {
+  return (
+    <SectionCard
+      title={title}
+      className="h-full"
+      leading={
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+          <MotoConceptIcon concept={concept} size={20} />
+        </span>
+      }
+      actions={
+        href ? (
+          <Link
+            href={href}
+            // Der Kartentitel gehört in den Linknamen: „Ansehen" allein sagt
+            // in der Vorlesereihenfolge nicht, was man ansieht.
+            aria-label={`${title}: ${linkText}`}
+            className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            {linkText}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        ) : undefined
+      }
+    >
+      {children}
+    </SectionCard>
   );
-
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-      >
-        {cardContent}
-      </Link>
-    );
-  }
-
-  return cardContent;
-};
+}
 
 function DashboardContent() {
   const router = useTenantRouter();
@@ -166,18 +121,7 @@ function DashboardContent() {
   const nfcEnabled = useNFCEnabled();
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
-  const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
-  const showRoomSurfaces = presenceMode !== "binary";
-  const infoCardCount =
-    Number(showRoomSurfaces) +
-    Number(showActivitySurfaces) +
-    Number(!openCareGroupMode);
-  const infoGridColumns =
-    infoCardCount === 3
-      ? "xl:grid-cols-3"
-      : infoCardCount === 2
-        ? "xl:grid-cols-2"
-        : "xl:grid-cols-1";
+  const tenantSlug = useTenantSlugSafe();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -185,29 +129,110 @@ function DashboardContent() {
     },
   });
 
+  const {
+    state: homeLayout,
+    save: saveHomeLayout,
+    reset: resetHomeLayout,
+  } = useHomeLayout();
+  const [customizing, setCustomizing] = useState(false);
+  const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
+
+  // Der Betriebsmodus der Schule. Ob es Geburtstage gibt, steht erst in der
+  // Antwort, über die wir hier entscheiden — also optimistisch annehmen und
+  // die Karte selbst unten auf das echte Kennzeichen warten lassen.
+  const blockContext = useMemo(
+    () => ({
+      detailed: presenceMode !== "binary",
+      openCareGroupMode,
+      nfcEnabled,
+      birthdaysEnabled: true,
+    }),
+    [presenceMode, openCareGroupMode, nfcEnabled],
+  );
+
+  // Nichts holen, was niemand sieht (#2875). Solange die Auswahl aussteht,
+  // gilt die Empfehlung; die Seite wartet bewusst nicht auf sie, sonst bliebe
+  // sie bei einer hängenden Abfrage leer. Innerhalb einer Sitzung kennt SWR
+  // die Auswahl, ausgeblendete Kacheln fragen dann nichts mehr nach.
+  const wantsBirthdayData = isHomeBlockVisible(
+    blockContext,
+    homeLayout.overrides,
+    homeLayout.policies,
+    "section.birthdays",
+  );
+  const needsAnalytics = ANALYTICS_BLOCKS.some((key) =>
+    isHomeBlockVisible(
+      blockContext,
+      homeLayout.overrides,
+      homeLayout.policies,
+      key,
+    ),
+  );
+
+  // Birthdays live on their own key: they change once a day, while the
+  // analytics key below is revalidated by every check-in via SSE (#1542).
+  // A failure here must never take the dashboard down, so the card simply
+  // stays hidden. Die Abfrage bleibt auch bei einer vorübergehend
+  // ausgeschalteten Geburtstagsanzeige aktiv: Nur so erkennt die Startseite,
+  // wenn die Schule sie später wieder freigibt.
+  const { data: birthdays, isLoading: birthdaysLoading } =
+    useSWRAuth<BirthdayOverview>(
+      wantsBirthdayData ? "birthday-overview" : null,
+      fetchBirthdayOverviewClient,
+      { refreshInterval: 30 * 60 * 1000 },
+    );
+
+  useEffect(() => {
+    setBirthdaysEnabled(true);
+  }, [tenantSlug, session?.user?.id]);
+
+  useEffect(() => {
+    setBirthdaysEnabled(birthdays?.enabled ?? true);
+  }, [birthdays?.enabled]);
+
+  const { adjustable, visible, customized } = useMemo(
+    () =>
+      resolveHomeBlocks(
+        { ...blockContext, birthdaysEnabled },
+        homeLayout.overrides,
+        homeLayout.policies,
+      ),
+    [blockContext, birthdaysEnabled, homeLayout.overrides, homeLayout.policies],
+  );
+
+  const shown = (key: HomeBlockKey) => visible.has(key);
+  // Wer alles abwählt, sieht sonst eine leere Fläche und sucht den Fehler bei
+  // sich. Die Startseite sagt stattdessen, wie sie zurückkommt.
+  const nothingShown = visible.size === 0;
+  // Es gibt immer mindestens eine verfügbare Kachel. Bleibt keine davon
+  // persönlich wählbar, hat die Schule sie alle ausgeschaltet.
+  const schoolDisabledAllBlocks = nothingShown && adjustable.length === 0;
+
+  const infoCardCount =
+    Number(shown("section.recent_activity")) +
+    Number(shown("section.current_activities")) +
+    Number(shown("section.active_groups"));
+  const infoGridColumns =
+    infoCardCount === 3
+      ? "xl:grid-cols-3"
+      : infoCardCount === 2
+        ? "xl:grid-cols-2"
+        : "xl:grid-cols-1";
+
   // SWR with "dashboard-analytics" key — automatically revalidated by global SSE
   // when student_checkin, student_checkout, activity_start/end, or
-  // dashboard_counts_changed events arrive (see use-global-sse.ts)
+  // dashboard_counts_changed events arrive (see use-global-sse.ts).
+  // A null key skips the request entirely when every block that lives on these
+  // numbers is hidden (#2875).
   const {
     data: dashboardData,
     isLoading,
     error: swrError,
   } = useSWRAuth<DashboardAnalytics>(
-    "dashboard-analytics",
+    needsAnalytics ? "dashboard-analytics" : null,
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );
-
-  // Birthdays live on their own key: they change once a day, while the
-  // analytics key above is revalidated by every check-in via SSE (#1542).
-  // A failure here must never take the dashboard down, so the card simply
-  // stays hidden.
-  const { data: birthdays, isLoading: birthdaysLoading } =
-    useSWRAuth<BirthdayOverview>(
-      "birthday-overview",
-      fetchBirthdayOverviewClient,
-      { refreshInterval: 30 * 60 * 1000 },
-    );
 
   if (swrError) {
     logger.error("dashboard_fetch_failed", {
@@ -229,144 +254,242 @@ function DashboardContent() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
+  const headerStats =
+    dashboardData &&
+    (shown("tile.students_present") || shown("tile.students_sick"))
+      ? [
+          formatStatusDate(),
+          ...(shown("tile.students_present")
+            ? [`${dashboardData.studentsPresent} Kinder anwesend`]
+            : []),
+          ...(shown("tile.students_sick")
+            ? [`${dashboardData.studentsSick} krank`]
+            : []),
+        ].join(" · ")
+      : undefined;
 
   return (
-    <div className="w-full">
-      {/* Greeting Section */}
-      <div className="mb-6 md:mb-8">
-        <div className="ml-6">
-          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {greeting}, {firstName}!
-          </h1>
-          <p className="mt-2 text-sm text-gray-600 md:text-base">
-            Hier ist die aktuelle Übersicht
-          </p>
-        </div>
-      </div>
+    <TenantPage
+      title={`${greeting}, ${firstName}`}
+      prominent
+      statsLoading={isLoading}
+      stats={headerStats}
+      error={
+        error
+          ? { message: error, keepContent: dashboardData !== undefined }
+          : null
+      }
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="gap-2"
+          onClick={() => setCustomizing(true)}
+        >
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          Startseite anpassen
+        </Button>
+      }
+    >
+      {canReadPhaseExpiryWarnings ? <PhaseExpiryWarnings /> : null}
 
-      {/* Error Message */}
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-6 rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      )}
-
-      {canReadPhaseExpiryWarnings ? (
-        <PhaseExpiryWarnings className="mb-6 md:mb-8" />
+      {nothingShown ? (
+        <EmptyState
+          title="Ihre Startseite ist leer"
+          description={
+            schoolDisabledAllBlocks
+              ? homeLayout.canManagePolicies
+                ? "Sie haben alle Kacheln für die Schule ausgeschaltet."
+                : "Die Schule blendet alle Kacheln aus. Wenden Sie sich an Ihre Leitung."
+              : "Sie haben alle Kacheln ausgeblendet."
+          }
+          action={
+            schoolDisabledAllBlocks ? (
+              homeLayout.canManagePolicies ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() =>
+                    router.push(tenantPath("/settings?tab=startseite"))
+                  }
+                >
+                  Startseite für alle öffnen
+                </Button>
+              ) : undefined
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setCustomizing(true)}
+              >
+                Kacheln einblenden
+              </Button>
+            )
+          }
+        />
       ) : null}
 
-      {/* Main Stats Grid */}
+      {/* Kennzahlen der Einrichtung */}
       <div
         data-testid="dashboard-stats-grid"
-        className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4"
       >
-        <StatCard
-          title="Kinder anwesend"
-          value={dashboardData?.studentsPresent ?? 0}
-          icon={MOTO_CONCEPTS.present.icon}
-          tone={MOTO_CONCEPTS.present.tone}
-          loading={isLoading}
-          href="/students/search"
-        />
-        {showRoomSurfaces ? (
-          <>
-            <StatCard
-              title="In Räumen"
-              value={dashboardData?.studentsInRooms ?? 0}
-              icon={MOTO_CONCEPTS.rooms.icon}
-              tone={MOTO_CONCEPTS.rooms.tone}
-              loading={isLoading}
-              href="/students/search"
-            />
-            <StatCard
-              title="Unterwegs"
-              value={dashboardData?.studentsInTransit ?? 0}
-              icon={MOTO_CONCEPTS.transit.icon}
-              tone={MOTO_CONCEPTS.transit.tone}
-              loading={isLoading}
-              href="/students/search?status=unterwegs"
-            />
-          </>
-        ) : null}
-        <StatCard
-          title="Schulhof"
-          value={dashboardData?.studentsOnPlayground ?? 0}
-          icon={MOTO_CONCEPTS.schoolyard.icon}
-          tone={MOTO_CONCEPTS.schoolyard.tone}
-          loading={isLoading}
-          href="/students/search?status=schulhof"
-        />
-        <StatCard
-          title="Krank"
-          value={dashboardData?.studentsSick ?? 0}
-          icon={MOTO_CONCEPTS.sick.icon}
-          tone={MOTO_CONCEPTS.sick.tone}
-          loading={isLoading}
-          href="/students/search?status=krank"
-        />
-        <StatCard
-          title="Entschuldigt"
-          value={dashboardData?.studentsExcused ?? 0}
-          icon={MOTO_CONCEPTS.excused.icon}
-          tone={MOTO_CONCEPTS.excused.tone}
-          loading={isLoading}
-          href="/students/search?status=entschuldigt"
-        />
-        <StatCard
-          title="Zuhause"
-          value={dashboardData?.studentsHome ?? 0}
-          icon={MOTO_CONCEPTS.home.icon}
-          tone={MOTO_CONCEPTS.home.tone}
-          loading={isLoading}
-          href="/students/search?status=abwesend"
-        />
-        {showActivitySurfaces ? (
+        {shown("tile.students_present") ? (
           <StatCard
-            title="Aktive Aktivitäten"
-            value={dashboardData?.activeActivities ?? 0}
-            icon={MOTO_CONCEPTS.activities.icon}
-            tone={MOTO_CONCEPTS.activities.tone}
+            label="Kinder anwesend"
+            value={dashboardData?.studentsPresent ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.present.icon}
+                tone={MOTO_CONCEPTS.present.tone}
+              />
+            }
             loading={isLoading}
-            href="/activities"
+            href={tenantPath("/students/search")}
           />
         ) : null}
-        {showRoomSurfaces ? (
+        {shown("tile.students_in_rooms") ? (
           <StatCard
-            title="Auslastung"
+            label="In Räumen"
+            value={dashboardData?.studentsInRooms ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.rooms.icon}
+                tone={MOTO_CONCEPTS.rooms.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search")}
+          />
+        ) : null}
+        {shown("tile.students_in_transit") ? (
+          <StatCard
+            label="Unterwegs"
+            value={dashboardData?.studentsInTransit ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.transit.icon}
+                tone={MOTO_CONCEPTS.transit.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search?status=unterwegs")}
+          />
+        ) : null}
+        {shown("tile.students_on_playground") ? (
+          <StatCard
+            label="Schulhof"
+            value={dashboardData?.studentsOnPlayground ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.schoolyard.icon}
+                tone={MOTO_CONCEPTS.schoolyard.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search?status=schulhof")}
+          />
+        ) : null}
+        {shown("tile.students_sick") ? (
+          <StatCard
+            label="Krank"
+            value={dashboardData?.studentsSick ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.sick.icon}
+                tone={MOTO_CONCEPTS.sick.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search?status=krank")}
+          />
+        ) : null}
+        {shown("tile.students_excused") ? (
+          <StatCard
+            label="Entschuldigt"
+            value={dashboardData?.studentsExcused ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.excused.icon}
+                tone={MOTO_CONCEPTS.excused.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search?status=entschuldigt")}
+          />
+        ) : null}
+        {shown("tile.students_home") ? (
+          <StatCard
+            label="Zuhause"
+            value={dashboardData?.studentsHome ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.home.icon}
+                tone={MOTO_CONCEPTS.home.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/students/search?status=abwesend")}
+          />
+        ) : null}
+        {shown("tile.active_activities") ? (
+          <StatCard
+            label="Aktive Aktivitäten"
+            value={dashboardData?.activeActivities ?? 0}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.activities.icon}
+                tone={MOTO_CONCEPTS.activities.tone}
+              />
+            }
+            loading={isLoading}
+            href={tenantPath("/activities")}
+          />
+        ) : null}
+        {shown("tile.capacity_utilization") ? (
+          <StatCard
+            label="Auslastung"
             value={
               dashboardData
                 ? `${Math.round(dashboardData.capacityUtilization * 100)}%`
                 : "0%"
             }
-            icon={MOTO_CONCEPTS.utilization.icon}
-            tone={MOTO_CONCEPTS.utilization.tone}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.utilization.icon}
+                tone={MOTO_CONCEPTS.utilization.tone}
+              />
+            }
             loading={isLoading}
           />
         ) : null}
       </div>
 
-      {/* Activity Lists Grid */}
+      {/* Listen der Startseite */}
       <div
         data-testid="dashboard-info-grid"
-        className={`grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2 ${infoGridColumns}`}
+        className={`grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2 ${infoGridColumns}`}
       >
         {/* Geburtstage (#1542) — a full-width strip rather than a half card:
             the list is short, reads horizontally, and never leaves an odd gap
             when the room/activity cards below are hidden per presence mode. */}
-        {birthdays?.enabled ? (
+        {shown("section.birthdays") && birthdays?.enabled ? (
           <div className="lg:col-span-2 xl:col-span-full">
-            <InfoCard title="Geburtstage" concept="birthdays">
+            <ListCard title="Geburtstage" concept="birthdays">
               <BirthdayList
-                celebrations={birthdays.celebrations}
+                celebrations={birthdays?.celebrations ?? []}
                 isLoading={birthdaysLoading}
               />
-            </InfoCard>
+            </ListCard>
           </div>
         ) : null}
 
         {/* Recent Activity */}
-        {showRoomSurfaces ? (
-          <InfoCard title="Letzte Bewegungen" concept="changeHistory">
+        {shown("section.recent_activity") ? (
+          <ListCard title="Letzte Bewegungen" concept="changeHistory">
             {(() => {
               if (isLoading) {
                 // Mirrors the loaded activity row below: same rounded-xl
@@ -391,9 +514,10 @@ function DashboardContent() {
               const activities = dashboardData?.recentActivity;
               if (!activities || activities.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine aktuellen Bewegungen
-                  </p>
+                  <EmptyState
+                    className="py-8"
+                    title="Keine aktuellen Bewegungen"
+                  />
                 );
               }
               return (
@@ -443,14 +567,14 @@ function DashboardContent() {
                 </div>
               );
             })()}
-          </InfoCard>
+          </ListCard>
         ) : null}
 
-        {showActivitySurfaces ? (
-          <InfoCard
+        {shown("section.current_activities") ? (
+          <ListCard
             title="Laufende Aktivitäten"
             concept="activities"
-            href="/activities"
+            href={tenantPath("/activities")}
           >
             {(() => {
               if (isLoading) {
@@ -476,9 +600,10 @@ function DashboardContent() {
               const activities = dashboardData?.currentActivities;
               if (!activities || activities.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine laufenden Aktivitäten
-                  </p>
+                  <EmptyState
+                    className="py-8"
+                    title="Keine laufenden Aktivitäten"
+                  />
                 );
               }
               return (
@@ -507,12 +632,16 @@ function DashboardContent() {
                 </div>
               );
             })()}
-          </InfoCard>
+          </ListCard>
         ) : null}
 
         {/* Active Groups */}
-        {!openCareGroupMode ? (
-          <InfoCard title="Aktive Gruppen" concept="groups" href="/ogs-groups">
+        {shown("section.active_groups") ? (
+          <ListCard
+            title="Aktive Gruppen"
+            concept="groups"
+            href={tenantPath("/ogs-groups")}
+          >
             {(() => {
               if (isLoading) {
                 // Mirrors the loaded row: rounded-xl p-3, name + meta line
@@ -537,9 +666,7 @@ function DashboardContent() {
               const groups = dashboardData?.activeGroupsSummary;
               if (!groups || groups.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine aktiven Gruppen
-                  </p>
+                  <EmptyState className="py-8" title="Keine aktiven Gruppen" />
                 );
               }
               return (
@@ -565,10 +692,22 @@ function DashboardContent() {
                 </div>
               );
             })()}
-          </InfoCard>
+          </ListCard>
         ) : null}
       </div>
-    </div>
+
+      <CustomizeDashboardModal
+        isOpen={customizing}
+        onClose={() => setCustomizing(false)}
+        adjustable={adjustable}
+        visible={visible}
+        currentOverrides={homeLayout.overrides}
+        customized={customized}
+        prescribedCount={Object.keys(homeLayout.policies).length}
+        onSave={saveHomeLayout}
+        onReset={resetHomeLayout}
+      />
+    </TenantPage>
   );
 }
 

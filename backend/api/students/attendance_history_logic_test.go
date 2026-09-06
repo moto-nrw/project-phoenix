@@ -361,13 +361,13 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	morning := &schedule.ActivityInstance{
-		Date: date, Title: "Morgenbetreuung",
+		Date: schedule.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	morning.ID = 101
 	afternoon := &schedule.ActivityInstance{
-		Date: date, Title: "Nachmittagsbetreuung",
+		Date: schedule.Date(date), Title: "Nachmittagsbetreuung",
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}
@@ -395,7 +395,7 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 10)
 	instance := &schedule.ActivityInstance{
-		Date: date, Title: "Morgenbetreuung",
+		Date: schedule.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
@@ -636,18 +636,18 @@ func TestHasPlannedSlotRow(t *testing.T) {
 	assert.False(t, hasPlannedSlotRow(nil))
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{
 		nil,
-		{Instance: &schedule.ActivityInstance{Date: date}, Attendance: nil},
+		{Instance: &schedule.ActivityInstance{Date: schedule.Date(date)}, Attendance: nil},
 	}))
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Spontan-AG"},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Spontan-AG"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
 	}}), "cancelled instances must not count as care-plan evidence")
 	assert.True(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
-		Instance:   &schedule.ActivityInstance{Date: date, Title: "Morgenbetreuung"},
+		Instance:   &schedule.ActivityInstance{Date: schedule.Date(date), Title: "Morgenbetreuung"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
 	}}))
 }
@@ -657,9 +657,10 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
-		Date:      date,
+		Date:      schedule.Date(date),
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+		Status:    schedule.InstanceStatusCompleted,
 	}
 	instance.ID = math.MaxInt64
 
@@ -671,5 +672,77 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	require.Len(t, days, 1)
 	payload, err := json.Marshal(days[0].Slots[0])
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"instance_id":"9223372036854775807","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
+	assert.JSONEq(t, `{"instance_id":"9223372036854775807","instance_status":"completed","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
+}
+
+func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: schedule.Date(date), Status: schedule.InstanceStatusActive,
+	}
+	instance.ID = 203
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+		Instance:   instance,
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
+	}}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	assert.Equal(t, schedule.InstanceStatusActive, days[0].Slots[0].InstanceStatus)
+}
+
+// The free remark is written in the live roster and, before #2898, was
+// readable nowhere afterwards. The child's attendance history is the surface
+// that makes it findable again — per day and per block, which is what the
+// catalogue calls the digital class book.
+func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: schedule.Date(date), Title: "Fußball-AG",
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 201
+	note := "Hat sich am Knie gestoßen, Eltern informiert"
+	late := schedule.AttendanceSubstatusLate
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{
+			Status:    schedule.AttendanceStatusPresent,
+			Substatus: &late,
+			Note:      &note,
+		}},
+	}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	require.NotNil(t, days[0].Slots[0].Note, "the note must reach the history payload")
+	assert.Equal(t, note, *days[0].Slots[0].Note)
+}
+
+// A block without a remark must not invent one: the field is omitted, not
+// rendered as an empty string.
+func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: schedule.Date(date), Title: "Betreuung",
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 202
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	assert.Nil(t, days[0].Slots[0].Note)
 }

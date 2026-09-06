@@ -60,7 +60,7 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			db := testpkg.SetupTestDB(t)
-			repos := repositories.NewFactory(db)
+			repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 			other := testpkg.CreateTestCoGuardianForStudent(t, db, chain.StudentID, "Klaus", "Zweitelternteil")
 

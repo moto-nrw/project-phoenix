@@ -127,7 +127,7 @@ func TestStaffShiftSeries_SplitKeepsStoredValidityWhenUnset(t *testing.T) {
 	})
 	require.NotNil(t, result.Series)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, storedEnd, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(storedEnd), *result.Series.ValidUntil)
 	assert.Empty(t, env.shiftsInRange(t, storedEnd, today.AddDays(28)))
 }
 
@@ -205,7 +205,7 @@ func TestStaffShiftSeries_SplitBoundsEarlierSegmentAtNextSuccessor(t *testing.T)
 	})
 
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, downstreamFrom, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(downstreamFrom), *result.Series.ValidUntil)
 }
 
 func TestStaffShiftSeries_SplitRejectsWhenNextSegmentLeavesNoOccurrence(t *testing.T) {
@@ -335,9 +335,9 @@ func TestStaffShiftSeries_SplitExtendsSeriesEndingToday(t *testing.T) {
 	})
 
 	require.NotNil(t, result.Series)
-	assert.Equal(t, today.AddDays(1), result.Series.ValidFrom)
+	assert.Equal(t, scheduleModels.Date(today.AddDays(1)), result.Series.ValidFrom)
 	require.NotNil(t, result.Series.ValidUntil)
-	assert.Equal(t, newEnd, *result.Series.ValidUntil)
+	assert.Equal(t, scheduleModels.Date(newEnd), *result.Series.ValidUntil)
 	assert.NotEmpty(t, env.shiftsInRange(t, today.AddDays(1), today.AddDays(14)),
 		"the extended segment must materialize shifts")
 	assert.Empty(t, env.shiftsInRange(t, newEnd, periodEnd),

@@ -4,9 +4,7 @@ import { loadSeedAccess } from "../scripts/seed-state";
 import { berlinTodayISO } from "../src/lib/date-helpers";
 import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
-// Chunk 8 des Planung-Redesigns Inkrement 2
-// (docs/planung-redesign/docs/07-vertretung.md Abschnitt 12/13): der Zweiteiler
-// /vertretung. Diese Spec testet AUSSCHLIESSLICH die UI-Verdrahtung, nicht die
+// Der Zweiteiler /vertretung. Diese Spec testet AUSSCHLIESSLICH die UI-Verdrahtung, nicht die
 // Deviations-Backend-Semantik (die decken die Go-E2E-Flows
 // flow_c_gaps_substitute_test.go / flow_h_replan_deviations_test.go ab).
 //

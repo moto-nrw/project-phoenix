@@ -129,7 +129,7 @@ describe("AdminEnrollmentsList setup guide", () => {
     expect(screen.getByText("Basisformular")).toBeVisible();
   });
 
-  it("uses tenant-aware phase detail links", async () => {
+  it("uses tenant-aware enrollment links", async () => {
     mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
 
     render(<AdminEnrollmentsList />);
@@ -138,6 +138,17 @@ describe("AdminEnrollmentsList setup guide", () => {
       name: "Anmeldungen ansehen",
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+    expect(
+      screen.getByRole("link", { name: "Elternansicht öffnen" }),
+    ).toHaveAttribute("href", "/demo/anmeldung");
+    expect(
+      screen.getByRole("link", { name: "Formular ansehen" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/12");
+    for (const previewLink of screen.getAllByRole("link", {
+      name: /Elternansicht testen/,
+    })) {
+      expect(previewLink).toHaveAttribute("href", "/demo/anmeldung");
+    }
     expect(
       screen.queryByRole("button", { name: /Nachzügler/ }),
     ).not.toBeInTheDocument();

@@ -68,13 +68,14 @@ func (s *instanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID i
 	if target.Date.Before(timezone.TodayDate()) {
 		return nil, devErrBadRequest("block date is in the past")
 	}
+	targetDate := timezone.Date(target.Date)
 
 	// Serialize with every other day-wide staffing mutation, then re-read both
 	// blocks under the lock (a concurrent PUT may have moved either one).
-	if err := s.acquireSubstituteDayLock(ctx, target.Date); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, targetDate); err != nil {
 		return nil, devErrInternal("lock day failed", err)
 	}
-	plan, err := s.planStaffMove(ctx, targetID, target.Date, in)
+	plan, err := s.planStaffMove(ctx, targetID, targetDate, in)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +107,7 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 	if err != nil {
 		return nil, err
 	}
-	if target.Date != lockedDate || !isPlannableInstance(target) {
+	if timezone.Date(target.Date) != lockedDate || !isPlannableInstance(target) {
 		return nil, devErrConflict("instance_moved", "block was changed concurrently; reopen it and try again")
 	}
 
@@ -163,7 +164,7 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 		// Absence is day-wide (#1840), not target-row-wide. The pool UI never
 		// offers absent staff, but a stale/direct API request must enforce the
 		// same rule authoritatively under the shared day lock.
-		if err := s.rejectDayWideAbsence(ctx, in.StaffID, target.Date); err != nil {
+		if err := s.rejectDayWideAbsence(ctx, in.StaffID, timezone.Date(target.Date)); err != nil {
 			return nil, err
 		}
 		plan.action = MoveStaffActionAssigned
@@ -205,7 +206,7 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 	// Absence is day-wide (#1840): an absent row on ANY same-day block blocks
 	// the move, even when the source row itself is not the one carrying it.
 	// Same stale/direct-request defense as the pool-assign path above.
-	if err := s.rejectDayWideAbsence(ctx, in.StaffID, target.Date); err != nil {
+	if err := s.rejectDayWideAbsence(ctx, in.StaffID, timezone.Date(target.Date)); err != nil {
 		return nil, err
 	}
 
@@ -218,7 +219,7 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 // same-day instance_staff row marks the person absent (#1840: absence is
 // day-wide, whichever block carries it).
 func (s *instanceService) rejectDayWideAbsence(ctx context.Context, staffID int64, date timezone.Date) error {
-	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, scheduleModel.Date(date))
 	if err != nil {
 		return devErrInternal("load same-day staff assignments failed", err)
 	}
@@ -362,7 +363,7 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 // so the eventual commit would fail after the client already saw a 200.
 func (s *instanceService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) ([]SubstituteTimeConflict, error) {
 	ops := []SubstituteWriteOp{{Instance: plan.target, Action: SubstituteActionSubstituted}}
-	warnings, err := s.buildSubstituteTimeConflicts(ctx, ops, plan.staffID, plan.target.Date)
+	warnings, err := s.buildSubstituteTimeConflicts(ctx, ops, plan.staffID, timezone.Date(plan.target.Date))
 	if err != nil {
 		return nil, err
 	}

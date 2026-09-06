@@ -4,8 +4,9 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -19,9 +20,8 @@ import { activitiesConfig } from "@/components/database/configs/activities.confi
 import type { Activity } from "@/lib/activity-helpers";
 import { ActivitiesMasterDetail } from "@/components/activities/activities-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -32,7 +32,7 @@ const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
 export default function ActivitiesPage() {
   return (
-    <NfcModeGuard>
+    <NfcModeGuard title="Aktivitäten">
       <Suspense fallback={null}>
         <ActivitiesPageContent />
       </Suspense>
@@ -47,7 +47,6 @@ function ActivitiesPageContent() {
   const selectedId = searchParams.get("activity");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedActivityDetail, setSelectedActivityDetail] =
@@ -86,6 +85,23 @@ function ActivitiesPageContent() {
   const error = activitiesError
     ? "Fehler beim Laden der Aktivitäten. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Aktivitätenliste.
+  const statusLine = useMemo(() => {
+    const activities = activitiesData ?? [];
+    const categories = new Set(
+      activities.map((a) => a.category_name).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(activities.length)} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"}`,
+    ];
+    if (categories > 0) {
+      parts.push(
+        `${formatCount(categories)} ${categories === 1 ? "Kategorie" : "Kategorien"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [activitiesData]);
 
   const uniqueCategories = useMemo(() => {
     const activities = activitiesData ?? [];
@@ -315,11 +331,83 @@ function ActivitiesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredActivities.length === 0
+          ? {
+              title:
+                searchTerm || categoryFilter !== "all"
+                  ? "Keine Aktivitäten gefunden"
+                  : "Keine Aktivitäten vorhanden",
+              description:
+                searchTerm || categoryFilter !== "all"
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie die erste Aktivität an, um sie verplanen zu können.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.activities.icon}
+                  tone={MOTO_CONCEPTS.activities.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm || categoryFilter !== "all" ? undefined : (
+                  <DatabaseCreateAction
+                    label="Aktivität"
+                    ariaLabel="Aktivität erstellen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Activity>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={activitiesConfig}
+            onSubmit={handleCreateActivity}
+          />
+
+          {selectedActivity && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteActivity())}
+              title="Aktivität löschen?"
+              description={
+                <>
+                  Möchten Sie die Aktivität{" "}
+                  <span className="font-medium">{selectedActivity.name}</span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={false}
+              error=""
+            />
+          )}
+        </>
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Aktivitäten",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <DatabaseCreateAction
+            label="Aktivität"
+            ariaLabel="Aktivität erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Aktivitäten" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -334,7 +422,7 @@ function ActivitiesPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Aktivitäten suchen...",
+            placeholder: "Aktivitäten suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -342,22 +430,9 @@ function ActivitiesPageContent() {
             setSearchTerm("");
             setCategoryFilter("all");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Aktivität"
-              ariaLabel="Aktivität erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
-      </div>
-
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft mb-6 rounded-lg border p-4">
-          <p className="text-moto-red-strong text-sm">{error}</p>
-        </div>
-      )}
-
+      }
+    >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <ActivitiesMasterDetail
@@ -372,54 +447,7 @@ function ActivitiesPageContent() {
             formResetKey={`${selectedActivity?.id ?? "none"}:${formResetCounter}`}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.activities.icon}
-              tone={MOTO_CONCEPTS.activities.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm || categoryFilter !== "all"
-              ? "Keine Aktivitäten gefunden"
-              : "Keine Aktivitäten vorhanden"
-          }
-          description={
-            searchTerm || categoryFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Aktivitäten erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Activity>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={activitiesConfig}
-        onSubmit={handleCreateActivity}
-      />
-
-      {selectedActivity && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteActivity())}
-          title="Aktivität löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmVariant="danger"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie die Aktivität{" "}
-            <span className="font-medium">{selectedActivity.name}</span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
     </DatabasePageLayout>
   );
 }

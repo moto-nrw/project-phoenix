@@ -826,7 +826,7 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 		return nil, nil
 	}
 
-	allShifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
+	allShifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, scheduleModels.Date(day))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load planned shifts: %w", err)
 	}
@@ -2263,7 +2263,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 		byDate[session.Date] = append(byDate[session.Date], session.StaffID)
 	}
 	for date, staffIDs := range byDate {
-		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, scheduleModels.Date(date))
 		if err != nil {
 			return 0, fmt.Errorf("failed to load shifts for %s: %w", date.String(), err)
 		}

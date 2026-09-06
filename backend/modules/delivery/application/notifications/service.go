@@ -15,7 +15,7 @@
 //     existing realtime.Broadcaster — the existing SSE cache-invalidation
 //     events are untouched) and the Web Push channel (#2003, VAPID-signed
 //     pushes to registered devices). E-mail is a future channel; see
-//     docs/notifications.md.
+//     docs/reference/notifications.md.
 //
 // GDPR contract: Title, Body and DeepLink are the ONLY user-visible fields and
 // must be display-safe — no student names or other sensitive child data. The

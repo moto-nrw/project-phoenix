@@ -432,3 +432,24 @@ export function relativeDaysLabel(
   if (days === 1) return "gestern";
   return `vor ${days} Tagen`;
 }
+
+const STATUS_WEEKDAYS = [
+  "Sonntag",
+  "Montag",
+  "Dienstag",
+  "Mittwoch",
+  "Donnerstag",
+  "Freitag",
+  "Samstag",
+] as const;
+
+/**
+ * Kurzform für Statuszeilen unter Seitentiteln: "Mittwoch, 27.08.2026".
+ * Nimmt einen ISO-Kalendertag ("YYYY-MM-DD"); ohne Argument der heutige Tag
+ * in Berlin.
+ */
+export function formatStatusDate(iso: string = berlinTodayISO()): string {
+  const d = parseISODate(iso);
+  const [y, m, day] = iso.split("-");
+  return `${STATUS_WEEKDAYS[d.getDay()]}, ${day}.${m}.${y}`;
+}

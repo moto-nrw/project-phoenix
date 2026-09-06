@@ -20,7 +20,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 
@@ -83,7 +83,7 @@ func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	date := timezone.NewDate(2026, 8, 24)
 	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
@@ -118,7 +118,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 
@@ -168,7 +168,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(6)
@@ -195,7 +195,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -281,7 +281,7 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 
 	err := repo.UpsertReported(testpkg.Ctx(t), nil)
 	require.Error(t, err)
@@ -297,7 +297,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 
@@ -356,7 +356,7 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentStatusDay
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
 

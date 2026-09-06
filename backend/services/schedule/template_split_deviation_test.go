@@ -30,7 +30,7 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 	secondSupervisor := &activitiesModels.SupervisorPlanned{
 		StaffID:   secondStaff.ID,
 		GroupID:   s.template.ID,
-		ValidFrom: before.AddDays(-30),
+		ValidFrom: activitiesModels.Date(before.AddDays(-30)),
 	}
 	secondSupervisor.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(secondSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)

@@ -318,7 +318,7 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenant, "Fremder Raum")
 	foreignAbsent := testpkg.CreateTestStaffForTenant(t, db, foreignTenant, "Fremde", "Person")
 	foreignInstance := &scheduleModels.ActivityInstance{
-		Date: date, Title: "Fremder Termin", RoomID: foreignRoom.ID,
+		Date: scheduleModels.Date(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
 		StartTime: time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 15, 0, 0, 0, time.UTC),
 		Status:    scheduleModels.InstanceStatusPlanned,
@@ -505,7 +505,7 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, *repositories.Factory, substitution.Module) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	return db, repos, factory.Substitution

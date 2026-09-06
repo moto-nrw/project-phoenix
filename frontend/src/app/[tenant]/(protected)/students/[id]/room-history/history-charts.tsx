@@ -8,7 +8,8 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionCard } from "~/components/ui/section-card";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export interface HistoryChartPoint {
@@ -204,17 +205,17 @@ function HistoryCard({
   readonly children: ReactNode;
 }) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <div className="p-4 sm:p-6">
-        <ConceptSectionHeader
-          className="mb-3"
-          title={title}
-          concept={concept}
-          subtitle={subtitle}
-        />
-        {children}
-      </div>
-    </div>
+    <SectionCard
+      title={title}
+      description={subtitle}
+      leading={
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+          <MotoConceptIcon concept={concept} size={20} />
+        </span>
+      }
+    >
+      {children}
+    </SectionCard>
   );
 }
 

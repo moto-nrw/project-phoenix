@@ -3,7 +3,7 @@
 // search pages so their loading state keeps the exact card-grid footprint.
 
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 /**
  * Mirrors StudentCard's surface (rounded-2xl border, p-6 pb-5) and header
@@ -67,24 +67,33 @@ export function StudentCardGridSkeleton({
 
 /**
  * Page-shell skeleton for the gate/Suspense states of the student-card
- * pages (ogs-groups, students/search): a PageHeaderWithSearch placeholder
- * followed by the card grid, so swapping in the real content causes no
- * layout shift. Owns the single status role for the whole shell.
+ * pages (ogs-groups, students/search): die echte Kopfkarte (Titel und
+ * Kicker sind statisch, also muss sie nicht skelettieren) mit dem
+ * PageHeaderWithSearch-Platzhalter darin, darunter das Kartenraster, damit
+ * das Einwechseln des echten Inhalts keinen Layoutsprung erzeugt. Owns the
+ * single status role for the whole shell.
  */
 export function StudentCardPageSkeleton({
   label,
   testId,
-}: Readonly<{ label: string; testId: string }>) {
+  title,
+}: Readonly<{
+  label: string;
+  testId: string;
+  title: string;
+}>) {
   return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label={label}
-      data-testid={testId}
-      className="-mt-1.5 w-full"
+    // Das echte Gerüst mit dem echten Titel: nur Statuszeile und Karten
+    // skelettieren, damit beim Einwechseln nichts springt.
+    <TenantPage
+      title={title}
+      statsLoading
+      search={{ value: "", onChange: () => {} }}
+      testId={testId}
     >
-      <PageHeaderSkeleton actions={1} />
-      <StudentCardGrid count={6} />
-    </div>
+      <div role="status" aria-busy="true" aria-label={label}>
+        <StudentCardGrid count={6} />
+      </div>
+    </TenantPage>
   );
 }

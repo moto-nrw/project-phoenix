@@ -1,8 +1,8 @@
 "use client";
 
 import { MasterDetailLayout } from "./master-detail-layout";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 function ListRowSkeleton() {
   // Mirrors DatabaseListItem: title + subtitle lines, chevron slot.
@@ -28,16 +28,25 @@ function ListRowSkeleton() {
 export function MasterDetailSkeleton({
   rowCount = 8,
   label = "Daten werden geladen",
-}: Readonly<{ rowCount?: number; label?: string }>) {
+  intro = true,
+}: Readonly<{
+  rowCount?: number;
+  label?: string;
+  /** Set to false when the page already renders its real head card above. */
+  intro?: boolean;
+}>) {
   return (
     <div
       role="status"
       aria-busy="true"
       aria-label={label}
       data-testid="master-detail-skeleton"
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
     >
-      <PageHeaderSkeleton actions={1} />
+      {intro ? <TenantPageHeaderSkeleton /> : null}
+      <div className="mb-4">
+        <Skeleton className="h-10 w-full max-w-sm rounded-lg sm:max-w-md" />
+      </div>
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           selectedId={null}

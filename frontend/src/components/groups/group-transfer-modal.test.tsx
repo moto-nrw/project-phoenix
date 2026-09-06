@@ -6,33 +6,6 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GroupTransferModal } from "./group-transfer-modal";
 
-// Mock Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-    footer,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose} data-testid="modal-close">
-          Close
-        </button>
-        {children}
-        {footer}
-      </div>
-    ) : null,
-}));
-
 const mockGroup = {
   id: "1",
   name: "Gruppe A",

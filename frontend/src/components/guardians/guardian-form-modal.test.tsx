@@ -13,29 +13,47 @@ vi.stubGlobal("crypto", {
   randomUUID: () => `test-uuid-${++uuidCounter}`,
 });
 
-// Mock the Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <h1>{title}</h1>
-        <button type="button" onClick={onClose} data-testid="close-modal">
-          Close
-        </button>
-        {children}
-      </div>
-    ) : null,
-}));
+// SlideOver läuft über Vaul; in jsdom ersetzt dieser Mock die Bibliothek.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
 
 // Reset uuid counter before each test
 beforeEach(() => {
@@ -339,7 +357,11 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Erziehungsberechtigte/n hinzufügen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders modal when isOpen is true", () => {
@@ -352,7 +374,11 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Erziehungsberechtigte/n hinzufügen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("displays create title in create mode", () => {

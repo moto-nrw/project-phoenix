@@ -1,20 +1,19 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
-import {
-  AlertTriangle,
-  CalendarRange,
-  Download,
-  Search,
-  Users,
-} from "lucide-react";
+import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { SectionCard } from "~/components/ui/section-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -25,6 +24,7 @@ import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { DataTableStatusBadge } from "~/components/ui/data-table";
 import {
   berlinTodayISO,
   formatDate,
@@ -33,8 +33,10 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
+  parseLocation,
   isHomeLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -43,11 +45,22 @@ import {
 import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { useLatest } from "~/lib/hooks/use-latest";
-import { StudentCardClockProvider } from "~/components/students/student-card-clock";
+import {
+  StudentCard,
+  SchoolClassIcon,
+  GroupIcon,
+  DepartureModeIcon,
+  StudentInfoRow,
+  PickupTimeRow,
+  ArrivalTimeRow,
+  StudentAbsenceRow,
+  StudentPendingExcusedRow,
+} from "~/components/students/student-card";
 import {
   SearchStudentCard,
   dailyDepartureLabelForStudent,
 } from "~/components/students/search-student-card";
+import { StudentCardClockProvider } from "~/components/students/student-card-clock";
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
@@ -75,11 +88,17 @@ import {
 } from "~/lib/multi-value-param";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { createLogger } from "~/lib/logger";
 import {
+  getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
 import {
   matchesTrackingFilter,
   parseTrackingFilter,
@@ -614,7 +633,7 @@ function pickupLabelForStudent(student: Student): string {
 
 function dailyDepartureGroupLabelForStudent(student: Student): string {
   const label = dailyDepartureLabelForStudent(student);
-  return label === "-" ? "Keine Abholregelung" : label;
+  return label === "–" ? "Keine Abholregelung" : label;
 }
 
 function arrivalLabelForStudent(student: Student): string {
@@ -960,10 +979,8 @@ function SearchPageContent() {
   const initialRoomName = initialFilterParams.get("room_name") ?? "";
 
   // Search and filter state
-  // Already debounced: the search field keeps the typed characters to itself
-  // and reports the term 300 ms after the last keystroke (#2975), so this state
-  // — and with it the whole page — only changes once per search, not once per
-  // character.
+  // The search field keeps an immediate local draft and only calls this setter
+  // after its debounce. This avoids rendering the full result grid per key.
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResetKey, setSearchResetKey] = useState(0);
   // Class, group and school year are multi-selects (#2218): two groups working
@@ -1798,13 +1815,13 @@ function SearchPageContent() {
     if (rawMessage.includes("403")) {
       return [
         "permission",
-        "Du hast keine Berechtigung, Kinderdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+        "Sie haben keine Berechtigung, Kinderdaten anzuzeigen. Bitte wenden Sie sich an einen Administrator.",
       ];
     }
     if (rawMessage.includes("401")) {
       return [
         "session",
-        "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+        "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
       ];
     }
     return ["generic", "Fehler beim Laden der Kinderdaten."];
@@ -2464,107 +2481,6 @@ function SearchPageContent() {
     ],
   );
 
-  // Preserve the URL-rehydrating filters in the back-link so stepping from the
-  // search page → child → back returns to the same operational view. Free-text
-  // search intentionally remains transient.
-  const fromParam = useMemo(() => {
-    const qs = new URLSearchParams();
-    if (effectiveRoomId) {
-      qs.set("room_id", effectiveRoomId);
-      if (selectedRoomName) qs.set("room_name", selectedRoomName);
-    }
-    if (selectedGroupIds.length > 0)
-      qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
-    if (selectedSchoolClasses.length > 0)
-      qs.set("school_class", encodeMultiValueParam(selectedSchoolClasses));
-    if (selectedYears.length > 0)
-      qs.set("year", encodeMultiValueParam(selectedYears));
-    if (effectiveAttendanceFilter !== "all")
-      qs.set("status", effectiveAttendanceFilter);
-    if (busFilter !== "all") qs.set("bus", busFilter);
-    if (effectivePhotoConsentFilter !== "all")
-      qs.set("photo_consent", effectivePhotoConsentFilter);
-    if (pickupStatusFilter !== "all")
-      qs.set("pickup_status", pickupStatusFilter);
-    if (dayStatusFilter !== "all") qs.set("day_status", dayStatusFilter);
-    if (!isToday) qs.set("date", selectedDate);
-    if (pickupTimeFilter !== "all") qs.set("pickup_time", pickupTimeFilter);
-    if (arrivalTimeFilter !== "all") qs.set("arrival_time", arrivalTimeFilter);
-    if (effectiveTrackingFilter !== "all")
-      qs.set("tracking", effectiveTrackingFilter);
-    if (sortMode !== "name") qs.set("sort", sortMode);
-    if (effectiveGroupMode !== "none") qs.set("view", effectiveGroupMode);
-    if (qs.size === 0) return "/students/search";
-    return encodeURIComponent(`/students/search?${qs.toString()}`);
-  }, [
-    effectiveRoomId,
-    selectedRoomName,
-    selectedGroupIds,
-    selectedSchoolClasses,
-    selectedYears,
-    effectiveAttendanceFilter,
-    busFilter,
-    effectivePhotoConsentFilter,
-    pickupStatusFilter,
-    dayStatusFilter,
-    isToday,
-    selectedDate,
-    pickupTimeFilter,
-    arrivalTimeFilter,
-    effectiveTrackingFilter,
-    sortMode,
-    effectiveGroupMode,
-  ]);
-
-  // Ref-stable card callbacks (#2975). The Kinderkarten are memoised, so a
-  // fresh function identity per page render would re-render all 100 of them —
-  // exactly what the memo is there to prevent. The ref always holds the current
-  // closure, so the click still sees today's filters and check-in state.
-  const openStudent = useCallback(
-    (student: Student) => {
-      router.push(`/students/${student.id}?from=${fromParam}`);
-    },
-    [fromParam, router],
-  );
-  const openStudentRef = useLatest(openStudent);
-  const handleOpenStudent = useCallback(
-    (student: Student) => openStudentRef.current(student),
-    [openStudentRef],
-  );
-
-  const checkinClick = useCallback(
-    (student: Student) => {
-      const studentIdStr = student.id.toString();
-      // Selection sub-mode (#2359): a tap only marks the child; nothing is
-      // written until the bar's bulk action runs.
-      if (schoolCheckin.selectionActive) {
-        schoolCheckin.toggleSelected(studentIdStr);
-        return;
-      }
-      // Detailed-mode students sitting in a room get a confirmation step;
-      // everyone else toggles straight away (#2220).
-      const roomToConfirm = checkoutConfirmationRoom(student.current_location);
-      if (roomToConfirm) {
-        setPendingRoomCheckout({
-          studentId: studentIdStr,
-          studentName: `${student.first_name} ${student.second_name}`.trim(),
-          room: roomToConfirm,
-        });
-        return;
-      }
-      void schoolCheckin.toggle(
-        studentIdStr,
-        deriveCheckinState(student.current_location),
-      );
-    },
-    [schoolCheckin],
-  );
-  const checkinClickRef = useLatest(checkinClick);
-  const handleCheckinClick = useCallback(
-    (student: Student) => checkinClickRef.current(student),
-    [checkinClickRef],
-  );
-
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents: Student[] = students.filter((student) => {
     // Apply attendance filter (neutralized for non-today planning dates)
@@ -2684,6 +2600,46 @@ function SearchPageContent() {
   // (review #2372). The selection bars' count/activation must come from this
   // list too — selectedIds may still hold students a live update removed,
   // and a count the bar shows must never exceed what a bulk action executes.
+  // Statuszeile unter dem Seitentitel, allein aus der bereits geladenen
+  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank.
+  const studentSummary = useMemo(() => {
+    const total = students.length;
+    if (!isToday) {
+      return `${total} ${total === 1 ? "Kind" : "Kinder"}`;
+    }
+    // Wie im Dashboard: Zuhause ist jedes Kind, das weder anwesend noch krank
+    // oder entschuldigt ist. Ohne eingecheckten Aufenthaltsort ist es deshalb
+    // zuhause, auch wenn der Status noch unbekannt ist.
+    let sick = 0;
+    let atHome = 0;
+    for (const student of students) {
+      if (student.sick === true) {
+        sick += 1;
+        continue;
+      }
+      if (student.excused === true || student.class_trip === true) continue;
+      const status = parseLocation(student.current_location).status;
+      if (status === LOCATION_STATUSES.SICK) {
+        sick += 1;
+        continue;
+      }
+      if (
+        status === LOCATION_STATUSES.EXCUSED ||
+        status === LOCATION_STATUSES.CLASS_TRIP
+      ) {
+        continue;
+      }
+      if (
+        status === LOCATION_STATUSES.HOME ||
+        status === LOCATION_STATUSES.UNKNOWN ||
+        status === LOCATION_STATUSES.NOT_ARRIVAL
+      ) {
+        atHome += 1;
+      }
+    }
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atHome} zuhause · ${sick} krank`;
+  }, [isToday, students]);
+
   const selectedStudentsForBulk = useMemo(
     () =>
       filteredStudents.filter((student) =>
@@ -2768,287 +2724,761 @@ function SearchPageContent() {
     [sortedStudents, effectiveGroupMode],
   );
 
+  const fromParam = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (effectiveRoomId) {
+      qs.set("room_id", effectiveRoomId);
+      if (selectedRoomName) qs.set("room_name", selectedRoomName);
+    }
+    if (selectedGroupIds.length > 0)
+      qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
+    if (selectedSchoolClasses.length > 0)
+      qs.set("school_class", encodeMultiValueParam(selectedSchoolClasses));
+    if (selectedYears.length > 0)
+      qs.set("year", encodeMultiValueParam(selectedYears));
+    if (effectiveAttendanceFilter !== "all")
+      qs.set("status", effectiveAttendanceFilter);
+    if (busFilter !== "all") qs.set("bus", busFilter);
+    if (effectivePhotoConsentFilter !== "all")
+      qs.set("photo_consent", effectivePhotoConsentFilter);
+    if (pickupStatusFilter !== "all")
+      qs.set("pickup_status", pickupStatusFilter);
+    if (dayStatusFilter !== "all") qs.set("day_status", dayStatusFilter);
+    if (!isToday) qs.set("date", selectedDate);
+    if (pickupTimeFilter !== "all") qs.set("pickup_time", pickupTimeFilter);
+    if (arrivalTimeFilter !== "all") qs.set("arrival_time", arrivalTimeFilter);
+    if (effectiveTrackingFilter !== "all")
+      qs.set("tracking", effectiveTrackingFilter);
+    if (sortMode !== "name") qs.set("sort", sortMode);
+    if (effectiveGroupMode !== "none") qs.set("view", effectiveGroupMode);
+    return qs.size === 0
+      ? "/students/search"
+      : encodeURIComponent(`/students/search?${qs.toString()}`);
+  }, [
+    effectiveRoomId,
+    selectedRoomName,
+    selectedGroupIds,
+    selectedSchoolClasses,
+    selectedYears,
+    effectiveAttendanceFilter,
+    busFilter,
+    effectivePhotoConsentFilter,
+    pickupStatusFilter,
+    dayStatusFilter,
+    isToday,
+    selectedDate,
+    pickupTimeFilter,
+    arrivalTimeFilter,
+    effectiveTrackingFilter,
+    sortMode,
+    effectiveGroupMode,
+  ]);
+
+  const openStudent = useCallback(
+    (student: Student) =>
+      router.push(`/students/${student.id}?from=${fromParam}`),
+    [fromParam, router],
+  );
+  const openStudentRef = useLatest(openStudent);
+  const handleOpenStudent = useCallback(
+    (student: Student) => openStudentRef.current(student),
+    [openStudentRef],
+  );
+  const checkinClick = useCallback(
+    (student: Student) => {
+      const studentIdStr = student.id.toString();
+      if (schoolCheckin.selectionActive) {
+        schoolCheckin.toggleSelected(studentIdStr);
+        return;
+      }
+      const room = checkoutConfirmationRoom(student.current_location);
+      if (room) {
+        setPendingRoomCheckout({
+          studentId: studentIdStr,
+          studentName: `${student.first_name} ${student.second_name}`.trim(),
+          room,
+        });
+        return;
+      }
+      void schoolCheckin.toggle(
+        studentIdStr,
+        deriveCheckinState(student.current_location),
+      );
+    },
+    [schoolCheckin],
+  );
+  const checkinClickRef = useLatest(checkinClick);
+  const handleCheckinClick = useCallback(
+    (student: Student) => checkinClickRef.current(student),
+    [checkinClickRef],
+  );
+  const renderMemoizedStudentCard = (student: Student) => {
+    const studentIdStr = student.id.toString();
+    return (
+      <SearchStudentCard
+        key={student.id}
+        student={student}
+        isToday={isToday}
+        checkinMode={checkinModeAvailable && schoolCheckin.isActive}
+        checkinSelectMode={schoolCheckin.selectionActive}
+        isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
+        isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+        userGroups={myGroups}
+        groupRooms={myGroupRooms}
+        supervisedRooms={mySupervisedRooms}
+        trackingData={trackingData}
+        onOpen={handleOpenStudent}
+        onCheckinClick={handleCheckinClick}
+      />
+    );
+  };
+
   // Fix P2: Session initialization / auth-gate loading no longer replaces the
   // whole page — real chrome (header, filters) renders immediately below;
   // only the results region skeletonizes while the session resolves. Note:
   // with required: true, unauthenticated users are auto-redirected to login.
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Page header scrolls with the rest of the page (no sticky).
-          Active filters surface as a count badge on the filter pill. The
-          check-in/out trigger lives in a floating FAB rendered at the
-          bottom of this component on mobile/tablet, or inline in the
-          header on desktop via primaryAction. */}
-      <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
-        <PageHeaderWithSearch
-          title="Alle Kinder"
-          badge={{
-            icon: (
-              <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
-            ),
-            count: filteredStudents.length,
-          }}
-          primaryAction={
-            checkinModeAvailable && !schoolCheckin.isActive ? (
-              <SchoolCheckinFab
-                variant="inline"
-                isActive={schoolCheckin.isActive}
-                onToggle={schoolCheckin.toggleActive}
-                successCount={
-                  schoolCheckin.selectionActive
-                    ? selectedStudentsForBulk.length
-                    : schoolCheckin.successCount
-                }
-                pendingCount={schoolCheckin.pendingIds.size}
-                disabled={schoolCheckin.isBulkRunning}
-              />
-            ) : undefined
-          }
-          // 6 filters overflow the inline desktop row at iPad-class
-          // viewports. Switch to the mobile sheet pattern up to xl
-          // (1280px). Matches Stripe / Airbnb / Slack pattern for
-          // filter-heavy pages.
-          desktopFiltersFrom="xl"
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Name suchen...",
-            // Typing stays inside the field; the page (and its 100 Karten)
-            // only hears the finished term (#2975).
-            debounceMs: 300,
-            resetKey: searchResetKey,
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          activeFilterDisplay="count"
-          filterVariant="quiet"
-          filterSections={filterSections}
-          onClearAllFilters={clearAllFilters}
-          overflowMenu={[
-            {
-              // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-              // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-              // ohnehin nach einem Kind sucht.
-              label: "Abwesenheiten",
-              icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-              onClick: () => router.push("/absences"),
-            },
-            {
-              label: "Exportieren",
-              icon: <Download className="h-4 w-4" aria-hidden />,
-              onClick: () => setIsExportOpen(true),
-              badge: filteredStudents.length,
-            },
-          ]}
-        />
-      </div>
+    <>
+      {/* Kopfkarte wie auf jeder Tenant-Seite: Titel, Statuszeile, Aktionen,
+          darunter Suche und Filter. */}
+      <TenantPage
+        title="Alle Kinder"
+        stats={studentSummary}
+        statsLoading={!hasFetchedOnce || isDateTransition}
+        actions={
+          <>
+            <OverflowMenu
+              items={[
+                {
+                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                  // ohnehin nach einem Kind sucht.
+                  label: "Abwesenheiten",
+                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                  onClick: () => router.push("/absences"),
+                },
+                {
+                  label: "Exportieren",
+                  icon: <Download className="h-4 w-4" aria-hidden />,
+                  onClick: () => setIsExportOpen(true),
+                  badge: filteredStudents.length,
+                },
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          </>
+        }
+        // Der Zähler ändert sich mit der Filterung und gehört deshalb in
+        // die Filterzeile, nicht in die Titelzeile.
+        badge={{
+          count: filteredStudents.length,
+          icon: <MotoConceptIcon concept="children" size={20} />,
+        }}
+        primaryAction={
+          checkinModeAvailable && !schoolCheckin.isActive ? (
+            <SchoolCheckinFab
+              variant="inline"
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={
+                schoolCheckin.selectionActive
+                  ? selectedStudentsForBulk.length
+                  : schoolCheckin.successCount
+              }
+              pendingCount={schoolCheckin.pendingIds.size}
+              disabled={schoolCheckin.isBulkRunning}
+            />
+          ) : undefined
+        }
+        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten;
+        // darunter sammelt die Filterschaltfläche sie hinter einer Fläche.
+        desktopFiltersFrom="xl"
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Name suchen…",
+          debounceMs: 300,
+          resetKey: searchResetKey,
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        activeFilterDisplay="count"
+        filterVariant="quiet"
+        filterSections={filterSections}
+        onClearAllFilters={clearAllFilters}
+        // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
+        // stehen als eingebetteter Standardzustand im Inhalt.
+        error={errorMessage && errorType !== "permission" ? errorMessage : null}
+        empty={
+          !errorMessage &&
+          hasFetchedOnce &&
+          !isInitializing &&
+          !isAuthError &&
+          !isDateTransition &&
+          filteredStudents.length === 0
+            ? {
+                icon: (
+                  <Search
+                    className="h-12 w-12 text-gray-400"
+                    aria-hidden="true"
+                  />
+                ),
+                title: "Keine Kinder gefunden",
+                description:
+                  "Zu Suche und Filtern passt kein Kind. Setzen Sie die Filter zurück, um alle Kinder zu sehen.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={clearAllFilters}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                ),
+              }
+            : null
+        }
+        overlays={
+          <>
+            {/* Checkout out of a room ends the running room visit, so it asks
+          first and names the room (#2220). Roomless states never reach
+          this dialog — they stay a single tap. */}
+            <ConfirmationModal
+              isOpen={pendingRoomCheckout !== null}
+              onClose={() => setPendingRoomCheckout(null)}
+              onConfirm={() => {
+                if (!pendingRoomCheckout) return;
+                void schoolCheckin.toggle(
+                  pendingRoomCheckout.studentId,
+                  "anwesend",
+                );
+                setPendingRoomCheckout(null);
+              }}
+              title="Aus der Betreuung abmelden?"
+              confirmText="Abmelden"
+              confirmVariant="danger"
+            >
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {pendingRoomCheckout?.studentName}
+                </span>{" "}
+                ist gerade in{" "}
+                <span className="font-medium text-gray-900">
+                  {pendingRoomCheckout?.room}
+                </span>
+                . Beim Abmelden wird der laufende Raumbesuch beendet und das
+                Kind gilt für heute als gegangen.
+              </p>
+            </ConfirmationModal>
 
-      {/* Planning-date context banner (#1939). The day chooser itself lives in
+            {/* Bulk checkout of a selection with children currently in rooms: one
+          confirmation for the whole batch (#2359), mirroring the single-tap
+          room dialog above. Confirming executes the snapshot the dialog
+          displays — not the live selection, which may have shifted while it
+          was open (review #2372). */}
+            <ConfirmationModal
+              isOpen={pendingBulkCheckout !== null}
+              onClose={() => setPendingBulkCheckout(null)}
+              onConfirm={() => {
+                if (!pendingBulkCheckout) return;
+                const snapshot = pendingBulkCheckout.students;
+                setPendingBulkCheckout(null);
+                void executeBulk("out", snapshot);
+              }}
+              title="Ausgewählte Kinder abmelden?"
+              confirmText="Abmelden"
+              confirmVariant="danger"
+            >
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {pendingBulkCheckout?.students.length}
+                </span>{" "}
+                {pendingBulkCheckout?.students.length === 1
+                  ? "Kind ist"
+                  : "Kinder sind"}{" "}
+                ausgewählt,{" "}
+                <span className="font-medium text-gray-900">
+                  {pendingBulkCheckout?.roomCount}
+                </span>{" "}
+                davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"}{" "}
+                gerade in einem Raum. Beim Abmelden werden laufende Raumbesuche
+                beendet und die Kinder gelten für heute als gegangen.
+              </p>
+            </ConfirmationModal>
+
+            {/* Per-child failures of a bulk action, named (#2359). The successful
+          part of the batch is already applied at this point. The retry
+          button executes the dialog's OWN snapshot — the named children on
+          screen right here — not the selection bar's visible-rows view: a
+          scope change during the run keeps the failed students selected but
+          may hide their cards, and the promised one-tap retry must stay
+          reachable then (review #2372). Acting on the snapshot is not
+          sight-unseen (the dialog lists every child by name), and runBulk
+          executes exactly this snapshot — a scope change committing while
+          this dialog is open may clear the selection, and an intersected
+          retry would then be a silent no-op (review #2372). */}
+            <Modal
+              isOpen={bulkFailures !== null}
+              onClose={() => setBulkFailures(null)}
+              title={
+                bulkFailures?.action === "in"
+                  ? "Nicht alle Kinder angemeldet"
+                  : "Nicht alle Kinder abgemeldet"
+              }
+            >
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  {bulkFailures?.succeeded === 1
+                    ? "1 Kind wurde"
+                    : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
+                  {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}.
+                  Bei
+                  {bulkFailures?.students.length === 1
+                    ? " diesem Kind"
+                    : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
+                  hat es nicht geklappt:
+                </p>
+                <ul className="list-inside list-disc text-sm font-medium text-gray-900">
+                  {bulkFailures?.students.map((student) => (
+                    <li key={student.id}>{student.name}</li>
+                  ))}
+                </ul>
+                <p className="text-sm text-gray-600">
+                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führen
+                  Sie die Aktion für diese Kinder noch einmal aus. Geänderte
+                  Filter blenden sie dabei nicht aus.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setBulkFailures(null)}
+                  >
+                    Schließen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => {
+                      if (!bulkFailures) return;
+                      const { action, students: failedStudents } = bulkFailures;
+                      setBulkFailures(null);
+                      void executeBulk(action, failedStudents);
+                    }}
+                  >
+                    Erneut versuchen
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
+            {isExportOpen && (
+              <StudentExportModal
+                isOpen={isExportOpen}
+                filters={exportFilters}
+                resultCount={filteredStudents.length}
+                onClose={() => setIsExportOpen(false)}
+              />
+            )}
+          </>
+        }
+      >
+        {errorMessage && errorType === "permission" ? (
+          <ForbiddenPage embedded message={errorMessage} />
+        ) : null}
+        <div hidden={errorMessage !== null && errorType === "permission"}>
+          {/* Planning-date context banner (#1939). The day chooser itself lives in
           the filter panel, in the "Anwesenheit" section right above the
           Kommt/Kommt-nicht filter it scopes. This banner only appears for a
           non-today date so nobody mistakes a plan view for live presence. */}
-      {!isToday && (
-        <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-          Geplante Anwesenheit für {formatDate(selectedDate, true)}; aktuelle
-          Aufenthaltsorte bleiben ausgeblendet.{" "}
-          <button
-            type="button"
-            onClick={() => updateSelectedDate(todayIso)}
-            className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700"
-          >
-            Zurück zu heute
-          </button>
-        </div>
-      )}
+          {!isToday && (
+            <div className="mb-3">
+              <Alert
+                type="info"
+                message={`Geplante Anwesenheit für ${formatDate(selectedDate, true)}; aktuelle Aufenthaltsorte bleiben ausgeblendet.`}
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    onClick={() => updateSelectedDate(todayIso)}
+                  >
+                    Zurück zu heute
+                  </Button>
+                }
+              />
+            </div>
+          )}
 
-      {/* Incomplete-result notice (#2218 review). The page walk stops at
+          {/* Incomplete-result notice (#2218 review). The page walk stops at
           MAX_STUDENT_SEARCH_PAGES, and the badge, the grouping headers and the
           export all describe the rows it loaded. Without this the school would
           read a truncated list as the complete one, so the shortfall is named
           here instead of only in the log. */}
-      {truncatedTotal !== null && (
-        <div className="mb-3">
-          <Alert
-            type="warning"
-            message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
-          />
-        </div>
-      )}
+          {truncatedTotal !== null && (
+            <div className="mb-3">
+              <Alert
+                type="warning"
+                message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
+              />
+            </div>
+          )}
 
-      {/* Mobile Error Display, outside the sticky stack so it doesn't
-          push everything down on small screens. */}
-      {errorMessage && (
-        <div className="mb-4 md:hidden">
-          <Alert type="error" message={errorMessage} />
-        </div>
-      )}
-
-      {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
+          {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
-      {checkinModeAvailable && (
-        <div className="mb-3 md:hidden">
-          <SchoolCheckinModeMobile
-            isActive={schoolCheckin.isActive}
-            onToggle={schoolCheckin.toggleActive}
-            successCount={schoolCheckin.successCount}
-            pendingCount={schoolCheckin.pendingIds.size}
-            selectionActive={schoolCheckin.selectionActive}
-            onSelectionActiveChange={schoolCheckin.setSelectionActive}
-            selectedCount={selectedStudentsForBulk.length}
-            onClearSelection={schoolCheckin.clearSelection}
-            onBulkAction={handleBulkAction}
-            runningAction={runningBulkAction}
-            disabled={schoolCheckin.isBulkRunning}
-          />
-        </div>
-      )}
+          {checkinModeAvailable && (
+            <div className="mb-3 md:hidden">
+              <SchoolCheckinModeMobile
+                isActive={schoolCheckin.isActive}
+                onToggle={schoolCheckin.toggleActive}
+                successCount={schoolCheckin.successCount}
+                pendingCount={schoolCheckin.pendingIds.size}
+                selectionActive={schoolCheckin.selectionActive}
+                onSelectionActiveChange={schoolCheckin.setSelectionActive}
+                selectedCount={selectedStudentsForBulk.length}
+                onClearSelection={schoolCheckin.clearSelection}
+                onBulkAction={handleBulkAction}
+                runningAction={runningBulkAction}
+                disabled={schoolCheckin.isBulkRunning}
+              />
+            </div>
+          )}
 
-      {/* Sub-mode bar of the active check-in mode (#2359): switch between
+          {/* Sub-mode bar of the active check-in mode (#2359): switch between
           immediate taps (door operation, default) and the selection mode
           with its bulk Anmelden/Abmelden actions. */}
-      {checkinModeAvailable && schoolCheckin.isActive && (
-        <SchoolCheckinSelectionBar
-          selectionActive={schoolCheckin.selectionActive}
-          onSelectionActiveChange={schoolCheckin.setSelectionActive}
-          selectedCount={selectedStudentsForBulk.length}
-          onClearSelection={schoolCheckin.clearSelection}
-          onBulkAction={handleBulkAction}
-          onFinish={schoolCheckin.toggleActive}
-          isRunning={schoolCheckin.isBulkRunning}
-          runningAction={runningBulkAction}
-        />
-      )}
+          {checkinModeAvailable && schoolCheckin.isActive && (
+            <SchoolCheckinSelectionBar
+              selectionActive={schoolCheckin.selectionActive}
+              onSelectionActiveChange={schoolCheckin.setSelectionActive}
+              selectedCount={selectedStudentsForBulk.length}
+              onClearSelection={schoolCheckin.clearSelection}
+              onBulkAction={handleBulkAction}
+              onFinish={schoolCheckin.toggleActive}
+              isRunning={schoolCheckin.isBulkRunning}
+              runningAction={runningBulkAction}
+            />
+          )}
 
-      {/* Student Grid. Bottom padding reserves room for the mobile sticky
+          {/* Student Grid. Bottom padding reserves room for the mobile sticky
           bar / tablet floating FAB; desktop has neither. */}
-      <div
-        className={
-          checkinModeAvailable
-            ? schoolCheckin.isActive && schoolCheckin.selectionActive
-              ? "pb-32 md:pb-24 lg:pb-0"
-              : "pb-24 lg:pb-0"
-            : undefined
-        }
-      >
-        {/* The arrival/pickup rows take their minute clock from here instead of
-            from a prop (#2975): a tick then re-renders those ~200 rows rather
-            than busting the memo of all 100 Kinderkarten. */}
-        <StudentCardClockProvider now={planningNow}>
-          {(() => {
-            // Fix P2: Show loading while the session is still resolving, while
-            // the first fetch is in progress (not yet hasFetchedOnce), or while
-            // a date switch is in flight — keepPreviousData still holds the
-            // previous day's rows, so show the skeleton instead of presenting
-            // them under the newly selected date (#1939). Handle a fetch error
-            // FIRST, though: when the new date's request fails, keepPreviousData
-            // keeps the stale response so isDateTransition stays true — without
-            // this guard the page would show the skeleton indefinitely instead of
-            // the error and its recovery guidance (#1939).
-            if (
-              isInitializing ||
-              isAuthError ||
-              (!errorMessage &&
-                ((isSearching && !hasFetchedOnce) || isDateTransition))
-            ) {
-              return <StudentCardGridSkeleton />;
+          <div
+            className={
+              checkinModeAvailable
+                ? schoolCheckin.isActive && schoolCheckin.selectionActive
+                  ? "pb-32 md:pb-24 lg:pb-0"
+                  : "pb-24 lg:pb-0"
+                : undefined
             }
-            if (errorMessage) {
-              return (
-                <div className="py-12 text-center">
-                  <div className="flex flex-col items-center gap-4">
-                    <AlertTriangle
-                      className="text-moto-red h-12 w-12"
-                      aria-hidden="true"
+          >
+            <StudentCardClockProvider now={planningNow}>
+              {(() => {
+                // Fix P2: Show loading while the session is still resolving, while
+                // the first fetch is in progress (not yet hasFetchedOnce), or while
+                // a date switch is in flight — keepPreviousData still holds the
+                // previous day's rows, so show the skeleton instead of presenting
+                // them under the newly selected date (#1939). Handle a fetch error
+                // FIRST, though: when the new date's request fails, keepPreviousData
+                // keeps the stale response so isDateTransition stays true — without
+                // this guard the page would show the skeleton indefinitely instead of
+                // the error and its recovery guidance (#1939).
+                if (
+                  isInitializing ||
+                  isAuthError ||
+                  (!errorMessage &&
+                    ((isSearching && !hasFetchedOnce) || isDateTransition))
+                ) {
+                  return <StudentCardGridSkeleton />;
+                }
+                // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)
+                // und ersetzen den Inhalt dort.
+                // Preserve the URL-rehydrating filters in the back-link so stepping
+                // from the search page → child → back returns to the same operational
+                // view. Free-text search intentionally remains transient.
+                const buildFromParam = (() => {
+                  const qs = new URLSearchParams();
+                  if (effectiveRoomId) {
+                    qs.set("room_id", effectiveRoomId);
+                    if (selectedRoomName) qs.set("room_name", selectedRoomName);
+                  }
+                  if (selectedGroupIds.length > 0)
+                    qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
+                  if (selectedSchoolClasses.length > 0)
+                    qs.set(
+                      "school_class",
+                      encodeMultiValueParam(selectedSchoolClasses),
+                    );
+                  if (selectedYears.length > 0)
+                    qs.set("year", encodeMultiValueParam(selectedYears));
+                  if (effectiveAttendanceFilter !== "all")
+                    qs.set("status", effectiveAttendanceFilter);
+                  if (busFilter !== "all") qs.set("bus", busFilter);
+                  if (effectivePhotoConsentFilter !== "all")
+                    qs.set("photo_consent", effectivePhotoConsentFilter);
+                  if (pickupStatusFilter !== "all")
+                    qs.set("pickup_status", pickupStatusFilter);
+                  if (dayStatusFilter !== "all")
+                    qs.set("day_status", dayStatusFilter);
+                  if (!isToday) qs.set("date", selectedDate);
+                  if (pickupTimeFilter !== "all")
+                    qs.set("pickup_time", pickupTimeFilter);
+                  if (arrivalTimeFilter !== "all")
+                    qs.set("arrival_time", arrivalTimeFilter);
+                  if (effectiveTrackingFilter !== "all")
+                    qs.set("tracking", effectiveTrackingFilter);
+                  if (sortMode !== "name") qs.set("sort", sortMode);
+                  if (effectiveGroupMode !== "none")
+                    qs.set("view", effectiveGroupMode);
+                  if (qs.size === 0) return "/students/search";
+                  return encodeURIComponent(
+                    `/students/search?${qs.toString()}`,
+                  );
+                })();
+                const _renderStudentCard = (student: Student) => {
+                  const checkinState = deriveCheckinState(
+                    student.current_location,
+                  );
+                  const studentIdStr = student.id.toString();
+                  // Detailed-mode students sitting in a room get a confirmation
+                  // step; everyone else toggles straight away (#2220).
+                  const roomToConfirm = checkoutConfirmationRoom(
+                    student.current_location,
+                  );
+                  return (
+                    <StudentCard
+                      key={student.id}
+                      studentId={student.id}
+                      firstName={student.first_name}
+                      lastName={student.second_name}
+                      photoUrl={student.photo_url ?? null}
+                      onClick={() =>
+                        router.push(
+                          `/students/${student.id}?from=${buildFromParam}`,
+                        )
+                      }
+                      checkinMode={
+                        checkinModeAvailable && schoolCheckin.isActive
+                      }
+                      checkinState={checkinState}
+                      checkinSelectMode={schoolCheckin.selectionActive}
+                      isCheckinSelected={schoolCheckin.selectedIds.has(
+                        studentIdStr,
+                      )}
+                      isCheckinPending={schoolCheckin.pendingIds.has(
+                        studentIdStr,
+                      )}
+                      onCheckinClick={() => {
+                        // Selection sub-mode (#2359): a tap only marks the child;
+                        // nothing is written until the bar's bulk action runs.
+                        if (schoolCheckin.selectionActive) {
+                          schoolCheckin.toggleSelected(studentIdStr);
+                          return;
+                        }
+                        if (roomToConfirm) {
+                          setPendingRoomCheckout({
+                            studentId: studentIdStr,
+                            studentName:
+                              `${student.first_name} ${student.second_name}`.trim(),
+                            room: roomToConfirm,
+                          });
+                          return;
+                        }
+                        void schoolCheckin.toggle(studentIdStr, checkinState);
+                      }}
+                      locationBadge={
+                        isToday ? (
+                          <StudentPresenceBadge
+                            student={(() => {
+                              const badgePlanning =
+                                getStudentPresenceBadgePlanning(student);
+                              return {
+                                ...student,
+                                not_arrival_today:
+                                  badgePlanning.notArrivalToday,
+                                not_arrival_reason:
+                                  badgePlanning.notArrivalReason,
+                              };
+                            })()}
+                            displayMode="contextAware"
+                            userGroups={myGroups}
+                            groupRooms={myGroupRooms}
+                            supervisedRooms={mySupervisedRooms}
+                            variant="modern"
+                            size="md"
+                          />
+                        ) : (
+                          // Non-today dates show the planned expectation, never the
+                          // live location (#1939). When the caller lacks full access
+                          // the backend skips day-planning enrichment and omits
+                          // day_planning_status; render an unknown state rather than
+                          // asserting "Kommt nicht" for a result that was never
+                          // calculated or disclosed.
+                          <DataTableStatusBadge
+                            active={
+                              student.day_planning_status === "comes_today"
+                            }
+                            unknown={student.day_planning_status === undefined}
+                            activeLabel="Kommt"
+                            inactiveLabel="Kommt nicht"
+                            unknownLabel="Keine Angabe"
+                          />
+                        )
+                      }
+                      extraContent={
+                        <>
+                          <StudentInfoRow icon={<SchoolClassIcon />}>
+                            {student.school_class || "–"}
+                          </StudentInfoRow>
+                          <StudentInfoRow icon={<GroupIcon />}>
+                            Gruppe: {student.group_name || "–"}
+                          </StudentInfoRow>
+                          {student.has_full_access !== false && (
+                            <StudentInfoRow icon={<DepartureModeIcon />} wrap>
+                              Heimweg: {dailyDepartureLabelForStudent(student)}
+                            </StudentInfoRow>
+                          )}
+                          {student.has_full_access !== false &&
+                            student.pending_excused_note !== undefined && (
+                              <StudentPendingExcusedRow
+                                note={student.pending_excused_note}
+                              />
+                            )}
+                          {student.has_full_access !== false &&
+                            (() => {
+                              const absence = getStudentAbsence({
+                                sick: student.sick,
+                                classTrip: student.class_trip,
+                                excused: student.excused,
+                              });
+                              const absenceWording = isToday
+                                ? undefined
+                                : "Kommt nicht";
+                              // Absence rows fill the arrival slot; a neutral
+                              // "Gehzeit: —" row (deliberately without the planned
+                              // time, so no overdue styling can fire for a child
+                              // who is not coming) keeps absent and present cards
+                              // at the same four-row height.
+                              const absencePickupRow = (
+                                <PickupTimeRow
+                                  isException={false}
+                                  now={planningNow}
+                                />
+                              );
+                              if (absence && !student.actual_pickup_time) {
+                                return (
+                                  <>
+                                    <StudentAbsenceRow
+                                      label={absence.label}
+                                      wording={absenceWording}
+                                    />
+                                    {absencePickupRow}
+                                  </>
+                                );
+                              }
+                              const dayPlanningNotComingLabel =
+                                getDayPlanningNotComingLabel(student, {
+                                  ignoreCurrentAttendance: !isToday,
+                                });
+                              if (
+                                dayPlanningNotComingLabel &&
+                                !student.actual_pickup_time
+                              ) {
+                                return (
+                                  <>
+                                    <StudentAbsenceRow
+                                      label={dayPlanningNotComingLabel}
+                                      wording={absenceWording}
+                                    />
+                                    {absencePickupRow}
+                                  </>
+                                );
+                              }
+                              return (
+                                <>
+                                  <ArrivalTimeRow
+                                    arrivalTime={student.arrival_time}
+                                    actualTime={student.actual_arrival_time}
+                                    isException={
+                                      student.arrival_is_exception ?? false
+                                    }
+                                    isAbsent={
+                                      (student.arrival_is_exception ?? false) &&
+                                      !student.arrival_time
+                                    }
+                                    notes={student.arrival_notes}
+                                    now={planningNow}
+                                    absentWording={absenceWording}
+                                  />
+                                  <PickupTimeRow
+                                    pickupTime={
+                                      student.pickup_time ?? undefined
+                                    }
+                                    actualTime={student.actual_pickup_time}
+                                    isException={
+                                      student.pickup_is_exception ?? false
+                                    }
+                                    notes={student.pickup_notes}
+                                    now={planningNow}
+                                  />
+                                </>
+                              );
+                            })()}
+                        </>
+                      }
+                      trackingIndicators={
+                        isToday &&
+                        trackingData?.labels?.length &&
+                        student.has_full_access !== false ? (
+                          <TrackingIndicators
+                            labels={trackingData.labels}
+                            results={trackingData.results[student.id] ?? []}
+                          />
+                        ) : undefined
+                      }
                     />
-                    <div>
-                      {/* Fix P3: Use errorType instead of substring matching */}
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {errorType === "permission"
-                          ? "Keine Berechtigung"
-                          : "Fehler"}
-                      </h3>
-                      <p className="text-gray-600">{errorMessage}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            // Fix P2: Only show empty state if we've fetched at least once
-            if (filteredStudents.length === 0 && hasFetchedOnce) {
-              return (
-                <div className="py-12 text-center">
-                  <div className="flex flex-col items-center gap-4">
-                    <Search
-                      className="h-12 w-12 text-gray-400"
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900">
-                        Keine Kinder gefunden
-                      </h3>
-                      <p className="text-gray-600">
-                        Versuche deine Suchkriterien anzupassen.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            const renderStudentCard = (student: Student) => {
-              const studentIdStr = student.id.toString();
-              return (
-                <SearchStudentCard
-                  key={student.id}
-                  student={student}
-                  isToday={isToday}
-                  checkinMode={checkinModeAvailable && schoolCheckin.isActive}
-                  checkinSelectMode={schoolCheckin.selectionActive}
-                  isCheckinSelected={schoolCheckin.selectedIds.has(
-                    studentIdStr,
-                  )}
-                  isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                  userGroups={myGroups}
-                  groupRooms={myGroupRooms}
-                  supervisedRooms={mySupervisedRooms}
-                  trackingData={trackingData}
-                  onOpen={handleOpenStudent}
-                  onCheckinClick={handleCheckinClick}
-                />
-              );
-            };
+                  );
+                };
 
-            if (effectiveGroupMode !== "none") {
-              return (
-                <div className="space-y-6">
-                  {groupedStudents.map((group) => (
-                    <section key={group.key} data-testid="student-group">
-                      <div className="mb-3 flex items-center gap-3">
-                        <h2 className="text-sm font-semibold text-gray-900">
-                          {group.label}
-                        </h2>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                          {group.items.length}
-                        </span>
-                        <div className="h-px min-w-8 flex-1 bg-gray-200" />
-                      </div>
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                        {group.items.map(renderStudentCard)}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              );
-            }
+                if (effectiveGroupMode !== "none") {
+                  return (
+                    <div className="space-y-6">
+                      {groupedStudents.map((group) => (
+                        // Der Gruppentitel steht auf der Fläche seiner Karte,
+                        // nicht frei auf dem gemusterten Grund (BAUARTEN-SPEC,
+                        // Teil 3).
+                        <div key={group.key} data-testid="student-group">
+                          <SectionCard
+                            title={group.label}
+                            action={
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                                {group.items.length}
+                              </span>
+                            }
+                          >
+                            <CollectionGrid>
+                              {group.items.map(renderMemoizedStudentCard)}
+                            </CollectionGrid>
+                          </SectionCard>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
 
-            return (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                {sortedStudents.map(renderStudentCard)}
-              </div>
-            );
-          })()}
-        </StudentCardClockProvider>
-      </div>
+                return (
+                  <CollectionGrid>
+                    {sortedStudents.map(renderMemoizedStudentCard)}
+                  </CollectionGrid>
+                );
+              })()}
+            </StudentCardClockProvider>
+          </div>
+        </div>
+      </TenantPage>
 
       {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
           range is bumped to `xl` here to stay aligned with the header's
@@ -3072,146 +3502,7 @@ function SearchPageContent() {
           />
         </div>
       )}
-
-      {/* Checkout out of a room ends the running room visit, so it asks
-          first and names the room (#2220). Roomless states never reach
-          this dialog — they stay a single tap. */}
-      <ConfirmationModal
-        isOpen={pendingRoomCheckout !== null}
-        onClose={() => setPendingRoomCheckout(null)}
-        onConfirm={() => {
-          if (!pendingRoomCheckout) return;
-          void schoolCheckin.toggle(pendingRoomCheckout.studentId, "anwesend");
-          setPendingRoomCheckout(null);
-        }}
-        title="Aus der Betreuung abmelden?"
-        confirmText="Abmelden"
-        confirmVariant="danger"
-      >
-        <p className="text-sm text-gray-600">
-          <span className="font-medium text-gray-900">
-            {pendingRoomCheckout?.studentName}
-          </span>{" "}
-          ist gerade in{" "}
-          <span className="font-medium text-gray-900">
-            {pendingRoomCheckout?.room}
-          </span>
-          . Beim Abmelden wird der laufende Raumbesuch beendet und das Kind gilt
-          für heute als gegangen.
-        </p>
-      </ConfirmationModal>
-
-      {/* Bulk checkout of a selection with children currently in rooms: one
-          confirmation for the whole batch (#2359), mirroring the single-tap
-          room dialog above. Confirming executes the snapshot the dialog
-          displays — not the live selection, which may have shifted while it
-          was open (review #2372). */}
-      <ConfirmationModal
-        isOpen={pendingBulkCheckout !== null}
-        onClose={() => setPendingBulkCheckout(null)}
-        onConfirm={() => {
-          if (!pendingBulkCheckout) return;
-          const snapshot = pendingBulkCheckout.students;
-          setPendingBulkCheckout(null);
-          void executeBulk("out", snapshot);
-        }}
-        title="Ausgewählte Kinder abmelden?"
-        confirmText="Abmelden"
-        confirmVariant="danger"
-      >
-        <p className="text-sm text-gray-600">
-          <span className="font-medium text-gray-900">
-            {pendingBulkCheckout?.students.length}
-          </span>{" "}
-          {pendingBulkCheckout?.students.length === 1
-            ? "Kind ist"
-            : "Kinder sind"}{" "}
-          ausgewählt,{" "}
-          <span className="font-medium text-gray-900">
-            {pendingBulkCheckout?.roomCount}
-          </span>{" "}
-          davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"} gerade
-          in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet und
-          die Kinder gelten für heute als gegangen.
-        </p>
-      </ConfirmationModal>
-
-      {/* Per-child failures of a bulk action, named (#2359). The successful
-          part of the batch is already applied at this point. The retry
-          button executes the dialog's OWN snapshot — the named children on
-          screen right here — not the selection bar's visible-rows view: a
-          scope change during the run keeps the failed students selected but
-          may hide their cards, and the promised one-tap retry must stay
-          reachable then (review #2372). Acting on the snapshot is not
-          sight-unseen (the dialog lists every child by name), and runBulk
-          executes exactly this snapshot — a scope change committing while
-          this dialog is open may clear the selection, and an intersected
-          retry would then be a silent no-op (review #2372). */}
-      <Modal
-        isOpen={bulkFailures !== null}
-        onClose={() => setBulkFailures(null)}
-        title={
-          bulkFailures?.action === "in"
-            ? "Nicht alle Kinder angemeldet"
-            : "Nicht alle Kinder abgemeldet"
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            {bulkFailures?.succeeded === 1
-              ? "1 Kind wurde"
-              : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
-            {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}. Bei
-            {bulkFailures?.students.length === 1
-              ? " diesem Kind"
-              : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
-            hat es nicht geklappt:
-          </p>
-          <ul className="list-inside list-disc text-sm font-medium text-gray-900">
-            {bulkFailures?.students.map((student) => (
-              <li key={student.id}>{student.name}</li>
-            ))}
-          </ul>
-          <p className="text-sm text-gray-600">
-            Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst du
-            die Aktion für genau diese Kinder noch einmal aus, auch wenn ein
-            geänderter Filter sie gerade ausblendet.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={() => setBulkFailures(null)}
-            >
-              Schließen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => {
-                if (!bulkFailures) return;
-                const { action, students: failedStudents } = bulkFailures;
-                setBulkFailures(null);
-                void executeBulk(action, failedStudents);
-              }}
-            >
-              Erneut versuchen
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {isExportOpen && (
-        <StudentExportModal
-          isOpen={isExportOpen}
-          filters={exportFilters}
-          resultCount={filteredStudents.length}
-          onClose={() => setIsExportOpen(false)}
-        />
-      )}
-    </div>
+    </>
   );
 }
 

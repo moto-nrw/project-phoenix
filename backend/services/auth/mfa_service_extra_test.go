@@ -26,7 +26,7 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
 	require.NoError(t, err)
 	mailer := testpkg.NewCapturingMailer()
@@ -246,7 +246,7 @@ func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	realChallengeRepo := repos.MFAEmailChallenge
 	repos.MFAEmailChallenge = countFailingChallengeRepo{
 		MFAEmailChallengeRepository: realChallengeRepo,

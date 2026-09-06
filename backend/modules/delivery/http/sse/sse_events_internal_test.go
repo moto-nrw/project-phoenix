@@ -50,7 +50,7 @@ func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
 func setupEventsModule(t *testing.T) *eventsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupUserContextModule(t)
 
 	hub := realtime.NewHub(slog.Default())
 

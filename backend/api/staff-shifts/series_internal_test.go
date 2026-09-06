@@ -124,9 +124,9 @@ func TestCreateSeriesHandler_MapsPayloadAndSkippedDates(t *testing.T) {
 	assert.Equal(t, 15, got.BreakMinutes)
 	assert.Equal(t, int64(8), got.CalendarPeriodID)
 	assert.Equal(t, scheduleModel.WeekPatternA, got.WeekPattern)
-	assert.Equal(t, timezone.NewDate(2026, time.September, 1), got.ValidFrom)
+	assert.Equal(t, scheduleModel.NewDate(2026, time.September, 1), got.ValidFrom)
 	require.NotNil(t, got.ValidUntil)
-	assert.Equal(t, timezone.NewDate(2026, time.December, 1), *got.ValidUntil)
+	assert.Equal(t, scheduleModel.NewDate(2026, time.December, 1), *got.ValidUntil)
 	assert.Equal(t, int64(42), got.CreatedBy, "created_by must come from the acting admin's staff record")
 	assert.Nil(t, got.ShiftTypeID)
 
@@ -401,10 +401,10 @@ func TestGetSeriesHandler_ReturnsStoredRule(t *testing.T) {
 		BreakMinutes:     15,
 		CalendarPeriodID: 8,
 		WeekPattern:      scheduleModel.WeekPatternB,
-		ValidFrom:        timezone.NewDate(2026, time.September, 1),
+		ValidFrom:        scheduleModel.NewDate(2026, time.September, 1),
 	}
 	series.ID = 12
-	until := timezone.NewDate(2026, time.December, 1)
+	until := scheduleModel.NewDate(2026, time.December, 1)
 	series.ValidUntil = &until
 	resource := seriesTestResource(&fakeSeriesService{
 		getFn: func(_ context.Context, id int64) (*scheduleModel.StaffShiftSeries, error) {

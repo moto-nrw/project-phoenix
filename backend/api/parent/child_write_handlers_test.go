@@ -71,7 +71,8 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
@@ -229,7 +230,8 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	require.NoError(t, repoErr)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,

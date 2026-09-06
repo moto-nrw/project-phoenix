@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,12 +60,12 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 	}
 	bindCareLocks(dependencies)
 	store := postgres.New(carePlanDatabase(dependencies.DB))
-	service := application.New(store, func(observation Observation) {
-		observation.Err = mapError(observation.Err)
-		dependencies.Observe(observation)
-	})
+	queries := newExceptionQueries(store, dependencies.Observe)
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
-	module := careplan.NewModule(engine{service: service, requests: postgres.NewRequestStore(store), statusDays: statusDays, observe: dependencies.Observe, people: dependencies.People})
+	module := careplan.NewModule(engine{
+		exceptionQueries: queries, requests: postgres.NewRequestStore(store), statusDays: statusDays,
+		observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
+	})
 	return module, nil
 }
 
@@ -106,11 +105,20 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 }
 
 type engine struct {
-	service    *application.Service
+	*exceptionQueries
 	requests   RequestStore
 	statusDays StatusDayStore
 	observe    func(Observation)
 	people     StudentNameFinder
+	database   *bun.DB
+}
+
+func (e engine) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return careplanning.LockStudentAndExceptionDay(ctx, e.database, studentID, date)
+}
+
+func (e engine) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
+	return careplanning.LockExceptionDay(ctx, e.database, studentID, date)
 }
 
 func (e engine) FindCareOffering(ctx context.Context, id int64) (careplan.CareOffering, error) {

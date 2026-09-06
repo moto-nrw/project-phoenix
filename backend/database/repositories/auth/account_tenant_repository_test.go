@@ -21,7 +21,7 @@ func newSchoolProjectedAccountTenantRepository(t *testing.T, db *bun.DB) authMod
 	t.Helper()
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db)
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	factory.BindOrganizationTenancy(capability)
 	return factory.AccountTenant

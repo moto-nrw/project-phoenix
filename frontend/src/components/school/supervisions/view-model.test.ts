@@ -163,7 +163,10 @@ describe("supervisionStartState", () => {
 });
 
 describe("startProximityLabel", () => {
-  function withMinutes(minutes: number, status: PlannedTimetableInstance["status"] = "planned") {
+  function withMinutes(
+    minutes: number,
+    status: PlannedTimetableInstance["status"] = "planned",
+  ) {
     return { ...instance("1", status), minutesUntilStart: minutes };
   }
 
@@ -176,7 +179,9 @@ describe("startProximityLabel", () => {
   it("rundet groessere Abstaende auf Stunden", () => {
     expect(startProximityLabel(withMinutes(74))).toBe("in etwa 1 Stunde");
     expect(startProximityLabel(withMinutes(150))).toBe("in etwa 3 Stunden");
-    expect(startProximityLabel(withMinutes(-125))).toBe("seit 2 Stunden fällig");
+    expect(startProximityLabel(withMinutes(-125))).toBe(
+      "seit 2 Stunden fällig",
+    );
   });
 
   it("schweigt, wo die Angabe nichts beitraegt", () => {

@@ -48,6 +48,31 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
+// Mock OverflowMenu: das Aktionsmenü der Seite sitzt seit der Kopfkarte in
+// PageIntro und nicht mehr in PageHeaderWithSearch; die Testids bleiben.
+vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
+  OverflowMenu: ({
+    items,
+  }: {
+    items: Array<{ label?: string; onClick?: () => void }>;
+  }) => (
+    <div data-testid="overflow-menu">
+      {items
+        .filter((item) => item.label)
+        .map((item) => (
+          <button
+            type="button"
+            key={item.label}
+            data-testid={`overflow-${item.label}`}
+            onClick={item.onClick}
+          >
+            {item.label}
+          </button>
+        ))}
+    </div>
+  ),
+}));
+
 // Mock PageHeaderWithSearch
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
@@ -1019,15 +1044,40 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Client-Side Filtering", () => {
+    it("counts a location-derived sick status in today's summary", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0],
+              current_location: "Krank",
+              sick: false,
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("1 Kind · 0 zuhause · 1 krank"),
+        ).toBeInTheDocument();
+      });
+    });
+
     it("shows all students when filter is 'all'", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
         // All 4 students should be visible (check by first names)
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Anna")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
       });
     });
 
@@ -1038,11 +1088,13 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Max (Raum 101), Tom (Unterwegs), Lisa (Schulhof) are on-site
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
         // Anna (Zuhause) should be filtered out
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -1053,10 +1105,16 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Only Anna (Zuhause) should be visible
-        expect(screen.getByText("Anna")).toBeInTheDocument();
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
-        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Tom\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Lisa\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -1078,8 +1136,10 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Anna")).toBeInTheDocument();
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -1115,7 +1175,7 @@ describe("StudentSearchPage", () => {
       // neutral dash (four-row card skeleton), never as a red "overdue"
       // time for a child who isn't coming today.
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
       expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
@@ -1148,7 +1208,7 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
       expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
@@ -1159,10 +1219,16 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Only Tom (Unterwegs) should be visible
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Lisa\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -1173,10 +1239,16 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Only Lisa (Schulhof) should be visible
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Tom\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -1196,7 +1268,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
@@ -1204,8 +1276,10 @@ describe("StudentSearchPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
         expect(
           screen.getByTestId("active-filter-attendance"),
         ).toHaveTextContent("Krank");
@@ -1228,7 +1302,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
@@ -1236,8 +1310,10 @@ describe("StudentSearchPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
         expect(
           screen.getByTestId("active-filter-attendance"),
         ).toHaveTextContent("Entschuldigt");
@@ -1463,11 +1539,13 @@ describe("StudentSearchPage", () => {
 
       // Wait for students to load - StudentCard displays first_name in h3
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       // Find the student card (button with role) for "Max"
-      const studentCard = screen.getByText("Max").closest("button");
+      const studentCard = screen
+        .getByText(new RegExp(`^Max\\b`))
+        .closest("button");
       if (studentCard) {
         fireEvent.click(studentCard);
       }
@@ -1499,10 +1577,12 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText("Max").closest("button")!);
+      fireEvent.click(
+        screen.getByText(new RegExp(`^Max\\b`)).closest("button")!,
+      );
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith(
@@ -1715,12 +1795,14 @@ describe("StudentSearchPage", () => {
         // The transformed error message for 403
         expect(
           screen.getAllByText(
-            /Du hast keine Berechtigung, Kinderdaten anzuzeigen/,
+            /Sie haben keine Berechtigung, Kinderdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
-        // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
-        // because we use errorType === "permission" instead of error.includes("403")
-        expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
+        // Der eingebettete Sperrzustand verwendet die einheitliche Forbidden-Überschrift
+        // einschließlich Sperrsymbol statt eines text-only-Leerzustands.
+        expect(
+          screen.getByText("Ihnen fehlt eine Berechtigung"),
+        ).toBeInTheDocument();
       });
     });
 
@@ -1739,8 +1821,10 @@ describe("StudentSearchPage", () => {
         expect(
           screen.getAllByText(/Sitzung ist abgelaufen/).length,
         ).toBeGreaterThan(0);
-        // Session errors still show generic "Fehler" heading
-        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          /Sitzung ist abgelaufen/,
+        );
       });
     });
 
@@ -1759,8 +1843,10 @@ describe("StudentSearchPage", () => {
         expect(
           screen.getAllByText(/Fehler beim Laden der Kinderdaten/).length,
         ).toBeGreaterThan(0);
-        // The error heading
-        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          /Fehler beim Laden der Kinderdaten/,
+        );
       });
     });
   });
@@ -2466,7 +2552,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
       expect(screen.queryByText(/Kindern geladen/)).not.toBeInTheDocument();
     });
@@ -2548,8 +2634,8 @@ describe("StudentSearchPage", () => {
         expect(
           screen.queryByTestId("active-filter-photoConsent"),
         ).not.toBeInTheDocument();
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
       });
     });
 
@@ -2588,7 +2674,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       // Filter by 15:30, only Max has this pickup time
@@ -2596,10 +2682,16 @@ describe("StudentSearchPage", () => {
       fireEvent.change(pickupFilter, { target: { value: "15:30" } });
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Tom\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Lisa\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -2607,7 +2699,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       // Filter by "none": Anna and Lisa have no pickup_time
@@ -2616,12 +2708,16 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Anna has no pickup_time and has_full_access=true
-        expect(screen.getByText("Anna")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
         // Lisa has no pickup_time and has_full_access=true
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
         // Max and Tom have pickup_time set, so they should be filtered out
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
-        expect(screen.queryByText("Tom")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Tom\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -2658,8 +2754,10 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Visible")).toBeInTheDocument();
-        expect(screen.getByText("Redacted")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Visible\\b`))).toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(`^Redacted\\b`)),
+        ).toBeInTheDocument();
       });
 
       // Apply "none" pickup time filter: redacted student should be excluded (GDPR)
@@ -2667,10 +2765,12 @@ describe("StudentSearchPage", () => {
       fireEvent.change(pickupFilter, { target: { value: "none" } });
 
       await waitFor(() => {
-        expect(screen.getByText("Visible")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Visible\\b`))).toBeInTheDocument();
         // Redacted student must NOT appear: has_full_access=false means we
         // can't know their pickup status, so they're excluded from filtering
-        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Redacted\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -2714,7 +2814,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Max has pickup_time="15:30"
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       // Verify pickup time text appears for students with pickup_time
@@ -2748,11 +2848,13 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("NoPickup")).toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(`^NoPickup\\b`)),
+        ).toBeInTheDocument();
       });
 
       // Should show the "Gehzeit:" em-dash fallback for students with full access but no pickup time
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
     });
   });
 
@@ -2761,7 +2863,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
@@ -2769,10 +2871,16 @@ describe("StudentSearchPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.queryByText("Max")).not.toBeInTheDocument();
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Lisa\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -2815,7 +2923,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("NoArrival")).toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(`^NoArrival\\b`)),
+        ).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
@@ -2823,9 +2933,15 @@ describe("StudentSearchPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("NoArrival")).toBeInTheDocument();
-        expect(screen.queryByText("Exception")).not.toBeInTheDocument();
-        expect(screen.queryByText("RedactedArrival")).not.toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(`^NoArrival\\b`)),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Exception\\b`)),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^RedactedArrival\\b`)),
+        ).not.toBeInTheDocument();
         expect(
           screen.getByTestId("active-filter-arrivalTime"),
         ).toHaveTextContent("Keine Ankunftszeit");
@@ -2838,7 +2954,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-sort"), {
@@ -2852,8 +2968,8 @@ describe("StudentSearchPage", () => {
       });
 
       const renderedNames = screen
-        .getAllByText(/^(Max|Tom|Lisa|Anna)$/)
-        .map((node) => node.textContent);
+        .getAllByText(/^(Max|Tom|Lisa|Anna) /)
+        .map((node) => node.textContent?.split(" ")[0]);
       expect(renderedNames).toEqual(["Max", "Tom", "Lisa", "Anna"]);
     });
 
@@ -2902,7 +3018,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-groupMode"), {
@@ -2955,7 +3071,7 @@ describe("StudentSearchPage", () => {
           "Heimweg: Geht alleine nach Hause, Bus, Wird abgeholt, Mit anderem Kind",
         ),
       ).toBeInTheDocument();
-      expect(screen.getByText("Heimweg: -")).toBeInTheDocument();
+      expect(screen.getByText("Heimweg: –")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Restricted Child/ }),
       ).not.toHaveTextContent("Heimweg:");
@@ -3010,7 +3126,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("PresentChild")).toBeInTheDocument();
+        expect(
+          screen.getByText(new RegExp(`^PresentChild\\b`)),
+        ).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-groupMode"), {
@@ -3072,7 +3190,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Hidden")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Hidden\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-groupMode"), {
@@ -3163,7 +3281,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() =>
-        expect(screen.getByText("Felix")).toBeInTheDocument(),
+        expect(screen.getByText(new RegExp(`^Felix\\b`))).toBeInTheDocument(),
       );
       expect(screen.queryByTestId("filter-tracking")).not.toBeInTheDocument();
     });
@@ -3195,7 +3313,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() =>
-        expect(screen.getByText("Felix")).toBeInTheDocument(),
+        expect(screen.getByText(new RegExp(`^Felix\\b`))).toBeInTheDocument(),
       );
 
       fireEvent.change(screen.getByTestId("filter-tracking"), {
@@ -3204,9 +3322,11 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Felix completed Hausaufgaben (results[0] === true) → hidden.
-        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Felix\\b`)),
+        ).not.toBeInTheDocument();
         // Emma hasn't → visible.
-        expect(screen.getByText("Emma")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Emma\\b`))).toBeInTheDocument();
       });
     });
 
@@ -3215,7 +3335,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() =>
-        expect(screen.getByText("Felix")).toBeInTheDocument(),
+        expect(screen.getByText(new RegExp(`^Felix\\b`))).toBeInTheDocument(),
       );
 
       fireEvent.change(screen.getByTestId("filter-tracking"), {
@@ -3223,8 +3343,10 @@ describe("StudentSearchPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByText("Felix")).not.toBeInTheDocument();
-        expect(screen.getByText("Emma")).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Felix\\b`)),
+        ).not.toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Emma\\b`))).toBeInTheDocument();
       });
     });
 
@@ -3307,12 +3429,14 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() =>
-        expect(screen.getByText("Redacted")).toBeInTheDocument(),
+        expect(
+          screen.getByText(new RegExp(`^Redacted\\b`)),
+        ).toBeInTheDocument(),
       );
 
       // Initially both visible.
-      expect(screen.getByText("Felix")).toBeInTheDocument();
-      expect(screen.getByText("Redacted")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Felix\\b`))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Redacted\\b`))).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-tracking"), {
         target: { value: "missing:0" },
@@ -3320,9 +3444,11 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // Felix missing HA → shown.
-        expect(screen.getByText("Felix")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Felix\\b`))).toBeInTheDocument();
         // Redacted kid hidden: no tracking data AND has_full_access false.
-        expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Redacted\\b`)),
+        ).not.toBeInTheDocument();
       });
     });
   });
@@ -3331,7 +3457,9 @@ describe("StudentSearchPage", () => {
     it("re-sorts the list when switching sort=arrival", async () => {
       render(<StudentSearchPage />);
 
-      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument(),
+      );
 
       // Flip to arrival sort mode: component should re-render without error.
       fireEvent.change(screen.getByTestId("filter-sort"), {
@@ -3343,16 +3471,18 @@ describe("StudentSearchPage", () => {
       );
 
       // All four default students still present post-sort.
-      expect(screen.getByText("Max")).toBeInTheDocument();
-      expect(screen.getByText("Anna")).toBeInTheDocument();
-      expect(screen.getByText("Tom")).toBeInTheDocument();
-      expect(screen.getByText("Lisa")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
     });
 
     it("offers pickup sorting as a dedicated sort mode", async () => {
       render(<StudentSearchPage />);
 
-      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument(),
+      );
 
       fireEvent.change(screen.getByTestId("filter-sort"), {
         target: { value: "pickup" },
@@ -3361,31 +3491,39 @@ describe("StudentSearchPage", () => {
       await waitFor(() =>
         expect(screen.getByTestId("filter-sort")).toHaveValue("pickup"),
       );
-      expect(screen.getByText("Max")).toBeInTheDocument();
-      expect(screen.getByText("Tom")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
     });
 
     it("filters by a specific arrival time", async () => {
       render(<StudentSearchPage />);
 
-      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument(),
+      );
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
         target: { value: "08:15" },
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Tom")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
       });
-      expect(screen.queryByText("Max")).not.toBeInTheDocument();
-      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-      expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+      expect(screen.queryByText(new RegExp(`^Max\\b`))).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(new RegExp(`^Anna\\b`)),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(new RegExp(`^Lisa\\b`)),
+      ).not.toBeInTheDocument();
     });
 
     it("groups the result list when a grouping mode is selected", async () => {
       render(<StudentSearchPage />);
 
-      await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument(),
+      );
 
       fireEvent.change(screen.getByTestId("filter-groupMode"), {
         target: { value: "status" },
@@ -3394,8 +3532,12 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getAllByTestId("student-group")).toHaveLength(4);
       });
-      expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Abwesend").length).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(new RegExp(`^Anwesend\\b`)).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(new RegExp(`^Abwesend\\b`)).length,
+      ).toBeGreaterThan(0);
     });
 
     it("shows the room filter even without a room deep-link", async () => {
@@ -3520,7 +3662,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Nina")).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`^Nina\\b`))).toBeInTheDocument();
       });
 
       fireEvent.change(screen.getByTestId("filter-groupMode"), {

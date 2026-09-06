@@ -73,7 +73,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	require.NotNil(t, session)
 
 	// Create a visit for this group using real student ID
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	visitRepo := repoFactory.ActiveVisit
 
 	visit := &active.Visit{
@@ -157,7 +157,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	visitRepo := repoFactory.ActiveVisit
 
 	visit1 := &active.Visit{

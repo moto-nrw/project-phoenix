@@ -271,7 +271,7 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 	}()
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidates(
-		ctx, studentID, timezone.DateFromTime(at), at,
+		ctx, studentID, scheduleModel.DateFromTime(at), at,
 	)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance mirror: candidate lookup failed",
@@ -463,7 +463,8 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 	}()
 
 	day := timezone.DateFromTime(at)
-	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, day, day)
+	scheduleDay := scheduleModel.Date(day)
+	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, scheduleDay, scheduleDay)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance checkout mirror: slot lookup failed",
 			slog.Int64("student_id", studentID),
@@ -511,7 +512,7 @@ func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studen
 	}
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidatesByStudentIDs(
-		ctx, studentIDs, timezone.DateFromTime(at), at,
+		ctx, studentIDs, scheduleModel.DateFromTime(at), at,
 	)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance batch mirror: candidate lookup failed",
@@ -571,7 +572,7 @@ func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, stude
 	}
 
 	day := timezone.DateFromTime(at)
-	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, day)
+	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(day))
 	if err != nil {
 		s.getLogger().Warn("roomless attendance batch checkout mirror: slot lookup failed",
 			slog.String("error", err.Error()),
@@ -634,7 +635,7 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 	if len(groupIDs) == 0 {
 		return
 	}
-	instances, err := s.instanceRepo.List(ctx, &modelBase.QueryOptions{
+	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instanceRepo, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
 	})
 	if err != nil {

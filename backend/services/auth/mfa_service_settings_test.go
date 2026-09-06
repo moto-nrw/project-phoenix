@@ -157,7 +157,7 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	valueRepo := newMFATestValueRepo()
 	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 

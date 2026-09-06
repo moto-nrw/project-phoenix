@@ -1425,7 +1425,7 @@ export function assignBlockLanes(
 }
 
 /**
- * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
+ * Betreuungsplan-Tageskopfzeile:
  * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
  * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
  * unabhängig von der Anzahl ihrer Blöcke einmal, abgesagte Instanzen zählen

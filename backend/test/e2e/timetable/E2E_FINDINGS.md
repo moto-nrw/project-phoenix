@@ -105,10 +105,9 @@ Historischer Befund: Alle Flows produzierten im Teardown BUN-Fehler, weil der da
 ## Empfehlungen
 
 1. **E2E-C1 fixen** (Einzeiler in `backend/api/timetable/gaps.go:168`): `AssignedStaffCount: len(rows)` statt `0`. Sobald der Bug gefixt ist, wird Flow C automatisch gruen.
-2. **E2E-B1 im Plan praezisieren**: `docs/timetable-system-plan.md` §6.1 um einen Hinweis erweitern, dass die Exception-Checks vor der existing-row-Dedupe laufen. Das Verhalten ist sinnvoll, der Plan-Text widerspricht ihm.
-3. **E2E-C2 im Plan verorten**: die PR-Beschreibungen `≤ 2` / `≤ 22` / `≤ 12` auf Handler-Queries zu stellen und die Middleware-Overhead-Erwartung separat zu dokumentieren. Oder bei allen das End-to-End-Budget messen und realistisch angeben.
-4. **Cleanup-Helper**: mit #2847 erledigt; Fixture-Zeilen gehören jetzt dem Paket-Clone.
-5. **E2E-Suite ins CI integrieren**: sobald E2E-C1 gefixt ist, passt die ganze Suite in einen `go test ./test/e2e/...` Build-Step. Dauer: insgesamt unter einer Sekunde inklusive DB-Setup.
+2. **E2E-C2 im Plan verorten**: die PR-Beschreibungen `≤ 2` / `≤ 22` / `≤ 12` auf Handler-Queries zu stellen und die Middleware-Overhead-Erwartung separat zu dokumentieren. Oder bei allen das End-to-End-Budget messen und realistisch angeben.
+3. **Cleanup-Helper**: mit #2847 erledigt; Fixture-Zeilen gehören jetzt dem Paket-Clone.
+4. **E2E-Suite ins CI integrieren**: sobald E2E-C1 gefixt ist, passt die ganze Suite in einen `go test ./test/e2e/...` Build-Step. Dauer: insgesamt unter einer Sekunde inklusive DB-Setup.
 
 ## Wie ausfuehren
 

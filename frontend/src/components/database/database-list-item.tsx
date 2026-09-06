@@ -37,7 +37,9 @@ export function DatabaseListItem({
         >
           {title}
         </div>
-        <div className="truncate text-xs text-gray-500">{subtitle}</div>
+        {subtitle ? (
+          <div className="truncate text-xs text-gray-500">{subtitle}</div>
+        ) : null}
       </div>
       {trailingAccessory}
     </>

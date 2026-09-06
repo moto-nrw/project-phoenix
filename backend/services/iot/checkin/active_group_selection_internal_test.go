@@ -152,7 +152,7 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleConflictBeforeCreate(t *testing.T)
 		StartTime: now.AddDate(0, 0, -1),
 	}
 	activeStub := &rolloverActiveService{groups: []*active.Group{stale}}
-	activity := &activities.Group{Model: base.Model{ID: 300}}
+	activity := &activities.Group{Model: activities.Model{ID: 300}}
 	service := &CheckinService{
 		active:     activeStub,
 		activities: &rolloverActivityService{group: activity},
@@ -229,7 +229,7 @@ func TestRejectedCapacityRemovesNewSpecialRoomGroup(t *testing.T) {
 	t.Parallel()
 
 	room := &facilities.Room{ID: 42, Name: constants.WCRoomName}
-	activity := &activities.Group{Model: base.Model{ID: 300}, Name: "WC", MaxParticipants: 999}
+	activity := &activities.Group{Model: activities.Model{ID: 300}, Name: "WC", MaxParticipants: 999}
 	activeStub := &capacityRejectedActiveService{createdGroupID: 200}
 	service := &CheckinService{
 		active:     activeStub,

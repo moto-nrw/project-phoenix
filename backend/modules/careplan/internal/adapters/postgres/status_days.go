@@ -77,7 +77,7 @@ const (
 	substatusOther      = "other"
 )
 
-func (s *statusDayStore) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, bool, carePlanCompose.RequestStoreStats, error) {
+func (s *Store) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, bool, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return careplan.StudentStatusDay{}, false, carePlanCompose.RequestStoreStats{}, err
@@ -103,7 +103,7 @@ func (s *statusDayStore) FindStudentStatusDay(ctx context.Context, id int64, act
 	return statusDayToPublic(row), true, stats, nil
 }
 
-func (s *statusDayStore) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, carePlanCompose.RequestStoreStats, error) {
+func (s *Store) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err

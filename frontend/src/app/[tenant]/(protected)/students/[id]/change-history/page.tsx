@@ -2,14 +2,10 @@
 
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
-import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -93,7 +89,6 @@ export default function StudentChangeHistoryPage() {
 }
 
 function StudentChangeHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -166,71 +161,64 @@ function StudentChangeHistoryPageContent() {
     };
   }, [fetchStudent, fetchHistory]);
 
-  if (loading) {
-    return <ChangeHistorySkeleton />;
-  }
-
-  if (errorCode !== null) {
-    return (
-      <>
-        <BackButton referrer={referrer} />
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="mt-4"
-            onClick={() => router.push(referrer)}
-          >
-            Zurück
-          </Button>
-        </div>
-      </>
-    );
-  }
-
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
+  // Statuszeile: Klasse, Gruppe und die Zahl der geladenen Einträge. Beides
+  // steht schon im Datensatz der Seite, es entsteht kein weiterer Request.
+  const entryCount = entries?.length ?? 0;
+  const studentMeta = student
+    ? [
+        student.school_class,
+        student.group_name,
+        `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
+  // den Reiter, aus dem diese Unterseite geöffnet wurde.
+  const backReferrer =
+    errorCode !== null
+      ? referrer
+      : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
-    <div className="w-full">
-      <BackButton
-        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
-      />
+    <>
+      {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
+      <BackButton referrer={backReferrer} />
 
-      {student && (
-        <ConceptPageHeader
-          className="mb-6 ml-6"
-          title={displayName}
-          eyebrow="Änderungsverlauf"
-          concept="changeHistory"
-          subtitle={
-            <>
-              {student.school_class}
-              {student.group_name ? ` · ${student.group_name}` : null}
-            </>
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
+      <TenantPage
+        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        title={displayName || "Änderungsverlauf"}
+        stats={
+          studentMeta ||
+          `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`
+        }
+        statsLoading={loading}
+        loading={loading}
+        error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}
+        empty={
+          !loading && errorCode === null && entryCount === 0
+            ? {
+                title: "Noch keine Änderungen erfasst.",
+                description:
+                  "Sobald jemand Angaben zu diesem Kind ändert, erscheint der Eintrag hier.",
+              }
+            : null
+        }
+      >
+        {/* bodyClassName hebt die Kartenpolsterung auf: die Tabelle bringt ihre
+            eigene Zellpolsterung mit und läuft bis zur Kartenkante. */}
+        <SectionCard
+          title="Änderungsverlauf"
+          description="Wer hat wann welche Angaben zu diesem Kind geändert"
+          leading={
+            <ConceptIconTile concept="changeHistory" variant="section" />
           }
-        />
-      )}
-
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-          <ConceptSectionHeader
-            title="Änderungsverlauf"
-            concept="changeHistory"
-            subtitle="Wer hat wann welche Angaben zu diesem Kind geändert"
-          />
-        </div>
-
-        {!entries || entries.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-gray-500">
-              Noch keine Änderungen erfasst.
-            </p>
-          </div>
-        ) : (
+          bodyClassName="mt-4 -mx-5 -mb-5"
+        >
           <>
             {/* Desktop table */}
             <div className="hidden md:block">
@@ -245,7 +233,7 @@ function StudentChangeHistoryPageContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {entries.map((entry) => (
+                  {(entries ?? []).map((entry) => (
                     <tr key={entry.id} className="align-top text-sm">
                       <td className="px-6 py-3 whitespace-nowrap text-gray-600 tabular-nums">
                         {formatDate(entry.changed_at)}
@@ -273,7 +261,7 @@ function StudentChangeHistoryPageContent() {
 
             {/* Mobile card layout */}
             <div className="divide-y divide-gray-100 md:hidden">
-              {entries.map((entry) => (
+              {(entries ?? []).map((entry) => (
                 <div key={entry.id} className="px-4 py-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-900">
@@ -309,8 +297,8 @@ function StudentChangeHistoryPageContent() {
               ))}
             </div>
           </>
-        )}
-      </div>
-    </div>
+        </SectionCard>
+      </TenantPage>
+    </>
   );
 }

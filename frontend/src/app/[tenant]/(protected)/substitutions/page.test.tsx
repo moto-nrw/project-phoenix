@@ -214,7 +214,9 @@ describe("SubstitutionPage", () => {
 
     render(<SubstitutionPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
   });
 
@@ -276,7 +278,7 @@ describe("SubstitutionPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the standard forbidden page when the group overview denies access", () => {
+  it("shows the access state inside the existing page scaffold", () => {
     const error = new Error("Vertretungen konnten nicht geladen werden.");
     error.name = "SubstitutionAccessError";
     vi.mocked(useSWRAuth).mockImplementation(
@@ -291,7 +293,12 @@ describe("SubstitutionPage", () => {
 
     render(<SubstitutionPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { name: "Vertretungen" }),
+    ).toHaveLength(1);
     expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
   });
 

@@ -16,7 +16,6 @@ type RoomRepository interface {
 	FindByIDs(context.Context, []int64) ([]*Room, error)
 	FindByIDForUpdate(context.Context, int64) (*Room, error)
 	FindByName(context.Context, string) (*Room, error)
-	FindByCategory(context.Context, string) ([]*Room, error)
 }
 
 // RoomOccupancyRow remains a compatibility DTO while live presence moves to

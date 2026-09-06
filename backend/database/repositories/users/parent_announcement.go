@@ -3,16 +3,16 @@ package users
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -23,39 +23,18 @@ import (
 // selector to the guardian accounts it reaches.
 type ParentAnnouncementRepository struct {
 	*base.Repository[*users.ParentAnnouncement]
-	today func() timezone.Date
+	today      func() timezone.Date
+	enrollment AnnouncementEnrollmentQueries
 }
 
 // NewParentAnnouncementRepository wires a fresh repository.
-func NewParentAnnouncementRepository(db *bun.DB, clocks ...func() time.Time) users.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, enrollment AnnouncementEnrollmentQueries, clocks ...func() time.Time) users.ParentAnnouncementRepository {
+	if enrollment == nil {
+		panic("parent announcements require Enrollment audience queries")
+	}
 	repo := base.NewRepository[*users.ParentAnnouncement](db, "users.parent_announcements", "ParentAnnouncement")
 	repo.TenantScoped = true
-	return &ParentAnnouncementRepository{Repository: repo, today: timezone.CalendarDateClock(clocks...)}
-}
-
-// pendingEnrollmentStatuses are the request-child states that count as an "open
-// enrollment" for the pending_enrollment target: submitted or in some stage of
-// review/renewal, never a decided (approved/rejected/withdrawn) or waitlisted
-// outcome.
-var pendingEnrollmentStatuses = []string{
-	enrollment.ChildStatusSubmitted,
-	enrollment.ChildStatusUnderReview,
-	enrollment.ChildStatusPendingRenewal,
-	enrollment.ChildStatusAutoRenewed,
-	enrollment.ChildStatusPendingAdminReview,
-}
-
-// pendingStatusList renders the pending-enrollment statuses as a quoted SQL CSV.
-// The values are package constants (never user input), so building the IN list
-// by string concat is injection-safe and keeps the only runtime `?` args in the
-// audience SQL as the int ids — which makes their positional order easy to keep
-// correct.
-func pendingStatusList() string {
-	quoted := make([]string, len(pendingEnrollmentStatuses))
-	for i, s := range pendingEnrollmentStatuses {
-		quoted[i] = "'" + s + "'"
-	}
-	return strings.Join(quoted, ",")
+	return &ParentAnnouncementRepository{Repository: repo, today: timezone.CalendarDateClock(clocks...), enrollment: enrollment}
 }
 
 // activeActivityGroupExists renders the activity_group branch of a target match:
@@ -68,7 +47,7 @@ func pendingStatusList() string {
 // UTC and rolls a day early/late around Berlin midnight). tenantExpr is the SQL
 // expression for the tenant (a bound `?` in the raw builders, `a.tenant_id` in
 // the feed). The Berlin date is rendered from validated integer fields, so
-// inlining it as a literal is injection-safe and — like pendingStatusList — keeps
+// inlining it as a literal is injection-safe and keeps
 // the runtime `?` args limited to the ids, preserving their positional order.
 func activeActivityGroupExists(tenantExpr string, date timezone.Date) string {
 	today := "'" + date.String() + "'"
@@ -116,7 +95,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date)
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR %[5]s
+				OR %[4]s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			-- Graduated (alumnus) students are soft-deleted: their guardians must
@@ -134,8 +113,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date)
 		OR EXISTS (
 			SELECT 1
 			FROM users.parent_announcement_targets pt
-			JOIN enrollment.requests req ON req.tenant_id = %[2]s
-				AND req.withdrawn_at IS NULL
+			JOIN pending_applicants req ON req.tenant_id = %[2]s
 				AND (
 					req.guardian_account_id = %[3]s
 					OR (
@@ -147,12 +125,10 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date)
 						)
 					)
 				)
-			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = %[2]s
-				AND rc.status IN (%[4]s)
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
 				AND pt.target_type = 'pending_enrollment'
 		)
-	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr, today))
+	)`, annExpr, tenantExpr, accPlace, activeActivityGroupExists(tenantExpr, today))
 }
 
 // FindByID returns the announcement by id (tenant-scoped), or nil when absent.
@@ -447,8 +423,19 @@ func (r *ParentAnnouncementRepository) ListTargets(ctx context.Context, announce
 // CountAudience returns the number of distinct guardian accounts an
 // announcement's targets currently reach within its tenant.
 func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenantID, announcementID int64) (int, error) {
+	applicants, err := r.enrollment.PendingAnnouncementApplicants(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count parent announcement audience: %w", err)
+	}
+	projection, err := json.Marshal(applicants)
+	if err != nil {
+		return 0, fmt.Errorf("encode pending announcement applicants: %w", err)
+	}
 	var count int
 	sqlStr := fmt.Sprintf(`
+		WITH pending_applicants AS (
+		 SELECT * FROM jsonb_to_recordset(?::jsonb) AS applicant(guardian_account_id bigint, guardian_email text)
+		)
 		SELECT COUNT(*) FROM (
 			SELECT DISTINCT gp.account_id AS account_id
 			FROM users.parent_announcement_targets pt
@@ -476,19 +463,17 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 
 			SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id
 			FROM users.parent_announcement_targets pt
-			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.withdrawn_at IS NULL
+			CROSS JOIN pending_applicants req
 			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
 				AND ea.email IS NOT NULL
 				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
-			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
-				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
-		) reached`, activeActivityGroupExists("?", r.today()), pendingStatusList())
+		) reached`, activeActivityGroupExists("?", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		string(projection),
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
-		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, tenantID, // pending path
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: base.TranslateNotFound(err)}
 	}
@@ -498,15 +483,19 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 // AccountMatchesAnnouncement reports whether a guardian account is in an
 // announcement's audience right now.
 func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
+	projection, projectionErr := r.pendingApplicantFeedProjection(ctx, []int64{tenantID})
+	if projectionErr != nil {
+		return false, projectionErr
+	}
 	var matched bool
 	predicate := reachedPredicate("?", "?", "?", r.today())
-	sqlStr := "SELECT " + predicate
+	sqlStr := pendingApplicantFeedCTE + "SELECT " + predicate
 	// reachedPredicate references, in order: ann (student), tenant (student x4
 	// inside the fragment), acc (student); ann (pending), tenant (pending), acc
 	// (pending). The fmt placeholders are positional %[1]s=ann %[2]s=tenant
 	// %[3]s=acc, but each `?` in the rendered SQL still binds left-to-right, so
 	// the args below follow the textual `?` order of the rendered string.
-	args := reachedArgs(announcementID, tenantID, accountID)
+	args := append([]any{projection}, reachedArgs(announcementID, tenantID, accountID)...)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &matched); err != nil {
 		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: base.TranslateNotFound(err)}
 	}
@@ -532,13 +521,12 @@ func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Co
 //	req.tenant_id = ?               -> tenant
 //	req.guardian_account_id = ?     -> acc   (primary ownership match)
 //	ea.id = ?                       -> acc   (e-mail fallback: ea.id = account)
-//	rc.tenant_id = ?                -> tenant
 //	pt.announcement_id = ?          -> ann
 //	pt.tenant_id = ?                -> tenant
 func reachedArgs(announcementID, tenantID, accountID int64) []any {
 	return []any{
 		tenantID, tenantID, tenantID, tenantID, accountID, announcementID, tenantID, // student EXISTS
-		tenantID, accountID, accountID, tenantID, announcementID, tenantID, // pending EXISTS
+		tenantID, accountID, accountID, announcementID, tenantID, // pending EXISTS
 	}
 }
 
@@ -552,6 +540,10 @@ func reachedArgs(announcementID, tenantID, accountID int64) []any {
 // names — is enqueued (and e-mailed) only once per address; the retained name
 // prefers a non-empty value across the merged rows.
 func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipient, error) {
+	projection, projectionErr := r.pendingApplicantProjection(ctx)
+	if projectionErr != nil {
+		return nil, projectionErr
+	}
 	// Only guardians WITH a linked account receive the e-mail: the mail is a
 	// pointer into the parent portal (title + link, no body), which is useless
 	// without an account — and it keeps recipients consistent with the feed
@@ -562,6 +554,10 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	// requests with no account at all.
 	var rows []*users.AnnouncementRecipient
 	sqlStr := fmt.Sprintf(`
+ WITH pending_applicants AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS applicant(guardian_account_id bigint, guardian_email text, guardian_first_name text, guardian_last_name text)
+)
+
 		SELECT account_id, email,
 			COALESCE(min(NULLIF(first_name, '')), '') AS first_name,
 			COALESCE(min(NULLIF(last_name, '')), '') AS last_name
@@ -596,22 +592,20 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			lower(req.guardian_email) AS email,
 			COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
-		JOIN enrollment.requests req ON req.tenant_id = ?
-			AND req.withdrawn_at IS NULL
-			AND length(btrim(req.guardian_email)) > 0
+		CROSS JOIN pending_applicants req
 		LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
 			AND ea.email IS NOT NULL
 			AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
-		JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
-			AND rc.status IN (%s)
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
+ AND length(btrim(req.guardian_email)) > 0
 		) recips
 		GROUP BY account_id, email`,
-		activeActivityGroupExists("?", r.today()), pendingStatusList())
+		activeActivityGroupExists("?", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		projection,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
-		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, tenantID, // pending path
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: base.TranslateNotFound(err)}
 	}
@@ -778,8 +772,16 @@ func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID 
 // student targets, applicants with an account via pending_enrollment); an
 // account reachable through several children/paths collapses to one row.
 func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipientStatus, error) {
+	projection, projectionErr := r.pendingApplicantProjection(ctx)
+	if projectionErr != nil {
+		return nil, projectionErr
+	}
 	var rows []*users.AnnouncementRecipientStatus
 	sqlStr := fmt.Sprintf(`
+ WITH pending_applicants AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS applicant(guardian_account_id bigint, guardian_email text, guardian_first_name text, guardian_last_name text)
+)
+
 		SELECT acc.account_id,
 			min(acc.first_name) AS first_name,
 			min(acc.last_name) AS last_name,
@@ -815,13 +817,10 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			SELECT COALESCE(req.guardian_account_id, ea.id) AS account_id,
 				COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 			FROM users.parent_announcement_targets pt
-			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.withdrawn_at IS NULL
+			CROSS JOIN pending_applicants req
 			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
 				AND ea.email IS NOT NULL
 				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
-			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
-				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		) acc
@@ -831,10 +830,11 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
 		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
 		ORDER BY last_name ASC, first_name ASC, acc.account_id ASC`,
-		activeActivityGroupExists("?", r.today()), pendingStatusList())
+		activeActivityGroupExists("?", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		projection,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
-		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, tenantID, // pending path
 		tenantID,       // guardian locale
 		announcementID, // reads join
 	).Scan(ctx, &rows); err != nil {
@@ -892,9 +892,13 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	if scope.IsEmpty() {
 		return []*users.AnnouncementFeedItem{}, nil
 	}
+	projection, projectionErr := r.pendingApplicantFeedProjection(ctx, append(append([]int64{}, scope.TenantIDs...), scope.SystemOnlyTenantIDs...))
+	if projectionErr != nil {
+		return nil, projectionErr
+	}
 	var rows []*users.AnnouncementFeedItem
 	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
-	sqlStr := `
+	sqlStr := pendingApplicantFeedCTE + `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
 			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
@@ -915,6 +919,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	// EXISTS twice: the primary guardian_account_id match plus the e-mail-fallback
 	// acc.id) since ann/tenant are column refs.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		projection,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: base.TranslateNotFound(err)}
@@ -928,12 +933,16 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	if scope.IsEmpty() {
 		return 0, nil
 	}
+	projection, projectionErr := r.pendingApplicantFeedProjection(ctx, append(append([]int64{}, scope.TenantIDs...), scope.SystemOnlyTenantIDs...))
+	if projectionErr != nil {
+		return 0, projectionErr
+	}
 	var count int
 	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
 	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?", r.today())
 	// Reading an actionable item must not clear its reminder. It stays outstanding
 	// until the requested confirmation or every required poll answer is stored.
-	sqlStr := `
+	sqlStr := pendingApplicantFeedCTE + `
 		SELECT COUNT(*)
 		FROM users.parent_announcements a
 		LEFT JOIN users.parent_announcement_reads par
@@ -953,6 +962,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	// predicate's acc, then reachedPredicate's acc three times (student once,
 	// pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		projection,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: base.TranslateNotFound(err)}
@@ -1039,9 +1049,15 @@ func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, ten
 // intersected with the CURRENT audience so the staff "X von Y" never shows more
 // readers than the live target count when the audience has since shrunk.
 func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*users.AnnouncementStats, error) {
+	projection, projectionErr := r.pendingApplicantProjection(ctx)
+	if projectionErr != nil {
+		return nil, projectionErr
+	}
 	stats := &users.AnnouncementStats{}
 	audienceCTE := fmt.Sprintf(`
-		WITH audience AS (
+		WITH pending_applicants AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS applicant(guardian_account_id bigint, guardian_email text, guardian_first_name text, guardian_last_name text)
+), audience AS (
 			SELECT DISTINCT gp.account_id AS account_id
 			FROM users.parent_announcement_targets pt
 			JOIN users.students s ON s.tenant_id = ? AND (
@@ -1066,13 +1082,10 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			UNION
 			SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id
 			FROM users.parent_announcement_targets pt
-			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.withdrawn_at IS NULL
+			CROSS JOIN pending_applicants req
 			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
 				AND ea.email IS NOT NULL
 				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
-			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
-				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		)
@@ -1084,14 +1097,50 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			(SELECT COUNT(*) FROM users.parent_announcement_reads par
 				WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
 					AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`,
-		activeActivityGroupExists("?", r.today()), pendingStatusList())
+		activeActivityGroupExists("?", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(audienceCTE,
+		projection,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
-		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, tenantID, // pending path
 		announcementID, tenantID, // read_count
 		announcementID, tenantID, // acknowledged_count
 	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: base.TranslateNotFound(err)}
 	}
 	return stats, nil
+}
+
+func (r *ParentAnnouncementRepository) pendingApplicantProjection(ctx context.Context) (string, error) {
+	applicants, err := r.enrollment.PendingAnnouncementApplicants(ctx)
+	if err != nil {
+		return "", fmt.Errorf("load pending announcement audience: %w", err)
+	}
+	encoded, err := json.Marshal(applicants)
+	if err != nil {
+		return "", fmt.Errorf("encode pending announcement audience: %w", err)
+	}
+	return string(encoded), nil
+}
+
+type AnnouncementEnrollmentQueries interface {
+	PendingAnnouncementApplicants(context.Context) ([]capability.PendingAnnouncementApplicant, error)
+	PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]capability.PendingAnnouncementApplicant, error)
+}
+
+const pendingApplicantFeedCTE = `WITH pending_applicants AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS applicant(
+ tenant_id bigint, guardian_account_id bigint, guardian_email text
+ )
+) `
+
+func (r *ParentAnnouncementRepository) pendingApplicantFeedProjection(ctx context.Context, schoolIDs []int64) (string, error) {
+	rows, err := r.enrollment.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
+	if err != nil {
+		return "", fmt.Errorf("load pending announcement feed audience: %w", err)
+	}
+	encoded, err := json.Marshal(rows)
+	if err != nil {
+		return "", fmt.Errorf("encode pending announcement feed audience: %w", err)
+	}
+	return string(encoded), nil
 }

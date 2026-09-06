@@ -5,8 +5,7 @@
  *
  * Die Block-Rezeptur (weiße Fläche, 3px Farbkante, 10-Prozent-Tönung,
  * `cancelled`-Rendering, genau ein Status-Icon) lebt ausschließlich im
- * Kit-Baustein `ui/plan-block.tsx` (docs/planung-redesign/docs/06-betreuungsplan.md
- * Abschnitt 2.2, plan-design-guards.test.ts). InstanceBlock baut keine eigene
+ * Kit-Baustein `ui/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
  * Farbfläche mehr: es leitet nur die Kategoriefarbe ab, komponiert den
  * datenreichen Fuß (Besetzung als `CoverageIndicator`, Personen-/Kinderzahlen,
  * Spontan-, Abwesend- und Ersatz-Marker) und positioniert den Block absolut in
@@ -19,6 +18,7 @@ import { CircleCheck, TriangleAlert } from "lucide-react";
 
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import { PlanBlock } from "~/components/ui/plan-block";
+import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-style";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 
@@ -36,8 +36,7 @@ interface InstanceBlockProps {
   onClick: () => void;
   /**
    * Markiert diesen Block als OFFENE (nicht quittierte) Personal-Lücke — seine
-   * Instanz-ID liegt im `gapInstanceIds`-Set des WeeklyCalendarGrid. Treibt das
-   * eine #F78C10-Lücken-Icon. Ein abgesagter Block ignoriert das Flag: das
+   * Instanz-ID liegt im `gapInstanceIds`-Set des WeeklyCalendarGrid. Treibt das   * eine orange Lücken-Icon. Ein abgesagter Block ignoriert das Flag: das
    * Cancelled-Rendering hat Vorrang und zeigt kein Lücken-Icon.
    */
   isGap?: boolean;
@@ -57,7 +56,7 @@ const FOOTER_MIN_HEIGHT_PX = 64;
 
 /** Bewusst-unbesetzt-Blöcke lesen sich vollständig neutral: graue Kante, keine
  *  Tönung; die Semantik trägt der CoverageIndicator-Vermerk (Spec 5.3). */
-const ACK_EDGE_COLOR = "#6B7280";
+const ACK_EDGE_COLOR = TIMETABLE_NEUTRAL_COLOR;
 
 export function InstanceBlock({
   instance,
@@ -129,7 +128,7 @@ export function InstanceBlock({
     } else if (!isUnderstaffedAck && hasConflict) {
       statusIcon = (
         <TriangleAlert
-          className="h-3.5 w-3.5 text-[#EAB308]"
+          className="text-moto-amber h-3.5 w-3.5"
           aria-label={`${instance.conflictWarnings.length} Konflikte`}
         />
       );

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Frequency constants for recurrence rules
@@ -27,8 +25,8 @@ var ValidWeekdays = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
 // RecurrenceRule represents a rule for recurring events
 type RecurrenceRule struct {
-	base.Model `bun:"schema:schedule,table:recurrence_rules"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:recurrence_rules"`
+	TenantModel
 	Frequency     string     `bun:"frequency,notnull" json:"frequency"`
 	IntervalCount int        `bun:"interval_count,notnull,default:1" json:"interval_count"`
 	Weekdays      []string   `bun:"weekdays,array" json:"weekdays,omitempty"`
@@ -145,7 +143,7 @@ func (r *RecurrenceRule) IsMonthDayBased() bool {
 // Clone creates a copy of the recurrence rule
 func (r *RecurrenceRule) Clone() *RecurrenceRule {
 	clone := &RecurrenceRule{
-		Model: base.Model{
+		Model: Model{
 			ID:        r.ID,
 			CreatedAt: r.CreatedAt,
 			UpdatedAt: r.UpdatedAt,

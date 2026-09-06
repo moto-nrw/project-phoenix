@@ -59,7 +59,7 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t, clocks...)
+	db, factory := testutil.SetupTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
@@ -212,8 +212,8 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -323,14 +323,20 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 	if validFrom.IsZero() {
 		validFrom = s.today().AddDays(-30)
 	}
+	activityValidFrom := activitiesModels.Date(validFrom)
+	var activityValidUntil *activitiesModels.Date
+	if spec.validUntil != nil {
+		value := activitiesModels.Date(*spec.validUntil)
+		activityValidUntil = &value
+	}
 
 	var enrollmentIDs []int64
 	for _, sid := range spec.studentIDs {
 		enroll := &activitiesModels.StudentEnrollment{
 			StudentID:       sid,
 			ActivityGroupID: group.ID,
-			ValidFrom:       validFrom,
-			ValidUntil:      spec.validUntil,
+			ValidFrom:       activityValidFrom,
+			ValidUntil:      activityValidUntil,
 		}
 		enroll.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().
@@ -346,8 +352,8 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 			StaffID:    stid,
 			GroupID:    group.ID,
 			IsPrimary:  i == 0,
-			ValidFrom:  validFrom,
-			ValidUntil: spec.validUntil,
+			ValidFrom:  activityValidFrom,
+			ValidUntil: activityValidUntil,
 		}
 		sup.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().

@@ -19,7 +19,7 @@ func TestPrivacyEventsTimestampAfterTheSerializedWriteStarts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	protection := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, true)
@@ -44,7 +44,7 @@ func TestFamilyProtectionCurrentUsesAppendOrderNotTransactionTimestamp(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	older := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, false)
@@ -63,7 +63,7 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	older := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{91})

@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,6 +29,12 @@ func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun
 		"activity groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ActivityGroupsByID(ctx, db, tenantID, ids)
 		},
+		"lock course groups": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.LockCourseGroups(ctx, db, tenantID, ids)
+		},
+		"course occupancy": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
+		},
 		"manual planning": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
 		},
@@ -35,10 +42,16 @@ func projectionReads(id int64, ids []int64) map[string]func(context.Context, bun
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
 		},
 		"child enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, id)
+			return timetableprojection.CountChildSourceEnrollments(ctx, db, tenantID, id, id)
 		},
 		"student enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, id)
+		},
+		"latest roster attendance": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.LatestRosterAttendanceDate(ctx, db, tenantID, id)
+		},
+		"planned roster": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
+			return timetableprojection.CountPlannedRosterAfter(ctx, db, tenantID, ids, date, "[]")
 		},
 		"running enrollments": func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountRunningEnrollmentsAfter(ctx, db, tenantID, ids, date, "[]")
@@ -95,6 +108,14 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, groups)
 	assert.Empty(t, groups)
+	locked, err := timetableprojection.LockCourseGroups(ctx, tx, testpkg.Tenant(t), nil)
+	require.NoError(t, err)
+	assert.NotNil(t, locked)
+	assert.Empty(t, locked)
+	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4), timezone.NewDate(2026, 9, 5), 0)
+	require.NoError(t, err)
+	assert.NotNil(t, courseCounts)
+	assert.Empty(t, courseCounts)
 	counts, err := timetableprojection.CountRunningEnrollmentsAfter(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4), "[]")
 	require.NoError(t, err)
 	assert.NotNil(t, counts)
@@ -130,4 +151,111 @@ func TestGroupNamesRejectsMissingTenantInElevatedTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, groups, 1)
 	assert.Equal(t, own.ID, groups[0].ID)
+}
+
+func TestPlannedRosterPreviewCountsRestorableBaseline(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Roster", "Preview", "1a")
+	room := testpkg.CreateTestRoom(t, db, "Roster preview")
+	after := timezone.NewDate(2026, 9, 4)
+	live := testpkg.CreateTestActivityInstance(t, db, after.AddDays(1), room.ID, testpkg.ActivityInstanceOpts{})
+	restored := testpkg.CreateTestActivityInstance(t, db, after.AddDays(2), room.ID, testpkg.ActivityInstanceOpts{})
+	cancelled := testpkg.CreateTestActivityInstance(t, db, after.AddDays(3), room.ID, testpkg.ActivityInstanceOpts{Status: "cancelled"})
+	lastDay := testpkg.CreateTestActivityInstance(t, db, after, room.ID, testpkg.ActivityInstanceOpts{})
+	observed := testpkg.CreateTestActivityInstance(t, db, after.AddDays(4), room.ID, testpkg.ActivityInstanceOpts{})
+	testpkg.CreateTestInstanceStudent(t, db, live.ID, student.ID, "absent")
+	testpkg.CreateTestInstanceStudent(t, db, lastDay.ID, student.ID, "expected")
+	at := after.BerlinMidnight()
+	testpkg.CreateTestInstanceStudent(t, db, observed.ID, student.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &at})
+	type removal struct {
+		TenantID   int64  `json:"tenant_id"`
+		StudentID  int64  `json:"student_id"`
+		Kind       string `json:"kind"`
+		InstanceID int64  `json:"instance_id"`
+	}
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	payload, err := json.Marshal([]removal{
+		{testpkg.Tenant(t), student.ID, "roster", live.ID},
+		{testpkg.Tenant(t), student.ID, "roster", restored.ID},
+		{testpkg.Tenant(t), student.ID, "roster", cancelled.ID},
+		{testpkg.Tenant(t), student.ID, "roster", lastDay.ID},
+		{otherTenant, student.ID, "roster", restored.ID},
+	})
+	require.NoError(t, err)
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tx.Rollback()) }()
+	day, err := timetableprojection.LatestRosterAttendanceDate(ctx, tx, testpkg.Tenant(t), student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, day)
+	assert.Equal(t, after.AddDays(4), *day)
+	day, err = timetableprojection.LatestRosterAttendanceDate(ctx, tx, otherTenant, student.ID)
+	require.NoError(t, err)
+	assert.Nil(t, day)
+
+	counts, err := timetableprojection.CountPlannedRosterAfter(ctx, tx, testpkg.Tenant(t), []int64{student.ID}, after, string(payload))
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]int{student.ID: 2}, counts)
+	counts, err = timetableprojection.CountPlannedRosterAfter(ctx, tx, otherTenant, []int64{student.ID}, after, string(payload))
+	require.NoError(t, err)
+	assert.Empty(t, counts)
+}
+
+func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActivityGroup(t, db, "Course occupancy")
+	approving := testpkg.CreateTestStudent(t, db, "Already", "Enrolled", "3a")
+	other := testpkg.CreateTestStudent(t, db, "Other", "Enrolled", "3a")
+	date := timezone.NewDate(2026, 9, 4)
+	for _, student := range []int64{approving.ID, other.ID} {
+		_, err := db.NewRaw(`
+			INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
+			VALUES (?, ?, ?, ?)
+		`, testpkg.Tenant(t), student, group.ID, date).Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	counts, err := timetableprojection.CountActiveCourseEnrollments(
+		ctx, db, testpkg.Tenant(t), []int64{group.ID}, date, date.AddDays(1), approving.ID,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]int{group.ID: 1}, counts)
+}
+
+func TestCourseOccupancyUsesThePeakAcrossTheEnrollmentWindow(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActivityGroup(t, db, "Course occupancy peak")
+	first := testpkg.CreateTestStudent(t, db, "Current", "Enrolled", "3a")
+	future := testpkg.CreateTestStudent(t, db, "Future", "Enrolled", "3a")
+	from := timezone.NewDate(2026, 9, 4)
+	until := from.AddDays(30)
+	for _, enrollment := range []struct {
+		studentID int64
+		validFrom timezone.Date
+	}{
+		{studentID: first.ID, validFrom: from},
+		{studentID: future.ID, validFrom: from.AddDays(10)},
+	} {
+		_, err := db.NewRaw(`
+			INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
+			VALUES (?, ?, ?, ?)
+		`, testpkg.Tenant(t), enrollment.studentID, group.ID, enrollment.validFrom).Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	counts, err := timetableprojection.CountActiveCourseEnrollments(
+		ctx, db, testpkg.Tenant(t), []int64{group.ID}, from, until, 0,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]int{group.ID: 2}, counts)
 }

@@ -17,7 +17,7 @@ func wallClock(hour, minute int) time.Time {
 	return time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)
 }
 
-func newShift(staffID int64, date timezone.Date, startHour, endHour int, createdBy int64) *scheduleModels.StaffShift {
+func newShift(staffID int64, date scheduleModels.Date, startHour, endHour int, createdBy int64) *scheduleModels.StaffShift {
 	return &scheduleModels.StaffShift{
 		StaffID:   staffID,
 		Date:      date,
@@ -32,12 +32,12 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Owner")
 
-	monday := timezone.NewDate(2026, time.July, 6)
+	monday := scheduleModels.NewDate(2026, time.July, 6)
 	shift := newShift(staff.ID, monday, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, shift))
 	require.NotZero(t, shift.ID)
@@ -60,12 +60,12 @@ func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "WriteAlias")
 
-	day := timezone.NewDate(2026, time.July, 6)
+	day := scheduleModels.NewDate(2026, time.July, 6)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, shift))
 
@@ -90,13 +90,13 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staffA := testpkg.CreateTestStaff(t, db, "ShiftA", "Batch")
 	staffB := testpkg.CreateTestStaff(t, db, "ShiftB", "Batch")
 
-	day := timezone.NewDate(2026, time.July, 7)
+	day := scheduleModels.NewDate(2026, time.July, 7)
 	other := day.AddDays(1)
 
 	s1 := newShift(staffA.ID, day, 8, 12, staffA.ID)
@@ -122,12 +122,12 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 	staffA := testpkg.CreateTestStaff(t, db, "CoverageA", "Batch")
 	staffB := testpkg.CreateTestStaff(t, db, "CoverageB", "Batch")
 
-	monday := timezone.NewDate(2026, time.July, 6)
+	monday := scheduleModels.NewDate(2026, time.July, 6)
 	saturday := monday.AddDays(5)
 	nextMonday := monday.AddDays(7)
 	thirdMonday := monday.AddDays(14)
@@ -147,7 +147,7 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 		require.NoError(t, repo.Create(ctx, shift))
 	}
 
-	shifts, err := repo.FindByStaffIDsAndDates(ctx, []int64{staffA.ID}, []timezone.Date{monday, nextMonday})
+	shifts, err := repo.FindByStaffIDsAndDates(ctx, []int64{staffA.ID}, []scheduleModels.Date{monday, nextMonday})
 	require.NoError(t, err)
 	require.Len(t, shifts, 2)
 	assert.Equal(t, monday, shifts[0].Date)
@@ -155,7 +155,7 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 
 	weeks, err := repo.FindUsedCalendarWeeks(ctx, monday, thirdMonday.AddDays(6))
 	require.NoError(t, err)
-	assert.Equal(t, []timezone.Date{monday, nextMonday}, weeks,
+	assert.Equal(t, []scheduleModels.Date{monday, nextMonday}, weeks,
 		"the cancelled-only week must not report as used")
 }
 
@@ -164,12 +164,12 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := scheduleModels.NewDate(2026, 8, 24)
 	past := newShift(staff.ID, today.AddDays(-1), 8, 12, staff.ID)
 	sameDay := newShift(staff.ID, today, 8, 12, staff.ID)
 	future := newShift(staff.ID, today.AddDays(1), 8, 12, staff.ID)
@@ -203,12 +203,12 @@ func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Dup")
 
-	day := timezone.NewDate(2026, time.July, 8)
+	day := scheduleModels.NewDate(2026, time.July, 8)
 	first := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(ctx, first))
 
@@ -222,7 +222,7 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Isolated")
@@ -231,7 +231,7 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := testpkg.TenantContext(otherTenantID)
 
-	day := timezone.NewDate(2026, time.July, 9)
+	day := scheduleModels.NewDate(2026, time.July, 9)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
 	require.NoError(t, repo.Create(tenant1, shift))
 
@@ -250,7 +250,7 @@ func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StaffShift
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffShift
 	tenant1 := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "CrossTenant")
@@ -259,7 +259,7 @@ func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := testpkg.TenantContext(otherTenantID)
 
-	day := timezone.NewDate(2026, time.July, 10)
+	day := scheduleModels.NewDate(2026, time.July, 10)
 	shift := newShift(staff.ID, day, 8, 16, staff.ID)
 	err := repo.Create(tenant2, shift)
 	require.Error(t, err, "tenant 2 shift must not reference tenant 1 staff")

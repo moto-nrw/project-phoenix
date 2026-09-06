@@ -14,11 +14,18 @@
  * positioning by time is the whole point of a week view.
  */
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
+import { EmptyState } from "~/components/ui/empty-state";
 import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 import {
   assignBlockLanes,
@@ -97,13 +104,19 @@ interface WeeklyCalendarGridProps {
     description: string;
   };
   /**
-   * Betreuungsplan-Tageskopfzeile (06-betreuungsplan.md Abschnitt 3.1): zeigt
+   * Betreuungsplan-Tageskopfzeile: zeigt
    * pro Wochentagsspalte die eingeplante Personenzahl als CapacityStrip-Zeile
    * unter dem Sticky-Tagesheader. Default aus (false) — die
    * Vertretungs-Einzeltagesnutzung dieses Grids bleibt unverändert ohne
    * Kopfzeile.
    */
   showDayHeader?: boolean;
+  /**
+   * Legende der Farbcodierung dieses Rasters (Bauart 3, Regel 3). Sie sitzt
+   * als Fußband INNERHALB der Rasterfläche: auf dem gemusterten Grund der
+   * Planungsseiten steht kein Text (BAUARTEN-SPEC Teil 3).
+   */
+  legend?: ReactNode;
 }
 
 export function WeeklyCalendarGrid({
@@ -121,6 +134,7 @@ export function WeeklyCalendarGrid({
   closingDays,
   emptyState,
   showDayHeader = false,
+  legend,
 }: WeeklyCalendarGridProps) {
   const gridColsClass = GRID_COLS_CLASS;
   const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
@@ -345,8 +359,7 @@ export function WeeklyCalendarGrid({
           })}
         </div>
 
-        {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
-            Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
+        {/* Day-header capacity strip (Betreuungsplan opt-in) — sm+ only, matches the desktop day-header columns;
             on mobile the day strip above already shows one day at a time.
             Klebt unter der Tageskopfzeile (sm:h-14 = 56px). */}
         {showDayHeader && (
@@ -526,17 +539,22 @@ export function WeeklyCalendarGrid({
 
         {emptyState && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-3 text-center shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-900">
-                {emptyState.title}
-              </h3>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                {emptyState.description}
-              </p>
+            <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-1 shadow-sm">
+              <EmptyState
+                variant="compact"
+                title={emptyState.title}
+                description={emptyState.description}
+              />
             </div>
           </div>
         )}
       </div>
+
+      {legend ? (
+        <div className="border-t border-gray-200 bg-white px-3 py-2">
+          {legend}
+        </div>
+      ) : null}
     </div>
   );
 }

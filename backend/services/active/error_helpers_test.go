@@ -93,7 +93,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 
 		ctx := testpkg.Ctx(t)
-		repo := repositories.NewFactory(db).ActiveVisit
+		repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
 
 		// Hermetic fixtures.
 		student := testpkg.CreateTestStudent(t, db, "DupViol", "Student", "1a")

@@ -332,7 +332,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		return nil, ErrTimetableOperationForbidden
 	}
 
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1053,7 +1053,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if isAssignmentBoundPortal(ctx) && inst.Date != s.today() {
+	if isAssignmentBoundPortal(ctx) && timezone.Date(inst.Date) != s.today() {
 		return 0, ErrTimetableOperationForbidden
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
@@ -1115,7 +1115,7 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 		}
 		// Graduated children and children whose care ended before this block
 		// are excluded from the roster of a not-yet-past occurrence (#2487).
-		if st.Status == usersModel.StudentStatusAlumnus || st.CareEndedOn(inst.Date) {
+		if st.Status == usersModel.StudentStatusAlumnus || st.CareEndedOn(timezone.Date(inst.Date)) {
 			excluded[id] = true
 		}
 	}
@@ -1198,7 +1198,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	}
 	warningsByStudent := s.rosterWarnings(ctx, inst, studentIDs, students, groups, templateGroup)
 	if careDay == nil {
-		careDay, err = s.deps.CareDayService.ResolveForDate(ctx, studentIDs, inst.Date)
+		careDay, err = s.deps.CareDayService.ResolveForDate(ctx, studentIDs, timezone.Date(inst.Date))
 		if err != nil {
 			return nil, err
 		}
@@ -1282,7 +1282,7 @@ func (s *timetableOperationsService) rosterPickupTimes(
 	if len(studentIDs) == 0 {
 		return map[int64]*EffectivePickupTime{}, true
 	}
-	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, inst.Date)
+	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.Date(inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,
@@ -1307,7 +1307,7 @@ func formatRosterPickupTime(effective *EffectivePickupTime) *string {
 // display metadata (titles + plan windows of running blocks), so it carries
 // no per-caller assignment filter — route-level SchedulesRead gates access.
 func (s *timetableOperationsService) ActiveSessions(ctx context.Context, date timezone.Date) ([]OperationActiveSession, error) {
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1483,7 +1483,7 @@ func (s *timetableOperationsService) rosterWarnings(
 		return warnings
 	}
 
-	arrivals, err := s.deps.ArrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, inst.Date)
+	arrivals, err := s.deps.ArrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.Date(inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,

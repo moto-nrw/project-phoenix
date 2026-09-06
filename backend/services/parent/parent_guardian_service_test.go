@@ -34,7 +34,7 @@ func buildGuardianService(t *testing.T) (parentService.Service, *bun.DB) {
 func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -59,7 +59,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 // clean up via the returned cleanup func.
 func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed string) (int64, func()) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	link := &userModels.StudentGuardian{
@@ -406,7 +406,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 		EmergencyPriority: 2,
 	}
 	otherLink.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repositories.NewFactory(db).StudentGuardian.Create(testpkg.Ctx(t), otherLink))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentGuardian.Create(testpkg.Ctx(t), otherLink))
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -635,7 +635,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "exactly one audit row for the single flag change")
 	assert.Equal(t, "pickup", rows[0].ChangeType)
@@ -653,7 +653,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 		CanPickup: &canPickup,
 	})
 	require.NoError(t, err)
-	rows, err = repositories.NewFactory(db).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "unchanged value must not write a new audit row")
 }
@@ -681,7 +681,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, rows, "a fresh contact edit must write audit rows")
 
@@ -714,7 +714,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	rows, err = repositories.NewFactory(db).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, before, "an unchanged contact re-save must not write new audit rows")
 }
@@ -850,7 +850,7 @@ func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (ca
 
 func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
 	t.Helper()
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	phones, err := repo.FindByGuardianID(testpkg.Ctx(t), profileID)
 	require.NoError(t, err)
 	require.NotEmpty(t, phones)
@@ -870,7 +870,7 @@ func ptr(s string) *string { return &s }
 // exercise role-based contact redaction. Caller cleans up via the returned func.
 func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role string) (int64, func()) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
 	profile.AddressStreet = ptr("Amtsstr. 5")
@@ -1230,7 +1230,7 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	rows, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianChange.ListByStudentID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	phoneRows := 0
 	for _, r := range rows {
@@ -1406,7 +1406,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,

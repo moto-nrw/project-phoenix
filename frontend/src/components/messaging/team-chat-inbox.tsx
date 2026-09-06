@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -8,6 +14,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
+import { TileCard } from "~/components/ui/tile-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
 import { TeamChatSkeleton } from "~/components/messaging/team-chat-skeletons";
@@ -27,7 +34,60 @@ const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
   "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
 
-export function TeamChatInbox({ portal }: { readonly portal: TeamChatPortal }) {
+/** Leerzustand des Posteingangs — Form wie `TenantPage.empty`. */
+interface TeamChatEmptyState {
+  readonly icon?: ReactNode;
+  readonly title: string;
+  readonly description?: string;
+  readonly action?: ReactNode;
+}
+
+/**
+ * Was die Hülle eines Portals vom Posteingang bekommt. Die Logik (Laden,
+ * Filtern, Aus-Zustand, Fehler) ist eine; nur die Hülle unterscheidet sich:
+ * das OGS-Portal rendert `TenantPage` als Wurzel, das Schul-Portal seine
+ * eigene Kopfzeile. Beide bauen aus denselben Teilen.
+ */
+export interface TeamChatInboxParts {
+  readonly title: string;
+  /** Statuszeile aus echten Zahlen: Unterhaltungen und ungelesene. */
+  readonly stats: string;
+  readonly statsLoading: boolean;
+  readonly chatEnabled: boolean;
+  /** Zahl der sichtbaren (gefilterten) Unterhaltungen — für die Zähler-Plakette. */
+  readonly count: number;
+  readonly search: {
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+    readonly placeholder: string;
+  };
+  readonly onlyUnread: boolean;
+  readonly setOnlyUnread: (next: boolean) => void;
+  /** Hauptaktion; `null`, solange der Chat ausgeschaltet ist. */
+  readonly composeButton: ReactNode | null;
+  /** Skelett statt Liste. */
+  readonly loading: boolean;
+  /** Ersetzt die Liste, sobald nichts zu zeigen ist. */
+  readonly empty: TeamChatEmptyState | null;
+  /** Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten. */
+  readonly staleWarning: ReactNode | null;
+  /** Die Liste der Unterhaltungen. */
+  readonly list: ReactNode;
+  /** Dialoge; bleiben in jedem Zustand gemountet. */
+  readonly overlays: ReactNode;
+}
+
+export function TeamChatInbox({
+  portal,
+  frame,
+}: {
+  readonly portal: TeamChatPortal;
+  /**
+   * Hülle des Portals. Ohne Angabe die Kopfzeile des Schul-Portals; das
+   * OGS-Portal reicht hier `TenantPage` herein.
+   */
+  readonly frame?: (parts: TeamChatInboxParts) => ReactNode;
+}) {
   const { api, navigate, threadHref } = portal;
   // The school can switch the internal chat off. The sidebar hides the entry
   // then, but a bookmarked URL still lands here — so the page has to say why it
@@ -100,34 +160,198 @@ export function TeamChatInbox({ portal }: { readonly portal: TeamChatPortal }) {
     }
   }, [chatEnabled, composeOpen]);
 
-  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` haelt jede
+  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` hält jede
   // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
   // isValidating) und die Seite zeigt ewig Platzhalter, statt zu sagen, was
-  // los ist - der Fehlerzustand darunter waere unerreichbar. Gleiche Regel wie
+  // los ist - der Fehlerzustand darunter wäre unerreichbar. Gleiche Regel wie
   // auf der Thread-Seite.
   const showSkeleton = isLoading && !threads && !loadFailed;
   // Arrays sind truthy: ein zwischengespeichertes LEERES Ergebnis aus einem
-  // frueheren erfolgreichen Abruf laesst `threads` wahr werden, obwohl der
-  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung praesentiert die
+  // früheren erfolgreichen Abruf lässt `threads` wahr werden, obwohl der
+  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung präsentiert die
   // Seite den Fehlschlag als belastbares "keine Nachrichten".
   const nothingToShow = !threads || threads.length === 0;
 
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
+  const threadList = threads ?? [];
+  const unreadThreads = threadList.filter(
+    (thread) => thread.unread_count > 0,
+  ).length;
+  const stats = chatEnabled
+    ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
+    : "Team-Chat ist nicht eingeschaltet";
+
+  const composeButton = chatEnabled ? (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={() => setComposeOpen(true)}
+    >
+      Neue Nachricht
+    </Button>
+  ) : null;
+
+  const emptyIcon = <MessagesSquare size={48} className="text-gray-400" />;
+  const empty: TeamChatEmptyState | null = (() => {
+    if (!chatEnabled) {
+      return {
+        icon: emptyIcon,
+        title: DISABLED_TITLE,
+        description: DISABLED_DESCRIPTION,
+      };
+    }
+    if (showSkeleton) return null;
+    if (loadFailed && nothingToShow) {
+      // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
+      // danebenzustellen behauptet "Sie haben keine Nachrichten",
+      // obwohl in Wahrheit niemand nachsehen konnte - und das ist die
+      // auffälligere der beiden Aussagen.
+      return {
+        icon: emptyIcon,
+        title: "Das hat leider nicht geklappt",
+        description:
+          "Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        action: (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void mutate()}
+          >
+            Erneut versuchen
+          </Button>
+        ),
+      };
+    }
+    if (filteredThreads.length === 0 && !loadFailed) {
+      return {
+        icon: emptyIcon,
+        title: "Noch keine Nachrichten",
+        description: portal.emptyDescription,
+        action: composeButton,
+      };
+    }
+    return null;
+  })();
+
+  const staleWarning =
+    loadFailed && !nothingToShow ? (
+      // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
+      // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
+      // sein muss.
+      <Alert
+        type="error"
+        message="Die Unterhaltungen konnten nicht geladen werden."
+      />
+    ) : null;
+
+  const list = (
+    <ul className="space-y-3">
+      {filteredThreads.map((thread) => {
+        const roleLabel = staffRoleKindLabel(
+          thread.counterpart_role_kind,
+          portal.kind,
+        );
+        return (
+          <li key={thread.thread_id}>
+            <TileCard onClick={() => navigate(threadHref(thread.thread_id))}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <h3 className="truncate text-base font-semibold text-gray-900">
+                      {thread.counterpart_name}
+                    </h3>
+                    {roleLabel && (
+                      <span className="text-xs text-gray-500">{roleLabel}</span>
+                    )}
+                    <UnreadBadge count={thread.unread_count} tone="staff" />
+                  </div>
+                  {thread.last_message_body && (
+                    <p className="mt-1 truncate text-sm text-gray-600">
+                      {thread.last_message_mine && (
+                        <span className="text-gray-500">Sie: </span>
+                      )}
+                      {thread.last_message_body}
+                    </p>
+                  )}
+                </div>
+                {thread.last_message_at && (
+                  <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                    {formatChatDateTime(thread.last_message_at)}
+                  </span>
+                )}
+              </div>
+            </TileCard>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const overlays =
+    composeOpen && chatEnabled ? (
+      <NewTeamMessageModal
+        api={api}
+        portal={portal.kind}
+        hint={portal.recipientHint}
+        onClose={() => setComposeOpen(false)}
+        onOpened={(threadId) => navigate(threadHref(threadId))}
+      />
+    ) : null;
+
+  const parts: TeamChatInboxParts = {
+    title: portal.title,
+    stats,
+    statsLoading: showSkeleton,
+    chatEnabled,
+    count: filteredThreads.length,
+    search: {
+      value: searchTerm,
+      onChange: setSearchTerm,
+      placeholder: "Person suchen…",
+    },
+    onlyUnread,
+    setOnlyUnread,
+    composeButton,
+    loading: showSkeleton,
+    empty,
+    staleWarning,
+    list,
+    overlays,
+  };
+
+  return frame ? frame(parts) : <DefaultInboxFrame parts={parts} />;
+}
+
+/** Die Hülle des Schul-Portals: Kopfzeile mit Suche, Filter, Liste. */
+function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
+  const {
+    title,
+    chatEnabled,
+    search,
+    onlyUnread,
+    setOnlyUnread,
+    composeButton,
+    loading,
+    empty,
+    staleWarning,
+    list,
+    overlays,
+  } = parts;
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
-        title={portal.title}
+        title={title}
         badge={
-          showSkeleton
+          loading
             ? undefined
-            : {
-                icon: <MessagesSquare size={20} />,
-                count: filteredThreads.length,
-              }
+            : { icon: <MessagesSquare size={20} />, count: parts.count }
         }
         search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Person suchen...",
+          value: search.value,
+          onChange: search.onChange,
+          placeholder: search.placeholder,
         }}
       />
 
@@ -143,138 +367,27 @@ export function TeamChatInbox({ portal }: { readonly portal: TeamChatPortal }) {
               { value: "unread", label: "Nur ungelesen" },
             ]}
           />
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setComposeOpen(true)}
-          >
-            Neue Nachricht
-          </Button>
+          {composeButton}
         </div>
       )}
 
-      {!chatEnabled ? (
-        <EmptyState
-          icon={<MessagesSquare size={48} className="text-gray-400" />}
-          title={DISABLED_TITLE}
-          description={DISABLED_DESCRIPTION}
-        />
-      ) : showSkeleton ? (
+      {loading ? (
         <TeamChatSkeleton />
+      ) : empty ? (
+        <EmptyState
+          icon={empty.icon}
+          title={empty.title}
+          description={empty.description}
+          action={empty.action}
+        />
       ) : (
         <>
-          {loadFailed && !nothingToShow && (
-            // Fehler NEBEN vorhandenen (moeglicherweise veralteten) Daten: die
-            // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
-            // sein muss.
-            <div className="mb-4">
-              <Alert
-                type="error"
-                message="Die Unterhaltungen konnten nicht geladen werden."
-              />
-            </div>
-          )}
-
-          {loadFailed && nothingToShow ? (
-            // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
-            // danebenzustellen behauptet "Sie haben keine Nachrichten",
-            // obwohl in Wahrheit niemand nachsehen konnte - und das ist die
-            // auffaelligere der beiden Aussagen.
-            <EmptyState
-              icon={<MessagesSquare size={48} className="text-gray-400" />}
-              title="Das hat leider nicht geklappt"
-              description="Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-              action={
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => void mutate()}
-                >
-                  Erneut versuchen
-                </Button>
-              }
-            />
-          ) : filteredThreads.length === 0 ? (
-            <EmptyState
-              icon={<MessagesSquare size={48} className="text-gray-400" />}
-              title="Noch keine Nachrichten"
-              description={portal.emptyDescription}
-              action={
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => setComposeOpen(true)}
-                >
-                  Neue Nachricht
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="space-y-3">
-              {filteredThreads.map((thread) => {
-                const roleLabel = staffRoleKindLabel(
-                  thread.counterpart_role_kind,
-                  portal.kind,
-                );
-                return (
-                  <li key={thread.thread_id}>
-                    <button
-                      type="button"
-                      onClick={() => navigate(threadHref(thread.thread_id))}
-                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <h3 className="truncate text-base font-semibold text-gray-900">
-                              {thread.counterpart_name}
-                            </h3>
-                            {roleLabel && (
-                              <span className="text-xs text-gray-500">
-                                {roleLabel}
-                              </span>
-                            )}
-                            <UnreadBadge
-                              count={thread.unread_count}
-                              tone="staff"
-                            />
-                          </div>
-                          {thread.last_message_body && (
-                            <p className="mt-1 truncate text-sm text-gray-600">
-                              {thread.last_message_mine && (
-                                <span className="text-gray-500">Sie: </span>
-                              )}
-                              {thread.last_message_body}
-                            </p>
-                          )}
-                        </div>
-                        {thread.last_message_at && (
-                          <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                            {formatChatDateTime(thread.last_message_at)}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {staleWarning && <div className="mb-4">{staleWarning}</div>}
+          {list}
         </>
       )}
 
-      {composeOpen && chatEnabled && (
-        <NewTeamMessageModal
-          api={api}
-          portal={portal.kind}
-          hint={portal.recipientHint}
-          onClose={() => setComposeOpen(false)}
-          onOpened={(threadId) => navigate(threadHref(threadId))}
-        />
-      )}
+      {overlays}
     </div>
   );
 }

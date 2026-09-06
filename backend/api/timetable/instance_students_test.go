@@ -5,10 +5,9 @@
 //  1. Pure unit tests for validateAttendancePatch — every 400 branch,
 //     cross-field rule included. No DB.
 //  2. Integration tests for the full handler — real DB + real repo, the
-//     router mounted in isolation (no JWT / TenantTxMiddleware) so we can
-//     drive tenant context via testpkg.TenantContext.
+//     router without JWT, using the production tenant transaction middleware.
 //
-// The integration tests intentionally avoid the middleware stack. Permission
+// The integration tests intentionally avoid the authentication stack. Permission
 // gating is enforced at the router level in api.go and exercised by the
 // existing permission-middleware tests — duplicating that here would not
 // cover a distinct behavior.
@@ -27,9 +26,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -201,6 +197,7 @@ type patchSetup struct {
 	row        *schedule.InstanceStudent
 	instanceID int64
 	studentID  int64
+	repo       schedule.InstanceStudentRepository
 }
 
 func buildPatchSetup(t *testing.T) *patchSetup {
@@ -216,7 +213,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 
 	// Insert a planned instance for this tenant.
 	inst := &schedule.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 22),
+		Date:            schedule.NewDate(2026, 4, 22),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("P-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -228,7 +225,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	_, err := db.NewInsert().Model(inst).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := repositories.NewFactory(db).InstanceStudent
+	isRepo := mustTimetableTestRepositories(db).InstanceStudent
 	row := &schedule.InstanceStudent{
 		InstanceID: inst.ID,
 		StudentID:  student.ID,
@@ -246,10 +243,11 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 		row:        row,
 		instanceID: inst.ID,
 		studentID:  student.ID,
+		repo:       isRepo,
 	}
 }
 
-// patchRouter mounts only the PATCH route — no auth, no tenant middleware.
+// patchRouter mounts the PATCH route with its tenant transaction but no auth.
 // The tenant ID is extracted from the passed-in context (built via
 // testpkg.TenantContext) and re-applied to the request context so chi's
 // routing context survives. A prior version replaced the whole request
@@ -264,6 +262,7 @@ func patchRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Patch("/instances/{instance_id}/students/{student_id}", res.patchInstanceStudent)
 	return r
 }
@@ -319,9 +318,9 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	initial := "pre"
 	s.row.Note = &initial
 	s.row.Status = schedule.AttendanceStatusPresent
-	_, _ = scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
+	_, _ = s.repo.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	// Directly set note via the repo's update-fields path to be sure.
-	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
+	require.NoError(t, s.repo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Note: &initial,
 	}))
 
@@ -407,7 +406,7 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
-	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
+	require.NoError(t, s.repo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
 	}))
 	router := patchRouter(testpkg.Ctx(t), s.res)
@@ -437,7 +436,7 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code, "body: %s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "frozen")
 
-	row, err := scheduleRepo.NewInstanceStudentRepository(s.db).FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
+	row, err := s.repo.FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	assert.Nil(t, row.Note, "completed instance must not accept a late attendance write")

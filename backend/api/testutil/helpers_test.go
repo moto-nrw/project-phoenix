@@ -21,19 +21,19 @@ import (
 )
 
 // =============================================================================
-// SetupAPITest Tests
+// Auth module setup tests
 // =============================================================================
 
-func TestSetupAPITest(t *testing.T) {
+func TestSetupAuthModule(t *testing.T) {
 	t.Parallel()
 
-	db, services := testutil.SetupAPITest(t)
+	db, services := testutil.SetupAuthModule(t)
 	require.NotNil(t, db)
 	require.NotNil(t, services)
 
 	// Verify services are available
 	assert.NotNil(t, services.Auth)
-	assert.NotNil(t, services.Users)
+	assert.NotNil(t, services.MFA)
 }
 
 // =============================================================================

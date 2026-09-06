@@ -69,9 +69,3 @@ const (
 func IsWCRoomName(name string) bool {
 	return name == WCRoomName || name == WCRoomAliasName
 }
-
-// IsSystemActivityName returns true if the given activity name is a system activity
-// that must not be deleted or renamed.
-func IsSystemActivityName(name string) bool {
-	return name == SchulhofActivityName || name == WCActivityName
-}

@@ -330,7 +330,7 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
 	foreign := &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(2026, 8, 24),
+		Date:      scheduleModel.NewDate(2026, 8, 24),
 		Title:     "Fremde Schule",
 		StartTime: timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
 		EndTime:   timezone.NormalizeWallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),

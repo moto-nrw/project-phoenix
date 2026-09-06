@@ -22,6 +22,9 @@ import (
 // and waits for readiness. A CI service container is already reachable, so
 // this never touches CI setups.
 func EnsureServer(ctx context.Context, cfg *Config) error {
+	if err := HoldServer(ctx, cfg); err != nil {
+		return fmt.Errorf("protect local test server: %w", err)
+	}
 	return ensureServer(ctx, cfg, func(ctx context.Context) error {
 		return startTestContainer(ctx, cfg)
 	}, syncLocalSuperuserPassword)

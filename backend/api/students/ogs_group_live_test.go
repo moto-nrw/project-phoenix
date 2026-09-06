@@ -14,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -342,7 +341,7 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
@@ -383,7 +382,7 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))

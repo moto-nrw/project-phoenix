@@ -3,16 +3,13 @@ package activities
 import (
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // GroupTarget stores one dynamic cohort referenced by a timetable template.
 // All targets of one template use the same TargetGroupType.
 type GroupTarget struct {
-	base.Model `bun:"schema:activities,table:group_targets"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:group_targets"`
+	TenantModel
 	ActivityGroupID    int64   `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	TargetGroupType    string  `bun:"target_group_type,notnull" json:"target_group_type"`
 	TargetGradeLevel   *int16  `bun:"target_grade_level" json:"target_grade_level,omitempty"`
@@ -24,7 +21,7 @@ type GroupTarget struct {
 func (t *GroupTarget) Validate() error {
 	switch t.TargetGroupType {
 	case TargetGroupTypeJahrgang:
-		if t.TargetGradeLevel == nil || *t.TargetGradeLevel < schoolclass.MinGradeLevel || *t.TargetGradeLevel > schoolclass.MaxGradeLevel {
+		if t.TargetGradeLevel == nil || *t.TargetGradeLevel < minTargetGradeLevel || *t.TargetGradeLevel > maxTargetGradeLevel {
 			return errors.New("target_grade_level must be between 1 and 13")
 		}
 		if t.TargetSchoolClass != nil || t.EducationGroupID != nil {

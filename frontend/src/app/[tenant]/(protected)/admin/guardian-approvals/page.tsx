@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
+
 import GuardianApprovalQueue, {
   type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -25,6 +26,9 @@ function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
 // otherwise the queue is simply empty.
 export default function GuardianApprovalsPage() {
   const { isReady } = useRequireAdmin();
+  // Zeilenzahl der Warteschlange, von ihr selbst gemeldet (kein zusätzlicher
+  // Request). `null` = noch am Laden.
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
   // The queue is empty by design in the other two invite modes, so the empty
   // state needs to know which one is active. The queue still mounts while this
   // independent request runs; only its empty-result copy waits for the mode.
@@ -45,13 +49,6 @@ export default function GuardianApprovalsPage() {
     getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
   );
 
-  if (!isReady)
-    return (
-      <SkeletonRegion label="Elternzugänge werden geladen">
-        <ListSkeleton rows={5} />
-      </SkeletonRegion>
-    );
-
   const inviteModeState: GuardianInviteModeState = isSettingsLoading
     ? { status: "loading" }
     : settingsError != null ||
@@ -65,11 +62,16 @@ export default function GuardianApprovalsPage() {
       : { status: "ready", mode: inviteMode };
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Elternzugänge" />
-      <div className="mt-4">
-        <GuardianApprovalQueue inviteModeState={inviteModeState} />
-      </div>
-    </div>
+    <TenantPage
+      title="Elternzugänge"
+      stats={pendingCount === null ? null : `${pendingCount} offen`}
+      statsLoading={pendingCount === null}
+      loading={!isReady}
+    >
+      <GuardianApprovalQueue
+        inviteModeState={inviteModeState}
+        onCountChange={setPendingCount}
+      />
+    </TenantPage>
   );
 }

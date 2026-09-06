@@ -8,14 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
 // gradeCountsByOffering flattens the repository result into a lookup keyed by
 // offering id, with the nil-grade bucket under key 0. Tests assert on this
 // instead of slice order.
 func gradeCountsByOffering(
-	rows []*enrollmentModels.CareOfferingGradeLevelCount,
+	rows []*owner.OfferingGradeCount,
 ) map[int64]map[int]int {
 	out := map[int64]map[int]int{}
 	for _, row := range rows {
@@ -33,62 +34,64 @@ func gradeCountsByOffering(
 
 func int16Ptr(v int16) *int16 { return &v }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// Two graded children on one offering, so the grouping has something to
 	// separate. The fixture's own child stays out of this offering.
 	requestID := requestIDOf(t, db, tenantID, childID)
-	grade1Child := addGradedChild(t, db, tenantID, requestID, "Lina", int16Ptr(1), enrollmentModels.ChildStatusSubmitted)
-	grade3Child := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(3), enrollmentModels.ChildStatusApproved)
+	grade1Child := addGradedChild(t, db, tenantID, requestID, "Lina", int16Ptr(1), owner.ChildStatusSubmitted)
+	grade3Child := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(3), owner.ChildStatusApproved)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		if err := repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: grade1Child,
 			CareOfferingID: offeringID,
 		}); err != nil {
 			return err
 		}
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: grade3Child,
 			CareOfferingID: offeringID,
 		})
 	}))
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
 	assert.Equal(t, map[int]int{1: 1, 3: 1}, gradeCountsByOffering(rows)[offeringID])
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// makeChild leaves TargetGradeLevel nil. An availability rule never
 	// matches a missing grade, so the caller must be able to see this bucket.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
 		})
 	}))
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
@@ -97,34 +100,35 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGra
 	assert.Equal(t, 1, rows[0].Count)
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOncePerOffering(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_CountsAChildOncePerOffering(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	laterFrom := from.AddDays(30)
 
 	// Two non-overlapping intervals for the same child: one booking, not two.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		if err := repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidUntil:     &laterFrom,
+			ValidUntil:     offeringDatePointer(laterFrom),
 		}); err != nil {
 			return err
 		}
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidFrom:      &laterFrom,
+			ValidFrom:      offeringDatePointer(laterFrom),
 		})
 	}))
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
@@ -132,67 +136,70 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOnceP
 	assert.Equal(t, 1, rows[0].Count, "one child holding two intervals is one booking")
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalChildren(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_ExcludesTerminalChildren(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	requestID := requestIDOf(t, db, tenantID, childID)
-	withdrawn := addGradedChild(t, db, tenantID, requestID, "Nele", int16Ptr(2), enrollmentModels.ChildStatusWithdrawn)
+	withdrawn := addGradedChild(t, db, tenantID, requestID, "Nele", int16Ptr(2), owner.ChildStatusWithdrawn)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: withdrawn,
 			CareOfferingID: offeringID,
 		})
 	}))
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
 	assert.Empty(t, rows, "a withdrawn child holds no slot")
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	endedAt := from.AddDays(-10)
 	startedAt := from.AddDays(-40)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offeringID,
-			ValidFrom:      &startedAt,
-			ValidUntil:     &endedAt,
+			ValidFrom:      offeringDatePointer(startedAt),
+			ValidUntil:     offeringDatePointer(endedAt),
 		})
 	}))
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, from.AddDays(90))
+		rows, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(from.AddDays(90)))
 		return err
 	}))
 
 	assert.Empty(t, rows, "an interval that ended before the window is history")
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	today := timezone.NewDate(2026, 8, 24)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, listErr := repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, today, today)
+		_, listErr := repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(today), owner.Date(today))
 		return listErr
 	})
 
@@ -200,17 +207,18 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWin
 	assert.Contains(t, err.Error(), "must not be empty")
 }
 
-func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing.T) {
+func TestOwnerOffering_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	db, _, tenantID, _, _ := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	today := timezone.NewDate(2026, 8, 24)
 
-	var rows []*enrollmentModels.CareOfferingGradeLevelCount
+	var rows []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
 		// An empty window would error if the query ran; it must not.
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, nil, today, today)
+		rows, err = repo.OfferingGradeCounts(ctx, nil, owner.Date(today), owner.Date(today))
 		return err
 	}))
 
@@ -221,22 +229,23 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTh
 // capacity gate uses — a display that disagrees with the gate is worse than
 // no display. They count the same population unconditionally, including
 // across phases (see Aggregates_CountEveryPhaseLikeTheGate).
-func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
+func TestOwnerOffering_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	requestID := requestIDOf(t, db, tenantID, childID)
-	second := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(2), enrollmentModels.ChildStatusApproved)
+	second := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(2), owner.ChildStatusApproved)
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		if err := repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID, CareOfferingID: offeringID,
 		}); err != nil {
 			return err
 		}
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: second, CareOfferingID: offeringID,
 		})
 	}))
@@ -245,11 +254,11 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 	var batched map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		single, err = repo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, from, until)
+		single, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(until))
 		if err != nil {
 			return err
 		}
-		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, from, until)
+		batched, err = repo.OfferingCapacityPeaks(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
@@ -257,10 +266,11 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 	assert.Equal(t, single, batched[offeringID])
 }
 
-func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
+func TestOwnerOffering_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
@@ -268,7 +278,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 	// A second offering in the same phase, deliberately left unbooked.
 	emptyOfferingID := addSiblingOffering(t, db, tenantID, phaseID, "batchpeak")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID, CareOfferingID: offeringID,
 		})
 	}))
@@ -276,7 +286,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 	var batched map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID, emptyOfferingID}, from, until)
+		batched, err = repo.OfferingCapacityPeaks(ctx, []int64{offeringID, emptyOfferingID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 
@@ -285,22 +295,23 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 	assert.False(t, present, "an offering with no bookings is absent, callers read that as zero")
 }
 
-func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
+func TestOwnerOffering_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, _, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	today := timezone.NewDate(2026, 8, 24)
 
 	var empty map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		empty, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, nil, today, today)
+		empty, err = repo.OfferingCapacityPeaks(ctx, nil, owner.Date(today), owner.Date(today))
 		return err
 	}))
 	assert.Empty(t, empty, "empty input short-circuits before the empty-range guard")
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, rangeErr := repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, today, today)
+		_, rangeErr := repo.OfferingCapacityPeaks(ctx, []int64{offeringID}, owner.Date(today), owner.Date(today))
 		return rangeErr
 	})
 	require.Error(t, err)
@@ -313,35 +324,36 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInpu
 // capacity gate has always counted them together, so the batched aggregates
 // that feed the admin dialog must too. Scoping them to one phase made the
 // dialog show a free slot the gate then refused as full.
-func TestRequestChildOfferingRepository_Aggregates_CountEveryPhaseLikeTheGate(t *testing.T) {
+func TestOwnerOffering_Aggregates_CountEveryPhaseLikeTheGate(t *testing.T) {
 	t.Parallel()
 
-	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	repo := enrollmentTest.New()
 	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// A child of ANOTHER phase holding the same offering row.
 	_, _ = addRolloverSuccessorHolding(t, db, tenantID, offeringID, int16Ptr(4))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+		return repo.InsertRequestChildOffering(ctx, &owner.RequestChildOffering{
 			RequestChildID: childID, CareOfferingID: offeringID,
 		})
 	}))
 
 	var gate int
 	var peak map[int64]int
-	var grades []*enrollmentModels.CareOfferingGradeLevelCount
+	var grades []*owner.OfferingGradeCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		gate, err = repo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, from, until)
+		gate, err = repo.OfferingCapacityPeak(ctx, offeringID, nil, owner.Date(from), owner.Date(until))
 		if err != nil {
 			return err
 		}
-		peak, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, from, until)
+		peak, err = repo.OfferingCapacityPeaks(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		if err != nil {
 			return err
 		}
-		grades, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		grades, err = repo.OfferingGradeCounts(ctx, []int64{offeringID}, owner.Date(from), owner.Date(until))
 		return err
 	}))
 

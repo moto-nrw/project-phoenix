@@ -25,7 +25,7 @@ func TestTokenRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates token with valid data", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestTokenRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing token", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds token by token string", func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestTokenRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates token identifier", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing token", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestTokenRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all tokens", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds tokens by account ID", func(t *testing.T) {
@@ -216,7 +216,7 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired tokens", func(t *testing.T) {
@@ -256,7 +256,7 @@ func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "liveAfterToken")
 
@@ -276,7 +276,7 @@ func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "rotationHandoff")
 	familyID := uuid.Must(uuid.NewV4()).String()
@@ -323,7 +323,7 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all tokens for account", func(t *testing.T) {
@@ -348,7 +348,7 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	account := testpkg.CreateTestAccount(t, db, "adminTxTenantDelete")
@@ -383,7 +383,7 @@ func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	account := testpkg.CreateTestAccount(t, db, "deleteAllAccountTokens")
@@ -411,7 +411,7 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cutoffRefreshSuccessor")
 
@@ -452,7 +452,7 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all tokens in family", func(t *testing.T) {
@@ -496,7 +496,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupTokens")
 
@@ -570,7 +570,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupPortalTokens")
 
@@ -605,7 +605,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolat
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupUnknownPortalTokens")
 
@@ -646,7 +646,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupStaffGroupTokens")
 
@@ -684,7 +684,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupAdminCapTokens")
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -728,7 +728,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupEmptyPortalScope")
 
@@ -755,7 +755,7 @@ func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "cleanupAccountHandoffs")
 
@@ -797,7 +797,7 @@ func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("gets token with highest generation", func(t *testing.T) {
@@ -854,7 +854,7 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by mobile", func(t *testing.T) {
@@ -907,7 +907,7 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil token", func(t *testing.T) {
@@ -926,7 +926,7 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Token
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
 
 	t.Run("deletes tokens for tenant and returns count", func(t *testing.T) {
 		// ARRANGE — create account + token scoped to a dedicated test tenant

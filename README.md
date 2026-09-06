@@ -85,6 +85,9 @@ Then log in at **http://localhost:3000** (staff account from the seeder output) 
 
 Full walkthrough, common commands, and troubleshooting: [docs/getting-started.md](docs/getting-started.md).
 
+Editor/LSP setup, fresh worktrees and tooling health checks:
+[development environment](docs/development-environment.md).
+
 ## Architecture
 
 | Layer | Technology |

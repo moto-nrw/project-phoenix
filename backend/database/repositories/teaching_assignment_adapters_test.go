@@ -12,7 +12,7 @@ import (
 func TestTeachingAssignmentAdaptersPreserveLegacyContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Assignment", "Contract")
 	classAssignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, " 1A ")

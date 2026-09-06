@@ -70,7 +70,7 @@ func countEventType(msgs []*usersModels.ParentMessage, eventType string) int {
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
@@ -142,7 +142,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
@@ -169,7 +169,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
@@ -195,7 +195,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()

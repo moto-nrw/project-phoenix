@@ -32,7 +32,7 @@ func (s *timetableOperationsService) EarliestPlannedBlockStartForClass(
 	if key == "" {
 		return "", nil
 	}
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(date))
 	if err != nil {
 		return "", fmt.Errorf("earliest block start: load instances: %w", err)
 	}

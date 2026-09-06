@@ -43,7 +43,7 @@ func (failingShiftTypes) ListAll(context.Context) ([]*scheduleModel.ShiftType, e
 
 type failingInstances struct{}
 
-func (failingInstances) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (failingInstances) FindByTenantAndDateRange(context.Context, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, errBoom
 }
 

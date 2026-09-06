@@ -36,7 +36,7 @@ import (
 
 // setupCleanupService creates a cleanup service with real database connection
 func setupCleanupService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.CleanupService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ActiveCleanup

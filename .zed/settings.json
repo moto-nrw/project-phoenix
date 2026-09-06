@@ -1,0 +1,74 @@
+{
+  "languages": {
+    "Go": {
+      "language_servers": ["gopls"],
+      "formatter": "language_server"
+    },
+    "TypeScript": {
+      "language_servers": [
+        "typescript-language-server",
+        "oxlint",
+        "!vtsls",
+        "!biome",
+        "!oxfmt",
+        "..."
+      ],
+      "formatter": "prettier"
+    },
+    "TSX": {
+      "language_servers": [
+        "typescript-language-server",
+        "oxlint",
+        "!vtsls",
+        "!biome",
+        "!oxfmt",
+        "..."
+      ],
+      "formatter": "prettier"
+    },
+    "JavaScript": {
+      "language_servers": [
+        "typescript-language-server",
+        "oxlint",
+        "!vtsls",
+        "!biome",
+        "!oxfmt",
+        "..."
+      ],
+      "formatter": "prettier"
+    },
+    "JSX": {
+      "language_servers": [
+        "typescript-language-server",
+        "oxlint",
+        "!vtsls",
+        "!biome",
+        "!oxfmt",
+        "..."
+      ],
+      "formatter": "prettier"
+    }
+  },
+  "lsp": {
+    "gopls": {
+      "binary": { "path": "./scripts/editor-tool.sh", "arguments": ["gopls"] }
+    },
+    "typescript-language-server": {
+      "binary": {
+        "path": "./scripts/editor-tool.sh",
+        "arguments": ["typescript", "--stdio"]
+      },
+      "initialization_options": {
+        "tsserver": {
+          "path": "frontend/node_modules/typescript/lib/tsserver.js"
+        }
+      }
+    },
+    "oxlint": {
+      "binary": {
+        "path": "./scripts/editor-tool.sh",
+        "arguments": ["oxlint", "--lsp"]
+      }
+    }
+  }
+}

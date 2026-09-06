@@ -17,7 +17,7 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Mira", "Kurz", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-actor")
 	studentID := student.ID
@@ -53,7 +53,7 @@ func TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap(t *
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Sam", "Kurz", "3a")
 	actor := testpkg.CreateTestAccount(t, db, "rebooking-actor")
 	studentID := student.ID
@@ -85,7 +85,7 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Echte", "Lücke", "3b")
 	studentID := student.ID
 	firstGap := timezone.NewDate(2026, 8, 24).AddDays(-2)
@@ -107,7 +107,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Offen", "Grenze", "3b")
 	studentID := student.ID
 	firstGap := timezone.NewDate(2026, 8, 24).AddDays(4)
@@ -126,7 +126,7 @@ func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Mia", "Wochenplan", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "weekly-plan-actor")
 	studentID := student.ID
@@ -159,7 +159,7 @@ func TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db).CareWithdrawal
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Lia", "Storno", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-cancel-actor")
 	studentID := student.ID

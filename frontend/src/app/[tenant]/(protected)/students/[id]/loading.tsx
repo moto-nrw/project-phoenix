@@ -1,7 +1,7 @@
 "use client";
 
-import { StudentDetailSkeleton } from "./page-skeleton";
+import { StudentDetailLoadingPage } from "./page-skeleton";
 
 export default function StudentDetailLoading() {
-  return <StudentDetailSkeleton />;
+  return <StudentDetailLoadingPage />;
 }

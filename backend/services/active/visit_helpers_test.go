@@ -398,7 +398,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
@@ -475,7 +475,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "parent-clear-test")
@@ -527,7 +527,7 @@ func TestWebManualDeviceCode(t *testing.T) {
 // =============================================================================
 
 func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.Service {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active

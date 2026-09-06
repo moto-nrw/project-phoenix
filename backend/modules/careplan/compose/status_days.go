@@ -21,9 +21,9 @@ type StatusDayStore interface {
 	ArchiveStudentStatusFlags(context.Context, careplan.StatusFlagArchive) (int64, RequestStoreStats, error)
 }
 
-func (e engine) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, error) {
+func (e *exceptionQueries) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, error) {
 	return requestValue(e, "find_student_status_day", func() (careplan.StudentStatusDay, RequestStoreStats, error) {
-		value, found, stats, err := e.statusDays.FindStudentStatusDay(ctx, id, activeOnly)
+		value, found, stats, err := e.statusQueries.FindStudentStatusDay(ctx, id, activeOnly)
 		if err == nil && !found {
 			err = careplan.ErrStudentStatusDayNotFound
 		}
@@ -31,9 +31,9 @@ func (e engine) FindStudentStatusDay(ctx context.Context, id int64, activeOnly b
 	})
 }
 
-func (e engine) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error) {
+func (e *exceptionQueries) ListStudentStatusDays(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error) {
 	return requestValue(e, "list_student_status_days", func() ([]careplan.StudentStatusDay, RequestStoreStats, error) {
-		return e.statusDays.ListStudentStatusDays(ctx, filter)
+		return e.statusQueries.ListStudentStatusDays(ctx, filter)
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/uptrace/bun"
 )
 
@@ -69,7 +70,7 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
-	AppointmentReminders      AppointmentReminderQueuer
+	AppointmentReminders      reminder.Command
 }
 
 // NewWorker constructs and validates the complete embedded worker before the

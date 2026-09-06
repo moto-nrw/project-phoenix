@@ -66,14 +66,24 @@ function DecisionNotice({
       : "Gehzeiten passen zu keinem Angebot";
   return (
     <div>
-      <h3 ref={headingRef} tabIndex={-1} className="sr-only">
+      {/* Sichtbarer Abschnittskopf: Titel und Erklärtext bilden einen Kopf,
+          der Erklärtext steht nicht mehr frei unter der Meldung. Die
+          Überschrift bleibt das Fokusziel des Aufrufers, deshalb trägt sie
+          weiterhin die Referenz. */}
+      <h3
+        ref={headingRef}
+        tabIndex={-1}
+        className="text-base font-semibold text-gray-900"
+      >
         Angebot oder dauerhafte Ausnahme wählen
       </h3>
-      <Alert type="warning" message={message} />
-      <p className="mt-2 text-sm leading-6 text-gray-700">
+      <p className="mt-1 text-sm leading-6 text-gray-600">
         Wählen Sie ein passendes Angebot. Oder speichern Sie die Zeiten als
         dauerhafte Ausnahme.
       </p>
+      <div className="mt-3">
+        <Alert type="warning" message={message} />
+      </div>
     </div>
   );
 }

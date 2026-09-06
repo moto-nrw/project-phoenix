@@ -33,7 +33,7 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -91,7 +91,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -140,7 +140,7 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
@@ -169,7 +169,7 @@ func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]

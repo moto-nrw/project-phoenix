@@ -28,7 +28,7 @@ func testShift(t *testing.T, staffID int64, date timezone.Date, start, end strin
 	t.Helper()
 	return &scheduleModel.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModel.Date(date),
 		StartTime: testClock(t, start),
 		EndTime:   testClock(t, end),
 	}
@@ -150,7 +150,7 @@ func TestSeriesDeviationSourceAndSurvivorMatching(t *testing.T) {
 	groupID := int64(17)
 	instance := func(id int64, start, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 		row := &scheduleModel.ActivityInstance{
-			Date: date, ActivityGroupID: &groupID, StartTime: testClock(t, start),
+			Date: scheduleModel.Date(date), ActivityGroupID: &groupID, StartTime: testClock(t, start),
 			Status: status, IsSpontaneous: spontaneous,
 		}
 		row.ID = id
@@ -181,21 +181,28 @@ type fakeShiftReader struct {
 	usedWeeks []timezone.Date
 }
 
-func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []timezone.Date) ([]*scheduleModel.StaffShift, error) {
+func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
 	f.calls++
 	f.staffIDs = append([]int64(nil), staffIDs...)
-	f.dates = append([]timezone.Date(nil), dates...)
+	f.dates = make([]timezone.Date, len(dates))
+	for index, date := range dates {
+		f.dates[index] = timezone.Date(date)
+	}
 	return f.rows, f.err
 }
 
-func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to timezone.Date) ([]timezone.Date, error) {
+func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to scheduleModel.Date) ([]scheduleModel.Date, error) {
 	f.calls++
-	f.from, f.to = from, to
+	f.from, f.to = timezone.Date(from), timezone.Date(to)
 	if f.err != nil {
 		return nil, f.err
 	}
 	if f.usedWeeks != nil {
-		return f.usedWeeks, nil
+		weeks := make([]scheduleModel.Date, len(f.usedWeeks))
+		for index, week := range f.usedWeeks {
+			weeks[index] = scheduleModel.Date(week)
+		}
+		return weeks, nil
 	}
 	seen := make(map[timezone.Date]bool)
 	weeks := make([]timezone.Date, 0)
@@ -203,18 +210,22 @@ func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to time
 		if shift == nil {
 			continue
 		}
-		week, _ := containingCalendarWeek(shift.Date)
+		week, _ := containingCalendarWeek(timezone.Date(shift.Date))
 		if !seen[week] {
 			seen[week] = true
 			weeks = append(weeks, week)
 		}
 	}
-	return weeks, nil
+	converted := make([]scheduleModel.Date, len(weeks))
+	for index, week := range weeks {
+		converted[index] = scheduleModel.Date(week)
+	}
+	return converted, nil
 }
 
-func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to timezone.Date) ([]*scheduleModel.StaffShift, error) {
+func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
 	f.calls++
-	f.from, f.to = from, to
+	f.from, f.to = timezone.Date(from), timezone.Date(to)
 	return f.rows, f.err
 }
 
@@ -228,14 +239,14 @@ type fakeInstanceReader struct {
 	to         timezone.Date
 }
 
-func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	f.calls++
 	return f.rows, f.err
 }
 
-func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	f.groupCalls++
-	f.groupID, f.from, f.to = groupID, from, to
+	f.groupID, f.from, f.to = groupID, timezone.Date(from), timezone.Date(to)
 	return f.rows, f.err
 }
 
@@ -305,10 +316,10 @@ func (f *fakeActivityScheduleReader) FindByGroupID(_ context.Context, groupID in
 func (f *fakeActivityExceptionReader) FindByActivityGroupAndDateRange(
 	_ context.Context,
 	groupID int64,
-	from, to timezone.Date,
+	from, to scheduleModel.Date,
 ) ([]*scheduleModel.ActivityException, error) {
 	f.calls++
-	f.groupID, f.from, f.to = groupID, from, to
+	f.groupID, f.from, f.to = groupID, timezone.Date(from), timezone.Date(to)
 	return f.rows, f.err
 }
 
@@ -456,8 +467,8 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 	date := timezone.NewDate(2026, time.July, 6)
 	mainRoomID, overrideRoomID := int64(21), int64(22)
 	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
-		{Date: date, Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusPlanned},
-		{Date: date, Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusCancelled},
+		{Date: scheduleModel.Date(date), Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusPlanned},
+		{Date: scheduleModel.Date(date), Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: scheduleModel.InstanceStatusCancelled},
 	}}
 	instances.rows[0].ID = 31
 	instances.rows[1].ID = 32
@@ -525,8 +536,8 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 	monday := timezone.NewDate(2026, time.July, 6)
 	nextMonday := monday.AddDays(7)
 	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
-		{Date: monday, Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
-		{Date: nextMonday, Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
+		{Date: scheduleModel.Date(monday), Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
+		{Date: scheduleModel.Date(nextMonday), Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: scheduleModel.InstanceStatusPlanned},
 	}}
 	instances.rows[0].ID = 41
 	instances.rows[1].ID = 42
@@ -586,7 +597,7 @@ func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *te
 
 	date := timezone.NewDate(2026, time.July, 6)
 	instance := &scheduleModel.ActivityInstance{
-		Date: date, Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: scheduleModel.InstanceStatusPlanned,
+		Date: scheduleModel.Date(date), Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: scheduleModel.InstanceStatusPlanned,
 	}
 	instance.ID = 8
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -688,9 +699,10 @@ func TestDetectShiftCoverageWarnings_ConvertedInstanceSurvivesRecurrenceFilterin
 	weekA := timezone.NewDate(2026, time.July, 6)
 	concreteWeekB := weekA.AddDays(7)
 	anchor := weekA
+	scheduleAnchor := scheduleModel.Date(anchor)
 	period := &scheduleModel.CalendarPeriod{
-		StartDate: weekA, EndDate: concreteWeekB.AddDays(6),
-		WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
+		StartDate: scheduleModel.Date(weekA), EndDate: scheduleModel.Date(concreteWeekB.AddDays(6)),
+		WeekCycleLength: 2, WeekCycleAnchor: &scheduleAnchor, IsActive: true,
 	}
 	period.ID = 61
 	pattern := 1
@@ -765,9 +777,10 @@ func TestDetectShiftCoverageWarnings_RecurringDatesReusePeriodAndABEngineWithFix
 	weekB := weekA.AddDays(7)
 	nextWeekA := weekA.AddDays(14)
 	anchor := weekA
+	scheduleAnchor := scheduleModel.Date(anchor)
 	period := &scheduleModel.CalendarPeriod{
-		StartDate: weekA, EndDate: nextWeekA.AddDays(6),
-		WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
+		StartDate: scheduleModel.Date(weekA), EndDate: scheduleModel.Date(nextWeekA.AddDays(6)),
+		WeekCycleLength: 2, WeekCycleAnchor: &scheduleAnchor, IsActive: true,
 	}
 	period.ID = 51
 	periodReader := &fakeCalendarPeriodReader{period: period}
@@ -813,11 +826,11 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 	groupID := int64(71)
 	periodID := int64(72)
 	weekPattern := 0
-	period := &scheduleModel.CalendarPeriod{StartDate: monday, EndDate: friday, WeekCycleLength: 1, IsActive: true}
+	period := &scheduleModel.CalendarPeriod{StartDate: scheduleModel.Date(monday), EndDate: scheduleModel.Date(friday), WeekCycleLength: 1, IsActive: true}
 	period.ID = periodID
 
 	mondayInstance := &scheduleModel.ActivityInstance{
-		Date: monday, ActivityGroupID: &groupID, Status: scheduleModel.InstanceStatusPlanned,
+		Date: scheduleModel.Date(monday), ActivityGroupID: &groupID, Status: scheduleModel.InstanceStatusPlanned,
 		StartTime: testClock(t, "09:00"), EndTime: testClock(t, "11:00"),
 	}
 	mondayInstance.ID = 81
@@ -828,8 +841,8 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 	}}
 	modifiedStart := testClock(t, "10:00")
 	exceptions := &fakeActivityExceptionReader{rows: []*scheduleModel.ActivityException{
-		{ActivityGroupID: groupID, ExceptionDate: wednesday, ExceptionType: scheduleModel.ActivityExceptionCancelled},
-		{ActivityGroupID: groupID, ExceptionDate: friday, ExceptionType: scheduleModel.ActivityExceptionModified, StartTime: &modifiedStart},
+		{ActivityGroupID: groupID, ExceptionDate: scheduleModel.Date(wednesday), ExceptionType: scheduleModel.ActivityExceptionCancelled},
+		{ActivityGroupID: groupID, ExceptionDate: scheduleModel.Date(friday), ExceptionType: scheduleModel.ActivityExceptionModified, StartTime: &modifiedStart},
 	}}
 	shifts := &fakeShiftReader{rows: []*scheduleModel.StaffShift{
 		// Monday: the active substitute is fully covered by their own shift.
@@ -878,14 +891,14 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 	wednesday := monday.AddDays(2)
 	nextMonday := monday.AddDays(7)
 	groupID, periodID, pattern := int64(91), int64(92), 0
-	validFrom, validUntil := wednesday, nextMonday
+	validFrom, validUntil := activitiesModel.Date(wednesday), activitiesModel.Date(nextMonday)
 	schedules := &fakeActivityScheduleReader{rows: []*activitiesModel.Schedule{{
 		ActivityGroupID: groupID,
 		ValidFrom:       &validFrom,
 		ValidUntil:      &validUntil,
 	}}}
 	period := &scheduleModel.CalendarPeriod{
-		StartDate: monday, EndDate: nextMonday, WeekCycleLength: 1, IsActive: true,
+		StartDate: scheduleModel.Date(monday), EndDate: scheduleModel.Date(nextMonday), WeekCycleLength: 1, IsActive: true,
 	}
 	period.ID = periodID
 	shifts := &fakeShiftReader{rows: []*scheduleModel.StaffShift{

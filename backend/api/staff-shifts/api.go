@@ -304,7 +304,7 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 	}
 	return &scheduleModels.StaffShift{
 		StaffID:       req.StaffID,
-		Date:          date,
+		Date:          scheduleModels.Date(date),
 		StartTime:     start,
 		EndTime:       end,
 		BreakMinutes:  req.BreakMinutes,

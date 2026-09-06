@@ -17,15 +17,14 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -222,12 +221,14 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repo := repoSchedule.NewTimeframeRepository(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
+	repo := repos.Timeframe
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	timeframes, err := repo.List(ctx42, nil)
+	timeframes, err := repo.ListAll(ctx42)
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -242,7 +243,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	timeframes, err = repo.List(ctx43, nil)
+	timeframes, err = repo.ListAll(ctx43)
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -413,7 +414,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := repoActivities.NewCategoryRepository(db)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

@@ -32,7 +32,7 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindSchoolStructure(groups)
 
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
@@ -64,7 +64,7 @@ func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID, tenantID)
 		require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestStudentRosterGroupNamesAreEmptyWithoutGroup(t *testing.T) {
 
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
-	factory := repositories.NewFactory(db)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindSchoolStructure(groups)
 
 	rows, err := factory.Student.FindAllWithGroups(testpkg.Ctx(t))

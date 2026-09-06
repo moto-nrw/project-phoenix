@@ -1059,10 +1059,12 @@ export function StaffSessionTable({
           </table>
         </div>
         {!isAdminView && (
-          <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
-            Eigene Arbeitszeiten können in der Zeiterfassung-Seite bearbeitet
-            werden.
-          </p>
+          <div className="border-t border-gray-100 bg-gray-50 p-3">
+            <Alert
+              type="info"
+              message="Eigene Arbeitszeiten können auf der Seite Zeiterfassung bearbeitet werden."
+            />
+          </div>
         )}
         {!onEditDay && editModal && (
           <AdminSessionEditModal

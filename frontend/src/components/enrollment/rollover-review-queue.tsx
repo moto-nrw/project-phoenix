@@ -7,6 +7,11 @@ import {
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
 
@@ -17,10 +22,12 @@ const REVIEW_REASON_LABELS: Record<string, string> = {
 
 interface Props {
   readonly phaseID: string;
-  readonly phaseName?: string;
 }
 
-export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
+const REVIEW_QUEUE_DESCRIPTION =
+  "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
+
+export function RolloverReviewQueue({ phaseID }: Props) {
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,41 +96,49 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Prüfliste wird geladen...</p>;
+    // Der Titel ist statisch und steht deshalb schon während des Ladens.
+    return (
+      <TenantPage
+        title="Prüfliste"
+        back
+        backHref="/enrollment-phases"
+        backLabel="Zurück zu den Anmeldephasen"
+        statsLoading
+        loading
+      />
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h2 className="text-xl font-semibold text-gray-900">
-          Prüfliste {phaseName ? `– ${phaseName}` : null}
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Kinder, die nicht automatisch übernommen werden konnten — meist weil
-          ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen
-          Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer
-          Klassenstufe), aus der nächsten Phase entfernen oder vorerst
-          zurückstellen.
+    <TenantPage
+      title="Prüfliste"
+      back
+      backHref="/enrollment-phases"
+      backLabel="Zurück zu den Anmeldephasen"
+      stats={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
+      empty={
+        // Die Fehlermeldung einer Entscheidung bleibt sichtbar; ist die Liste
+        // ohne Fehler leer, ersetzt der Leerzustand den Inhalt.
+        items.length === 0 && error === null
+          ? {
+              title: "Keine offenen Einträge",
+              description:
+                "Alle Anmeldungen wurden entweder übernommen oder bereits entschieden.",
+            }
+          : null
+      }
+    >
+      {/* Der Erklärsatz steht auf einer Fläche, nicht frei auf dem Grund. */}
+      <SectionCard className="px-5 py-3">
+        <p className="text-sm leading-6 text-gray-600">
+          {REVIEW_QUEUE_DESCRIPTION}
         </p>
-      </header>
+      </SectionCard>
 
-      {error && (
-        <div className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-lg border p-3 text-sm">
-          {error}
-        </div>
-      )}
-      {info && (
-        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-lg border p-3 text-sm">
-          {info}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
+      {info ? <Alert type="success" message={info} /> : null}
 
-      {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Aktuell keine offenen Einträge in der Prüfliste. Alle Anmeldungen
-          wurden entweder übernommen oder bereits entschieden.
-        </div>
-      ) : (
+      {items.length === 0 ? null : (
         <ul className="space-y-3">
           {items.map((item) => {
             const reasonLabel =
@@ -135,10 +150,12 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
             return (
               <li
                 key={item.child_id}
-                className="moto-content-surface rounded-2xl border p-5 shadow-sm"
+                className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div>
+                {/* Titel links, Entscheidungen rechts: die drei Aktionen
+                    hatten vorher eine eigene Zeile am Fuß des Eintrags. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <h3 className="text-base font-semibold text-gray-900">
                       {item.first_name} {item.last_name}
                     </h3>
@@ -146,12 +163,41 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                       {item.guardian_first_name} {item.guardian_last_name} ·{" "}
                       {item.guardian_email}
                     </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Vorgemerkt: Klasse {item.target_grade_level ?? "–"}
+                      {item.source_grade_level && (
+                        <> (vorher: Klasse {item.source_grade_level})</>
+                      )}
+                    </p>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Vorgemerkt: Klasse {item.target_grade_level ?? "—"}
-                    {item.source_grade_level && (
-                      <> (vorher: Klasse {item.source_grade_level})</>
-                    )}
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="success"
+                      onClick={() => void decide(item, "keep")}
+                      disabled={busy}
+                    >
+                      Behalten
+                    </Button>
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="outline_danger"
+                      onClick={() => void decide(item, "drop")}
+                      disabled={busy}
+                    >
+                      Abschließen
+                    </Button>
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="outline"
+                      onClick={() => void decide(item, "defer")}
+                      disabled={busy}
+                    >
+                      Zurückstellen
+                    </Button>
                   </div>
                 </div>
 
@@ -168,9 +214,10 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                   >
                     Klassenstufe für nächste Phase (optional):
                   </label>
-                  <input
+                  <Input
                     id={`grade-${item.child_id}`}
                     type="number"
+                    controlSize="compact"
                     min={1}
                     max={13}
                     value={overrideValue}
@@ -185,42 +232,15 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                         ? String(item.target_grade_level)
                         : ""
                     }
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    className="w-24"
                     disabled={busy}
                   />
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void decide(item, "keep")}
-                    disabled={busy}
-                    className="bg-moto-green rounded-md px-3 py-1.5 text-xs font-medium text-gray-950 hover:opacity-90 disabled:opacity-50"
-                  >
-                    Behalten
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void decide(item, "drop")}
-                    disabled={busy}
-                    className="border-moto-red text-moto-red hover:bg-moto-red/10 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                  >
-                    Abschließen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void decide(item, "defer")}
-                    disabled={busy}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Zurückstellen
-                  </button>
                 </div>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </TenantPage>
   );
 }

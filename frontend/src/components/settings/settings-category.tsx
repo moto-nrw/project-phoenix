@@ -43,8 +43,12 @@ interface SettingsCategoryProps {
    * renders nothing when no setting matches.
    */
   readonly filterQuery?: string;
-  /** Small label above the heading, e.g. the tab name in search results. */
-  readonly kicker?: string;
+  /**
+   * Name of the tab the category belongs to; shown as a badge next to the
+   * title in search results across tabs. (No kicker: the tenant portal has
+   * no mini-heading above a title, see ui-kit/no-tenant-kicker.)
+   */
+  readonly tabLabel?: string;
 }
 
 export function SettingsCategory({
@@ -60,7 +64,7 @@ export function SettingsCategory({
   collapsed = false,
   onToggle,
   filterQuery = "",
-  kicker,
+  tabLabel,
 }: SettingsCategoryProps) {
   const visibleItems = filterCategoryItems(category, filterQuery);
 
@@ -74,16 +78,22 @@ export function SettingsCategory({
   return (
     <SectionCard
       headingLevel={3}
-      kicker={kicker}
       title={displayCategoryLabel(category)}
       titleClassName="capitalize"
       titleBadge={
-        changed > 0 ? (
-          <StatusBadge
-            tone="gray"
-            showDot={false}
-            label={`${changed} geändert`}
-          />
+        tabLabel || changed > 0 ? (
+          <>
+            {tabLabel && (
+              <StatusBadge tone="blue" showDot={false} label={tabLabel} />
+            )}
+            {changed > 0 && (
+              <StatusBadge
+                tone="gray"
+                showDot={false}
+                label={`${changed} geändert`}
+              />
+            )}
+          </>
         ) : undefined
       }
       // While collapsed the card names what it holds, so a person can tell
