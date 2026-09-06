@@ -230,6 +230,20 @@ func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64)
 	return nil, nil
 }
 
+// Kurse (#3075). Zero-value stubs for the same reason: the course handlers
+// have their own tests, the fake only has to satisfy the interface.
+func (f *fakeParentService) GetChildCourses(context.Context, int64, int64) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) RequestChildCourse(context.Context, int64, int64, int64, string) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawChildCourseRequest(context.Context, int64, int64, int64) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
 func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int64) (*enrollmentService.OfferingChangeCatalog, error) {
 	return nil, nil
 }

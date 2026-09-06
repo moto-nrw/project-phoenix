@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	phaseFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,13 +51,13 @@ func createCareMaterializationSchedule(
 func setCareTestPhaseWindow(
 	t *testing.T,
 	db *bun.DB,
-	phase *enrollmentModels.Phase,
+	phase *phaseFixture.Phase,
 	start, end timezone.Date,
 ) {
 	t.Helper()
-	phase.ServiceStartDate = start
-	phase.ServiceEndDate = end
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Phase.Update(testpkg.Ctx(t), phase))
+	phase.ServiceStartDate = phaseFixture.Date(start)
+	phase.ServiceEndDate = phaseFixture.Date(end)
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), enrollmentService.OwnerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(
@@ -221,8 +223,8 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	phaseValidator, ok := svc.(enrollmentService.CareOfferingPhaseValidator)
 	require.True(t, ok)
 	replacement := *phase
-	replacement.ServiceEndDate = secondMonday
-	err = phaseValidator.ValidatePhaseChange(testpkg.Ctx(t), phase.ID, &replacement)
+	replacement.ServiceEndDate = phaseFixture.Date(secondMonday)
+	err = phaseValidator.ValidatePhaseChange(testpkg.Ctx(t), phase.ID, enrollmentService.OwnerPhaseForTest(&replacement))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	assert.ErrorContains(t, err, secondMonday.String(),
 		"phase service-window expansion must validate the newly exposed occurrence")

@@ -294,7 +294,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 	})
 	require.True(t, ok)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.FormSchema.HasLegalDocumentReference, db).SettingsRouter(), hub: module.RealtimeHub}
+	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument, db).SettingsRouter(), hub: module.RealtimeHub}
 }
 
 func setupOperatorInvitationRoute(golden *API) chi.Router {

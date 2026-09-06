@@ -51,7 +51,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)
@@ -62,7 +62,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 		repos.Student,
 		repos.Person,
 		syncer,
-		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 		db,
 		nil,
 	)

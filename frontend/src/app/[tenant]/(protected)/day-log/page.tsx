@@ -11,7 +11,7 @@
 // per-group detail modal with the status sections and group-scoped exports.
 
 import { ArrowRight, Download, FileSpreadsheet, Printer } from "lucide-react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -58,7 +60,7 @@ func TestResolveMatchedStudentID_AmbiguousRejected(t *testing.T) {
 
 	repo := &stubMatchStudentRepo{matchID: nil, exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 
 	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7001), phase, 2,
 		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
@@ -74,7 +76,7 @@ func TestResolveMatchedStudentID_ZeroMatchAllowsFreshCreate(t *testing.T) {
 
 	repo := &stubMatchStudentRepo{matchID: nil, exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 
 	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7002), phase, 0,
 		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
@@ -89,7 +91,7 @@ func TestResolveMatchedStudentID_SingleMatchReturnsID(t *testing.T) {
 	want := int64PtrEligibility(555)
 	repo := &stubMatchStudentRepo{matchID: want}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 
 	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7003), phase, 0,
 		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
@@ -105,7 +107,7 @@ func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
 
 	repo := &stubMatchStudentRepo{matchID: int64PtrEligibility(1), exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
+	phase := eligibilityTestPhase(capability.PhaseAudienceOpen)
 
 	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7004), phase, 0,
 		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
@@ -120,7 +122,7 @@ func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
 func TestAssertExistingStudentMatchResolved_RejectsRacedZeroMatch(t *testing.T) {
 	t.Parallel()
 
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 
 	err := assertExistingStudentMatchResolved(phase, nil, true, 1)
 	require.ErrorIs(t, err, ErrChildNotEnrolled)
@@ -132,7 +134,7 @@ func TestAssertExistingStudentMatchResolved_RejectsRacedZeroMatch(t *testing.T) 
 func TestAssertExistingStudentMatchResolved_TrustedPathKeepsFreshCreate(t *testing.T) {
 	t.Parallel()
 
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 
 	require.NoError(t, assertExistingStudentMatchResolved(phase, nil, false, 0))
 }
@@ -141,15 +143,15 @@ func TestAssertExistingStudentMatchResolved_TrustedPathKeepsFreshCreate(t *testi
 func TestAssertExistingStudentMatchResolved_PinnedAndOtherAudiencesPass(t *testing.T) {
 	t.Parallel()
 
-	existing := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	existing := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 	require.NoError(t, assertExistingStudentMatchResolved(existing, int64PtrEligibility(42), true, 0))
 
-	open := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
+	open := eligibilityTestPhase(capability.PhaseAudienceOpen)
 	require.NoError(t, assertExistingStudentMatchResolved(open, nil, true, 0))
 }
 
-func eligibilityTestPhase(audience string, eligibleClasses ...string) *enrollmentModels.Phase {
-	return &enrollmentModels.Phase{
+func eligibilityTestPhase(audience string, eligibleClasses ...string) *capability.Phase {
+	return &capability.Phase{
 		Audience:              audience,
 		EligibleSchoolClasses: eligibleClasses,
 	}
@@ -161,7 +163,7 @@ func TestValidatePhaseEligibility_LinkedParentsRejectsAnonymous(t *testing.T) {
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceLinkedParents)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{})
 	require.ErrorIs(t, err, ErrPhaseNotEligible)
@@ -171,7 +173,7 @@ func TestValidatePhaseEligibility_LinkedParentsRequiresSubmitEligibility(t *test
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceLinkedParents)
 	accountID := int64(4711)
 
 	// Authenticated but without a permission-granting guardian link.
@@ -192,7 +194,7 @@ func TestValidatePhaseEligibility_TrustedPathsBypass(t *testing.T) {
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents, "2a")
+	phase := eligibilityTestPhase(capability.PhaseAudienceLinkedParents, "2a")
 
 	// Admin manual enrollment and late invites set AllowClosedPhase and
 	// must bypass every eligibility rule.
@@ -207,7 +209,7 @@ func TestValidatePhaseEligibility_EligibleClassesEnforced(t *testing.T) {
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen, "2a", " 3b ")
+	phase := eligibilityTestPhase(capability.PhaseAudienceOpen, "2a", " 3b ")
 
 	// No class declared → rejected.
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
@@ -233,7 +235,7 @@ func TestValidatePhaseEligibility_EmptyClassListMeansNoRestriction(t *testing.T)
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
+	phase := eligibilityTestPhase(capability.PhaseAudienceOpen)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
 		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test"}},
@@ -246,7 +248,7 @@ func TestValidatePhaseEligibility_NewStudentsRejectsEnrolledChild(t *testing.T) 
 
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceNewStudents)
 	tenantID := int64(9042)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
@@ -262,7 +264,7 @@ func TestValidatePhaseEligibility_NewStudentsAcceptsUnknownChild(t *testing.T) {
 
 	repo := &stubEligibilityStudentRepo{exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceNewStudents)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
 		TenantID: int64(9043),
@@ -280,8 +282,8 @@ func TestValidatePhaseEligibility_NewStudentsAcceptsUnknownChild(t *testing.T) {
 func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
 	t.Parallel()
 
-	phase := &enrollmentModels.Phase{
-		Audience:               enrollmentModels.PhaseAudienceOpen,
+	phase := &capability.Phase{
+		Audience:               capability.PhaseAudienceOpen,
 		EligibleSchoolClasses:  []string{"2a"},
 		AvailableSchoolClasses: []string{"2a"},
 	}
@@ -309,7 +311,7 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsUnknownChild(t *testing
 
 	repo := &stubEligibilityStudentRepo{exists: false}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 	tenantID := int64(9052)
 	accountID := int64(4712)
 
@@ -329,7 +331,7 @@ func TestValidatePhaseEligibility_ExistingStudentsAcceptsEnrolledChild(t *testin
 
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 	accountID := int64(4713)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
@@ -351,7 +353,7 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsAnonymous(t *testing.T)
 
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceExistingStudents)
 	accountID := int64(4714)
 	child := []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}}
 
@@ -388,7 +390,7 @@ func TestValidatePhaseChildEligibility_SkipsLinkedParentsAudienceGate(t *testing
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceLinkedParents)
 
 	// No guardian account, no submit eligibility: the full audience gate
 	// would reject this, but the child-only gate must let it through.
@@ -404,7 +406,7 @@ func TestValidatePhaseChildEligibility_EnforcesClassRegardlessOfAudience(t *test
 	t.Parallel()
 
 	svc := &requestService{}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents, "2a")
+	phase := eligibilityTestPhase(capability.PhaseAudienceLinkedParents, "2a")
 
 	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
 		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", TargetSchoolClass: strPtrEligibility("4c")}},
@@ -419,7 +421,7 @@ func TestValidatePhaseChildEligibility_EnforcesNewStudents(t *testing.T) {
 
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceNewStudents)
 
 	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
 		TenantID: int64(9099),
@@ -447,7 +449,7 @@ func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T)
 
 	repo := &stubEligibilityStudentRepo{err: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
-	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
+	phase := eligibilityTestPhase(capability.PhaseAudienceNewStudents)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
 		TenantID: int64(9044),

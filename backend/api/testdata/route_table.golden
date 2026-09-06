@@ -523,6 +523,7 @@ GET /parent/me/children/{studentId}/care-offerings
 GET /parent/me/children/{studentId}/care-offerings/catalog
 GET /parent/me/children/{studentId}/care-schedule
 GET /parent/me/children/{studentId}/consents
+GET /parent/me/children/{studentId}/courses
 GET /parent/me/children/{studentId}/excused-requests
 GET /parent/me/children/{studentId}/features
 GET /parent/me/children/{studentId}/guardians
@@ -886,6 +887,8 @@ POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
 POST /parent/me/children/{studentId}/care-offerings/requests
 POST /parent/me/children/{studentId}/care-schedule/requests
+POST /parent/me/children/{studentId}/courses/requests
+POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/guardians
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts

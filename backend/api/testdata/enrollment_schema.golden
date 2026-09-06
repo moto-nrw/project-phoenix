@@ -1,0 +1,15 @@
+{
+  "data": {
+    "core_requirements": {},
+    "created_at": "TIMESTAMP",
+    "created_by": "ACCOUNT_ID",
+    "fields": [],
+    "id": "RECORD_ID",
+    "is_active": true,
+    "legal_blocks": [],
+    "name": "Contract Schema",
+    "version": 1
+  },
+  "message": "Form schema retrieved",
+  "status": "success"
+}

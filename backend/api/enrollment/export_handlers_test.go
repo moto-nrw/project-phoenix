@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -81,12 +82,12 @@ func TestParsePhaseExportRequest(t *testing.T) {
 // shapes the renderers must handle: guardian + child custom fields,
 // a select with an option label, consents, and an offering.
 func sampleExport() *enrollmentService.PhaseExport {
-	schema := &enrollmentModels.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Hinweise", Type: enrollmentModels.FormFieldText, SortOrder: 1},
-			{Key: "bus", Label: "Buskind", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
-			{Key: "meal", Label: "Essen", Type: enrollmentModels.FormFieldSelect, AppliesToCh: true, SortOrder: 2,
-				Options: []enrollmentModels.FormFieldOption{{Label: "Vegetarisch", Value: "veg"}}},
+	schema := &capability.FormSchema{
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Hinweise", Type: capability.FormFieldText, SortOrder: 1},
+			{Key: "bus", Label: "Buskind", Type: capability.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
+			{Key: "meal", Label: "Essen", Type: capability.FormFieldSelect, AppliesToCh: true, SortOrder: 2,
+				Options: []capability.FormFieldOption{{Label: "Vegetarisch", Value: "veg"}}},
 		},
 	}
 	schema.ID = 50
@@ -107,10 +108,10 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	grade := int16(1)
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
-		DateOfBirth:      timezone.NewDate(2018, 5, 12),
+		DateOfBirth:      "2018-05-12",
 		TargetGradeLevel: &grade,
 		Status:           enrollmentModels.ChildStatusApproved,
 		ActivationMode:   enrollmentModels.ChildActivationScheduled,
@@ -122,8 +123,8 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 
 	return &enrollmentService.PhaseExport{
-		Phase:   &enrollmentModels.Phase{Name: "Schuljahr 2026/27"},
-		Schemas: map[int64]*enrollmentModels.FormSchema{schema.ID: schema},
+		Phase:   &capability.Phase{Name: "Schuljahr 2026/27"},
+		Schemas: map[int64]*capability.FormSchema{schema.ID: schema},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: req, Children: []enrollmentService.ExportChildRow{{Child: child, Offerings: offerings}}},
 		},
@@ -141,7 +142,7 @@ func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport 
 	return &enrollmentService.StudentEnrollmentExport{
 		StudentID: 8801,
 		Schemas:   data.Schemas,
-		Phases:    map[int64]*enrollmentModels.Phase{phase.ID: phase},
+		Phases:    map[int64]*capability.Phase{phase.ID: phase},
 		Rows:      data.Rows,
 	}
 }
@@ -216,7 +217,7 @@ func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
 	t.Parallel()
 
 	data := sampleExport()
-	data.Rows[0].Children[0].Child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
+	data.Rows[0].Children[0].Child.CustomData[capability.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
 
 	doc := buildPhaseExportTable(data, "Anmeldungen – Test", "")
 
@@ -385,7 +386,7 @@ func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
 	omaEmail := "oma@example.test"
 	omaPhone := "0151-555"
 	opaPhone := "0151-777"
-	data.Rows[0].Guardians = []*enrollmentModels.RequestGuardian{
+	data.Rows[0].Guardians = []*capability.RequestGuardian{
 		{FirstName: "Oma", LastName: "Muster", Email: &omaEmail, Phone: &omaPhone},
 		{FirstName: "Opa", LastName: "Muster", Phone: &opaPhone}, // phone-only, no email
 	}
@@ -436,15 +437,15 @@ func statusExportSample() *enrollmentService.PhaseExport {
 		}
 	}
 	mkChild := func(first, last, status string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName:   first,
 			LastName:    last,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 			Status:      status,
 		}}
 	}
 	return &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: mkReq("Gesa", "Submitted"), Children: []enrollmentService.ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
 			{Request: mkReq("Gesa", "Approved"), Children: []enrollmentService.ExportChildRow{
@@ -527,16 +528,16 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			// Submission order is deliberately NOT alphabetical.
 			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
@@ -562,16 +563,16 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	t.Parallel()
 
 	mk := func(first, last string) enrollmentService.ExportChildRow {
-		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+		return enrollmentService.ExportChildRow{Child: &enrollmentService.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: timezone.NewDate(2018, 1, 1),
+			DateOfBirth: "2018-01-01",
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
 	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
 			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
@@ -607,7 +608,7 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 	t.Parallel()
 
 	data := &enrollmentService.PhaseExport{
-		Phase: &enrollmentModels.Phase{Name: "P"},
+		Phase: &capability.Phase{Name: "P"},
 		Rows: []enrollmentService.ExportRequestRow{
 			{Request: &enrollmentModels.Request{
 				GuardianFirstName: "Solo", GuardianLastName: "Parent",
@@ -635,20 +636,20 @@ func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T
 func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
 	t.Parallel()
 
-	oldSchema := &enrollmentModels.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Alter Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+	oldSchema := &capability.FormSchema{
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Alter Name", Type: capability.FormFieldText, SortOrder: 1},
 		},
 	}
 	oldSchema.ID = 10
-	newSchema := &enrollmentModels.FormSchema{
-		Fields: []enrollmentModels.FormField{
-			{Key: "notes", Label: "Neuer Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+	newSchema := &capability.FormSchema{
+		Fields: []capability.FormField{
+			{Key: "notes", Label: "Neuer Name", Type: capability.FormFieldText, SortOrder: 1},
 		},
 	}
 	newSchema.ID = 20
 
-	guardian, _ := collectCustomFields(map[int64]*enrollmentModels.FormSchema{
+	guardian, _ := collectCustomFields(map[int64]*capability.FormSchema{
 		oldSchema.ID: oldSchema,
 		newSchema.ID: newSchema,
 	})
@@ -1029,7 +1030,7 @@ func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
 func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	field := capability.FormField{Type: capability.FormFieldWeekdaySchedule}
 	// Keys deliberately out of order + one empty day, to prove fixed
 	// Mo–Fr ordering and that unset days are skipped.
 	raw := map[string]any{"thu": "08:00", "mon": "07:30", "tue": ""}
@@ -1042,7 +1043,7 @@ func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
 func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
+	field := capability.FormField{Type: capability.FormFieldPhoneList}
 	raw := []any{
 		map[string]any{"phone_number": "0151-1", "phone_type": "mobile", "is_primary": true},
 		map[string]any{"phone_number": "0541-2", "phone_type": "home", "label": "Oma"},
@@ -1057,7 +1058,7 @@ func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
 func TestFormatCustomValue_ContactList_FlagsAreVisible(t *testing.T) {
 	t.Parallel()
 
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
+	field := capability.FormField{Type: capability.FormFieldContactList}
 	raw := []any{
 		map[string]any{
 			"first_name":           "Otto",
@@ -1083,7 +1084,7 @@ func TestFormatCustomValue_Composite_FallsBackOnGarbage(t *testing.T) {
 
 	// A value that doesn't match the expected shape must not be dropped —
 	// it falls back to the generic stringifier rather than rendering "".
-	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	field := capability.FormField{Type: capability.FormFieldWeekdaySchedule}
 	if got := formatCustomValue(field, "ganztags"); got != "ganztags" {
 		t.Errorf("garbage fallback = %q, want %q", got, "ganztags")
 	}

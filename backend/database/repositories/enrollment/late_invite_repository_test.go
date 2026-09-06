@@ -5,20 +5,20 @@ import (
 	"testing"
 	"time"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	inviteOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *testing.T) {
+func TestLateInviteOwner_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *testing.T) {
 	t.Parallel()
 
 	// setupRequestRepoTest owns the package's testpkg.SetupTestDB lifecycle and
 	// also creates the real tenant + phase fixtures this repository needs.
 	db, requestRepo, tenantID, phaseID := setupRequestRepoTest(t)
-	lateInviteRepo := enrollmentRepo.NewLateInviteRepository(db)
+	lateInviteRepo := requestRepo
 	tokenPrefix := uniqueToken("deleteUsedLateInvite")
 	creator := testpkg.CreateTestAccount(t, db, "late-invite-delete")
 	t.Cleanup(func() {
@@ -29,23 +29,23 @@ func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *t
 		wipeRequests(db, tenantID, tokenPrefix)
 	})
 
-	requestA := makeRequest(phaseID, tokenPrefix+"-request-a", "a@example.test")
-	requestB := makeRequest(phaseID, tokenPrefix+"-request-b", "b@example.test")
+	requestA := makeOwnerRequest(phaseID, tokenPrefix+"-request-a", "a@example.test")
+	requestB := makeOwnerRequest(phaseID, tokenPrefix+"-request-b", "b@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := requestRepo.Create(ctx, requestA); err != nil {
+		if err := requestRepo.InsertRequest(ctx, requestA); err != nil {
 			return err
 		}
-		return requestRepo.Create(ctx, requestB)
+		return requestRepo.InsertRequest(ctx, requestB)
 	}))
 
-	inviteA := &enrollmentModels.LateInvite{
+	inviteA := &inviteOwner.LateInvite{
 		PhaseID:       phaseID,
 		TokenHash:     tokenPrefix + "-invite-a",
 		GuardianEmail: "a@example.test",
 		ExpiresAt:     time.Now().Add(24 * time.Hour),
 		CreatedBy:     creator.ID,
 	}
-	inviteB := &enrollmentModels.LateInvite{
+	inviteB := &inviteOwner.LateInvite{
 		PhaseID:       phaseID,
 		TokenHash:     tokenPrefix + "-invite-b",
 		GuardianEmail: "b@example.test",
@@ -53,22 +53,22 @@ func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *t
 		CreatedBy:     creator.ID,
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := lateInviteRepo.Create(ctx, inviteA); err != nil {
+		if err := lateInviteRepo.InsertLateInvite(ctx, inviteA); err != nil {
 			return err
 		}
-		if err := lateInviteRepo.Create(ctx, inviteB); err != nil {
+		if err := lateInviteRepo.InsertLateInvite(ctx, inviteB); err != nil {
 			return err
 		}
-		if err := lateInviteRepo.MarkUsed(ctx, inviteA.ID, requestA.ID, time.Now()); err != nil {
+		if err := lateInviteRepo.MarkLateInviteUsed(ctx, inviteA.ID, requestA.ID, time.Now()); err != nil {
 			return err
 		}
-		return lateInviteRepo.MarkUsed(ctx, inviteB.ID, requestB.ID, time.Now())
+		return lateInviteRepo.MarkLateInviteUsed(ctx, inviteB.ID, requestB.ID, time.Now())
 	}))
 
-	var linked *enrollmentModels.LateInvite
+	var linked *inviteOwner.LateInvite
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		linked, err = lateInviteRepo.FindByUsedRequestID(ctx, requestA.ID)
+		linked, err = lateInviteRepo.LateInviteByUsedRequestID(ctx, requestA.ID)
 		return err
 	}))
 	require.NotNil(t, linked)
@@ -78,7 +78,7 @@ func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *t
 	var deleted int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		deleted, err = lateInviteRepo.DeleteByUsedRequestID(ctx, requestA.ID)
+		deleted, err = lateInviteRepo.DeleteLateInvitesByUsedRequestID(ctx, requestA.ID)
 		return err
 	}))
 	assert.EqualValues(t, 1, deleted)

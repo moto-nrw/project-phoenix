@@ -9,7 +9,6 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -155,9 +154,7 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 		repository.BindCompanionRepository(companion)
 	}
 	f.bindCarePlanAuditDirectory()
-	if repository, ok := f.PhaseExpiry.(*enrollmentRepo.PhaseExpiryRepository); ok {
-		repository.BindCarePlan(phaseExpiryCarePlanDirectory{query: capability})
-	}
+
 	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
 	}
@@ -331,23 +328,6 @@ func (d auditCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]audit.
 			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
 			IsActive: value.IsActive, IsRequired: value.IsRequired,
 			CountsAsCare: value.CountsAsCare, PickupTimes: value.PickupTimes,
-		})
-	}
-	return result, nil
-}
-
-type phaseExpiryCarePlanDirectory struct{ query careplan.Query }
-
-func (d phaseExpiryCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]enrollmentRepo.CareOfferingProjection, error) {
-	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]enrollmentRepo.CareOfferingProjection, 0, len(values))
-	for _, value := range values {
-		result = append(result, enrollmentRepo.CareOfferingProjection{
-			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
-			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
 		})
 	}
 	return result, nil

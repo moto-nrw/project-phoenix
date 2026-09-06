@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -246,19 +248,19 @@ func createLinkedCareOffering(
 	require.NoError(t, err)
 	s.template.CalendarPeriodID = &s.period.ID
 
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:                      fmt.Sprintf("Linked care phase %d", time.Now().UnixNano()),
 		Kind:                      enrollmentModels.PhaseKindCustom,
-		ServiceStartDate:          serviceStart,
-		ServiceEndDate:            serviceEnd,
+		ServiceStartDate:          capability.Date(serviceStart),
+		ServiceEndDate:            capability.Date(serviceEnd),
 		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
 		AvailableSchoolClasses:    []string{},
 		IsActive:                  true,
 	}
-	phase.SetTenantID(s.tenantID)
+	phase.TenantID = s.tenantID
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	require.NoError(t, repos.Phase.Create(s.ctx, phase))
+	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            phase.ID,
@@ -424,12 +426,12 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		offering := createLinkedCareOffering(t, s, effective.AddDays(-7), effective.AddDays(21))
 		childID := createSplitRequestChildInPhase(t, s, offering.PhaseID, s.students[2])
 		repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-		selection := &enrollmentModels.RequestChildOffering{
+		selection := &capability.RequestChildOffering{
 			RequestChildID: childID,
 			CareOfferingID: offering.ID,
 			SelectedDays:   []string{"mon"},
 		}
-		require.NoError(t, repos.RequestChildOffering.Create(s.ctx, selection))
+		require.NoError(t, repos.Enrollment().InsertRequestChildOffering(s.ctx, selection))
 		s.extraCleanups = append([]func(){func() {
 		}}, s.extraCleanups...)
 		offering.IsActive = false

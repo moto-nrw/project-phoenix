@@ -12,31 +12,64 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// OfferingChangeImpactRepository implements the read-only planning impact
-// projection for an offering-change preview. A generic repository cannot
-// express this tenant-safe join from student rosters through materialized
-// timetable instances to both current and legacy offering-source markers.
-type OfferingChangeImpactRepository struct {
-	db *bun.DB
+type ManualPlanningOccurrence struct {
+	ActivityGroupID   int64
+	ActivityGroupName string
+	InstanceID        int64
+	Date              string
 }
 
-func NewOfferingChangeImpactRepository(db *bun.DB) enrollmentModels.OfferingChangeImpactRepository {
+type OfferingChangeImpactRepository struct{ db *bun.DB }
+
+func NewOfferingChangeImpactRepository(db *bun.DB) *OfferingChangeImpactRepository {
 	return &OfferingChangeImpactRepository{db: db}
 }
 
-func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
-	ctx context.Context,
-	studentID int64,
-	from, to timezone.Date,
-) ([]enrollmentModels.ManualPlanningOccurrence, error) {
+func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]ManualPlanningOccurrence, error) {
 	if studentID <= 0 {
 		return nil, fmt.Errorf("student id must be positive")
 	}
-	if from.IsZero() || to.IsZero() || to.Before(from) {
+	fromDate, fromErr := timezone.ParseDate(from)
+	toDate, toErr := timezone.ParseDate(to)
+	if fromErr != nil || toErr != nil || toDate.Before(fromDate) {
 		return nil, fmt.Errorf("valid planning date range is required")
 	}
+	rows, err := timetableprojection.ListManualPlanningOccurrences(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, fromDate, toDate)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]ManualPlanningOccurrence, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date})
+	}
+	return result, nil
+}
 
-	return timetableprojection.ListManualPlanningOccurrences(
-		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), studentID, from, to,
+func (r *OfferingChangeImpactRepository) CourseGroupsForOfferings(
+	ctx context.Context,
+	offerings []enrollmentModels.CourseOfferingReference,
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.CourseGroupsForOfferings(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), offerings,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) LockCourseGroups(
+	ctx context.Context,
+	groupIDs []int64,
+) ([]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.LockCourseGroups(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) CountActiveCourseEnrollments(
+	ctx context.Context,
+	groupIDs []int64,
+	from, until timezone.Date,
+	excludeStudentID int64,
+) (map[int64]int, error) {
+	return timetableprojection.CountActiveCourseEnrollments(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID,
 	)
 }

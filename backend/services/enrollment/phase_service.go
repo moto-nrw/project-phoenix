@@ -11,9 +11,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -63,12 +63,12 @@ type PhaseDeleteImpact struct {
 // "Schuljahr 26/27" + "Sommerferien 2026"), and the parent landing page
 // surfaces every is_active=true phase whose window includes now.
 type PhaseService interface {
-	List(ctx context.Context) ([]*enrollmentModels.Phase, error)
-	ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollmentModels.Phase, error)
-	GetByID(ctx context.Context, id int64) (*enrollmentModels.Phase, error)
+	List(ctx context.Context) ([]*enrollmentOwner.Phase, error)
+	ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollmentOwner.Phase, error)
+	GetByID(ctx context.Context, id int64) (*enrollmentOwner.Phase, error)
 
-	Create(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error)
-	Update(ctx context.Context, phase *enrollmentModels.Phase) error
+	Create(ctx context.Context, phase *enrollmentOwner.Phase) (*enrollmentOwner.Phase, error)
+	Update(ctx context.Context, phase *enrollmentOwner.Phase) error
 
 	// DeleteImpact reports how many enrollment requests + care offerings a
 	// delete would remove, and how many created students would be kept.
@@ -84,19 +84,29 @@ type PhaseService interface {
 	Delete(ctx context.Context, id int64) error
 }
 
+// PhaseOwner is the Enrollment capability consumed by the phase workflow.
+type PhaseOwner interface {
+	Phase(context.Context, int64) (*enrollmentOwner.Phase, error)
+	Phases(context.Context) ([]*enrollmentOwner.Phase, error)
+	PublicOpenPhases(context.Context, time.Time) ([]*enrollmentOwner.Phase, error)
+	InsertPhase(context.Context, *enrollmentOwner.Phase) error
+	UpdatePhase(context.Context, *enrollmentOwner.Phase) error
+	Schema(context.Context, int64) (*enrollmentOwner.FormSchema, error)
+	CountPhaseRequests(context.Context, int64) (int, error)
+	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
+	RemovePhase(context.Context, int64) (int, error)
+}
+
 // PhaseServiceConfig is the dep-injection bundle.
 type PhaseServiceConfig struct {
-	Repo             enrollmentModels.PhaseRepository
-	RequestRepo      enrollmentModels.RequestRepository
-	RequestChildRepo enrollmentModels.RequestChildRepository
+	Owner            PhaseOwner
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	FormSchemaRepo   enrollmentModels.FormSchemaRepository
 	// CalendarPeriods validates phase→calendar-period links on
 	// Create/Update. Optional: when nil (unit tests with mocks), the
 	// link is accepted unvalidated and the FK constraint still holds.
 	CalendarPeriods                 scheduleService.CalendarPeriodService
 	LockTemplateRecurrence          func(context.Context) error
-	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (unit tests with mocks; the CHECK/model rules still apply).
@@ -110,14 +120,11 @@ type PhaseServiceConfig struct {
 }
 
 type phaseService struct {
-	repo                            enrollmentModels.PhaseRepository
-	requestRepo                     enrollmentModels.RequestRepository
-	requestChildRepo                enrollmentModels.RequestChildRepository
+	owner                           PhaseOwner
 	careOfferingRepo                enrollmentModels.CareOfferingRepository
-	formSchemaRepo                  enrollmentModels.FormSchemaRepository
 	calendarPeriods                 scheduleService.CalendarPeriodService
 	lockTemplateRecurrence          func(context.Context) error
-	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// sourcedTemplateResyncer re-reconciles templates sourcing this phase's
 	// offerings after a service-window change (#2147 review). Late-bound via
 	// SetSourcedTemplateResyncer because the decision service is constructed
@@ -151,11 +158,8 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		txHandler = tenant.NewTransactionRunner()
 	}
 	return &phaseService{
-		repo:                            cfg.Repo,
-		requestRepo:                     cfg.RequestRepo,
-		requestChildRepo:                cfg.RequestChildRepo,
+		owner:                           cfg.Owner,
 		careOfferingRepo:                cfg.CareOfferingRepo,
-		formSchemaRepo:                  cfg.FormSchemaRepo,
 		calendarPeriods:                 cfg.CalendarPeriods,
 		lockTemplateRecurrence:          cfg.LockTemplateRecurrence,
 		validateCareOfferingPhaseChange: cfg.ValidateCareOfferingPhaseChange,
@@ -301,7 +305,7 @@ func ensureEligibleGradeLevelsWithinTenantCap(ctx context.Context, settings clas
 // Only ACTIVE phases are guarded. The invariant these guards protect is
 // "no ACTIVE restricted phase while the matching collection setting is off" —
 // exactly the scope the settings side enforces from its end
-// (ExistsActiveWithEligibleClasses / ExistsActiveWithEligibleGradeLevels only
+// (HasActiveClassRestrictedPhase / HasActiveGradeRestrictedPhase only
 // look at is_active phases). Applying them to an inactive phase made a
 // historical restricted phase unwritable once collection was disabled: a name
 // or date correction, or even deactivating the phase, hit the guard and could
@@ -309,7 +313,7 @@ func ensureEligibleGradeLevelsWithinTenantCap(ctx context.Context, settings clas
 // destroy the record of what that phase was restricted to. Reactivating such a
 // phase still goes through Update with is_active=true and is still refused
 // (#1663).
-func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
+func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentOwner.Phase) error {
 	if s.settings == nil || !phase.IsActive {
 		return nil
 	}
@@ -332,7 +336,7 @@ func hasNonEmptyEligibleClass(classes []string) bool {
 // for the current tenant. The lookup runs inside the tenant transaction,
 // so RLS scopes it — this is what actually blocks cross-tenant links,
 // because FK constraint checks bypass RLS.
-func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *enrollmentModels.Phase) error {
+func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *enrollmentOwner.Phase) error {
 	if phase.CalendarPeriodID == nil || s.calendarPeriods == nil {
 		return nil
 	}
@@ -345,11 +349,11 @@ func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *en
 	return nil
 }
 
-func (s *phaseService) validateFormSchemaLink(ctx context.Context, phase *enrollmentModels.Phase) error {
-	if phase.FormSchemaID == nil || s.formSchemaRepo == nil {
+func (s *phaseService) validateFormSchemaLink(ctx context.Context, phase *enrollmentOwner.Phase) error {
+	if phase.FormSchemaID == nil || s.owner == nil {
 		return nil
 	}
-	if _, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID); err != nil {
+	if _, err := s.owner.Schema(ctx, *phase.FormSchemaID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: form schema %d not found", ErrInvalidPhase, *phase.FormSchemaID)
 		}
@@ -392,22 +396,24 @@ func isPhaseReferenceViolation(err error) bool {
 	}
 }
 
-func (s *phaseService) List(ctx context.Context) ([]*enrollmentModels.Phase, error) {
-	return s.repo.ListByTenant(ctx)
+func (s *phaseService) List(ctx context.Context) ([]*enrollmentOwner.Phase, error) {
+	values, err := s.owner.Phases(ctx)
+	return values, err
 }
 
-func (s *phaseService) ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollmentModels.Phase, error) {
+func (s *phaseService) ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollmentOwner.Phase, error) {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	return s.repo.ListPublicOpen(ctx, now)
+	values, err := s.owner.PublicOpenPhases(ctx, now)
+	return values, err
 }
 
-func (s *phaseService) GetByID(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {
+func (s *phaseService) GetByID(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
 	if id <= 0 {
 		return nil, ErrPhaseNotFound
 	}
-	phase, err := s.repo.FindByID(ctx, id)
+	phase, err := s.owner.Phase(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPhaseNotFound
@@ -417,7 +423,23 @@ func (s *phaseService) GetByID(ctx context.Context, id int64) (*enrollmentModels
 	return phase, nil
 }
 
-func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error) {
+func (s *phaseService) Create(ctx context.Context, phase *enrollmentOwner.Phase) (*enrollmentOwner.Phase, error) {
+	if s.txHandler == nil {
+		return s.create(ctx, phase)
+	}
+	var result *enrollmentOwner.Phase
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.create(txCtx, phase)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *phaseService) create(ctx context.Context, phase *enrollmentOwner.Phase) (*enrollmentOwner.Phase, error) {
 	if phase == nil {
 		return nil, fmt.Errorf("%w: phase is required", ErrInvalidPhase)
 	}
@@ -433,7 +455,7 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, phase); err != nil {
+	if err := s.owner.InsertPhase(ctx, phase); err != nil {
 		return nil, translatePhaseWriteError(err)
 	}
 	s.logger.Info("phase created",
@@ -443,7 +465,16 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	return phase, nil
 }
 
-func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase) error {
+func (s *phaseService) Update(ctx context.Context, phase *enrollmentOwner.Phase) error {
+	if s.txHandler == nil {
+		return s.update(ctx, phase)
+	}
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		return s.update(txCtx, phase)
+	})
+}
+
+func (s *phaseService) update(ctx context.Context, phase *enrollmentOwner.Phase) error {
 	if phase == nil || phase.ID <= 0 {
 		return fmt.Errorf("%w: phase with valid id is required", ErrInvalidPhase)
 	}
@@ -463,7 +494,7 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, phase); err != nil {
+	if err := s.owner.UpdatePhase(ctx, phase); err != nil {
 		return translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
@@ -480,7 +511,7 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 // changed, so Update can resync offering-sourced templates after the write
 // (#2147 review). The recurrence lock is taken before the existing row is
 // read and stays held for the whole update transaction.
-func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollmentModels.Phase) (bool, error) {
+func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollmentOwner.Phase) (bool, error) {
 	if s.validateCareOfferingPhaseChange == nil && s.sourcedTemplateResyncer == nil {
 		return false, nil
 	}
@@ -490,15 +521,15 @@ func (s *phaseService) validateCareOfferingPhaseUpdate(ctx context.Context, phas
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
-	existing, err := s.repo.FindByID(ctx, phase.ID)
+	existing, err := s.owner.Phase(ctx, phase.ID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, fmt.Errorf("%w: phase %d", ErrPhaseNotFound, phase.ID)
 		}
 		return false, fmt.Errorf("load phase for care-offering validation: %w", err)
 	}
-	if existing.ServiceStartDate == phase.ServiceStartDate &&
-		existing.ServiceEndDate == phase.ServiceEndDate {
+	if existing.ServiceStartDate == enrollmentOwner.Date(phase.ServiceStartDate) &&
+		existing.ServiceEndDate == enrollmentOwner.Date(phase.ServiceEndDate) {
 		return false, nil
 	}
 	if s.validateCareOfferingPhaseChange != nil {
@@ -597,7 +628,7 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 	if id <= 0 {
 		return nil, ErrPhaseNotFound
 	}
-	if _, err := s.repo.FindByID(ctx, id); err != nil {
+	if _, err := s.owner.Phase(ctx, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPhaseNotFound
 		}
@@ -606,8 +637,8 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 
 	impact := &PhaseDeleteImpact{}
 	var err error
-	if s.requestRepo != nil {
-		if impact.Requests, err = s.requestRepo.CountByPhaseID(ctx, id); err != nil {
+	if s.owner != nil {
+		if impact.Requests, err = s.owner.CountPhaseRequests(ctx, id); err != nil {
 			return nil, fmt.Errorf("phase delete impact: count requests: %w", err)
 		}
 	}
@@ -616,8 +647,8 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 			return nil, fmt.Errorf("phase delete impact: count care offerings: %w", err)
 		}
 	}
-	if s.requestChildRepo != nil {
-		if impact.StudentsKept, err = s.requestChildRepo.CountCreatedStudentsByPhaseID(ctx, id); err != nil {
+	if s.owner != nil {
+		if impact.StudentsKept, err = s.owner.CountCreatedStudentsByPhase(ctx, id); err != nil {
 			return nil, fmt.Errorf("phase delete impact: count created students: %w", err)
 		}
 	}
@@ -645,7 +676,10 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidPhase)
 	}
-	if _, err := s.repo.FindByID(ctx, id); err != nil {
+	if s.owner == nil {
+		return errors.New("phase delete requires the enrollment capability")
+	}
+	if _, err := s.owner.Phase(ctx, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrPhaseNotFound
 		}
@@ -662,15 +696,10 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 		if err := s.detachPhaseSourcedTemplates(txCtx, id); err != nil {
 			return err
 		}
-		if s.requestRepo != nil {
-			n, err := s.requestRepo.DeleteByPhaseID(txCtx, id)
-			if err != nil {
-				return fmt.Errorf("phase delete: requests: %w", err)
-			}
-			deletedRequests = n
-		}
-		if err := s.repo.Delete(txCtx, id); err != nil {
-			return fmt.Errorf("phase delete: phase: %w", err)
+		var err error
+		deletedRequests, err = s.owner.RemovePhase(txCtx, id)
+		if err != nil {
+			return err
 		}
 		return nil
 	}

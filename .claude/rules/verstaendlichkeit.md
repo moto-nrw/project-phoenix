@@ -18,10 +18,12 @@ Support load at the pilot schools comes from misunderstandings, not from bugs. T
 | Case | What the user read | What was true | Issue |
 |---|---|---|---|
 | „Betreuungszeiten" next to „Betreuungsangebote" | two names for the same thing, so one of them must be wrong | two different concepts, no visible boundary between them | #2295 |
-| Block „AGs und Gruppen" in the parents portal | a place to sign my child up for an AG | a read-only list; enrolment happens at the school | #2296 |
+| Block „AGs und Gruppen" in the parents portal | a place to sign my child up for an AG | a read-only list; enrolment happened at the school | #2296 |
 | Push notifications switched on, nothing arrives | „I turned it on, so it works" | needs the app installed on the home screen first | #2297 |
 
 None of these needed a code fix at the point of failure. All three needed a name, a boundary, or a precondition stated where the person was looking.
+
+**#2296 is a naming pattern, not a ban on parent-facing enrolment.** The mistake was an unnamed read-only list, not the idea that families act in the portal. Since #3075 the parents portal does carry a real course request — and it is safe precisely because it is called what it is: „Anfrage an die OGS", with the decision state visible next to it. Read the row above as „name the thing", never as „families may not ask for anything here". See ADR 0012.
 
 ## The checklist (verifiable, not aspirational)
 
