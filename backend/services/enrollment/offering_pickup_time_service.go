@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -126,7 +126,7 @@ func (s *decisionService) ResetStudentPickupDayToOffering(
 // an approved child has been linked to a student. It writes no weekly rows.
 func (s *decisionService) syncOfferingPickupAfterApproval(
 	ctx context.Context,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 ) error {
 	studentID := int64(0)
 	switch {
@@ -146,7 +146,7 @@ func (s *decisionService) offeringPickupAffectedStudents(ctx context.Context, of
 	if offeringID <= 0 {
 		return nil, fmt.Errorf("%w: offering id is required", ErrCareOfferingInvalid)
 	}
-	children, err := s.RequestChildOfferingRepo.ListApprovedChildrenByCareOfferingIDs(
+	children, err := s.ApprovedOfferings.ListApprovedChildrenByCareOfferingIDs(
 		ctx,
 		[]int64{offeringID},
 		timezone.TodayDate(),

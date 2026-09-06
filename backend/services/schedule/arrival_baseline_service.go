@@ -104,7 +104,7 @@ type arrivalBaselineService struct {
 	students        users.StudentRepository
 	classTimes      educationModel.ClassArrivalTimeRepository
 	classExceptions scheduleModel.ClassArrivalExceptionRepository
-	links           enrollmentModel.RequestChildOfferingRepository
+	links           ApprovedBookingReader
 	offerings       enrollmentModel.CareOfferingRepository
 	settings        config.SettingsService
 }
@@ -117,7 +117,7 @@ func NewArrivalBaselineService(
 	students users.StudentRepository,
 	classTimes educationModel.ClassArrivalTimeRepository,
 	classExceptions scheduleModel.ClassArrivalExceptionRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) ArrivalBaselineReader {
@@ -451,7 +451,7 @@ func (s *arrivalBaselineService) loadCareDays(
 }
 
 func projectCareDayIndex(
-	links []*enrollmentModel.ApprovedOfferingChild,
+	links []*ApprovedBooking,
 	offeringByID map[int64]*enrollmentModel.CareOffering,
 	from, to timezone.Date,
 ) careDayIndex {
@@ -499,7 +499,7 @@ func (s *arrivalBaselineService) bookingsAuthoritative(ctx context.Context) (boo
 
 func (s *arrivalBaselineService) loadOfferingsByID(
 	ctx context.Context,
-	links []*enrollmentModel.ApprovedOfferingChild,
+	links []*ApprovedBooking,
 ) (map[int64]*enrollmentModel.CareOffering, error) {
 	offeringIDs := make([]int64, 0, len(links))
 	for _, entry := range links {

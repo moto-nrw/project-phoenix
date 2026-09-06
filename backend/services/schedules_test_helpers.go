@@ -25,9 +25,9 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 	}
 	lock := func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) }
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: r.CareOffering, RequestChildOfferingRepo: r.RequestChildOffering, ActivityGroupRepo: r.ActivityGroup,
+		Repo: r.CareOffering, Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
-		ActivityExceptionRepo: r.ActivityException, PhaseRepo: r.Phase, Settings: settings.Settings,
+		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings,
 		Today: timezone.TodayDate, LockTemplateRecurrence: lock, Logger: slog.Default(),
 	})
 	service := schedule.NewServiceWithConfig(schedule.ServiceConfig{

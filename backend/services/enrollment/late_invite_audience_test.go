@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/require"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -15,21 +17,21 @@ import (
 // --- stubs -----------------------------------------------------------------
 
 type stubAudiencePhaseRepo struct {
-	enrollmentModels.PhaseRepository
-	phase *enrollmentModels.Phase
+	IntakeCatalog
+	phase *enrollmentCapability.Phase
 }
 
-func (s stubAudiencePhaseRepo) FindByID(context.Context, int64) (*enrollmentModels.Phase, error) {
-	return s.phase, nil
+func (s stubAudiencePhaseRepo) Phase(context.Context, int64) (*enrollmentCapability.Phase, error) {
+	return OwnerPhaseForTest(s.phase), nil
 }
 
 type stubAudienceLateInviteRepo struct {
-	enrollmentModels.LateInviteRepository
-	invite *enrollmentModels.LateInvite
+	IntakeLateInvites
+	invite *enrollmentCapability.LateInvite
 	err    error
 }
 
-func (s stubAudienceLateInviteRepo) FindUsableByTokenHash(context.Context, string, int64, time.Time) (*enrollmentModels.LateInvite, error) {
+func (s stubAudienceLateInviteRepo) UsableLateInvite(context.Context, string, int64, time.Time, bool) (*enrollmentCapability.LateInvite, error) {
 	return s.invite, s.err
 }
 
@@ -52,19 +54,19 @@ func (enrollmentEnabledSettings) ResolveInt(context.Context, string) (int, error
 	return 0, nil
 }
 
-func linkedParentsPhaseOpenWindow() *enrollmentModels.Phase {
+func linkedParentsPhaseOpenWindow() *enrollmentCapability.Phase {
 	// No EnrollmentOpenAt/CloseAt bounds → window always open, so these
 	// tests isolate the audience gate from the window check.
-	return &enrollmentModels.Phase{
+	return &enrollmentCapability.Phase{
 		Audience: enrollmentModels.PhaseAudienceLinkedParents,
 		IsActive: true,
 	}
 }
 
-func audienceTestService(invite *enrollmentModels.LateInvite, inviteErr error, phase *enrollmentModels.Phase) *requestService {
+func audienceTestService(invite *enrollmentCapability.LateInvite, inviteErr error, phase *enrollmentCapability.Phase) *requestService {
 	return &requestService{RequestServiceConfig: RequestServiceConfig{
 		Settings:       enrollmentEnabledSettings{},
-		PhaseRepo:      stubAudiencePhaseRepo{phase: phase},
+		Catalog:        stubAudiencePhaseRepo{phase: phase},
 		LateInviteRepo: stubAudienceLateInviteRepo{invite: invite, err: inviteErr},
 	}}
 }
@@ -77,7 +79,7 @@ func audienceTestService(invite *enrollmentModels.LateInvite, inviteErr error, p
 func TestLoadPublicPhaseWithLateInvite_ValidInviteBypassesAudienceGate(t *testing.T) {
 	t.Parallel()
 
-	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(&enrollmentCapability.LateInvite{}, nil, linkedParentsPhaseOpenWindow())
 
 	phase, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
 	require.NoError(t, err)
@@ -90,7 +92,7 @@ func TestLoadPublicPhaseWithLateInvite_ValidInviteBypassesAudienceGate(t *testin
 func TestLoadPublicPhaseWithLateInvite_NoInviteStillRestricted(t *testing.T) {
 	t.Parallel()
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
 	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
@@ -101,7 +103,7 @@ func TestLoadPublicPhaseWithLateInvite_NoInviteStillRestricted(t *testing.T) {
 func TestLoadPublicPhaseWithLateInvite_InvalidInviteStaysRestricted(t *testing.T) {
 	t.Parallel()
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "bad-token")
 	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
@@ -116,7 +118,7 @@ func TestLoadPublicPhaseWithLateInvite_ValidInviteOpensClosedRestrictedPhase(t *
 	past := time.Now().Add(-time.Hour)
 	phase.EnrollmentCloseAt = &past // window is closed
 
-	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
+	svc := audienceTestService(&enrollmentCapability.LateInvite{}, nil, phase)
 
 	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
 	require.NoError(t, err)
@@ -172,7 +174,7 @@ func TestLoadPublicPhaseWithLateInvite_ValidInviteClearsGradeRestriction(t *test
 	phase.Audience = enrollmentModels.PhaseAudienceOpen
 	phase.EligibleGradeLevels = []int{3}
 
-	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
+	svc := audienceTestService(&enrollmentCapability.LateInvite{}, nil, phase)
 
 	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
 	require.NoError(t, err)
@@ -188,7 +190,7 @@ func TestLoadEnrolleePhaseWithLateInvite_ValidInviteClearsGradeRestriction(t *te
 	phase := linkedParentsPhaseOpenWindow()
 	phase.EligibleGradeLevels = []int{3}
 
-	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
+	svc := audienceTestService(&enrollmentCapability.LateInvite{}, nil, phase)
 
 	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token",
 		EnrolleeAudienceAccess{LinkedParents: true})
@@ -205,7 +207,7 @@ func TestLoadPublicPhaseWithLateInvite_NoInviteKeepsGradeRestriction(t *testing.
 	phase.Audience = enrollmentModels.PhaseAudienceOpen
 	phase.EligibleGradeLevels = []int{3}
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, phase)
 
 	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
 	require.NoError(t, err)
@@ -221,7 +223,7 @@ func TestLoadPublicPhaseWithLateInvite_InvalidInviteKeepsGradeRestriction(t *tes
 	phase.Audience = enrollmentModels.PhaseAudienceOpen
 	phase.EligibleGradeLevels = []int{3}
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, phase)
 
 	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "bad-token")
 	require.NoError(t, err)
@@ -233,7 +235,7 @@ func TestLoadPublicPhaseWithLateInvite_InvalidInviteKeepsGradeRestriction(t *tes
 func TestLoadEnrolleePhaseWithLateInvite_AllowsRestrictedWithoutInvite(t *testing.T) {
 	t.Parallel()
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	phase, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
 		EnrolleeAudienceAccess{LinkedParents: true})
@@ -252,7 +254,7 @@ func TestLoadEnrolleePhaseWithLateInvite_LinkedParentsAccessDoesNotOpenExistingS
 	phase := linkedParentsPhaseOpenWindow()
 	phase.Audience = enrollmentModels.PhaseAudienceExistingStudents
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, phase)
 
 	_, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
 		EnrolleeAudienceAccess{LinkedParents: true})
@@ -266,7 +268,7 @@ func TestLoadEnrolleePhaseWithLateInvite_EnrolledAccessOpensExistingStudents(t *
 	phase := linkedParentsPhaseOpenWindow()
 	phase.Audience = enrollmentModels.PhaseAudienceExistingStudents
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, phase)
 
 	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
 		EnrolleeAudienceAccess{ExistingStudents: true})
@@ -279,7 +281,7 @@ func TestLoadEnrolleePhaseWithLateInvite_EnrolledAccessOpensExistingStudents(t *
 func TestLoadEnrolleePhaseWithLateInvite_ExistingStudentsAccessDoesNotOpenLinkedParents(t *testing.T) {
 	t.Parallel()
 
-	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentCapability.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	_, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
 		EnrolleeAudienceAccess{ExistingStudents: true})

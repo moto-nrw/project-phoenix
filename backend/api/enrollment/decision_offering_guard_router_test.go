@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,11 +50,11 @@ type offeringGuardHarness struct {
 	ctx                context.Context
 }
 
-type failingAtDateOfferingRepo struct {
-	enrollmentModels.RequestChildOfferingRepository
+type failingAtDateOfferingReader struct {
+	enrollmentService.DecisionChildren
 }
 
-func (f failingAtDateOfferingRepo) ListByRequestChildIDAtDate(context.Context, int64, timezone.Date) ([]*enrollmentModels.RequestChildOffering, error) {
+func (f failingAtDateOfferingReader) RequestChildOfferingsAtDate(context.Context, int64, capability.Date) ([]*capability.RequestChildOffering, error) {
 	return nil, errors.New("offering lookup failed")
 }
 
@@ -97,7 +99,7 @@ func TestDecideAdminChild_OfferingLookupFailureDoesNotApprove(t *testing.T) {
 	harness := setupOfferingGuardRouterTest(t, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, true)
 	rec := executeApprovalDecision(t, harness)
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
-	child, err := harness.repos.RequestChild.FindByID(harness.ctx, harness.childID)
+	child, err := harness.repos.Enrollment().ChildByID(harness.ctx, harness.childID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
 }
@@ -118,11 +120,13 @@ func setupOfferingGuardRouterTest(
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)
 	request, child := createOfferingGuardChild(t, repos, ctx, phase.ID)
 	attachOfferingGuardLink(t, repos, ctx, phase, child.ID, linkFixture)
-	offeringRepo := enrollmentModels.RequestChildOfferingRepository(repos.RequestChildOffering)
+	children := enrollmentService.DecisionChildren(repos.Enrollment())
 	if failOfferingLookup {
-		offeringRepo = failingAtDateOfferingRepo{offeringRepo}
+		children = failingAtDateOfferingReader{children}
 	}
-	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, offeringRepo)
+	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
+	require.NoError(t, err)
+	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
 		nil, nil, nil, nil, db,
@@ -131,61 +135,61 @@ func setupOfferingGuardRouterTest(
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}
 }
 
-func createOfferingGuardPhase(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, mode string) *enrollmentModels.Phase {
+func createOfferingGuardPhase(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, mode string) *capability.Phase {
 	t.Helper()
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:                      "Angebotspruefung " + t.Name(),
 		Kind:                      enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:          timezone.TodayDate().AddDays(-30),
-		ServiceEndDate:            timezone.TodayDate().AddDays(300),
+		ServiceStartDate:          capability.Date(timezone.TodayDate().AddDays(-30)),
+		ServiceEndDate:            capability.Date(timezone.TodayDate().AddDays(300)),
 		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: mode,
 		IsActive:                  true,
 	}
-	phase.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.Phase.Create(ctx, phase))
+	phase.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 	return phase
 }
 
-func createOfferingGuardChild(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phaseID int64) (*enrollmentModels.Request, *enrollmentModels.RequestChild) {
+func createOfferingGuardChild(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phaseID int64) (*capability.Request, *capability.RequestChild) {
 	t.Helper()
-	request := &enrollmentModels.Request{
+	request := &capability.Request{
 		PhaseID:           phaseID,
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     fmt.Sprintf("offering-guard-%d@example.test", testpkg.Tenant(t)),
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      []byte("{}"),
+		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentModels.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    []byte("{}"),
 		StatusToken:       fmt.Sprintf("offering-guard-%d-%d", testpkg.Tenant(t), time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
-	require.NoError(t, repos.Request.Create(ctx, request))
+	require.NoError(t, repos.Enrollment().InsertRequest(ctx, request))
 	grade := int16(1)
-	child := &enrollmentModels.RequestChild{
+	child := &capability.RequestChild{
 		RequestID:        request.ID,
 		FirstName:        "Lina",
 		LastName:         "Beispiel",
-		DateOfBirth:      timezone.NewDate(2018, 4, 15),
+		DateOfBirth:      capability.Date("2018-04-15"),
 		TargetGradeLevel: &grade,
-		CustomData:       map[string]any{},
+		CustomData:       []byte("{}"),
 		Status:           enrollmentModels.ChildStatusSubmitted,
 		ActivationMode:   enrollmentModels.ChildActivationScheduled,
 	}
-	require.NoError(t, repos.RequestChild.Create(ctx, child))
+	require.NoError(t, repos.Enrollment().InsertChild(ctx, child))
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phase *enrollmentModels.Phase, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phase *capability.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
 	}
-	createLink := func(name string, required bool) *enrollmentModels.RequestChildOffering {
+	createLink := func(name string, required bool) *capability.RequestChildOffering {
 		phaseID := phase.ID
 		if fixture == crossPhaseOffering {
-			otherPhase := &enrollmentModels.Phase{
+			otherPhase := &capability.Phase{
 				Name:                      phase.Name + " Fremd",
 				Kind:                      phase.Kind,
 				ServiceStartDate:          phase.ServiceStartDate,
@@ -194,8 +198,8 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 				CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
 				IsActive:                  true,
 			}
-			otherPhase.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, repos.Phase.Create(ctx, otherPhase))
+			otherPhase.TenantID = testpkg.Tenant(t)
+			require.NoError(t, repos.Enrollment().InsertPhase(ctx, otherPhase))
 			phaseID = otherPhase.ID
 		}
 		offering := &enrollmentModels.CareOffering{
@@ -204,11 +208,11 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 			IsRequired: required, CountsAsCare: true,
 		}
 		require.NoError(t, repos.CareOffering.Create(ctx, offering))
-		return &enrollmentModels.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
+		return &capability.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}
 	}
 	link := createLink("Ganztag", fixture == requiredOnly)
 	if fixture == twoOfferings {
-		require.NoError(t, repos.RequestChildOffering.Create(ctx, link))
+		require.NoError(t, repos.Enrollment().InsertRequestChildOffering(ctx, link))
 		link = createLink("Spätbetreuung", false)
 	}
 	today := timezone.TodayDate()
@@ -219,20 +223,22 @@ func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepo
 		link.ValidFrom, link.ValidUntil = datePointers(today.AddDays(1), today.AddDays(10))
 	}
 	if fixture == historicalOffering {
-		link.ValidFrom, link.ValidUntil = datePointers(phase.ServiceStartDate, today)
+		link.ValidFrom, link.ValidUntil = datePointers(timezone.Date(phase.ServiceStartDate), today)
 	}
-	require.NoError(t, repos.RequestChildOffering.Create(ctx, link))
+	require.NoError(t, repos.Enrollment().InsertRequestChildOffering(ctx, link))
 }
 
-func datePointers(from, until timezone.Date) (*timezone.Date, *timezone.Date) {
-	return &from, &until
+func datePointers(from, until timezone.Date) (*capability.Date, *capability.Date) {
+	start, end := capability.Date(from), capability.Date(until)
+	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, offeringRepo enrollmentModels.RequestChildOfferingRepository) enrollmentService.DecisionService {
+func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children enrollmentService.DecisionChildren, approvedOfferings enrollmentService.ApprovedOfferingReader) enrollmentService.DecisionService {
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo: repos.Request, RequestChildRepo: repos.RequestChild, RequestGuardianRepo: repos.RequestGuardian,
-		LateInviteRepo: repos.LateInvite, RequestChildOfferingRepo: offeringRepo, CareOfferingRepo: repos.CareOffering,
-		PhaseRepo: repos.Phase, FormSchemaRepo: repos.FormSchema, PersonRepo: repos.Person, StaffRepo: repos.Staff,
+		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
+		ApprovedOfferings: approvedOfferings,
+		LateInviteRepo:    repos.Enrollment(), CareOfferingRepo: repos.CareOffering,
+		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), PersonRepo: repos.Person, StaffRepo: repos.Staff,
 		StudentRepo: repos.Student, StudentGuardianRepo: repos.StudentGuardian, GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PickupScheduleRepo: repos.StudentPickupSchedule,
 		ArrivalScheduleRepo: repos.StudentArrivalSchedule, StudentEnrollmentRepo: repos.StudentEnrollment,

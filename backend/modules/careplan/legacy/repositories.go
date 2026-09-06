@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -204,7 +203,7 @@ func applyCareOfferingToLegacy(target *enrollmentModels.CareOffering, value care
 	target.ID = value.ID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
-	target.SetTenantID(value.TenantID)
+	target.TenantID = value.TenantID
 	target.PhaseID = value.PhaseID
 	target.ActivityGroupID = value.ActivityGroupID
 	target.Name = value.Name
@@ -268,7 +267,7 @@ func (r *offeringChangeCarePlanRepository) FindByID(ctx context.Context, rawID a
 }
 
 func (r *offeringChangeCarePlanRepository) GetPendingForStudent(ctx context.Context, studentID int64) (*enrollmentModels.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, modelBase.RequestQueueFilters{StudentID: studentID}, []string{enrollmentModels.OfferingChangeStatusPending}, careplan.ChangeOrderCreated)
+	rows, err := r.list(ctx, enrollmentModels.OfferingChangeQueueFilters{StudentID: studentID}, []string{enrollmentModels.OfferingChangeStatusPending}, careplan.ChangeOrderCreated)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "get pending offering change request", Err: err}
 	}
@@ -279,14 +278,14 @@ func (r *offeringChangeCarePlanRepository) GetPendingForStudent(ctx context.Cont
 }
 
 func (r *offeringChangeCarePlanRepository) ListByStudent(ctx context.Context, studentID int64) ([]*enrollmentModels.OfferingChangeRequest, error) {
-	rows, err := r.list(ctx, modelBase.RequestQueueFilters{StudentID: studentID}, nil, careplan.ChangeOrderReviewed)
+	rows, err := r.list(ctx, enrollmentModels.OfferingChangeQueueFilters{StudentID: studentID}, nil, careplan.ChangeOrderReviewed)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list offering change requests by student", Err: err}
 	}
 	return rows, nil
 }
 
-func (r *offeringChangeCarePlanRepository) ListPendingForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*enrollmentModels.OfferingChangeRequest, error) {
+func (r *offeringChangeCarePlanRepository) ListPendingForTenant(ctx context.Context, filters enrollmentModels.OfferingChangeQueueFilters) ([]*enrollmentModels.OfferingChangeRequest, error) {
 	rows, err := r.list(ctx, filters, []string{enrollmentModels.OfferingChangeStatusPending}, careplan.ChangeOrderCreated)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending offering change requests", Err: err}
@@ -294,7 +293,7 @@ func (r *offeringChangeCarePlanRepository) ListPendingForTenant(ctx context.Cont
 	return rows, nil
 }
 
-func (r *offeringChangeCarePlanRepository) ListDecidedForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*enrollmentModels.OfferingChangeRequest, error) {
+func (r *offeringChangeCarePlanRepository) ListDecidedForTenant(ctx context.Context, filters enrollmentModels.OfferingChangeQueueFilters) ([]*enrollmentModels.OfferingChangeRequest, error) {
 	statuses := []string{enrollmentModels.OfferingChangeStatusApproved, enrollmentModels.OfferingChangeStatusRejected, enrollmentModels.OfferingChangeStatusWithdrawn}
 	rows, err := r.list(ctx, filters, statuses, careplan.ChangeOrderUpdated)
 	if err != nil {
@@ -311,20 +310,20 @@ func (r *offeringChangeCarePlanRepository) FindByIDForUpdate(ctx context.Context
 	return row, err
 }
 
-func (r *offeringChangeCarePlanRepository) UpdateEffectiveFrom(ctx context.Context, id int64, date timezone.Date) error {
-	return r.pendingError("update offering change effective date", r.carePlan.UpdateOfferingChangeEffectiveFrom(ctx, id, date.String()))
+func (r *offeringChangeCarePlanRepository) UpdateEffectiveFrom(ctx context.Context, id int64, date enrollmentModels.OfferingChangeDate) error {
+	return r.pendingError("update offering change effective date", r.carePlan.UpdateOfferingChangeEffectiveFrom(ctx, id, string(date)))
 }
 
 func (r *offeringChangeCarePlanRepository) UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error {
 	return r.pendingError("update approved complete-withdrawal result", r.carePlan.UpdateApprovedCompleteWithdrawal(ctx, id, complete))
 }
 
-func (r *offeringChangeCarePlanRepository) UpdatePending(ctx context.Context, id int64, payload map[string]any, date timezone.Date, note *string) error {
+func (r *offeringChangeCarePlanRepository) UpdatePending(ctx context.Context, id int64, payload map[string]any, date enrollmentModels.OfferingChangeDate, note *string) error {
 	encoded, err := marshalJSON(payload)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update pending offering change request", Err: err}
 	}
-	err = r.carePlan.UpdatePendingOfferingChange(ctx, careplan.UpdatePendingOfferingChange{ID: id, Payload: encoded, EffectiveFrom: date.String(), ParentNote: note})
+	err = r.carePlan.UpdatePendingOfferingChange(ctx, careplan.UpdatePendingOfferingChange{ID: id, Payload: encoded, EffectiveFrom: string(date), ParentNote: note})
 	return r.pendingError("update pending offering change request", err)
 }
 
@@ -360,7 +359,7 @@ func (r *offeringChangeCarePlanRepository) find(ctx context.Context, id int64, l
 	return row, nil
 }
 
-func (r *offeringChangeCarePlanRepository) list(ctx context.Context, filters modelBase.RequestQueueFilters, statuses []string, order string) ([]*enrollmentModels.OfferingChangeRequest, error) {
+func (r *offeringChangeCarePlanRepository) list(ctx context.Context, filters enrollmentModels.OfferingChangeQueueFilters, statuses []string, order string) ([]*enrollmentModels.OfferingChangeRequest, error) {
 	studentIDs, err := r.searchStudentIDs(ctx, filters)
 	if err != nil {
 		return nil, err
@@ -384,7 +383,7 @@ func (r *offeringChangeCarePlanRepository) list(ctx context.Context, filters mod
 	return rows, nil
 }
 
-func (r *offeringChangeCarePlanRepository) searchStudentIDs(ctx context.Context, filters modelBase.RequestQueueFilters) ([]int64, error) {
+func (r *offeringChangeCarePlanRepository) searchStudentIDs(ctx context.Context, filters enrollmentModels.OfferingChangeQueueFilters) ([]int64, error) {
 	if strings.TrimSpace(filters.Search) == "" {
 		return filters.StudentIDs, nil
 	}
@@ -455,7 +454,7 @@ func offeringChangeToPublic(row *enrollmentModels.OfferingChangeRequest) (carepl
 		CompleteWithdrawalConfirmed: row.CompleteWithdrawalConfirmed,
 		WithdrawalConfirmedBy:       row.WithdrawalConfirmedBy, WithdrawalConfirmedAt: row.WithdrawalConfirmedAt,
 		ApprovedCompleteWithdrawal: row.ApprovedCompleteWithdrawal, Payload: payload,
-		EffectiveFrom: row.EffectiveFrom.String(), ParentNote: row.ParentNote, Status: row.Status,
+		EffectiveFrom: string(row.EffectiveFrom), ParentNote: row.ParentNote, Status: row.Status,
 		DecisionReason: row.DecisionReason, DecisionSnapshot: decisionSnapshot,
 		ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt,
 	}, nil
@@ -463,7 +462,7 @@ func offeringChangeToPublic(row *enrollmentModels.OfferingChangeRequest) (carepl
 
 func applyOfferingChangeToLegacy(target *enrollmentModels.OfferingChangeRequest, value careplan.OfferingChangeRequest) error {
 	target.ID = value.ID
-	target.SetTenantID(value.TenantID)
+	target.TenantID = value.TenantID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
 	target.StudentID = value.StudentID
@@ -476,7 +475,7 @@ func applyOfferingChangeToLegacy(target *enrollmentModels.OfferingChangeRequest,
 	if err := unmarshalOptionalJSON(value.Payload, &target.Payload); err != nil {
 		return fmt.Errorf("decode offering change payload: %w", err)
 	}
-	target.EffectiveFrom = timezone.Date(value.EffectiveFrom)
+	target.EffectiveFrom = enrollmentModels.OfferingChangeDate(value.EffectiveFrom)
 	target.ParentNote = value.ParentNote
 	target.Status = value.Status
 	target.DecisionReason = value.DecisionReason

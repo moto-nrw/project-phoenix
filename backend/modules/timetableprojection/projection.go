@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
 )
@@ -59,11 +58,16 @@ func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []i
 	return groups, nil
 }
 
-func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]enrollmentModels.ManualPlanningOccurrence, error) {
+func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]ManualPlanningOccurrence, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
-	rows := make([]enrollmentModels.ManualPlanningOccurrence, 0)
+	var rows []struct {
+		ActivityGroupID   int64
+		ActivityGroupName string
+		InstanceID        int64
+		Date              timezone.Date
+	}
 	err := db.NewRaw(`
 		SELECT activity_group.id AS activity_group_id, activity_group.name AS activity_group_name,
 		       activity_instance.id AS instance_id, activity_instance.date
@@ -83,7 +87,11 @@ func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, st
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: list manual planning occurrences: %w", err)
 	}
-	return rows, nil
+	result := make([]ManualPlanningOccurrence, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date.String()})
+	}
+	return result, nil
 }
 
 func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64) (int, error) {
@@ -98,13 +106,15 @@ func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, re
 	return count, wrapCountError(err)
 }
 
-func CountChildSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, childID int64) (int, error) {
+func CountChildSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID, childID int64) (int, error) {
 	if tenantID <= 0 {
 		return 0, ErrInvalidTenantID
 	}
 	var count int
-	err := db.NewRaw(`SELECT COUNT(*)::int FROM activities.student_enrollments
-		WHERE tenant_id = ? AND enrollment_request_child_id = ?`, tenantID, childID).Scan(ctx, &count)
+	err := db.NewRaw(`SELECT COUNT(*)::int FROM activities.student_enrollments AS enrollment
+		JOIN enrollment.request_children AS child
+		  ON child.tenant_id = enrollment.tenant_id AND child.id = enrollment.enrollment_request_child_id
+		WHERE enrollment.tenant_id = ? AND child.request_id = ? AND child.id = ?`, tenantID, requestID, childID).Scan(ctx, &count)
 	return count, wrapCountError(err)
 }
 
@@ -170,3 +180,10 @@ const runningEnrollmentsQuery = `SELECT student_id, COUNT(*)::int AS total FROM 
 	  AND NOT EXISTS (SELECT 1 FROM activities.student_enrollments AS live
 		WHERE live.id = removal.enrollment_id AND live.tenant_id = removal.tenant_id)
 ) AS baseline GROUP BY student_id`
+
+type ManualPlanningOccurrence struct {
+	ActivityGroupID   int64
+	ActivityGroupName string
+	InstanceID        int64
+	Date              string
+}

@@ -9,11 +9,12 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -61,13 +62,13 @@ type PhaseResponse struct {
 	UpdatedAt           string `json:"updated_at"`
 }
 
-func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
+func toPhaseResponse(p *enrollmentOwner.Phase) PhaseResponse {
 	resp := PhaseResponse{
 		ID:                        strconv.FormatInt(p.ID, 10),
 		Name:                      p.Name,
 		Kind:                      p.Kind,
-		ServiceStartDate:          p.ServiceStartDate.String(),
-		ServiceEndDate:            p.ServiceEndDate.String(),
+		ServiceStartDate:          string(p.ServiceStartDate),
+		ServiceEndDate:            string(p.ServiceEndDate),
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOverflowMode:          p.CareOverflowMode,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
@@ -180,7 +181,7 @@ func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
 // toModel maps the wire shape onto a Phase model. Date parsing
 // failures bubble back as 400 from the handler — kept here so the
 // parsing logic is in one place.
-func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, error) {
+func (req *PhaseRequest) toModel(existingID int64) (*enrollmentOwner.Phase, error) {
 	startDate, err := timezone.ParseDate(req.ServiceStartDate)
 	if err != nil {
 		return nil, errors.New("service_start_date must be YYYY-MM-DD")
@@ -190,11 +191,11 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 		return nil, errors.New("service_end_date must be YYYY-MM-DD")
 	}
 
-	p := &enrollmentModels.Phase{
+	p := &enrollmentOwner.Phase{
 		Name:                      req.Name,
 		Kind:                      req.Kind,
-		ServiceStartDate:          startDate,
-		ServiceEndDate:            endDate,
+		ServiceStartDate:          enrollmentOwner.Date(startDate),
+		ServiceEndDate:            enrollmentOwner.Date(endDate),
 		ShowStatusReasonToParent:  req.ShowStatusReasonToParent,
 		CareOverflowMode:          req.CareOverflowMode,
 		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
@@ -262,7 +263,7 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 // pre-#1663 eligibility) would otherwise silently wipe the admin's
 // configuration. A PUT without calendar_period_id likewise keeps the stored
 // link; only an explicit null (or value) changes it.
-func (req *PhaseRequest) hydrateOmittedFields(model, existing *enrollmentModels.Phase) {
+func (req *PhaseRequest) hydrateOmittedFields(model, existing *enrollmentOwner.Phase) {
 	if !req.calendarPeriodIDPresent {
 		model.CalendarPeriodID = existing.CalendarPeriodID
 	}
@@ -336,7 +337,7 @@ func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var phases []*enrollmentModels.Phase
+	var phases []*enrollmentOwner.Phase
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.PhaseService.List(ctx)
 		phases = list
@@ -364,7 +365,7 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var phase *enrollmentModels.Phase
+	var phase *enrollmentOwner.Phase
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		p, e := rs.PhaseService.GetByID(ctx, id)
 		phase = p
@@ -397,7 +398,7 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var created *enrollmentModels.Phase
+	var created *enrollmentOwner.Phase
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		p, e := rs.PhaseService.Create(ctx, model)
 		created = p
@@ -480,13 +481,13 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	req := &PhaseRequest{}
 	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
-		func(r *http.Request, id int64) (*enrollmentModels.Phase, error) {
+		func(r *http.Request, id int64) (*enrollmentOwner.Phase, error) {
 			if err := render.Bind(r, req); err != nil {
 				return nil, err
 			}
 			return req.toModel(id)
 		},
-		func(ctx context.Context, model *enrollmentModels.Phase) error {
+		func(ctx context.Context, model *enrollmentOwner.Phase) error {
 			// A PUT without calendar_period_id keeps the stored link; only an
 			// explicit null (or value) changes it. The fetch also surfaces
 			// ErrPhaseNotFound before the update runs.
@@ -497,10 +498,10 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 			req.hydrateOmittedFields(model, existing)
 			return rs.PhaseService.Update(ctx, model)
 		},
-		func(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {
+		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
 			return rs.PhaseService.GetByID(ctx, id)
 		},
-		func(p *enrollmentModels.Phase) any { return toPhaseResponse(p) },
+		func(p *enrollmentOwner.Phase) any { return toPhaseResponse(p) },
 		"Phase updated",
 		phaseWriteErrorRenderer)
 }

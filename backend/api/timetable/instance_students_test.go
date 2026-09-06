@@ -5,10 +5,9 @@
 //  1. Pure unit tests for validateAttendancePatch — every 400 branch,
 //     cross-field rule included. No DB.
 //  2. Integration tests for the full handler — real DB + real repo, the
-//     router mounted in isolation (no JWT / TenantTxMiddleware) so we can
-//     drive tenant context via testpkg.TenantContext.
+//     router without JWT, using the production tenant transaction middleware.
 //
-// The integration tests intentionally avoid the middleware stack. Permission
+// The integration tests intentionally avoid the authentication stack. Permission
 // gating is enforced at the router level in api.go and exercised by the
 // existing permission-middleware tests — duplicating that here would not
 // cover a distinct behavior.
@@ -248,7 +247,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	}
 }
 
-// patchRouter mounts only the PATCH route — no auth, no tenant middleware.
+// patchRouter mounts the PATCH route with its tenant transaction but no auth.
 // The tenant ID is extracted from the passed-in context (built via
 // testpkg.TenantContext) and re-applied to the request context so chi's
 // routing context survives. A prior version replaced the whole request
@@ -263,6 +262,7 @@ func patchRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Patch("/instances/{instance_id}/students/{student_id}", res.patchInstanceStudent)
 	return r
 }

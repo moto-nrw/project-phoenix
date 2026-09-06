@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -30,6 +29,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
+	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -38,9 +41,9 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, r.RequestChildOffering, r.CareOffering, settings.Settings)
+	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
 	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student,
-		r.ClassArrivalTime, r.ClassArrivalException, r.RequestChildOffering, r.CareOffering, settings.Settings)
+		r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
 	careDay := schedule.NewCareDayService(schedule.CareDayDependencies{
 		ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule, ArrivalExceptions: r.StudentArrivalException,
 		PickupBaselines: pickup, PickupExceptions: r.StudentPickupException,
@@ -65,9 +68,9 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	})
 	ender.SetSettingsService(settings.Settings)
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo: r.CareOffering, RequestChildOfferingRepo: r.RequestChildOffering, ActivityGroupRepo: r.ActivityGroup,
+		Repo: r.CareOffering, Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
-		ActivityExceptionRepo: r.ActivityException, PhaseRepo: r.Phase, Settings: settings.Settings, Today: today,
+		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings, Today: today,
 		LockTemplateRecurrence: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
 		Logger:                 logger,
 	})
@@ -80,7 +83,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		r.ActivitySupervisor, r.CalendarPeriod, r.ActivityInstance, r.InstanceStaff, r.InstanceStudent,
 		r.ActivityException, r.Timeframe, periods, db, hub, logger)
 	schedule.WireMaterializationCareBounds(materialization, r.Student)
-	recovery := scheduleRepo.NewActivityRecoveryRepository(db)
+	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	instance := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		InstanceRepo: r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,

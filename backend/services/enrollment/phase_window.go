@@ -3,7 +3,7 @@ package enrollment
 import (
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // IsEnrollmentWindowOpen reports whether the phase's configured enrollment
@@ -16,7 +16,7 @@ import (
 // it stays deterministic and testable. The public enrollment form consumes
 // this; private admin pages do not, since admins may preview/edit closed
 // phases.
-func IsEnrollmentWindowOpen(p *enrollmentModels.Phase, now time.Time) bool {
+func IsEnrollmentWindowOpen(p *enrollmentOwner.Phase, now time.Time) bool {
 	if p == nil {
 		return false
 	}

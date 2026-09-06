@@ -3,11 +3,12 @@ package enrollment
 import (
 	"testing"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -52,7 +53,7 @@ func TestDecodeStructured_DecodesPhoneList(t *testing.T) {
 			"is_primary":   true,
 		},
 	}
-	var out []enrollmentModels.PhoneEntry
+	var out []enrollmentCapability.PhoneEntry
 	require.NoError(t, decodeStructured(raw, &out))
 	require.Len(t, out, 1)
 	assert.Equal(t, "0177 12345", out[0].PhoneNumber)
@@ -64,7 +65,7 @@ func TestDecodeStructured_DecodesWeekdaySchedule(t *testing.T) {
 	t.Parallel()
 
 	raw := map[string]any{"mon": "08:00", "fri": "10:30"}
-	var out enrollmentModels.WeekdaySchedule
+	var out enrollmentCapability.WeekdaySchedule
 	require.NoError(t, decodeStructured(raw, &out))
 	assert.Equal(t, "08:00", out["mon"])
 	assert.Equal(t, "10:30", out["fri"])
@@ -74,7 +75,7 @@ func TestDecodeStructured_DecodesWeekdayBoolean(t *testing.T) {
 	t.Parallel()
 
 	raw := map[string]any{"mon": true, "fri": false}
-	var out enrollmentModels.WeekdayBoolean
+	var out enrollmentCapability.WeekdayBoolean
 	require.NoError(t, decodeStructured(raw, &out))
 	assert.True(t, out["mon"])
 	assert.False(t, out["fri"])
@@ -206,7 +207,7 @@ func TestDecodeStructured_DecodesContactList(t *testing.T) {
 			"can_pickup":           true,
 		},
 	}
-	var out []enrollmentModels.ContactEntry
+	var out []enrollmentCapability.ContactEntry
 	require.NoError(t, decodeStructured(raw, &out))
 	require.Len(t, out, 1)
 	assert.Equal(t, "Erika", out[0].FirstName)
@@ -219,7 +220,7 @@ func TestDecodeStructured_RejectsMismatch(t *testing.T) {
 
 	// A scalar can't decode into []PhoneEntry — json.Unmarshal returns
 	// an error and decodeStructured surfaces it.
-	var out []enrollmentModels.PhoneEntry
+	var out []enrollmentCapability.PhoneEntry
 	err := decodeStructured("not a list", &out)
 	require.Error(t, err)
 }

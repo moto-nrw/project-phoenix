@@ -3,6 +3,8 @@ package enrollment
 import (
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,11 +19,11 @@ func TestBuildPublicEnrollmentFormBootstrapResponse_IncludesLateInvitePrefill(t 
 	lastName := "Muster"
 	response := BuildPublicEnrollmentFormBootstrapResponse(
 		&enrollmentService.PublicFormBootstrapData{
-			Phase: &enrollmentModels.Phase{
-				CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+			Phase: &capability.Phase{
+				CareOfferingSelectionMode: capability.PhaseCareOfferingSelectionOptional,
 			},
 			Offerings: []*enrollmentModels.CareOffering{},
-			LateInvite: &enrollmentModels.LateInvite{
+			LateInvite: &capability.LateInvite{
 				GuardianEmail:     "invited@example.test",
 				GuardianFirstName: &firstName,
 				GuardianLastName:  &lastName,

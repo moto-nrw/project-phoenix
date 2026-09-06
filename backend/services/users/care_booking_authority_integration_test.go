@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -58,17 +60,37 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 func createCareBooking(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64,
 	key string, validFrom, validUntil *timezone.Date,
-) *enrollmentModels.RequestChild {
+) *enrollmentFixture.RequestChild {
 	t.Helper()
 	offering := createCareBookingOffering(t, db, scope, studentID, key)
 	child := createCareBookingSource(t, db, scope, offering.PhaseID, studentID, key)
-	link := &enrollmentModels.RequestChildOffering{
+	link := &enrollmentFixture.RequestChildOffering{
 		RequestChildID: child.ID, CareOfferingID: offering.ID,
-		ValidFrom: validFrom, ValidUntil: validUntil,
+	}
+	if validFrom != nil {
+		from := enrollmentFixture.Date(*validFrom)
+		link.ValidFrom = &from
+	}
+	if validUntil != nil {
+		until := enrollmentFixture.Date(*validUntil)
+		link.ValidUntil = &until
 	}
 	link.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(link).ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(scope.Context())
-	require.NoError(t, err)
+	require.NoError(t, enrollmentFixture.New().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
+	// These scenarios include legacy unbounded bookings. The owner defaults new
+	// bookings to the phase window, so restore only the intentional legacy nulls.
+	if validFrom == nil || validUntil == nil {
+		update := db.NewUpdate().TableExpr("enrollment.request_child_offerings").
+			Where("id = ? AND tenant_id = ?", link.ID, scope.TenantID)
+		if validFrom == nil {
+			update = update.Set("valid_from = NULL")
+		}
+		if validUntil == nil {
+			update = update.Set("valid_until = NULL")
+		}
+		_, err := update.Exec(scope.Context())
+		require.NoError(t, err)
+	}
 	return child
 }
 
@@ -76,14 +98,14 @@ func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
 ) *enrollmentModels.CareOffering {
 	t.Helper()
-	phase := &enrollmentModels.Phase{
+	phase := &enrollmentFixture.Phase{
 		Name: fmt.Sprintf("Buchungsprüfung-%d-%s", studentID, key), Kind: "school_year",
-		ServiceStartDate: timezone.TodayDate().AddDays(-30),
-		ServiceEndDate:   timezone.TodayDate().AddDays(300),
+		ServiceStartDate: enrollmentFixture.Date(timezone.TodayDate().AddDays(-30)),
+		ServiceEndDate:   enrollmentFixture.Date(timezone.TodayDate().AddDays(300)),
 		CareOverflowMode: "waitlist", CareOfferingSelectionMode: "optional", IsActive: true,
 	}
 	phase.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Exec(scope.Context())
+	err := enrollmentFixture.New().InsertPhase(testpkg.WithTenantRuntime(t, scope.Context(), db), phase)
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
@@ -92,32 +114,31 @@ func createCareBookingOffering(
 		AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true,
 	}
 	offering.TenantID = scope.TenantID
-	_, err = db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Exec(scope.Context())
-	require.NoError(t, err)
+	testpkg.InsertTestCareOffering(t, db, scope.Context(), offering)
 	return offering
 }
 
 func createCareBookingSource(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, phaseID, studentID int64, key string,
-) *enrollmentModels.RequestChild {
+) *enrollmentFixture.RequestChild {
 	t.Helper()
-	request := &enrollmentModels.Request{
+	request := &enrollmentFixture.Request{
 		GuardianFirstName: "Test", GuardianLastName: "Person",
 		GuardianEmail: fmt.Sprintf("booking-%d-%s@example.test", studentID, key),
 		StatusToken:   fmt.Sprintf("booking-%d-%s", studentID, key),
 	}
 	request.PhaseID = phaseID
 	request.TenantID = scope.TenantID
-	_, err := db.NewInsert().Model(request).ModelTableExpr(`enrollment.requests AS "request"`).Exec(scope.Context())
-	require.NoError(t, err)
-	child := &enrollmentModels.RequestChild{
+	owner := enrollmentFixture.New()
+	ctx := testpkg.WithTenantRuntime(t, scope.Context(), db)
+	require.NoError(t, owner.InsertRequest(ctx, request))
+	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: timezone.TodayDate().AddDays(-2500), Status: enrollmentModels.ChildStatusApproved,
+		DateOfBirth: enrollmentFixture.Date(timezone.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
-	_, err = db.NewInsert().Model(child).ModelTableExpr(`enrollment.request_children AS "request_child"`).Exec(scope.Context())
-	require.NoError(t, err)
+	require.NoError(t, owner.InsertChild(ctx, child))
 	return child
 }
 

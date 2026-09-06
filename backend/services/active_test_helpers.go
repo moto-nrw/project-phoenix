@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -32,6 +31,10 @@ type ActiveTestModule struct {
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
 	r, err := repositories.NewActiveTestRepositories(db, clocks...)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -65,8 +68,8 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, r.RequestChildOffering, r.CareOffering, settings.Settings)
-	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student, r.ClassArrivalTime, r.ClassArrivalException, r.RequestChildOffering, r.CareOffering, settings.Settings)
+	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
+	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student, r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
 	careDay := schedule.NewCareDayService(schedule.CareDayDependencies{ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule,
 		ArrivalExceptions: r.StudentArrivalException, PickupBaselines: pickup, PickupExceptions: r.StudentPickupException})
 	care, err := NewCareLifecycleTestModule(db, unit)
@@ -97,7 +100,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
 		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, VisitRepo: r.ActiveVisit,
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
-		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: scheduleRepo.NewActivityRecoveryRepository(db),
+		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
 	dashboard := supervisiondashboard.NewService(supervisiondashboard.Dependencies{Active: presence, UserContext: groups.UserContext, Education: groups.Education,
 		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals})

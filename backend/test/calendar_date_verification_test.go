@@ -84,6 +84,32 @@ var droppedDateColumns = map[string]string{
 // date math (always wrong for Berlin calendar days). Shrink-only.
 var truncate24hAllowlist = map[string]string{}
 
+func enrollmentDateIsString(backendRoot string) bool {
+	return declaredTypeIsString(backendRoot, "modules/enrollment/phase.go", "Date")
+}
+
+func declaredTypeIsString(backendRoot, source, name string) bool {
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(backendRoot, source), nil, 0)
+	if err != nil {
+		return false
+	}
+	for _, declaration := range file.Decls {
+		group, ok := declaration.(*ast.GenDecl)
+		if !ok || group.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range group.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok || typeSpec.Name.Name != name {
+				continue
+			}
+			underlying, ok := typeSpec.Type.(*ast.Ident)
+			return ok && underlying.Name == "string"
+		}
+	}
+	return false
+}
+
 func TestDateColumnTypes(t *testing.T) {
 	t.Parallel()
 
@@ -116,6 +142,19 @@ func TestDateColumnTypes(t *testing.T) {
 				switch f.goType {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
+				case "calendarDate", "*calendarDate":
+					if !strings.HasPrefix(f.file, "modules/careplan/internal/adapters/postgres/") ||
+						!declaredTypeIsString(backendRoot, "modules/careplan/internal/adapters/postgres/store.go", "calendarDate") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" must use Care Plan's string-backed storage date"))
+					}
+				case "enrollment.Date", "*enrollment.Date":
+					// Verify the owner type's representation instead of accepting
+					// a timestamp wrapper or importing legacy-shared/timezone.
+					if !strings.HasPrefix(f.file, "modules/enrollment/") || !enrollmentDateIsString(backendRoot) {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" must use Enrollment's string-backed calendar date"))
+					}
 				case "domain.Date", "*domain.Date":
 					// Appointments owns a string-backed calendar-date type and does
 					// not depend on the legacy shared/domain package.

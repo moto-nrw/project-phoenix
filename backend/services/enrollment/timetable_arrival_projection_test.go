@@ -39,7 +39,7 @@ func timetableDataWithArrivalBaseline(
 		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		PickupExceptionRepo: env.repos.StudentPickupException,

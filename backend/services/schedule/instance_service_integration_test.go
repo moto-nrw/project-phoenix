@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -133,7 +132,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		Broadcaster:        broadcaster,
 		DB:                 s.db,
 		Logger:             slog.Default(),
-		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
+		RecoveryRepo:       repositories.NewActivityRecoveryRepository(s.db, s.repos.InstanceStudent),
 	})
 }
 
@@ -1744,7 +1743,7 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 		DeviationEventRepo: s.repos.DeviationEvent,
 		DB:                 s.db,
 		Logger:             slog.Default(),
-		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
+		RecoveryRepo:       repositories.NewActivityRecoveryRepository(s.db, s.repos.InstanceStudent),
 		Settings:           guardedLifecycleSettings{leadMinutes: 15, enforcePlannedEnd: true},
 		Now:                func() time.Time { return now },
 		EnforceTimePolicy:  true,

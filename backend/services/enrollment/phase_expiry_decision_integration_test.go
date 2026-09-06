@@ -1,8 +1,11 @@
 package enrollment_test
 
 import (
+	"context"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +37,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 		CountsAsCareSet: true,
 		IncludesLunch:   true,
 	}
-	sourceOffering.SetTenantID(testpkg.Tenant(t))
+	sourceOffering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(ctx, sourceOffering))
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
@@ -76,7 +79,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	rollover, err := env.rolloverSvc.CreatePhaseFromSource(ctx, rolloverRequest)
 	require.NoError(t, err)
 
-	rolledChildren, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	rolledChildren, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx,
 		rollover.Phase.ID,
 		[]string{enrollmentModels.ChildStatusAutoRenewed},
@@ -103,10 +106,10 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	require.NotNil(t, student.EnrolledFrom)
 	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
 		"scheduled approval after phase-driven inactivation must leave the future child pending")
-	assert.Equal(t, rollover.Phase.ServiceStartDate, *student.EnrolledFrom,
+	assert.Equal(t, timezone.Date(rollover.Phase.ServiceStartDate), *student.EnrolledFrom,
 		"the real approval must replace the student's source enrollment window")
 
-	warnings, err := enrollmentService.NewPhaseExpiryService(env.repos.PhaseExpiry).
+	warnings, err := enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()})).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	require.Len(t, warnings, 1)
@@ -115,8 +118,55 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 
 	targetOfferings[0].IsActive = true
 	require.NoError(t, env.repos.CareOffering.Update(ctx, targetOfferings[0]))
-	warnings, err = enrollmentService.NewPhaseExpiryService(env.repos.PhaseExpiry).
+	warnings, err = enrollmentService.NewPhaseExpiryService(enrollmentService.NewPhaseExpiryProjection(env.repos.Enrollment(), expiryDecisionStudents{env.repos.Student}, expiryDecisionOfferings{env.repos.CarePlan()})).
 		ListWarnings(ctx, timezone.NewDate(2027, 7, 3))
 	require.NoError(t, err)
 	assert.Empty(t, warnings)
+}
+
+type expiryDecisionStudents struct{ students usersModels.StudentRepository }
+
+func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentService.PhaseExpiryStudent, error) {
+	students, err := d.students.List(ctx, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentService.PhaseExpiryStudent, 0, len(students))
+	for _, student := range students {
+		if student.IsAlumnus() {
+			continue
+		}
+		result = append(result, toExpiryDecisionStudent(student))
+	}
+	return result, nil
+}
+
+func toExpiryDecisionStudent(student *usersModels.Student) enrollmentService.PhaseExpiryStudent {
+	row := enrollmentService.PhaseExpiryStudent{
+		ID: student.ID, Status: string(student.Status),
+	}
+	if student.EnrolledFrom != nil {
+		row.EnrolledFrom = student.EnrolledFrom.String()
+	}
+	if student.EnrolledUntil != nil {
+		row.EnrolledUntil = student.EnrolledUntil.String()
+	}
+	return row
+}
+
+type expiryDecisionOfferings struct{ query careplan.Query }
+
+func (d expiryDecisionOfferings) ListCareOfferings(ctx context.Context) ([]enrollmentService.PhaseExpiryOffering, error) {
+	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]enrollmentService.PhaseExpiryOffering, 0, len(values))
+	for _, value := range values {
+		result = append(result, enrollmentService.PhaseExpiryOffering{
+			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
+			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays, IsActive: value.IsActive,
+		})
+	}
+	return result, nil
 }

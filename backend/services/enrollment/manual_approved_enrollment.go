@@ -31,7 +31,7 @@ type ManualApprovedEnrollmentInput struct {
 // any pending guardian invite for post-decision dispatch.
 type ManualApprovedEnrollmentResult struct {
 	Request       *enrollmentModels.Request
-	Child         *enrollmentModels.RequestChild
+	Child         *RequestChild
 	StatusURL     string
 	PendingInvite *PendingGuardianInvite
 }

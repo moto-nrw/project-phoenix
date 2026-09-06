@@ -5,11 +5,12 @@ import (
 	"log/slog"
 	"testing"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // newIdentityEligibilityService wires a change-request service with only the
@@ -22,11 +23,11 @@ func newIdentityEligibilityService(exists bool) *changeRequestService {
 	return svc
 }
 
-func identityEligibilityChild(id int64, firstName string) *enrollmentModels.RequestChild {
-	child := &enrollmentModels.RequestChild{
+func identityEligibilityChild(id int64, firstName string) *RequestChild {
+	child := &RequestChild{
 		FirstName:   firstName,
 		LastName:    "Müller",
-		DateOfBirth: timezone.NewDate(2019, 4, 12),
+		DateOfBirth: "2019-04-12",
 	}
 	child.ID = id
 	return child
@@ -48,8 +49,8 @@ func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdenti
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
-	children := []*enrollmentModels.RequestChild{
+	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
+	children := []*RequestChild{
 		identityEligibilityChild(11, "Anna"),
 		identityEligibilityChild(12, "Ben"),
 	}
@@ -74,8 +75,8 @@ func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *tes
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceNewStudents}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Anna")},
@@ -90,8 +91,8 @@ func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownI
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(false)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceExistingStudents}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceExistingStudents}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},
@@ -106,8 +107,8 @@ func TestValidateChangedChildIdentityEligibility_OtherAudiencesPass(t *testing.T
 	t.Parallel()
 
 	svc := newIdentityEligibilityService(true)
-	phase := &enrollmentModels.Phase{Audience: enrollmentModels.PhaseAudienceOpen}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	phase := &capability.Phase{Audience: capability.PhaseAudienceOpen}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},

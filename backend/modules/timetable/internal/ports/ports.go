@@ -8,6 +8,18 @@ import (
 )
 
 type Store interface {
+	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, domain.OperationStats, error)
+	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
+	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)
+	CourseInstances(context.Context, string, string, string) ([]domain.CourseInstanceRow, domain.OperationStats, error)
+	CourseParticipation(context.Context, string, string, string) ([]domain.CourseParticipationRow, domain.OperationStats, error)
+	LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) (domain.OperationStats, error)
+	ReconnectCareExitAssignmentPickupExceptions(ctx context.Context, studentIDs, pickupExceptionIDs []int64, removals []domain.InstanceStudent) (domain.OperationStats, error)
+	ListOpenStudentAssignments(ctx context.Context, studentIDs []int64) ([]int64, domain.OperationStats, error)
+	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, domain.OperationStats, error)
+	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, domain.OperationStats, error)
+	CountStudentAssignments(context.Context, int64) (int, domain.OperationStats, error)
+	DeleteStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	LockPlannedRosterForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
 	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)
 	RestoreRosterForCareExit(context.Context, []int64, []domain.CareExitRosterRow) (int64, domain.OperationStats, error)

@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newSettingsResource(operations configAPI.Operations, references func(context.Context, string, string) (bool, error), db *bun.DB) *configAPI.SettingsResource {
+func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error), db *bun.DB) *configAPI.SettingsResource {
 	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
 		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
 			apiCommon.ProtectedTenantGroup(r, db, fn)
@@ -79,5 +79,5 @@ func newSettingsResource(operations configAPI.Operations, references func(contex
 			return referenced, nil
 		},
 	})
-	return configAPI.NewSettingsResource(operations, settingsRuntime)
+	return configAPI.NewSettingsResource(operations, homeLayouts, settingsRuntime)
 }
