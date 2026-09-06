@@ -202,7 +202,7 @@ function createStore(): NavigationProgressStore {
 const NOT_PENDING = () => false;
 const NO_SUBSCRIPTION = () => () => undefined;
 
-export function useNavigationProgressPending() {
+function useNavigationProgressPending() {
   const store = useContext(NavigationProgressContext);
   return useSyncExternalStore(
     store?.subscribe ?? NO_SUBSCRIPTION,
