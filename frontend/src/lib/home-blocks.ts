@@ -256,7 +256,7 @@ export function isHomeBlockVisible(
   return resolveHomeBlocks(ctx, overrides, policies).visible.has(key);
 }
 
-export function isHomeBlockKey(value: unknown): value is HomeBlockKey {
+function isHomeBlockKey(value: unknown): value is HomeBlockKey {
   return (
     typeof value === "string" &&
     HOME_BLOCKS.some((block) => block.key === value)
