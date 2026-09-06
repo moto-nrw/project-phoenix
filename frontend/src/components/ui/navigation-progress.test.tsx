@@ -155,6 +155,22 @@ describe("NavigationProgress", () => {
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
+  it("cancels progress when a later capture guard blocks a NavigationLink", () => {
+    renderShell(
+      <>
+        <ProtectedLoading />
+        <div onClickCapture={(event) => event.preventDefault()}>
+          <Link href="/calendar-periods">Planungszeiträume</Link>
+        </div>
+      </>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+    expect(screen.getByLabelText("Lädt...")).toBeVisible();
+  });
+
   it("completes a redirected Link without a second pending entry", () => {
     navigateTo("/rooms");
     const rendered = renderShell(

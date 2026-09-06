@@ -84,7 +84,6 @@ function currentUrl() {
 
 function isClientSideLinkClick(event: MouseEvent<HTMLAnchorElement>) {
   if (
-    event.defaultPrevented ||
     event.button !== 0 ||
     event.metaKey ||
     event.ctrlKey ||
