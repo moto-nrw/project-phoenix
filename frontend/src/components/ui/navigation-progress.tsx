@@ -41,8 +41,6 @@ export interface NavigationProgressStore {
   readonly subscribe: (onChange: () => void) => () => void;
   readonly isPending: () => boolean;
   readonly isFallbackSuppressed: () => boolean;
-  readonly suppressFallback: () => void;
-  readonly restoreFallback: () => void;
   readonly startNavigation: (target: string) => number;
   readonly startLinkNavigation: (target: string) => number;
   readonly startHistory: (target: string) => void;
@@ -63,7 +61,6 @@ function createStore(): NavigationProgressStore {
   let pendingHistoryNavigation: PendingNavigation | null = null;
   let pendingLinkNavigation: Pick<PendingNavigation, "id" | "target"> | null =
     null;
-  let fallbackSuppressed = false;
   let nextNavigationId = 0;
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -71,27 +68,11 @@ function createStore(): NavigationProgressStore {
   };
   const isPending = () =>
     pendingNavigations.length > 0 || pendingHistoryNavigation !== null;
-  const isFallbackSuppressed = () => fallbackSuppressed || isPending();
-  const suppressFallback = () => {
-    if (fallbackSuppressed) return;
-    fallbackSuppressed = true;
-    notify();
-  };
-  const restoreFallback = () => {
-    if (!fallbackSuppressed) return;
-    fallbackSuppressed = false;
-    if (!isPending()) notify();
-  };
+  const isFallbackSuppressed = isPending;
   const update = (change: () => void) => {
     const wasPending = isPending();
-    const wasFallbackSuppressed = isFallbackSuppressed();
     change();
-    if (
-      wasPending !== isPending() ||
-      wasFallbackSuppressed !== isFallbackSuppressed()
-    ) {
-      notify();
-    }
+    if (wasPending !== isPending()) notify();
   };
   const clearNavigations = () => {
     for (const navigation of pendingNavigations) {
@@ -142,8 +123,6 @@ function createStore(): NavigationProgressStore {
     },
     isPending,
     isFallbackSuppressed,
-    suppressFallback,
-    restoreFallback,
     startNavigation,
     startLinkNavigation: (target) => {
       const id = startNavigation(target);
@@ -281,15 +260,13 @@ function NavigationProgressRouter({
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
   useEffect(() => {
-    // Die Capture-Phase blendet die generische Ladehülle aus, bevor Next sie
-    // rendern kann. Der tatsächliche Fortschrittsvorgang startet danach über
-    // den bereitgestellten Router. Wird der Klick von einem eigenen Handler
-    // abgebrochen, setzt die Mikroaufgabe die frühe Unterdrückung zurück.
+    // Next 16 löst native `next/link`-Wechsel direkt über seine interne
+    // Router-Aktion aus. Die Capture-Phase meldet sie deshalb selbst, noch
+    // bevor Next die generische Ladehülle rendern kann.
     const handleLinkClick = (event: MouseEvent) => {
       const target = linkNavigationTarget(event);
       if (target !== null && target !== currentUrl()) {
-        store.suppressFallback();
-        queueMicrotask(store.restoreFallback);
+        store.startLinkNavigation(target);
       }
     };
     document.addEventListener("click", handleLinkClick, true);
