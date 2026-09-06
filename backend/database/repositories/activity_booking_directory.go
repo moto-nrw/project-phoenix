@@ -9,6 +9,54 @@ import (
 
 type activityBookingDirectory struct{ capability timetable.Command }
 
+func (d activityBookingDirectory) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) error {
+	return d.capability.LockPlannedRosterForCareExit(ctx, studentIDs, after)
+}
+
+func (d activityBookingDirectory) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]usersRepo.CareExitRemoval, error) {
+	rows, err := d.capability.RemovePlannedRosterForCareExit(ctx, studentIDs, after)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]usersRepo.CareExitRemoval, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, usersRepo.CareExitRemoval{
+			TenantID: row.TenantID, StudentID: row.StudentID, Kind: usersRepo.CareExitRemovalRoster,
+			InstanceID: &row.InstanceID, RoomID: row.RoomID, Status: &row.Status,
+			Substatus: row.Substatus, Note: row.Note, IsUnplanned: &row.IsUnplanned,
+			NotScheduled: &row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
+			StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
+		})
+	}
+	return result, nil
+}
+
+func (d activityBookingDirectory) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, removals []usersRepo.CareExitRemoval) (int, error) {
+	rows := make([]timetable.CareExitRosterRow, 0, len(removals))
+	for _, removal := range removals {
+		if removal.Kind != usersRepo.CareExitRemovalRoster || removal.InstanceID == nil {
+			continue
+		}
+		row := timetable.CareExitRosterRow{
+			TenantID: removal.TenantID, StudentID: removal.StudentID, InstanceID: *removal.InstanceID,
+			RoomID: removal.RoomID, Substatus: removal.Substatus, Note: removal.Note,
+			ManualStatusAt: removal.ManualStatusAt, StudentStatusDayID: removal.StudentStatusDayID,
+			PickupExceptionID: removal.PickupExceptionID,
+		}
+		if removal.Status != nil {
+			row.Status = *removal.Status
+		}
+		if removal.IsUnplanned != nil {
+			row.IsUnplanned = *removal.IsUnplanned
+		}
+		if removal.NotScheduled != nil {
+			row.NotScheduled = *removal.NotScheduled
+		}
+		rows = append(rows, row)
+	}
+	return d.capability.RestoreRosterForCareExit(ctx, studentIDs, rows)
+}
+
 func (d activityBookingDirectory) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) error {
 	return d.capability.LockStudentEnrollmentsForCareExit(ctx, studentIDs, validUntil)
 }

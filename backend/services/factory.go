@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -69,7 +68,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
@@ -77,6 +75,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
+	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 type substitutionIdentity interface {
@@ -189,7 +190,7 @@ type Factory struct {
 	Emergency                 *emergency.Service
 	SlotLists                 slotlists.Service
 	PlanExport                planexport.Service
-	Reminders                 reminders.Computer
+	Reminders                 reminder.Capability
 	Notifications             notifications.Notifier
 	PushSubscriptions         notifications.PushSubscriptionService
 	PWAUsage                  pwa.UsageService
@@ -1242,6 +1243,7 @@ func newFactory(
 
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
+		RecurrenceEvents:   timetableCapability,
 		DateframeRepo:      repos.Dateframe,
 		TimeframeRepo:      repos.Timeframe,
 		RecurrenceRuleRepo: repos.RecurrenceRule,
@@ -1417,7 +1419,7 @@ func newFactory(
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
-	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
+	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
@@ -2852,23 +2854,25 @@ func newFactory(
 		setter.SetAbsenceNotifier(absenceNotifier)
 	}
 
-	remindersService := reminders.NewService(reminders.Dependencies{
-		Settings:    settingsService,
-		Attendance:  repos.Attendance,
-		Pickup:      pickupScheduleService,
-		Instance:    repos.ActivityInstance,
-		Room:        repos.Room,
-		Student:     repos.Student,
-		Person:      repos.Person,
-		Supervision: activeService,
-		Visits:      repos.ActiveVisit,
-		Logger:      logger.With("service", "reminders"),
+	remindersService := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
+		Clock:        reminderClock(),
+		CurrentStaff: reminderStaffIdentity(userContextService),
+		Settings:     reminderSettings{settingsService},
+		Attendance:   reminderAttendanceReader{source: repos.Attendance},
+		Pickup:       reminderPickupReader{source: pickupScheduleService},
+		Instance:     reminderTimetableReader{source: timetableCapability},
+		Room:         reminderRoomReader{source: rooms},
+		Student:      reminderStudentReader{source: repos.Student},
+		Person:       reminderPersonReader{source: repos.Person},
+		Supervision:  reminderSupervisionReader{source: activeService},
+		Visits:       repos.ActiveVisit,
+		Logger:       logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
 		// per-person facts for the whole tenant in one query each, which is what
 		// keeps the per-minute cost flat in the number of staff.
-		BulkSupervision:   repos.GroupSupervisor,
-		BulkInstanceStaff: repos.InstanceStaff,
+		BulkSupervision:   reminderBulkSupervisionReader{source: repos.GroupSupervisor},
+		BulkInstanceStaff: reminderTimetableReader{source: timetableCapability},
 	})
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
@@ -3085,7 +3089,7 @@ func newFactory(
 		PlanExport:               planExportService,
 		Emergency:                emergencyService,
 		SlotLists:                slotListsService,
-		Reminders:                remindersService,
+		Reminders:                reminder.Module{Query: remindersService, Command: NewCalendarReminderCommand(db, calendarSvc)},
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
 		PWAUsage:                 pwaUsageService,

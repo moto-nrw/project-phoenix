@@ -11,10 +11,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type ActivityRecoveryRepository struct{ db *bun.DB }
+type AssignmentRecovery interface {
+	LockAttendance(context.Context, int64) error
+	RestoreAttendance(context.Context, int64, []scheduleModel.CompletionAttendanceSnapshot) error
+}
+type ActivityRecoveryRepository struct {
+	db          *bun.DB
+	assignments AssignmentRecovery
+}
 
-func NewActivityRecoveryRepository(db *bun.DB) *ActivityRecoveryRepository {
-	return &ActivityRecoveryRepository{db: db}
+func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery) *ActivityRecoveryRepository {
+	if assignments == nil {
+		panic("activity recovery: timetable assignments are required")
+	}
+	return &ActivityRecoveryRepository{db: db, assignments: assignments}
 }
 
 func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
@@ -71,16 +81,7 @@ func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeG
 }
 
 func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
-	db := base.GetDB(ctx, r.db)
-	var rowIDs []int64
-	query := db.NewSelect().
-		TableExpr(`schedule.instance_students AS "instance_student"`).
-		ColumnExpr(`"instance_student".id`).
-		Where(`"instance_student".instance_id = ?`, instanceID).
-		OrderExpr(`"instance_student".id ASC`).
-		For("UPDATE")
-	query = base.WithTenantFilter(ctx, query, "instance_student")
-	if err := query.Scan(ctx, &rowIDs); err != nil {
+	if err := r.assignments.LockAttendance(ctx, instanceID); err != nil {
 		return fmt.Errorf("lock attendance: %w", err)
 	}
 	return nil
@@ -104,11 +105,8 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 			return fmt.Errorf("restore supervisors: %w", err)
 		}
 	}
-	for _, row := range snapshot.Attendance {
-		result, execErr = db.NewUpdate().Table("schedule.instance_students").Set("status = ?", row.Status).Set("substatus = ?", row.Substatus).Set("note = ?", row.Note).Set("checked_in_at = ?", row.CheckedInAt).Set("checked_out_at = ?", row.CheckedOutAt).Set("not_scheduled = ?", row.NotScheduled).Set("student_status_day_id = ?", row.StudentStatusDayID).Set("pickup_exception_id = ?", row.PickupExceptionID).Where("id = ? AND instance_id = ?", row.RowID, instanceID).Exec(ctx)
-		if err := expectRestoredRows(result, execErr, 1, "attendance row"); err != nil {
-			return fmt.Errorf("restore attendance row %d: %w", row.RowID, err)
-		}
+	if err := r.assignments.RestoreAttendance(ctx, instanceID, snapshot.Attendance); err != nil {
+		return err
 	}
 	result, err := db.NewUpdate().Table("schedule.activity_instances").Set("status = 'active'").Set("active_group_id = ?", snapshot.ActiveGroupID).Set("completed_at = NULL").Set("completed_by = NULL").Set("reopen_until = NULL").Set("completion_snapshot = NULL").Where("id = ? AND status = 'completed'", instanceID).Exec(ctx)
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -37,7 +36,7 @@ func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, cloc
 	stats := activeRepo.NewStatisticsRepository(db)
 	stats.(*activeRepo.StatisticsRepository).BindCarePlan(statisticsCarePlanDirectory{query: carePlan})
 	return StatisticsTestRepositories{
-		Timetable: timetable, Statistics: stats, Courses: scheduleRepo.NewCourseStatisticsRepository(db),
+		Timetable: timetable, Statistics: stats, Courses: timetableCourseStatisticsRepository{timetable: timetable.Timetable},
 		AccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command},
 		Privacy:   activeRepo.NewPrivacyConsentRepository(db),
 	}, nil

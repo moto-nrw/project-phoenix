@@ -17,6 +17,7 @@ import (
 // preview and the transactional stale-preview check from drifting apart.
 type StudentDeletionRepository struct {
 	db                   *bun.DB
+	assignments          StudentAssignmentDeletion
 	countAuditReferences func(context.Context, int64) (int, error)
 	// countConsents is served by the privacy-consent owner (student-presence,
 	// #2662); the preview must not join users.privacy_consents itself.
@@ -29,6 +30,13 @@ type StudentDeletionRepository struct {
 	appointments interface {
 		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
 	}
+}
+
+// StudentAssignmentDeletion is the Timetable owner seam used by permanent
+// student deletion. It shares the caller's tenant transaction.
+type StudentAssignmentDeletion interface {
+	CountStudentAssignments(context.Context, int64) (int, error)
+	DeleteStudentAssignments(context.Context, int64) (int64, error)
 }
 
 type CarePlanDeletionCounts struct {
@@ -62,8 +70,12 @@ func NewStudentDeletionRepository(
 	db *bun.DB,
 	countAuditReferences func(context.Context, int64) (int, error),
 	countConsents func(context.Context, int64) (int, error),
+	assignments StudentAssignmentDeletion,
 ) userModels.StudentDeletionRepository {
-	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents}
+	if assignments == nil {
+		panic("student deletion repository: timetable assignments are required")
+	}
+	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents, assignments: assignments}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -75,7 +87,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 	counts := new(userModels.StudentDeletionCounts)
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
-			(SELECT COUNT(*) FROM schedule.instance_students WHERE tenant_id = ? AND student_id = ?)::int AS timetable_assignments,
+			0::int AS timetable_assignments,
 			0::int AS activity_enrollments,
 			(
 				active.count_student_visits_for_deletion(?, ?) +
@@ -107,13 +119,16 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
-		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, studentID,
 		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.TimetableAssignments, err = r.assignments.CountStudentAssignments(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
@@ -249,17 +264,9 @@ func (r *StudentDeletionRepository) DeleteTimetableAssignments(ctx context.Conte
 	if tenantID <= 0 {
 		return 0, fmt.Errorf("delete student timetable assignments: tenant context is required")
 	}
-	result, err := base.GetDB(ctx, r.db).NewDelete().
-		TableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".tenant_id = ?`, tenantID).
-		Where(`"instance_student".student_id = ?`, studentID).
-		Exec(ctx)
+	rows, err := r.assignments.DeleteStudentAssignments(ctx, studentID)
 	if err != nil {
 		return 0, fmt.Errorf("delete student timetable assignments: %w", err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("count deleted student timetable assignments: %w", err)
 	}
 	return rows, nil
 }

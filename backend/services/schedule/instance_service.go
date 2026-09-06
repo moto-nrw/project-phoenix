@@ -773,6 +773,15 @@ func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, insta
 // and fires per-student checkout SSE events, matching today's observable
 // behavior when a session ends.
 func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+	if !s.hasTx(ctx) {
+		var result *scheduleModel.ActivityInstance
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var completeErr error
+			result, completeErr = s.Complete(txCtx, instanceID)
+			return completeErr
+		})
+		return result, err
+	}
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -950,6 +959,15 @@ func ptrTo[T any](value T) *T { return &value }
 // captured immediately before completion. The day lock serializes this with
 // lifecycle and staffing writes; any conflict aborts the tenant transaction.
 func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*StartInstanceResult, error) {
+	if !s.hasTx(ctx) {
+		var result *StartInstanceResult
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var reopenErr error
+			result, reopenErr = s.Reopen(txCtx, instanceID, accountID, isAdmin)
+			return reopenErr
+		})
+		return result, err
+	}
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -1292,6 +1310,15 @@ func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context
 // ended the same way Complete does (visits + supervisors close, checkout
 // events fire). From planned there is no bridge yet; just stamp the status.
 func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
+	if !s.hasTx(ctx) {
+		var result *scheduleModel.ActivityInstance
+		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			var cancelErr error
+			result, cancelErr = s.Cancel(txCtx, instanceID, reason, actorAccountID)
+			return cancelErr
+		})
+		return result, err
+	}
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err

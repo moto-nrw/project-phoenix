@@ -17,6 +17,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useToast } from "~/contexts/ToastContext";
+
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -116,7 +118,7 @@ export function AggregatedRequestList({
     load: loadWithdrawals,
     loadMore: loadMoreWithdrawals,
   } = withdrawalsFeed;
-  const [notice, setNotice] = useState<string | null>(null);
+  const { success: showSuccess } = useToast();
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
   const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
   const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(
@@ -172,9 +174,9 @@ export function AggregatedRequestList({
       suppressSelfReloadRef.current = true;
       window.dispatchEvent(new Event("change-requests-refresh"));
       suppressSelfReloadRef.current = false;
-      setNotice(decidedNotice);
+      showSuccess(decidedNotice);
     },
-    [setItems],
+    [setItems, showSuccess],
   );
 
   // Eine Anfrage wurde zwischenzeitlich geändert: die Zeile bleibt stehen und
@@ -210,7 +212,6 @@ export function AggregatedRequestList({
     (childCase: OpenCase) => {
       returnFocus.remember(caseRowID(childCase.key));
       setSelectedCaseKey(childCase.key);
-      setNotice(null);
       setStaleNotice(null);
     },
     [returnFocus],
@@ -243,7 +244,7 @@ export function AggregatedRequestList({
       setSelectedForBulk(new Set());
       setBulkReason("");
       setBulkConfirmOpen(false);
-      setNotice(`${count} Anfragen wurden freigegeben.`);
+      showSuccess(`${count} Anfragen wurden freigegeben.`);
       suppressSelfReloadRef.current = true;
       window.dispatchEvent(new Event("change-requests-refresh"));
       suppressSelfReloadRef.current = false;
@@ -272,17 +273,18 @@ export function AggregatedRequestList({
     selectedForBulk,
     setError,
     setItems,
+    showSuccess,
   ]);
 
   const handleWithdrawalFinished = useCallback(
     (row: CareWithdrawalCompletion, deleted = false) => {
       setWithdrawals((current) => current.filter((item) => item.id !== row.id));
-      setNotice(
+      showSuccess(
         deleted ? "Das Kind wurde gelöscht." : "Die Betreuung wurde beendet.",
       );
       window.dispatchEvent(new Event("change-requests-refresh"));
     },
-    [setWithdrawals],
+    [setWithdrawals, showSuccess],
   );
   const withdrawalDialogs = useWithdrawalDialogs(handleWithdrawalFinished);
 
@@ -304,13 +306,13 @@ export function AggregatedRequestList({
             : item,
         ),
       );
-      setNotice(
+      showSuccess(
         enabled
           ? "Der Familienschutz ist jetzt aktiv."
           : "Der Familienschutz ist jetzt aus.",
       );
     },
-    [setItems],
+    [setItems, showSuccess],
   );
 
   const visibleWithdrawals =
@@ -359,7 +361,6 @@ export function AggregatedRequestList({
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
       {staleNotice && <Alert type="warning" message={staleNotice} />}
-      {notice && <Alert type="success" message={notice} />}
       {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <RequestEmptyState
           view={view}
@@ -400,7 +401,7 @@ export function AggregatedRequestList({
                   onDecided={handleDecided}
                   onProtectionChanged={handleProtectionChanged}
                   onReload={handleStale}
-                  onNotice={setNotice}
+                  onNotice={showSuccess}
                   finishWithdrawal={withdrawalDialogs.finishWithdrawal}
                   removeWithdrawal={withdrawalDialogs.removeWithdrawal}
                 />
@@ -415,7 +416,7 @@ export function AggregatedRequestList({
           withdrawals={visibleWithdrawals}
           reasonRequired={reasonRequired}
           onCorrected={(corrected) => {
-            setNotice(corrected);
+            showSuccess(corrected);
             void feed.reload();
           }}
         />

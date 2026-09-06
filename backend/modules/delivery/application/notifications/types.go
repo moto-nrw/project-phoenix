@@ -51,7 +51,7 @@ var groupOrder = map[string]int{
 
 // Notification type keys.
 //
-// The four reminder keys are the same strings services/reminders emits as
+// The four reminder keys are the same strings the reminder query emits as
 // Reminder.Type and the frontend switches on. They are declared separately
 // rather than imported to keep this package free of a dependency on reminders;
 // TestNotificationTypeKeysMatchReminders pins them against each other.

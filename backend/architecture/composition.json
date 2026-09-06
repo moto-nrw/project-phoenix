@@ -7510,7 +7510,7 @@
       "declaration": "TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAccess",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        164
       ],
       "tables": [
         "users.students",
@@ -7523,7 +7523,7 @@
       "declaration": "TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        631
+        632
       ],
       "tables": []
     },
@@ -10295,19 +10295,6 @@
     },
     {
       "scope": "test",
-      "file": "services/reminders/room_scope_equivalence_test.go",
-      "declaration": "TestSupervisedRoomScopeAgreesWithBulkReader",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        38
-      ],
-      "tables": [
-        "active.group_supervisors",
-        "active.groups"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/schedule/arrival_baseline_service_test.go",
       "declaration": "TestArrivalBaselineCareDayWithoutAnyClassTime",
       "target": "database/repositories.NewFactory",
@@ -10687,7 +10674,7 @@
       "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2198
+        2197
       ],
       "tables": []
     },
@@ -10697,7 +10684,7 @@
       "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2173
+        2172
       ],
       "tables": []
     },
@@ -10707,7 +10694,7 @@
       "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2042
+        2041
       ],
       "tables": []
     },
@@ -10717,7 +10704,7 @@
       "declaration": "buildLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        66
       ],
       "tables": []
     },
@@ -10878,7 +10865,7 @@
       "declaration": "TestScheduleService_TimeframeCareOfferingGuard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        557
       ],
       "tables": []
     },
@@ -10888,7 +10875,7 @@
       "declaration": "setupScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        49
       ],
       "tables": []
     },
@@ -11610,7 +11597,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        626
+        623
       ],
       "tables": [
         "users.students"
@@ -11622,7 +11609,7 @@
       "declaration": "TestCareLifecycle_CancelOnlyBeforeItTakesEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        397
+        394
       ],
       "tables": []
     },
@@ -11632,7 +11619,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        714
+        711
       ],
       "tables": [
         "schedule.instance_students"
@@ -11644,7 +11631,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        467
+        464
       ],
       "tables": [
         "users.students"
@@ -11656,7 +11643,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        842
+        838
       ],
       "tables": []
     },
@@ -11666,7 +11653,7 @@
       "declaration": "TestCareLifecycle_ConfirmAuditsOnlyCareEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        96
       ],
       "tables": [
         "users.students"
@@ -11678,7 +11665,7 @@
       "declaration": "TestCareLifecycle_EndsBookingsAtTheLastCareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        328
+        326
       ],
       "tables": []
     },
@@ -11688,7 +11675,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        495
+        492
       ],
       "tables": [
         "users.students"
@@ -11700,7 +11687,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        910
+        906
       ],
       "tables": [
         "users.students"
@@ -11712,7 +11699,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        584
+        581
       ],
       "tables": [
         "users.students"
@@ -11724,7 +11711,7 @@
       "declaration": "TestCareLifecycle_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        315
+        313
       ],
       "tables": []
     },
@@ -11734,7 +11721,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        660
+        657
       ],
       "tables": [
         "users.students"
@@ -11746,7 +11733,7 @@
       "declaration": "loadStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        127
+        125
       ],
       "tables": []
     },
@@ -29019,12 +29006,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 428,
+          "line": 429,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 459,
+          "line": 460,
           "declaration": "newFactory"
         },
         {

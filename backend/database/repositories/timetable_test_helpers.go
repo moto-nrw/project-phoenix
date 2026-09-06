@@ -98,20 +98,17 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	instances := scheduleRepo.NewActivityInstanceRepository(db, now)
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db),
+		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, careExitAssignments{capability: bookings}),
 		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
 		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
-		ActivityInstance:          instances, InstanceIdempotency: instances,
-		InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db), InstanceStudent: timetableInstanceStudentRepository{timetable: bookings},
-		ActivityException: scheduleRepo.NewActivityExceptionRepository(db),
-		ActiveGroup:       activeRepo.NewGroupRepository(db), ActiveVisit: activeRepo.NewVisitRepository(db),
+		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
+		ActiveGroup:               activeRepo.NewGroupRepository(db), ActiveVisit: activeRepo.NewVisitRepository(db),
 		GroupSupervisor:       activeRepo.NewGroupSupervisorRepository(db, now),
 		RequestChildOffering:  enrollmentRepo.NewRequestChildOfferingRepository(db),
 		Room:                  facilitiesAdapter.New(),
@@ -121,7 +118,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		Phase:                 enrollmentRepo.NewPhaseRepository(db),
 	}
 	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar)
+	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, bookings.CountPlannedSupervisorsByCalendarPeriod))
 	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
 	if err != nil {
