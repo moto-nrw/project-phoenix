@@ -19,9 +19,6 @@ import {
   type NavigationProgressStore,
 } from "./navigation-progress-store";
 
-export { NavigationProgressContext };
-export type { NavigationProgressStore };
-
 /**
  * Fortschrittsanzeige für Seitenwechsel (#2828).
  *
