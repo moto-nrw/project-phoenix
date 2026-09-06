@@ -1128,7 +1128,7 @@ func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.
 func TestMatchExistingChildrenBySubmittedIdentityNeverFallsBackToPosition(t *testing.T) {
 	t.Parallel()
 
-	existing := []*enrollmentModels.RequestChild{
+	existing := []*RequestChild{
 		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: "2018-04-15"},
 		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: "2019-08-01"},
 	}
@@ -1147,7 +1147,7 @@ func TestMatchExistingChildrenBySubmittedIdentityNeverFallsBackToPosition(t *tes
 func TestMatchExistingChildrenBySubmittedIdentityAllowsUniqueIDLessReorder(t *testing.T) {
 	t.Parallel()
 
-	existing := []*enrollmentModels.RequestChild{
+	existing := []*RequestChild{
 		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: "2018-04-15"},
 		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: "2019-08-01"},
 	}
@@ -1265,12 +1265,12 @@ func TestValidateConstrainedSchedules_SingleModePreservesUnchangedLegacyAnswer(t
 		TargetGradeLevel: &grade,
 		CustomData:       legacy,
 	}}}
-	existingChild := &enrollmentModels.RequestChild{
+	existingChild := &RequestChild{
 		TargetGradeLevel: &grade,
 		CustomData:       legacy,
 	}
 	existingChild.ID = 42
-	existing := []*enrollmentModels.RequestChild{existingChild}
+	existing := []*RequestChild{existingChild}
 
 	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil, existing))
 }
@@ -1287,12 +1287,12 @@ func TestValidateConstrainedSchedules_SingleModeRejectsLegacyAnswerAfterGradeCha
 		TargetGradeLevel: &restrictedGrade,
 		CustomData:       legacy,
 	}}}
-	existingChild := &enrollmentModels.RequestChild{
+	existingChild := &RequestChild{
 		TargetGradeLevel: &oldGrade,
 		CustomData:       legacy,
 	}
 	existingChild.ID = 42
-	existing := []*enrollmentModels.RequestChild{existingChild}
+	existing := []*RequestChild{existingChild}
 
 	err := s.validateConstrainedSchedules(schema, req, nil, existing)
 	require.Error(t, err)

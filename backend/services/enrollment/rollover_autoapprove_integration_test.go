@@ -105,7 +105,7 @@ func seedApprovedChildWithStudent(
 	guardianFirst, guardianLast, guardianEmail string,
 	childFirst, childLast string,
 	grade int16,
-) (sourceChild *enrollmentModels.RequestChild, existingStudent *usersModels.Student) {
+) (sourceChild *enrollmentService.RequestChild, existingStudent *usersModels.Student) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 

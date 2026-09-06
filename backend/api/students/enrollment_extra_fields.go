@@ -10,7 +10,7 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -93,7 +93,7 @@ func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, student
 	return out, nil
 }
 
-func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int64) *enrollmentModels.RequestChild {
+func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int64) *enrollmentService.RequestChild {
 	for _, child := range summary.Children {
 		if child == nil || child.CreatedStudentID == nil {
 			continue

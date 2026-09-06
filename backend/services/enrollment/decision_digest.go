@@ -95,7 +95,7 @@ func enqueueDecisionNotifications(
 	ctx context.Context,
 	deps decisionNotificationDependencies,
 	request *enrollmentModels.Request,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	phase *enrollmentOwner.Phase,
 	immediateChildIDs map[int64]struct{},
 ) error {
@@ -138,7 +138,7 @@ func enqueueDecisionNotifications(
 	return nil
 }
 
-func allChildrenParentResolved(children []*enrollmentModels.RequestChild) bool {
+func allChildrenParentResolved(children []*RequestChild) bool {
 	if len(children) == 0 {
 		return false
 	}
@@ -161,7 +161,7 @@ func allChildrenParentResolved(children []*enrollmentModels.RequestChild) bool {
 // status and its persisted review generation lets later supported transitions
 // enqueue a fresh digest, even when a reopened child returns to an earlier
 // status. Retrying the same committed state still deduplicates.
-func decisionDigestIdempotencyKey(requestID int64, children []*enrollmentModels.RequestChild) string {
+func decisionDigestIdempotencyKey(requestID int64, children []*RequestChild) string {
 	vector := make([]string, 0, len(children))
 	for _, child := range children {
 		if child == nil {
@@ -174,13 +174,13 @@ func decisionDigestIdempotencyKey(requestID int64, children []*enrollmentModels.
 	return fmt.Sprintf("enrollment-decision-digest:%d:%x", requestID, sum)
 }
 
-func decisionEmailIdempotencyKey(requestID int64, child *enrollmentModels.RequestChild) string {
+func decisionEmailIdempotencyKey(requestID int64, child *RequestChild) string {
 	state := decisionChildStateVector(child)
 	sum := sha256.Sum256([]byte(state))
 	return fmt.Sprintf("enrollment-decision:%d:%d:%x", requestID, child.ID, sum)
 }
 
-func decisionChildStateVector(child *enrollmentModels.RequestChild) string {
+func decisionChildStateVector(child *RequestChild) string {
 	reviewedAt := "unreviewed"
 	if child.ReviewedAt != nil {
 		reviewedAt = child.ReviewedAt.UTC().Format(time.RFC3339Nano)
@@ -194,7 +194,7 @@ func enqueueDecisionDigest(
 	schoolRepo platformModels.SchoolRepository,
 	parentsURL string,
 	request *enrollmentModels.Request,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	phase *enrollmentOwner.Phase,
 ) error {
 	if outbox == nil {
@@ -258,7 +258,7 @@ func enqueueImmediateDecisionEmail(
 	schoolRepo platformModels.SchoolRepository,
 	parentsURL string,
 	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	phase *enrollmentOwner.Phase,
 	status DecisionStatus,
 	reason *string,

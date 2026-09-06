@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -28,7 +28,7 @@ type RolloverChildren interface {
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 }
 
-func rolloverChildrenByStatuses(ctx context.Context, owner RolloverChildren, phaseID int64, statuses []string) ([]*enrollmentModels.RequestChild, error) {
+func rolloverChildrenByStatuses(ctx context.Context, owner RolloverChildren, phaseID int64, statuses []string) ([]*RequestChild, error) {
 	values, err := owner.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func rolloverChildrenByStatuses(ctx context.Context, owner RolloverChildren, pha
 	return intakeChildValues(values)
 }
 
-func rolloverChildrenByID(ctx context.Context, owner RolloverChildren, ids []int64) ([]*enrollmentModels.RequestChild, error) {
+func rolloverChildrenByID(ctx context.Context, owner RolloverChildren, ids []int64) ([]*RequestChild, error) {
 	values, err := owner.ChildrenByID(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ type OfferingChildrenReader interface {
 	StudentCarePeriods(context.Context, int64) ([]*capability.StudentCarePeriod, error)
 }
 
-func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*enrollmentModels.RequestChild, error) {
+func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*RequestChild, error) {
 	value, err := owner.ChildByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func offeringChildByID(ctx context.Context, owner ChildIDReader, id int64) (*enr
 	return intakeChildValue(value)
 }
 
-func offeringChildrenByID(ctx context.Context, owner OfferingChildrenReader, ids []int64) ([]*enrollmentModels.RequestChild, error) {
+func offeringChildrenByID(ctx context.Context, owner OfferingChildrenReader, ids []int64) ([]*RequestChild, error) {
 	values, err := owner.ChildrenByID(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -148,7 +148,7 @@ type IntakeChildren interface {
 	UpdateMatchedStudent(context.Context, int64, *int64) error
 }
 
-func createIntakeChild(ctx context.Context, owner ChildCreator, child *enrollmentModels.RequestChild) error {
+func createIntakeChild(ctx context.Context, owner ChildCreator, child *RequestChild) error {
 	value, err := intakeChildInput(child)
 	if err != nil {
 		return err
@@ -163,21 +163,21 @@ func createIntakeChild(ctx context.Context, owner ChildCreator, child *enrollmen
 	*child = *result
 	return nil
 }
-func updateIntakeChild(ctx context.Context, owner IntakeChildren, child *enrollmentModels.RequestChild) error {
+func updateIntakeChild(ctx context.Context, owner IntakeChildren, child *RequestChild) error {
 	value, err := intakeChildInput(child)
 	if err != nil {
 		return err
 	}
 	return owner.UpdateChildData(ctx, value)
 }
-func listIntakeChildren(ctx context.Context, owner RequestChildrenReader, requestID int64, forUpdate bool) ([]*enrollmentModels.RequestChild, error) {
+func listIntakeChildren(ctx context.Context, owner RequestChildrenReader, requestID int64, forUpdate bool) ([]*RequestChild, error) {
 	values, err := owner.ChildrenForRequest(ctx, requestID, forUpdate)
 	if err != nil {
 		return nil, err
 	}
 	return intakeChildValues(values)
 }
-func intakeChildInput(r *enrollmentModels.RequestChild) (*capability.RequestChild, error) {
+func intakeChildInput(r *RequestChild) (*capability.RequestChild, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -194,11 +194,11 @@ func intakeChildInput(r *enrollmentModels.RequestChild) (*capability.RequestChil
 	result.CustomData = data
 	return result, nil
 }
-func intakeChildValue(r *capability.RequestChild) (*enrollmentModels.RequestChild, error) {
+func intakeChildValue(r *capability.RequestChild) (*RequestChild, error) {
 	if r == nil {
 		return nil, nil
 	}
-	result := &enrollmentModels.RequestChild{}
+	result := &RequestChild{}
 	result.ID = r.ID
 	result.TenantID = r.TenantID
 	result.CreatedAt = r.CreatedAt
@@ -237,8 +237,8 @@ func intakeChildValue(r *capability.RequestChild) (*enrollmentModels.RequestChil
 	}
 	return result, nil
 }
-func intakeChildValues(values []*capability.RequestChild) ([]*enrollmentModels.RequestChild, error) {
-	var result []*enrollmentModels.RequestChild
+func intakeChildValues(values []*capability.RequestChild) ([]*RequestChild, error) {
+	var result []*RequestChild
 	for _, value := range values {
 		converted, err := intakeChildValue(value)
 		if err != nil {
@@ -254,7 +254,7 @@ type ReportChildren interface {
 	ChildrenForRequests(context.Context, []int64) ([]*capability.RequestChild, error)
 }
 
-func listIntakeChildrenForRequests(ctx context.Context, owner ReportChildren, requestIDs []int64) ([]*enrollmentModels.RequestChild, error) {
+func listIntakeChildrenForRequests(ctx context.Context, owner ReportChildren, requestIDs []int64) ([]*RequestChild, error) {
 	values, err := owner.ChildrenForRequests(ctx, requestIDs)
 	if err != nil {
 		return nil, err

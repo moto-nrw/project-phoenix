@@ -15,7 +15,7 @@ import (
 // seedChildWithStatus submits one child and forces it into the given
 // status. Mirrors seedApprovedChild but for the non-approved cohort the
 // preview must report as excluded.
-func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, email, first, last string, grade int16, status string) *enrollmentModels.RequestChild {
+func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, email, first, last string, grade int16, status string) *enrollmentService.RequestChild {
 	t.Helper()
 	child := seedApprovedChild(t, env, phaseID, "Eltern", last, email, first, last, grade)
 	if status == enrollmentModels.ChildStatusApproved {

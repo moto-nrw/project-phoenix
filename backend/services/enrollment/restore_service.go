@@ -93,7 +93,7 @@ func (s *decisionService) restoreWithdrawn(ctx context.Context, requestID, resto
 		return nil, fmt.Errorf("restore: load children: %w", err)
 	}
 
-	withdrawn := make([]*enrollmentModels.RequestChild, 0, len(children))
+	withdrawn := make([]*RequestChild, 0, len(children))
 	for _, child := range children {
 		if child.Status == enrollmentModels.ChildStatusWithdrawn {
 			withdrawn = append(withdrawn, child)
@@ -214,7 +214,7 @@ func (s *decisionService) restoreWithdrawn(ctx context.Context, requestID, resto
 func (s *decisionService) restoreCapacityWaitlist(
 	ctx context.Context,
 	phase *enrollmentOwner.Phase,
-	withdrawn []*enrollmentModels.RequestChild,
+	withdrawn []*RequestChild,
 ) ([]int64, error) {
 	if s.Children == nil || s.CareOfferingRepo == nil {
 		return nil, nil
