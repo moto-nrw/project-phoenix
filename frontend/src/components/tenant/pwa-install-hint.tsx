@@ -96,7 +96,9 @@ export function SamsungChromeInstructions({
  * Never rendered on desktop, inside an already-installed PWA, before the
  * second visit, or after the user dismissed it.
  */
-export function PwaInstallHint() {
+export function PwaInstallHint({
+  samsungOnly = false,
+}: Readonly<{ samsungOnly?: boolean }>) {
   const t = useTranslations("pwaInstallHint");
   const [platform, setPlatform] = useState<InstallPlatform | null>(null);
 
@@ -119,10 +121,11 @@ export function PwaInstallHint() {
     else if (isSamsungInternet(window.navigator)) detected = "samsung";
     else if (isAndroidDevice(window.navigator)) detected = "android";
     if (!detected) return;
+    if (samsungOnly && detected !== "samsung") return;
     if (isStandaloneDisplay(window)) return;
     if (!isInstallHintEligible(window)) return;
     setPlatform(detected);
-  }, []);
+  }, [samsungOnly]);
 
   useEffect(() => {
     if (!installationCompleted) return;

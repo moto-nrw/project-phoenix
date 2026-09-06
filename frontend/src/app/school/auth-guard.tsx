@@ -8,6 +8,7 @@ import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SchoolShell } from "~/components/school/shell/school-shell";
 import { SchoolRealtimeBridge } from "~/components/school/school-realtime-bridge";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
+import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
 import { PortalNotificationSetup } from "~/components/notifications/portal-notification-setup";
 import { schoolPath } from "~/lib/school-url";
 
@@ -77,6 +78,7 @@ export function SchoolAuthGuard({
         <ShellIntlProvider>
           <SchoolRealtimeBridge />
           <SchoolShell>{children}</SchoolShell>
+          <PwaInstallHint samsungOnly />
           <PortalNotificationSetup portal="school" />
         </ShellIntlProvider>
       </BreadcrumbProvider>
