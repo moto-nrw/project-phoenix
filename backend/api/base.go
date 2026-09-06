@@ -1190,7 +1190,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
-	api.Settings = newSettingsResource(api.Services.TenantSettings, repoFactory.FormSchema.HasLegalDocumentReference, db)
+	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
+	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.FormSchema.HasLegalDocumentReference, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -1301,6 +1302,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+}
+
+func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
+	homeLayouts, ok := settings.(configAPI.HomeLayoutOperations)
+	if !ok {
+		panic("settings platform does not provide home layout operations")
+	}
+	return homeLayouts
 }
 
 func (a *API) currentStaffID(ctx context.Context) (int64, error) {

@@ -676,13 +676,30 @@ func newFactory(
 		Today:               today,
 	})
 
+	// Start page composition (#2875) shares the settings tenant runtime: the
+	// personal layout and the school's prescription are read inside the same
+	// tenant transaction as every other tenant-scoped setting. The repository
+	// is built here rather than on the repository factory so the start page
+	// adds no field to a composition root.
+	settingsChanged := func(_ context.Context, tenantID int64, key string) {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
+		_ = realtimeHub.BroadcastToTenant(tenantID, event)
+	}
+	homeLayoutService := config.NewHomeLayoutService(
+		repositories.NewHomeLayoutRepository(settingsRuntime),
+		settingsRuntime,
+		logger,
+		settingsChanged,
+	)
+
 	// Initialize settings service (new schema-driven settings system)
-	settingsService := config.NewSettingsService(
+	settingsService := config.NewSettingsServiceWithHomeLayouts(
 		repos.SettingValue,
 		repos.SettingAudit,
 		newSchoolSettingsStore(organizations),
 		settingsRuntime,
 		logger,
+		homeLayoutService,
 	)
 	if mealPlan != nil {
 		bindMealPlanSettings(
@@ -3175,10 +3192,7 @@ func newFactory(
 		payrollStatusService,
 		settingsRuntime,
 		factory.SettingsSideEffects.Dispatch,
-		func(_ context.Context, tenantID int64, key string) {
-			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
-			_ = realtimeHub.BroadcastToTenant(tenantID, event)
-		},
+		settingsChanged,
 	)
 	factory.TenantSettings = tenantSettings
 
