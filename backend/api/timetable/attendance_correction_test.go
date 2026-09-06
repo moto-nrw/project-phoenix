@@ -40,6 +40,7 @@ func correctionRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Patch("/instances/{instance_id}/students/{student_id}", res.patchInstanceStudent)
 	r.Post("/instances/{instance_id}/students/{student_id}/correction", res.correctInstanceStudent)
 	r.Get("/instances/{instance_id}/students/{student_id}/corrections", res.getInstanceStudentCorrections)
