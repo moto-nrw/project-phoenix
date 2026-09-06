@@ -19,8 +19,8 @@ import (
 )
 
 // GetChildCourses returns the school's courses with this child's state.
-// Reading needs the same permission as asking: the catalog shows how full a
-// course is, and that is not general child data.
+// Reading requires parent_portal.enrollments.view; whether the guardian may
+// also ask is reported separately through CanRequest.
 func (s *service) GetChildCourses(
 	ctx context.Context,
 	accountID, studentID int64,
@@ -60,14 +60,15 @@ func (s *service) GetChildCourses(
 	return catalog, nil
 }
 
-// RequestChildCourse asks the OGS for one course. Requires
-// parent_portal.enrollment.submit, the permission for enrollment changes.
+// RequestChildCourse asks the OGS for one course. The response is the course
+// catalog, so its view permission is checked with the submit permission before
+// the request is written.
 func (s *service) RequestChildCourse(
 	ctx context.Context,
 	accountID, studentID, offeringID int64,
 	note string,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
+	child, err := s.resolveCourseWriteChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,7 @@ func (s *service) WithdrawChildCourseRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
 ) (*enrollmentSvc.CourseCatalog, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
+	child, err := s.resolveCourseWriteChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,4 +133,22 @@ func (s *service) WithdrawChildCourseRequest(
 		return nil, txErr
 	}
 	return s.GetChildCourses(ctx, accountID, studentID)
+}
+
+// resolveCourseWriteChild checks both permissions needed by a course write:
+// submit authorizes the mutation and enrollments.view authorizes the catalog
+// returned after it. Checking both before the tenant transaction prevents a
+// successful write from being reported as a permission error.
+func (s *service) resolveCourseWriteChild(
+	ctx context.Context,
+	accountID, studentID int64,
+) (*parentChild, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionEnrollmentSubmit)
+	if err != nil {
+		return nil, err
+	}
+	if !child.hasPermission(authorize.GuardianPermissionEnrollmentsView) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	return child, nil
 }

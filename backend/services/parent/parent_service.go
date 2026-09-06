@@ -324,8 +324,9 @@ type Service interface {
 	// GetChildCourses lists the school's courses (AGs reached through a care
 	// offering) with the child's state, and RequestChildCourse /
 	// WithdrawChildCourseRequest are the family's two actions on them (#3075).
-	// Both need parent_portal.request.submit; the read reports a missing
-	// permission as a named reason instead of an error.
+	// Reading needs parent_portal.enrollments.view and reports a missing
+	// permission as a named reason. The two actions additionally need
+	// parent_portal.enrollment.submit.
 	GetChildCourses(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.CourseCatalog, error)
 	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*enrollmentSvc.CourseCatalog, error)
 	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*enrollmentSvc.CourseCatalog, error)
