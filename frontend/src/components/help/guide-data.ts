@@ -615,7 +615,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Home",
         icon: LayoutDashboard,
         summary:
-          "Die Startseite für Admins zeigt in Kacheln, wie der Tag gerade steht. Fast jede Zahl führt direkt in den passenden Bereich.",
+          "Die Startseite für Admins zeigt die Kacheln, die Sie ausgewählt haben. Fast jede Zahl führt direkt in den passenden Bereich.",
         steps: [
           "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
           "Die sichtbaren Kacheln ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Zuhause` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Auslastung` hinzu.",
@@ -623,15 +623,43 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
           "Die Karte `Geburtstage` nennt die Kinder, die heute Geburtstag haben, mit Gruppe, Klasse und dem Alter, das sie erreichen. Rechts steht bei jedem Eintrag, wann der Geburtstag war: `Heute` oder der Tag mit Datum, zum Beispiel `Sa, 01.08.`. Montags stehen so auch die Geburtstage vom Wochenende mit dabei. Geburtstage von Mitarbeitenden erscheinen, sofern eingeschaltet, in einem eigenen Abschnitt `Team`. Hat niemand Geburtstag, steht dort `Heute keine Geburtstage`. Die Karte lässt sich unter `Einstellungen` -> `Betrieb` -> `Geburtstage` ausschalten; dort wird auch entschieden, ob die Geburtstage der Mitarbeitenden mit erscheinen.",
+          "Oben rechts `Startseite anpassen` öffnen. Dort die Kacheln auswählen, die Sie sehen möchten. Der Dialog ist im Abschnitt `Startseite anpassen` erklärt.",
         ],
         callout: {
           title: "Kacheln passen sich der Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler, sondern die Einstellung Ihrer Einrichtung.",
+          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung` und `Letzte Bewegungen` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist und die Einrichtung mit detaillierter Anwesenheit arbeitet, auch wenn noch keine Aktivitäten eingerichtet oder gerade keine aktiv sind. Die Karte `Geburtstage` erscheint, solange die Anzeige in den Einstellungen aktiv ist. Fehlt eine Kachel, ist das kein Fehler: entweder passt sie nicht zu Ihrer Einrichtung, oder sie ist über `Startseite anpassen` ausgeblendet.",
           tone: "blue",
         },
         screenshot:
-          "Home mit Begrüßung, den Status-Kacheln des Tages sowie den Karten Letzte Bewegungen und Aktive Gruppen.",
-        image: "/help/screens/home.webp",
+          "Startseite mit Begrüßung, ausgewählten Status-Kacheln und dem Knopf `Startseite anpassen` oben rechts.",
+        image: "/help/screens/startseite.webp",
+      },
+      {
+        id: "home-anpassen",
+        title: "Startseite anpassen",
+        searchTerms: [
+          "Kacheln ausblenden",
+          "Startseite anpassen",
+          "Zurücksetzen",
+        ],
+        icon: SlidersHorizontal,
+        summary:
+          "Jede Person entscheidet selbst, was ihre Startseite zeigt. Die Auswahl gilt auf allen Geräten.",
+        steps: [
+          "Auf `Home` oben rechts `Startseite anpassen` öffnen.",
+          "Unter `Kennzahlen` und `Bereiche` die Haken setzen oder entfernen. Was Sie abwählen, verschwindet von Ihrer Startseite.",
+          "`Speichern` klicken. Die Auswahl gilt sofort, auch am Handy und auf dem Tablet.",
+          "`Zurücksetzen` stellt die empfohlene Ansicht wieder her. Der Knopf ist nur aktiv, wenn Sie etwas geändert haben.",
+          "Haben Sie alles ausgeblendet, steht auf der Startseite `Ihre Startseite ist leer` mit dem Knopf `Kacheln einblenden`.",
+        ],
+        callout: {
+          title: "Manches gibt die Schule vor",
+          body: "Unter `Einstellungen` -> `Startseite für alle` legt die Leitung fest, was für alle gilt: `Frei wählbar`, `Immer anzeigen` oder `Aus`. Was dort fest eingestellt ist, steht im Dialog `Startseite anpassen` nicht zur Auswahl. Ein Hinweis im Dialog nennt, wie viele Kacheln das betrifft.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dialog Startseite anpassen mit den Gruppen Kennzahlen und Bereiche und je Eintrag einem Haken.",
+        image: "/help/screens/startseite-anpassen.webp",
       },
       {
         id: "kindersuche",

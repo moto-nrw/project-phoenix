@@ -3,10 +3,12 @@ package repositories
 import (
 	"time"
 
+	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -24,6 +26,7 @@ import (
 )
 
 type TimetableTestRepositories struct {
+	enrollment                *enrollmentCapability.Module
 	Timetable                 timetable.Capability
 	ActivityGroup             activitiesModels.GroupRepository
 	ActivityCategory          activitiesModels.CategoryRepository
@@ -64,12 +67,10 @@ type TimetableTestRepositories struct {
 	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
 	StudentStatusDay          activeModels.StudentStatusDayOverviewRepository
 	CareOffering              enrollmentModels.CareOfferingRepository
-	RequestChildOffering      enrollmentModels.RequestChildOfferingRepository
 	Room                      facilitiesModels.RoomRepository
 	DeviationEvent            auditModels.DeviationEventRepository
 	ClassArrivalTime          educationModels.ClassArrivalTimeRepository
 	ClassArrivalException     scheduleModels.ClassArrivalExceptionRepository
-	Phase                     enrollmentModels.PhaseRepository
 }
 
 func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
@@ -102,7 +103,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db),
+		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}),
 		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
@@ -110,15 +111,14 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
 		ActiveGroup:               activeRepo.NewGroupRepository(db), ActiveVisit: activeRepo.NewVisitRepository(db),
 		GroupSupervisor:       activeRepo.NewGroupSupervisorRepository(db, now),
-		RequestChildOffering:  enrollmentRepo.NewRequestChildOfferingRepository(db),
 		Room:                  facilitiesAdapter.New(),
 		DeviationEvent:        auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:      educationRepo.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: scheduleRepo.NewClassArrivalExceptionRepository(db),
-		Phase:                 enrollmentRepo.NewPhaseRepository(db),
+		SubmissionRateLimit:   enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar)
+	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), bookings.CountPlannedSupervisorsByCalendarPeriod))
 	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
 	if err != nil {
@@ -163,7 +163,10 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
 		StudentStatusDay: r.StudentStatusDay, CareOffering: r.CareOffering,
-		RequestChildOffering: r.RequestChildOffering, Room: r.Room, DeviationEvent: r.DeviationEvent,
-		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException, Phase: r.Phase,
+		Room: r.Room, DeviationEvent: r.DeviationEvent,
+		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
+		enrollment: r.Enrollment(),
 	}
 }
+
+func (r TimetableTestRepositories) Enrollment() *enrollmentCapability.Module { return r.enrollment }

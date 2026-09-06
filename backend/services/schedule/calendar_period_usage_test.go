@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -61,29 +60,13 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 
 	bg := context.Background()
 
-	phase := &enrollmentModels.Phase{
-		Name:                      fmt.Sprintf("Usage-Phase-%d", suffix),
-		Kind:                      enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:          timezone.NewDate(2026, 8, 1),
-		ServiceEndDate:            timezone.NewDate(2027, 1, 31),
-		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
-		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
-		IsActive:                  true,
-		CalendarPeriodID:          &used.ID,
-	}
-	phase.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().
-		Model(phase).
-		ModelTableExpr("enrollment.phases").
-		Returning("id").
-		Exec(bg)
-	require.NoError(t, err, "Failed to create test phase")
+	testpkg.CreateTestEnrollmentPhaseForCalendarPeriod(t, db, used.ID)
 
 	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Usage-Group-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Usage", fmt.Sprintf("Student-%d", suffix), "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Usage", fmt.Sprintf("Staff-%d", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Usage-Room-%d", suffix))
-	_, err = db.NewUpdate().
+	_, err := db.NewUpdate().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
 		Set("calendar_period_id = ?", used.ID).

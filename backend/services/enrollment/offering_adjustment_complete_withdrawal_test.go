@@ -113,7 +113,7 @@ func (f *completeWithdrawalFixture) withoutCareInput() enrollmentService.UpdateC
 func (f *completeWithdrawalFixture) assertUnconfirmedChangeRollsBack() {
 	err := f.apply(f.env.decision, f.withoutCareInput())
 	require.ErrorIs(f.t, err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
-	links, err := f.env.repos.RequestChildOffering.ListByRequestChildID(f.ctx, f.childID)
+	links, err := f.env.repos.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1, "the warning response must roll the booking mutation back")
 	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.repos.CareWithdrawal, f.studentID)
@@ -129,7 +129,7 @@ func (f *completeWithdrawalFixture) assertTaskFailureRollsBack() {
 	input.CompleteWithdrawalConfirmed = true
 	err := f.apply(failing, input)
 	require.ErrorContains(f.t, err, "forced durable completion failure")
-	links, err := f.env.repos.RequestChildOffering.ListByRequestChildID(f.ctx, f.childID)
+	links, err := f.env.repos.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1, "a failed durable task must roll the booking mutation back")
 	assert.Equal(f.t, f.careID, links[0].CareOfferingID)
@@ -139,7 +139,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdra
 	input := f.withoutCareInput()
 	input.CompleteWithdrawalConfirmed = true
 	require.NoError(f.t, f.apply(f.env.decision, input))
-	links, err := f.env.repos.RequestChildOffering.ListByRequestChildID(f.ctx, f.childID)
+	links, err := f.env.repos.Enrollment().RequestChildOfferingHistory(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, links, 1)
 	assert.Equal(f.t, f.lunchID, links[0].CareOfferingID)

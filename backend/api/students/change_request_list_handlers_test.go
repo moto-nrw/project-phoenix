@@ -180,7 +180,7 @@ func (f *aggOfferingFake) ListDirectCorrections(_ context.Context, filters model
 func (f *aggOfferingFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
 	f.pendingCalls++
 	rows := urgencyRows(f.pending, filters, func(item *enrollmentService.OfferingChangeView) bool {
-		return !item.Request.EffectiveFrom.After(timezone.TodayDate())
+		return !timezone.Date(item.Request.EffectiveFrom).After(timezone.TodayDate())
 	})
 	items, next := keysetPage(rows, filters,
 		func(it *enrollmentService.OfferingChangeView) (time.Time, int64) {
@@ -297,7 +297,7 @@ func aggCarePending(id int64, first, last string, createdAt time.Time) *schedule
 
 func aggOfferingPending(id int64, name string, createdAt time.Time) *enrollmentService.OfferingChangeView {
 	req := &enrollmentModels.OfferingChangeRequest{
-		Model:     modelBase.Model{ID: id, CreatedAt: createdAt, UpdatedAt: createdAt},
+		ID: id, CreatedAt: createdAt, UpdatedAt: createdAt,
 		StudentID: 300 + id,
 		Status:    "pending",
 	}
@@ -731,7 +731,7 @@ func aggOfferingHistory(id int64, name, status string, decidedAt time.Time) *enr
 	reviewed := decidedAt
 	return &enrollmentService.OfferingChangeHistoryItem{
 		Request: &enrollmentModels.OfferingChangeRequest{
-			Model:      modelBase.Model{ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt},
+			ID: id, CreatedAt: decidedAt.Add(-24 * time.Hour), UpdatedAt: decidedAt,
 			StudentID:  300 + id,
 			Status:     status,
 			ReviewedAt: &reviewed,

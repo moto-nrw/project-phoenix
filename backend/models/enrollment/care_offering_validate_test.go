@@ -228,6 +228,15 @@ func TestCareOffering_Validate_RejectsInvalidAutoAddGradeLevels(t *testing.T) {
 	}
 }
 
+func TestCareOffering_Validate_AcceptsAutoAddGradeBoundaries(t *testing.T) {
+	t.Parallel()
+
+	c := validCareOffering()
+	c.AutoAddGradeLevels = []int{13, 1, 13}
+	require.NoError(t, c.Validate())
+	assert.Equal(t, []int{13, 1}, c.AutoAddGradeLevels)
+}
+
 func TestCareOffering_HasUnlimitedCapacity_NilIsUnlimited(t *testing.T) {
 	t.Parallel()
 

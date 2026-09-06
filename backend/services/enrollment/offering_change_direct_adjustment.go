@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -15,8 +17,8 @@ import (
 const pickupOfferingAdjustmentReason = "Angebotswechsel wegen dauerhafter Gehzeiten"
 
 type directOfferingAdjustmentScope struct {
-	period                *enrollmentModels.StudentCarePeriod
-	phase                 *enrollmentModels.Phase
+	period                *StudentCarePeriod
+	phase                 *enrollmentOwner.Phase
 	effectiveFrom         timezone.Date
 	catalog               *OfferingChangeCatalog
 	bookingsAuthoritative bool
@@ -112,8 +114,8 @@ func (s *offeringChangeRequestService) directAdjustmentScope(
 		return nil, err
 	}
 	earliest := today
-	if earliest.Before(phase.ServiceStartDate) {
-		earliest = phase.ServiceStartDate
+	if earliest.Before(timezone.Date(phase.ServiceStartDate)) {
+		earliest = timezone.Date(phase.ServiceStartDate)
 	}
 	catalog, err := s.catalogAt(ctx, input.StudentID, period, phase, earliest, latest, effectiveFrom)
 	return &directOfferingAdjustmentScope{period, phase, effectiveFrom, catalog, bookingsAuthoritative}, err
@@ -170,8 +172,8 @@ func (s *offeringChangeRequestService) directOfferingDiff(
 	scope *directOfferingAdjustmentScope,
 	base, selected []materializedOfferingSelection,
 ) (*offeringDecisionDiff, []int64, error) {
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, scope.period.RequestChildID, scope.effectiveFrom,
+	current, err := readOwnerOfferingSelections(
+		ctx, s.Children, scope.period.RequestChildID, scope.effectiveFrom,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list current offerings: %w", err)

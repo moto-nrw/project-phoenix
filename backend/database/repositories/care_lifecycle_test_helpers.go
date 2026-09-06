@@ -3,10 +3,12 @@ package repositories
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -33,7 +35,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 		return CareLifecycleTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db),
+		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: tt.Timetable}),
 		CareWithdrawal: usersRepo.NewCareWithdrawalCompletionRepository(db), GradeTransition: educationRepo.NewGradeTransitionRepository(db),
 	}
 	r.BindPeopleDirectory(people)
@@ -42,7 +44,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	r.bindSchoolCalendarAdapters(calendar)
+	r.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), tt.Timetable.CountPlannedSupervisorsByCalendarPeriod))
 	r.bindCarePlanAdapters(care)
 	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
 	return CareLifecycleTestRepositories{TimetableTestRepositories: tt, CareExit: r.CareExit, CareExitCleanup: r.CareExitCleanup,

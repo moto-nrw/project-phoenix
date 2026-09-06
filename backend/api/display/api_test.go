@@ -64,6 +64,8 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	t.Helper()
 	repos, err := repositories.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
 	require.NoError(t, err)
+	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
+	require.NoError(t, err)
 	rooms, err := repositories.NewFacilities(db)
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
@@ -84,7 +86,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 			repos.Student,
 			repos.Person,
 			nil,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
 			db,
 			slog.Default(),
 		),

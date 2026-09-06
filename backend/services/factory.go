@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -677,13 +676,30 @@ func newFactory(
 		Today:               today,
 	})
 
+	// Start page composition (#2875) shares the settings tenant runtime: the
+	// personal layout and the school's prescription are read inside the same
+	// tenant transaction as every other tenant-scoped setting. The repository
+	// is built here rather than on the repository factory so the start page
+	// adds no field to a composition root.
+	settingsChanged := func(_ context.Context, tenantID int64, key string) {
+		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
+		_ = realtimeHub.BroadcastToTenant(tenantID, event)
+	}
+	homeLayoutService := config.NewHomeLayoutService(
+		repositories.NewHomeLayoutRepository(settingsRuntime),
+		settingsRuntime,
+		logger,
+		settingsChanged,
+	)
+
 	// Initialize settings service (new schema-driven settings system)
-	settingsService := config.NewSettingsService(
+	settingsService := config.NewSettingsServiceWithHomeLayouts(
 		repos.SettingValue,
 		repos.SettingAudit,
 		newSchoolSettingsStore(organizations),
 		settingsRuntime,
 		logger,
+		homeLayoutService,
 	)
 	if mealPlan != nil {
 		bindMealPlanSettings(
@@ -716,7 +732,7 @@ func newFactory(
 		SetClassRestrictionGuard(func(context.Context) (bool, error))
 	}); ok {
 		guarded.SetClassRestrictionGuard(func(ctx context.Context) (bool, error) {
-			return repos.Phase.ExistsActiveWithEligibleClasses(ctx)
+			return repos.Enrollment().HasActiveClassRestrictedPhase(ctx)
 		})
 	}
 	// Same for the grade-level restriction, which survives concrete-class
@@ -725,7 +741,7 @@ func newFactory(
 		SetGradeRestrictionGuard(func(context.Context) (bool, error))
 	}); ok {
 		guarded.SetGradeRestrictionGuard(func(ctx context.Context) (bool, error) {
-			return repos.Phase.ExistsActiveWithEligibleGradeLevels(ctx)
+			return repos.Enrollment().HasActiveGradeRestrictedPhase(ctx)
 		})
 	}
 	// And the cap probe, so enrollment.grade_level_max cannot be lowered below
@@ -735,7 +751,7 @@ func newFactory(
 		SetGradeCapGuard(func(context.Context) (int, error))
 	}); ok {
 		guarded.SetGradeCapGuard(func(ctx context.Context) (int, error) {
-			return repos.Phase.MaxActiveEligibleGradeLevel(ctx)
+			return repos.Enrollment().MaxActivePhaseGrade(ctx)
 		})
 	}
 
@@ -1043,9 +1059,10 @@ func newFactory(
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
+	approvedOfferingProjection := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule,
-		repos.RequestChildOffering,
+		approvedOfferingProjection,
 		repos.CareOffering,
 		settingsService,
 	)
@@ -1058,7 +1075,7 @@ func newFactory(
 		repos.Student,
 		repos.ClassArrivalTime,
 		repos.ClassArrivalException,
-		repos.RequestChildOffering,
+		approvedOfferingProjection,
 		repos.CareOffering,
 		settingsService,
 	)
@@ -1155,16 +1172,16 @@ func newFactory(
 	// delete services must preflight the same materializability invariant as
 	// template and calendar-period mutations.
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                     repos.CareOffering,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		ActivityScheduleRepo:     repos.ActivitySchedule,
-		CalendarPeriodRepo:       repos.CalendarPeriod,
-		TimeframeRepo:            repos.Timeframe,
-		ActivityExceptionRepo:    repos.ActivityException,
-		PhaseRepo:                repos.Phase,
-		Settings:                 settingsService,
-		Today:                    today,
+		Repo:                  repos.CareOffering,
+		Bookings:              repos.Enrollment(),
+		ActivityGroupRepo:     repos.ActivityGroup,
+		ActivityScheduleRepo:  repos.ActivitySchedule,
+		CalendarPeriodRepo:    repos.CalendarPeriod,
+		TimeframeRepo:         repos.Timeframe,
+		ActivityExceptionRepo: repos.ActivityException,
+		Phases:                repos.Enrollment(),
+		Settings:              settingsService,
+		Today:                 today,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -1403,7 +1420,7 @@ func newFactory(
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
-	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
+	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
@@ -2049,11 +2066,9 @@ func newFactory(
 	}
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
-		Repo:        repos.FormSchema,
-		PhaseRepo:   repos.Phase,
-		RequestRepo: repos.Request,
-		Settings:    settingsService,
-		Logger:      logger.With("service", "enrollment-form-schema"),
+		Owner:    repos.Enrollment(),
+		Settings: settingsService,
+		Logger:   logger.With("service", "enrollment-form-schema"),
 	})
 
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
@@ -2064,10 +2079,11 @@ func newFactory(
 		SiteKey:        cfg.EnrollmentCaptchaSiteKey,
 	})
 
+	enrollmentDeletionPreview := enrollment.NewDeletionPreview(repos.Enrollment(), enrollmentGuardianDirectory{persons}, repos.EnrollmentOfferingAdjustment.CountForDeletion)
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
-		repos.Request,
-		repos.RequestChild,
-		repos.EnrollmentDeletion,
+		repos.Enrollment(),
+		repos.Enrollment(),
+		enrollmentDeletionPreview,
 		repos.EnrollmentDeletionAudit,
 		db,
 		logger.With("service", "enrollment-deletion"),
@@ -2077,9 +2093,9 @@ func newFactory(
 		}},
 	)
 	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
-		repos.Request,
-		repos.RequestChild,
-		repos.LateInvite,
+		repos.Enrollment(),
+		repos.Enrollment(),
+		repos.Enrollment(),
 		enrollmentDeliveryAdapter{module: deliveryRuntime.Module, tenantID: func(ctx context.Context) (int64, error) {
 			id, err := tenant.TenantFromContext(ctx)
 			return id.Int64(), err
@@ -2088,17 +2104,14 @@ func newFactory(
 		db,
 		logger.With("service", "enrollment-rejected-cleanup"),
 		enrollment.RejectedEnrollmentCleanupAuditDependencies{
-			Deletion: repos.EnrollmentDeletion,
+			Deletion: enrollmentDeletionPreview,
 			Audit:    repos.EnrollmentDeletionAudit,
 		},
 	)
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
-		Repo:             repos.Phase,
-		RequestRepo:      repos.Request,
-		RequestChildRepo: repos.RequestChild,
+		Owner:            repos.Enrollment(),
 		CareOfferingRepo: repos.CareOffering,
-		FormSchemaRepo:   repos.FormSchema,
 		CalendarPeriods:  calendarPeriodService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
@@ -2108,7 +2121,9 @@ func newFactory(
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
-	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(repos.PhaseExpiry)
+	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(enrollment.NewPhaseExpiryProjection(
+		repos.Enrollment(), phaseExpiryStudents{query: persons}, phaseExpiryCarePlanDirectory{query: repos.CarePlan()},
+	))
 
 	studentAuditService := users.NewStudentAuditService(
 		repos.StudentFieldEdit,
@@ -2152,47 +2167,47 @@ func newFactory(
 	}
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		PhaseRepo:                repos.Phase,
-		FormSchemaRepo:           repos.FormSchema,
-		DataAccessLogRepo:        repos.DataAccessLog,
-		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
-		RestorationAuditRepo:     repos.EnrollmentRestorationAudit,
-		SchoolRepo:               repos.School,
-		PersonRepo:               repos.Person,
-		StaffRepo:                repos.Staff,
-		StudentRepo:              repos.Student,
-		StudentGuardianRepo:      repos.StudentGuardian,
-		GuardianFinancialAudit:   repos.GuardianFinancialChange,
-		GuardianProfileRepo:      repos.GuardianProfile,
-		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
-		PickupScheduleRepo:       repos.StudentPickupSchedule,
-		PickupBaselines:          pickupBaselines,
-		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
-		StudentEnrollmentRepo:    repos.StudentEnrollment,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		ActivityScheduleRepo:     repos.ActivitySchedule,
-		CalendarPeriodRepo:       repos.CalendarPeriod,
-		TimeframeRepo:            repos.Timeframe,
-		ActivityExceptionRepo:    repos.ActivityException,
-		AccountRepo:              repos.Account,
-		AccountTenantRepo:        repos.AccountTenant,
-		AccountRoleRepo:          repos.AccountRole,
-		RoleRepo:                 repos.Role,
-		OutboxEnqueuer:           emailOutboxService,
-		StudentAudit:             studentAuditService,
-		StudentConsents:          studentConsentService,
-		CareWithdrawal:           careLifecycleService,
-		Broadcaster:              realtimeHub,
-		PickupGuardianNotifier:   pillEmitter,
-		FrontendURL:              frontendURL,
-		ParentsURL:               parentsURL,
-		Settings:                 settingsService,
+		Requests:               repos.Enrollment(),
+		Children:               repos.Enrollment(),
+		Guardians:              repos.Enrollment(),
+		LateInviteRepo:         repos.Enrollment(),
+		ApprovedOfferings:      enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons}),
+		CareOfferingRepo:       repos.CareOffering,
+		Phases:                 repos.Enrollment(),
+		Schemas:                repos.Enrollment(),
+		DataAccessLogRepo:      repos.DataAccessLog,
+		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
+		RestorationAuditRepo:   repos.EnrollmentRestorationAudit,
+		SchoolRepo:             repos.School,
+		PersonRepo:             repos.Person,
+		StaffRepo:              repos.Staff,
+		StudentRepo:            repos.Student,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianFinancialAudit: repos.GuardianFinancialChange,
+		GuardianProfileRepo:    repos.GuardianProfile,
+		GuardianPhoneRepo:      repos.GuardianPhoneNumber,
+		PickupScheduleRepo:     repos.StudentPickupSchedule,
+		PickupBaselines:        pickupBaselines,
+		ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
+		StudentEnrollmentRepo:  repos.StudentEnrollment,
+		ActivityGroupRepo:      repos.ActivityGroup,
+		ActivityScheduleRepo:   repos.ActivitySchedule,
+		CalendarPeriodRepo:     repos.CalendarPeriod,
+		TimeframeRepo:          repos.Timeframe,
+		ActivityExceptionRepo:  repos.ActivityException,
+		AccountRepo:            repos.Account,
+		AccountTenantRepo:      repos.AccountTenant,
+		AccountRoleRepo:        repos.AccountRole,
+		RoleRepo:               repos.Role,
+		OutboxEnqueuer:         emailOutboxService,
+		StudentAudit:           studentAuditService,
+		StudentConsents:        studentConsentService,
+		CareWithdrawal:         careLifecycleService,
+		Broadcaster:            realtimeHub,
+		PickupGuardianNotifier: pillEmitter,
+		FrontendURL:            frontendURL,
+		ParentsURL:             parentsURL,
+		Settings:               settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -2283,49 +2298,46 @@ func newFactory(
 	phaseSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
 
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		StudentRepo:              repos.Student,
-		GuardianAuthorizer:       repos.StudentGuardian,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           emailOutboxService,
-		Settings:                 settingsService,
-		ManualDecider:            enrollmentDecisionService,
-		FrontendURL:              frontendURL, // admin notification email
-		ParentsURL:               parentsURL,  // parent confirmation/status emails
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-request"),
+		Requests:           repos.Enrollment(),
+		Children:           repos.Enrollment(),
+		Guardians:          repos.Enrollment(),
+		LateInviteRepo:     repos.Enrollment(),
+		CareOfferingRepo:   repos.CareOffering,
+		Catalog:            repos.Enrollment(),
+		SchoolRepo:         repos.School,
+		StudentRepo:        repos.Student,
+		GuardianAuthorizer: repos.StudentGuardian,
+		RateLimitRepo:      repos.Enrollment(),
+		OutboxEnqueuer:     emailOutboxService,
+		Settings:           settingsService,
+		ManualDecider:      enrollmentDecisionService,
+		FrontendURL:        frontendURL, // admin notification email
+		ParentsURL:         parentsURL,  // parent confirmation/status emails
+		DB:                 db,
+		Logger:             logger.With("service", "enrollment-request"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		DataAccessLogRepo:        repos.DataAccessLog,
-		StudentRepo:              repos.Student,
-		StudentGuardianRepo:      repos.StudentGuardian,
-		StudentCompanionRepo:     repos.StudentCompanion,
-		PersonRepo:               repos.Person,
-		EducationGroupRepo:       repos.Group,
-		StudentStatusDayRepo:     repos.StudentStatusDay,
-		ClassListEntryRepo:       repos.ClassListEntry,
-		PickupScheduleSvc:        pickupScheduleService,
-		ArrivalScheduleSvc:       arrivalScheduleService,
-		ClassArrivalExceptions:   arrivalScheduleService,
-		CareDaySvc:               careDayService,
-		Settings:                 settingsService,
-		CareParticipation:        careLifecycleService,
+		Requests:               repos.Enrollment(),
+		Children:               repos.Enrollment(),
+		Guardians:              repos.Enrollment(),
+		CareOfferingRepo:       repos.CareOffering,
+		Schemas:                repos.Enrollment(),
+		Phases:                 repos.Enrollment(),
+		DataAccessLogRepo:      repos.DataAccessLog,
+		StudentRepo:            repos.Student,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		StudentCompanionRepo:   repos.StudentCompanion,
+		PersonRepo:             repos.Person,
+		EducationGroupRepo:     repos.Group,
+		StudentStatusDayRepo:   repos.StudentStatusDay,
+		ClassListEntryRepo:     repos.ClassListEntry,
+		PickupScheduleSvc:      pickupScheduleService,
+		ArrivalScheduleSvc:     arrivalScheduleService,
+		ClassArrivalExceptions: arrivalScheduleService,
+		CareDaySvc:             careDayService,
+		Settings:               settingsService,
+		CareParticipation:      careLifecycleService,
 	})
 	// The class-day view's one write seam (#2970): a Lehrkraft sets the
 	// class-wide arrival day exception through moto schule.
@@ -2386,30 +2398,26 @@ func newFactory(
 	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        repos.ChangeRequest,
-		MessageRepo:              repos.ChangeRequestMessage,
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		GuardianProfileRepo:      repos.GuardianProfile,
-		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
-		PersonRepo:               repos.Person,
-		StudentRepo:              repos.Student,
-		GuardianAuthorizer:       repos.StudentGuardian,
-		DecisionService:          enrollmentDecisionApplier,
-		CompanionGraphLocker:     studentService,
-		Settings:                 settingsService,
-		OutboxEnqueuer:           emailOutboxService,
-		FrontendURL:              frontendURL,
-		ParentsURL:               parentsURL,
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-change-request"),
+		Requests:             repos.Enrollment(),
+		Children:             repos.Enrollment(),
+		Guardians:            repos.Enrollment(),
+		LateInviteRepo:       repos.Enrollment(),
+		CareOfferingRepo:     repos.CareOffering,
+		Catalog:              repos.Enrollment(),
+		SchoolRepo:           repos.School,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		GuardianPhoneRepo:    repos.GuardianPhoneNumber,
+		PersonRepo:           repos.Person,
+		StudentRepo:          repos.Student,
+		GuardianAuthorizer:   repos.StudentGuardian,
+		DecisionService:      enrollmentDecisionApplier,
+		CompanionGraphLocker: studentService,
+		Settings:             settingsService,
+		OutboxEnqueuer:       emailOutboxService,
+		FrontendURL:          frontendURL,
+		ParentsURL:           parentsURL,
+		DB:                   db,
+		Logger:               logger.With("service", "enrollment-change-request"),
 	})
 
 	// Rollover service depends on DecisionService for the
@@ -2419,18 +2427,17 @@ func newFactory(
 		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
 	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
-		PhaseRepo:                repos.Phase,
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		OfferingCatalogCloner:    enrollmentRolloverCatalogCloner,
-		SchoolRepo:               repos.School,
-		OutboxEnqueuer:           emailOutboxService,
-		Settings:                 settingsService,
-		DecisionService:          enrollmentDecisionService,
-		ParentsURL:               parentsURL,
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-rollover"),
+		Phases:                repos.Enrollment(),
+		Requests:              repos.Enrollment(),
+		Children:              repos.Enrollment(),
+		OfferingCatalogCloner: enrollmentRolloverCatalogCloner,
+		SchoolRepo:            repos.School,
+		OutboxEnqueuer:        emailOutboxService,
+		Settings:              settingsService,
+		DecisionService:       enrollmentDecisionService,
+		ParentsURL:            parentsURL,
+		DB:                    db,
+		Logger:                logger.With("service", "enrollment-rollover"),
 	})
 	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
 		settingsService,
@@ -2472,25 +2479,24 @@ func newFactory(
 		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
 	}
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
-		ChangeRepo:               repos.OfferingChangeRequest,
-		RequestChildRepo:         repos.RequestChild,
-		RequestRepo:              repos.Request,
-		PhaseRepo:                repos.Phase,
-		CareOfferingRepo:         repos.CareOffering,
-		ImpactRepo:               repos.OfferingChangeImpact,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		StudentRepo:              repos.Student,
-		PersonRepo:               repos.Person,
-		CareWithdrawalRepo:       repos.CareWithdrawal,
-		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
-		UserContext:              userContextService,
-		Applier:                  enrollmentDecisionApplier,
-		DirectApplier:            directOfferingApplier,
-		Settings:                 settingsService,
-		Emitter:                  pillEmitter,
-		Logger:                   logger.With("service", "offering-change-requests"),
-		Today:                    today,
-		EventRecorder:            parentRequestEvents,
+		ChangeRepo:             repos.OfferingChangeRequest,
+		Children:               repos.Enrollment(),
+		Requests:               repos.Enrollment(),
+		Phases:                 repos.Enrollment(),
+		CareOfferingRepo:       repos.CareOffering,
+		ImpactRepo:             manualPlanningReader{db: db},
+		StudentRepo:            repos.Student,
+		PersonRepo:             repos.Person,
+		CareWithdrawalRepo:     repos.CareWithdrawal,
+		OfferingAdjustmentRepo: repos.EnrollmentOfferingAdjustment,
+		UserContext:            userContextService,
+		Applier:                enrollmentDecisionApplier,
+		DirectApplier:          directOfferingApplier,
+		Settings:               settingsService,
+		Emitter:                pillEmitter,
+		Logger:                 logger.With("service", "offering-change-requests"),
+		Today:                  today,
+		EventRecorder:          parentRequestEvents,
 	}, requestReviewPolicy)
 	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
 	if !ok {
@@ -2688,8 +2694,8 @@ func newFactory(
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo:   repos.GuardianChange,
 		StudentConsents:           studentConsentService,
-		RequestChildRepo:          repos.RequestChild,
-		RequestChildOfferingRepo:  repos.RequestChildOffering,
+		CarePeriods:               repos.Enrollment(),
+		OfferingHistory:           repos.Enrollment(),
 		CareOfferingRepo:          repos.CareOffering,
 		OfferingChanges:           offeringChangeRequestService,
 		DB:                        db,
@@ -3176,10 +3182,7 @@ func newFactory(
 		payrollStatusService,
 		settingsRuntime,
 		factory.SettingsSideEffects.Dispatch,
-		func(_ context.Context, tenantID int64, key string) {
-			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
-			_ = realtimeHub.BroadcastToTenant(tenantID, event)
-		},
+		settingsChanged,
 	)
 	factory.TenantSettings = tenantSettings
 

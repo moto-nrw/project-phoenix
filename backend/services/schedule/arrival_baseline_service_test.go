@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,10 +26,17 @@ func classArrivalBaseline(t *testing.T, repos *repositories.Factory) scheduleSer
 		repos.Student,
 		repos.ClassArrivalTime,
 		repos.ClassArrivalException,
-		repos.RequestChildOffering,
+		approvedOfferingProjection(t),
 		repos.CareOffering,
 		nil,
 	)
+}
+
+func approvedOfferingProjection(t *testing.T) scheduleService.ApprovedBookingReader {
+	t.Helper()
+	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	require.NoError(t, err)
+	return projection
 }
 
 func setClassArrivalTimes(t *testing.T, repos *repositories.Factory, class string, times map[string]string) {

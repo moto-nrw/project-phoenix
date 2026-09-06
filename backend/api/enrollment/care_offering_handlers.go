@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -504,7 +506,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
-		CareRequired:              capabilities.CareOfferingsEnabled && selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareRequired:              capabilities.CareOfferingsEnabled && selectionMode != capability.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               schoolClassCfg,
 		CollectGradeLevel:         capabilities.CollectGradeLevel,
 		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
@@ -633,7 +635,7 @@ type PublicSchoolClassConfig struct {
 	CollectGrade1 bool `json:"collect_grade_1"`
 }
 
-func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) PublicSchoolClassConfig {
+func toPublicSchoolClassConfig(phase *capability.Phase, collect bool) PublicSchoolClassConfig {
 	classes := phase.AvailableSchoolClasses
 	if classes == nil {
 		classes = []string{}
@@ -648,7 +650,7 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 
 // publicEligibleGradeLevels returns the phase's grade restriction as a
 // non-nil slice so the JSON is `[]` rather than `null` (#1663).
-func publicEligibleGradeLevels(phase *enrollmentModels.Phase) []int {
+func publicEligibleGradeLevels(phase *capability.Phase) []int {
 	if phase == nil || phase.EligibleGradeLevels == nil {
 		return []int{}
 	}
@@ -657,7 +659,7 @@ func publicEligibleGradeLevels(phase *enrollmentModels.Phase) []int {
 
 func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
 	if !enabled {
-		return enrollmentModels.PhaseCareOfferingSelectionOptional
+		return capability.PhaseCareOfferingSelectionOptional
 	}
 	return mode
 }
@@ -691,13 +693,13 @@ type PublicPhase struct {
 	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
-func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
+func toPublicPhase(p *capability.Phase) PublicPhase {
 	entry := PublicPhase{
 		ID:                        strconv.FormatInt(p.ID, 10),
 		Name:                      p.Name,
 		Kind:                      p.Kind,
-		ServiceStartDate:          p.ServiceStartDate.String(),
-		ServiceEndDate:            p.ServiceEndDate.String(),
+		ServiceStartDate:          string(p.ServiceStartDate),
+		ServiceEndDate:            string(p.ServiceEndDate),
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
 		Audience:                  p.Audience,
@@ -716,7 +718,7 @@ func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
 	return entry
 }
 
-func toPublicFormSchemaResponse(schema *enrollmentModels.FormSchema) *PublicFormSchemaResponse {
+func toPublicFormSchemaResponse(schema *capability.FormSchema) *PublicFormSchemaResponse {
 	if schema == nil {
 		return nil
 	}
@@ -799,7 +801,7 @@ func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFo
 		Schema:                    toPublicFormSchemaResponse(data.Schema),
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
-		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != capability.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass),
 		CollectGradeLevel:         capabilities.CollectGradeLevel,
 		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
@@ -842,7 +844,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var phases []*enrollmentModels.Phase
+	var phases []*capability.Phase
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
 	if err == nil {
 		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {

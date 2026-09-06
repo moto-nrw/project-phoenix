@@ -203,6 +203,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedPlanningDemoStep{},
 			seedStudentStatusVariantsStep{},
 			seedOperationsDemoStep{},
+			seedHomeLayoutStep{},
 			seedStaffMasterDataStep{},
 			seedImportAuditStep{},
 			seedAuditLifecycleStep{},

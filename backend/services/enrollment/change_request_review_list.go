@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -31,6 +33,22 @@ type ChangeRequestReviewQuery struct {
 	BeforeInstant time.Time
 	BeforeID      int64
 	Limit         int
+}
+
+type ChangeRequestIntakeRequests interface {
+	ChangeRequestByID(context.Context, int64) (*capability.ChangeRequest, error)
+	ChangeRequestByIDForUpdate(context.Context, int64) (*capability.ChangeRequest, error)
+	ChangeRequestsForRequest(context.Context, int64) ([]*capability.ChangeRequest, error)
+	OpenChangeRequestsForRequestForUpdate(context.Context, int64) ([]*capability.ChangeRequest, error)
+	ListChangeRequests(context.Context, capability.ChangeRequestListFilters) ([]*capability.ChangeRequest, error)
+	ChangeRequestsForReview(context.Context, capability.ChangeRequestReviewFilters) ([]*capability.ChangeRequest, error)
+	IntakeRequests
+	InsertChangeRequest(context.Context, *capability.ChangeRequest) error
+	ChangeRequestMessages(context.Context, []int64, bool) ([]*capability.ChangeRequestMessage, error)
+	InsertChangeRequestMessage(context.Context, *capability.ChangeRequestMessage) error
+	SetChangeRequestStatus(context.Context, int64, string) error
+	MarkChangeRequestReviewed(context.Context, int64, string, *string, int64, time.Time) error
+	CountChangeRequestsForReview(context.Context, []string) (int, error)
 }
 
 // ChangeRequestReviewItem is one change request plus the names the list shows.
@@ -68,7 +86,7 @@ func (s *changeRequestService) ListForReview(
 		return []*ChangeRequestReviewItem{}, nil, nil
 	}
 	// limit+1 probes for a further page without a second count query.
-	rows, err := s.ChangeRequestRepo.ListForReview(ctx, enrollmentModels.ChangeRequestReviewFilters{
+	rows, err := readChangeRequestsForReview(ctx, s.Requests, capability.ChangeRequestReviewFilters{
 		Statuses:      query.Statuses,
 		Search:        strings.TrimSpace(query.Search),
 		History:       query.History,
@@ -118,7 +136,7 @@ func (s *changeRequestService) ListForReview(
 	return items, next, nil
 }
 
-func affectedReviewChildren(children []*enrollmentModels.RequestChild, pinnedChildID *int64) []ChangeRequestReviewChild {
+func affectedReviewChildren(children []*RequestChild, pinnedChildID *int64) []ChangeRequestReviewChild {
 	result := make([]ChangeRequestReviewChild, 0, len(children))
 	for _, child := range children {
 		if pinnedChildID != nil && child.ID != *pinnedChildID {
@@ -143,7 +161,7 @@ func affectedReviewChildren(children []*enrollmentModels.RequestChild, pinnedChi
 // decision — the badge's number, counted in the database instead of by the
 // length of one page.
 func (s *changeRequestService) CountOpenForReview(ctx context.Context, statuses []string) (int, error) {
-	count, err := s.ChangeRequestRepo.CountForReview(ctx, statuses)
+	count, err := s.Requests.CountChangeRequestsForReview(ctx, statuses)
 	if err != nil {
 		return 0, fmt.Errorf("change request review count: %w", err)
 	}
@@ -157,7 +175,7 @@ func (s *changeRequestService) reviewListLookups(
 	rows []*enrollmentModels.ChangeRequest,
 ) (
 	map[int64]*enrollmentModels.Request,
-	map[int64][]*enrollmentModels.RequestChild,
+	map[int64][]*RequestChild,
 	map[int64]*userModels.Person,
 	error,
 ) {
@@ -179,7 +197,7 @@ func (s *changeRequestService) reviewListLookups(
 		}
 	}
 
-	requestRows, err := s.RequestRepo.ListByIDs(ctx, requestIDs)
+	requestRows, err := intakeRequestsByID(ctx, s.Requests, requestIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("change request review list: load enrollments: %w", err)
 	}
@@ -188,11 +206,11 @@ func (s *changeRequestService) reviewListLookups(
 		requests[req.ID] = req
 	}
 
-	childRows, err := s.RequestChildRepo.ListByRequestIDs(ctx, requestIDs)
+	childRows, err := listIntakeChildrenForRequests(ctx, s.Children, requestIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("change request review list: load children: %w", err)
 	}
-	children := make(map[int64][]*enrollmentModels.RequestChild, len(requestIDs))
+	children := make(map[int64][]*RequestChild, len(requestIDs))
 	for _, child := range childRows {
 		children[child.RequestID] = append(children[child.RequestID], child)
 	}
