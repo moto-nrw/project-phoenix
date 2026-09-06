@@ -35,7 +35,9 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 		NoContent: testutil.RespondNoContent,
 		Failure:   testutil.RespondError,
 	})
-	resource := configAPI.NewSettingsResource(svc.TenantSettings, runtime)
+	homeLayouts, ok := svc.Settings.(configAPI.HomeLayoutOperations)
+	require.True(t, ok)
+	resource := configAPI.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
 
 	return &settingsTestContext{
 		db:       db,

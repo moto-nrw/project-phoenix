@@ -62,6 +62,15 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 	}
 }
 
+func TestRequireHomeLayoutOperationsPanicsWhenTheCapabilityIsMissing(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t,
+		"settings platform does not provide home layout operations",
+		func() { requireHomeLayoutOperations(struct{}{}) },
+	)
+}
+
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
 func TestParseAllowedOrigins(t *testing.T) {
 	t.Parallel()
@@ -278,7 +287,14 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
 	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
 	require.NoError(t, err)
-	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, repos.FormSchema.HasLegalDocumentReference, db).SettingsRouter(), hub: module.RealtimeHub}
+	homeLayouts, ok := module.Settings.(interface {
+		HomeLayout(context.Context, int64, int64, []string) (any, error)
+		SetHomeLayout(context.Context, int64, int64, map[string]bool) error
+		ResetHomeLayout(context.Context, int64, int64) error
+		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
+	})
+	require.True(t, ok)
+	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.FormSchema.HasLegalDocumentReference, db).SettingsRouter(), hub: module.RealtimeHub}
 }
 
 func setupOperatorInvitationRoute(golden *API) chi.Router {

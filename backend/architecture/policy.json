@@ -2656,6 +2656,14 @@
       "write_owner": "school-calendar"
     },
     {
+      "name": "config.home_block_policies",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.home_layouts",
+      "write_owner": "settings-platform"
+    },
+    {
       "name": "config.setting_audit",
       "write_owner": "settings-platform"
     },
