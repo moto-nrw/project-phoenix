@@ -167,13 +167,14 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     expect(requestedKeys()).not.toContain("birthday-overview");
   });
 
-  it("hält die Geburtstagsabfrage aktiv, wenn die Schule sie ausschaltet", async () => {
+  it("zeigt Geburtstage nach einer späteren Freigabe wieder", async () => {
+    let birthdayFeatureEnabled = false;
     vi.mocked(useSWRAuth).mockImplementation(
       (key: string | null) =>
         ({
           data:
             key === "birthday-overview"
-              ? { enabled: false, celebrations: [] }
+              ? { enabled: birthdayFeatureEnabled, celebrations: [] }
               : undefined,
           isLoading: false,
           error: undefined,
@@ -182,7 +183,7 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
         }) as unknown as ReturnType<typeof useSWRAuth>,
     );
 
-    render(<DashboardPage />);
+    const { rerender } = render(<DashboardPage />);
 
     await waitFor(() =>
       expect(
@@ -190,6 +191,13 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
       ).toHaveLength(2),
     );
     expect(screen.queryByText("Geburtstage")).not.toBeInTheDocument();
+
+    birthdayFeatureEnabled = true;
+    rerender(<DashboardPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Geburtstage")).toBeInTheDocument(),
+    );
     expect(requestedKeys()).not.toContain(null);
   });
 

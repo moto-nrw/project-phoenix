@@ -187,9 +187,7 @@ function DashboardContent() {
   }, [tenantSlug, session?.user?.id]);
 
   useEffect(() => {
-    if (birthdays?.enabled === false) {
-      setBirthdaysEnabled(false);
-    }
+    setBirthdaysEnabled(birthdays?.enabled ?? true);
   }, [birthdays?.enabled]);
 
   const { adjustable, visible, customized } = useMemo(
