@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type seedAuditLifecycleStep struct{}
@@ -42,9 +43,13 @@ func seedAttendanceCorrection(rt *Runtime) error {
 	if len(studentIDs) == 0 || len(staffIDs) == 0 || roomID == 0 {
 		return fmt.Errorf("attendance correction references not available")
 	}
+	date := todaySeedDate()
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(-1)
+	}
 
 	instanceRaw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
-		"date":        todaySeedDate().String(),
+		"date":        date.String(),
 		"start_time":  "11:00",
 		"end_time":    "12:00",
 		"title":       "Korrekturbeispiel",

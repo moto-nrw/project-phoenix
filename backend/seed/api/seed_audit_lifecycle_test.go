@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,9 +15,13 @@ func TestSeedAttendanceCorrectionUsesCompletedInstanceFlow(t *testing.T) {
 
 	var paths []string
 	var correction map[string]any
+	var instance map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/timetable/instances" {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&instance))
+		}
 		if r.URL.Path == "/api/timetable/instances/71/students/21/correction" {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&correction))
 		}
@@ -43,4 +48,8 @@ func TestSeedAttendanceCorrectionUsesCompletedInstanceFlow(t *testing.T) {
 	}, paths)
 	assert.Equal(t, "Nachträglich ergänzt.", correction["note"])
 	assert.Equal(t, "Dokumentation vervollständigt", correction["reason"])
+	date, err := time.Parse(seedDateLayout, instance["date"].(string))
+	require.NoError(t, err)
+	assert.NotEqual(t, time.Saturday, date.Weekday())
+	assert.NotEqual(t, time.Sunday, date.Weekday())
 }
