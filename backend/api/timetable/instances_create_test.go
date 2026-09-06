@@ -109,7 +109,7 @@ func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
 	return out
 }
 
-func TestCreateInstance_Spontaneous(t *testing.T) {
+func TestCreateInstance_WithoutTemplateIsPlanned(t *testing.T) {
 	t.Parallel()
 
 	s := buildCreateSetup(t)
@@ -125,8 +125,8 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "14:00",
 		EndHHMM:       "15:00",
-		Title:         "Spontane Bastelstunde",
-		IsSpontaneous: true,
+		Title:         "Geplante Bastelstunde",
+		IsSpontaneous: false,
 	})
 	s.mock.createRes = persisted
 
@@ -134,7 +134,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 		"date":       tomorrow.String(),
 		"start_time": "14:00",
 		"end_time":   "15:00",
-		"title":      "Spontane Bastelstunde",
+		"title":      "Geplante Bastelstunde",
 		"room_id":    s.roomID,
 	}
 
@@ -143,22 +143,21 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 
 	got := decodeCreate(t, w)
 	assert.Equal(t, persisted.ID, got.ID)
-	assert.Equal(t, "Spontane Bastelstunde", got.Title)
+	assert.Equal(t, "Geplante Bastelstunde", got.Title)
 	assert.Equal(t, "14:00", got.StartTime)
 	assert.Equal(t, "15:00", got.EndTime)
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
-	assert.True(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
+	assert.False(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
 	assert.False(t, got.IsLive)
 	assert.Equal(t, s.roomID, got.RoomID)
 	assert.NotEmpty(t, got.RoomName, "room name should resolve via RoomRepo")
 
 	// Verify the service was called with the parsed inputs.
 	require.NotNil(t, s.mock.lastCreate)
-	assert.Equal(t, "Spontane Bastelstunde", s.mock.lastCreate.Title)
+	assert.Equal(t, "Geplante Bastelstunde", s.mock.lastCreate.Title)
 	assert.Equal(t, s.roomID, s.mock.lastCreate.RoomID)
-	assert.Nil(t, s.mock.lastCreate.ActivityGroupID, "spontaneous ⇒ no template")
-	require.NotNil(t, s.mock.lastCreate.IsSpontaneous)
-	assert.True(t, *s.mock.lastCreate.IsSpontaneous, "missing template marks the persisted instance as spontaneous")
+	assert.Nil(t, s.mock.lastCreate.ActivityGroupID, "planning-created instance may omit a template")
+	assert.Nil(t, s.mock.lastCreate.IsSpontaneous, "planner must leave the creation origin unset")
 }
 
 func TestCreateInstance_Validation(t *testing.T) {

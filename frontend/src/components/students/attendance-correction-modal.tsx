@@ -246,7 +246,10 @@ export function AttendanceCorrectionModal({
             id="correction-status"
             value={status}
             options={[...STATUS_OPTIONS]}
-            onChange={setStatus}
+            onChange={(nextStatus) => {
+              setStatus(nextStatus);
+              if (nextStatus === "expected") setSubstatus("");
+            }}
             labelId="correction-status-label"
           />
         </div>
