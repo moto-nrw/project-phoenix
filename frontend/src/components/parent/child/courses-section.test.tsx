@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
@@ -43,10 +44,10 @@ function catalog(overrides: Partial<ChildCourses> = {}): ChildCourses {
   };
 }
 
-function renderSection() {
+function renderSection(careEnded = false) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
-      <CoursesSection studentId="1" careEnded={false} />
+      <CoursesSection studentId="1" careEnded={careEnded} />
     </NextIntlClientProvider>,
   );
 }
@@ -190,6 +191,63 @@ describe("CoursesSection", () => {
     expect(
       await screen.findByText(
         "Sie haben schon eine offene Anfrage zur Betreuung. Bitte warten Sie die Antwort ab.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("verlangt eine Begründung, bevor eine Anfrage gesendet werden kann", async () => {
+    mockedCourses.mockResolvedValue(catalog({ reason_required: true }));
+    mockedRequest.mockResolvedValue(catalog());
+
+    renderSection();
+
+    const reason = await screen.findByLabelText("Begründung (Pflichtfeld)");
+    const request = screen.getByRole("button", { name: "Anfragen" });
+
+    expect(reason).toBeRequired();
+    expect(request).toBeDisabled();
+    expect(mockedRequest).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    await user.type(reason, "Ich möchte mein Kind anmelden.");
+
+    expect(request).toBeEnabled();
+    await user.click(request);
+    await waitFor(() =>
+      expect(mockedRequest).toHaveBeenCalledWith(
+        "1",
+        "7",
+        "Ich möchte mein Kind anmelden.",
+      ),
+    );
+  });
+
+  it("erklärt fehlende Berechtigung zum Anfragen", async () => {
+    mockedCourses.mockResolvedValue(catalog({ can_request: false }));
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        "Sie können keine Anfrage senden. Bitte fragen Sie die OGS.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("erklärt das Ende der Betreuung", async () => {
+    mockedCourses.mockResolvedValue(catalog());
+
+    renderSection(true);
+
+    expect(
+      await screen.findByText(
+        "Die Betreuung ist beendet. Bitte fragen Sie die OGS.",
       ),
     ).toBeInTheDocument();
     expect(

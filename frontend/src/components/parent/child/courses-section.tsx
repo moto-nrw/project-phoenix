@@ -59,6 +59,7 @@ export function CoursesSection({
   const [busyCourseId, setBusyCourseId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,6 +149,8 @@ export function CoursesSection({
     !careEnded &&
     !courses.other_request_pending &&
     !courses.pending_request_id;
+  const reasonMissing =
+    (courses.reason_required ?? false) && note.trim() === "";
 
   return (
     <ParentSection
@@ -193,12 +196,17 @@ export function CoursesSection({
                   course={course}
                   courses={courses}
                   requestable={requestable}
+                  reasonMissing={reasonMissing}
                   busy={busyCourseId === course.id}
-                  onRequest={() =>
+                  onRequest={() => {
+                    if (reasonMissing) {
+                      setNoteError(t("courses.reasonRequired"));
+                      return;
+                    }
                     void runAction(course.id, () =>
                       requestChildCourse(studentId, course.id, note),
-                    )
-                  }
+                    );
+                  }}
                   onWithdraw={() =>
                     void runAction(course.id, () =>
                       withdrawChildCourseRequest(
@@ -220,10 +228,26 @@ export function CoursesSection({
       ) : null}
       {courses.reason_required && requestable ? (
         <Textarea
+          id="course-request-reason"
+          label={t("courses.reasonLabel")}
           value={note}
-          onChange={(event) => setNote(event.target.value)}
+          onChange={(event) => {
+            setNote(event.target.value);
+            setNoteError(null);
+          }}
+          error={noteError ?? undefined}
           required
         />
+      ) : null}
+      {courses.items.length > 0 && careEnded ? (
+        <p className="text-sm text-gray-500">{t("courses.careEnded")}</p>
+      ) : null}
+      {courses.items.length > 0 &&
+      !careEnded &&
+      courses.can_request === false ? (
+        <p className="text-sm text-gray-500">
+          {t("courses.noSubmitPermission")}
+        </p>
       ) : null}
       {courses.items.length > 0 && courses.effective_from ? (
         <p className="text-sm text-gray-500">
@@ -281,6 +305,7 @@ function CourseAction({
   course,
   courses,
   requestable,
+  reasonMissing,
   busy,
   onRequest,
   onWithdraw,
@@ -289,6 +314,7 @@ function CourseAction({
   course: CourseItem;
   courses: ChildCourses;
   requestable: boolean;
+  reasonMissing: boolean;
   busy: boolean;
   onRequest: () => void;
   onWithdraw: () => void;
@@ -324,7 +350,7 @@ function CourseAction({
       variant="surface"
       size="md"
       className="max-sm:min-h-11"
-      disabled={busy}
+      disabled={busy || reasonMissing}
       onClick={onRequest}
     >
       {t("courses.request")}
