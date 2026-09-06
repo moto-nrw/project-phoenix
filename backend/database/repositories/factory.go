@@ -248,7 +248,6 @@ type Factory struct {
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
-	AttendanceCorrection         auditModels.AttendanceCorrectionRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
 	DeviationEvent               auditModels.DeviationEventRepository
 	AuthEvent                    auditModels.AuthEventRepository
@@ -373,6 +372,12 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	if f.students != nil {
 		f.bindGuardianDirectories(f.students)
 	}
+}
+
+// NewAttendanceCorrectionRepository composes the append-only attendance trail
+// with the request-scoped audit runtime used by timetable corrections.
+func NewAttendanceCorrectionRepository(runtime audit.Runtime) auditModels.AttendanceCorrectionRepository {
+	return audit.NewAttendanceCorrectionRepository(runtime)
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -708,7 +713,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		DataAccessLog:                audit.NewDataAccessLogRepository(auditRepositoryRuntime),
 		EnrollmentOfferingAdjustment: enrollmentOfferingAdjustment,
 		GuardianChange:               audit.NewGuardianChangeRepository(auditRepositoryRuntime),
-		AttendanceCorrection:         audit.NewAttendanceCorrectionRepository(auditRepositoryRuntime),
 		StudentConsentChange:         audit.NewStudentConsentChangeRepository(auditRepositoryRuntime),
 		DeviationEvent:               audit.NewDeviationEventRepository(auditRepositoryRuntime),
 		AuthEvent:                    audit.NewAuthEventRepository(auditRepositoryRuntime),

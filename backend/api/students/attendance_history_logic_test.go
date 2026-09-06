@@ -680,7 +680,7 @@ func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
-		Date: date, Status: schedule.InstanceStatusActive,
+		Date: schedule.Date(date), Status: schedule.InstanceStatusActive,
 	}
 	instance.ID = 203
 
@@ -703,7 +703,7 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
-		Date: date, Title: "Fußball-AG",
+		Date: schedule.Date(date), Title: "Fußball-AG",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -732,7 +732,7 @@ func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
 
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
-		Date: date, Title: "Betreuung",
+		Date: schedule.Date(date), Title: "Betreuung",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}

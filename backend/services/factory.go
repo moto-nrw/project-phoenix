@@ -2935,7 +2935,7 @@ func newFactory(
 		ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
-		AttendanceCorrectionRepo:   repos.AttendanceCorrection,
+		AttendanceCorrectionRepo:   repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
 		PersonRepo:                 repos.Person,
 		ConflictAckRepo:            repos.TimetableConflictAck,
 		RecoveryRepo:               recoveryRepo,

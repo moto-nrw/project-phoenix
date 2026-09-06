@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -94,8 +93,7 @@ func loadTrail(t *testing.T, s *patchSetup) []*auditModel.AttendanceCorrection {
 
 func loadRow(t *testing.T, s *patchSetup) *schedule.InstanceStudent {
 	t.Helper()
-	row, err := scheduleRepo.NewInstanceStudentRepository(testpkg.SetupTestDB(t)).
-		FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
+	row, err := s.repo.FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	return row
