@@ -190,9 +190,12 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	step := parentEnrollmentSeedStep{}
 	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
 	require.NoError(t, err)
-	require.Len(t, received, 4)
+	require.Len(t, received, 6)
 
-	expectedTimes := map[string]string{"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00"}
+	expectedTimes := map[string]string{
+		"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00",
+		"Fußball-AG": "", "Theater-AG": "",
+	}
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
 		require.True(t, ok, offering.Name)

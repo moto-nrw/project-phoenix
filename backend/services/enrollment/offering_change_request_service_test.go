@@ -166,24 +166,28 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	group.Type = activitiesModels.GroupTypeActivity
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, group))
 	zero := 0
-	createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
+	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
 		o.Capacity = &zero
 		o.SortOrder = 203
 	})
-	courses, err := svc.CourseCatalog(ctx, fx.studentID, env.creatorID)
-	require.NoError(t, err)
-	require.Len(t, courses.Items, 1)
-	_, err = svc.CreateCourseRequest(ctx, enrollmentService.CreateCourseRequestInput{
-		StudentID: fx.studentID, AccountID: env.creatorID, OfferingID: courses.Items[0].OfferingID,
+	_, err := svc.CreateCourseRequest(ctx, enrollmentService.CreateCourseRequestInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, OfferingID: course.ID,
 	})
 	require.NoError(t, err)
 
 	counter := testpkg.CaptureQueries(t, env.db)
 	catalog, err := svc.CourseCatalog(ctx, fx.studentID, env.creatorID)
 	require.NoError(t, err)
-	require.NotEmpty(t, catalog.Items)
-	assert.True(t, catalog.Items[0].Waitlisted)
+	var courseItem *enrollmentService.CourseCatalogItem
+	for i := range catalog.Items {
+		if catalog.Items[i].OfferingID == course.ID {
+			courseItem = &catalog.Items[i]
+			break
+		}
+	}
+	require.NotNil(t, courseItem)
+	assert.True(t, courseItem.Waitlisted)
 	t.Logf("course catalog issued %d queries", counter.Total())
 	testpkg.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
 }

@@ -3,16 +3,19 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 type courseSettingsStub struct {
 	values map[string]bool
+	errKey string
 	err    error
 }
 
@@ -21,7 +24,15 @@ func TestCourseRequestsEnabledReturnsSettingsFailure(t *testing.T) {
 
 	want := errors.New("settings unavailable")
 	svc := &offeringChangeRequestService{OfferingChangeRequestServiceConfig: OfferingChangeRequestServiceConfig{
-		Settings: courseSettingsStub{err: want},
+		Settings: courseSettingsStub{
+			values: map[string]bool{
+				configModel.KeyEnrollmentOfferingChangesEnabled: true,
+				configModel.KeyEnrollmentCareOfferingsEnabled:   true,
+			},
+			errKey: configModel.KeyEnrollmentParentCourseRequestsEnabled,
+			err:    want,
+		},
+		Logger: slog.Default(),
 	}}
 
 	_, err := svc.courseRequestsEnabled(context.Background())
@@ -29,7 +40,7 @@ func TestCourseRequestsEnabledReturnsSettingsFailure(t *testing.T) {
 }
 
 func (s courseSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
-	if s.err != nil {
+	if key == s.errKey && s.err != nil {
 		return false, s.err
 	}
 	return s.values[key], nil
