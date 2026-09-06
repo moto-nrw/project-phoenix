@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
+import Link from "next/link";
 import { cn } from "~/lib/utils";
 
 type ButtonVariant =

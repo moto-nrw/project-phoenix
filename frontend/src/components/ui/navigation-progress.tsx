@@ -6,7 +6,6 @@ import {
   type AppRouterInstance,
 } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import {
-  createContext,
   Suspense,
   useContext,
   useEffect,
@@ -15,6 +14,13 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import {
+  NavigationProgressContext,
+  type NavigationProgressStore,
+} from "./navigation-progress-store";
+
+export { NavigationProgressContext };
+export type { NavigationProgressStore };
 
 /**
  * Fortschrittsanzeige für Seitenwechsel (#2828).
@@ -36,17 +42,6 @@ import {
  * gesamte Hülle. Ein State-Wechsel dort würde Kopfzeile, Seitenleiste und
  * Inhalt bei jedem Klick neu rendern. So rendert nur der Balken selbst neu.
  */
-
-export interface NavigationProgressStore {
-  readonly subscribe: (onChange: () => void) => () => void;
-  readonly isPending: () => boolean;
-  readonly isFallbackSuppressed: () => boolean;
-  readonly startNavigation: (target: string) => number;
-  readonly startLinkNavigation: (target: string) => number;
-  readonly startHistory: (target: string) => void;
-  readonly completeNavigation: (currentUrl: string) => void;
-  readonly cancelNavigation: (id: number) => void;
-}
 
 const NAVIGATION_TIMEOUT_MS = 10_000;
 
@@ -208,8 +203,6 @@ function createStore(): NavigationProgressStore {
   };
 }
 
-export const NavigationProgressContext =
-  createContext<NavigationProgressStore | null>(null);
 const NOT_PENDING = () => false;
 const NO_SUBSCRIPTION = () => () => undefined;
 

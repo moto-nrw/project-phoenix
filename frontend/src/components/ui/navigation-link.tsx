@@ -8,7 +8,7 @@ import {
   type ComponentProps,
   type MouseEvent,
 } from "react";
-import { NavigationProgressContext } from "~/components/ui/navigation-progress";
+import { NavigationProgressContext } from "~/components/ui/navigation-progress-store";
 
 type NavigationLinkProps = Omit<ComponentProps<typeof NextLink>, "href"> & {
   readonly href: string;
