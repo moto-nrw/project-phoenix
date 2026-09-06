@@ -167,7 +167,19 @@ export function BookedCareSection({
     );
   }
 
-  const pending = offerings?.pending_request;
+  // Eine reine Kursanfrage gehört in den Abschnitt "Kurse" (#3075). Bei
+  // einer gemischten Anfrage bleibt der gesamte Vorgang hier: Die Rücknahme
+  // einer Kursanfrage zieht die ganze Änderungsanfrage zurück und darf keine
+  // Betreuungsänderung der Familie verbergen.
+  const pendingRequest = offerings?.pending_request;
+  const pending =
+    pendingRequest &&
+    pendingRequest.diff.length > 0 &&
+    pendingRequest.diff.every(
+      (line) => line.is_course === true || isAutomaticallyDerivedAddition(line),
+    )
+      ? undefined
+      : pendingRequest;
   const decision = offerings?.last_decision;
   const hasScheduledCare =
     schedule?.weekdays.some((weekday) => weekday.status === "scheduled") ??
@@ -486,5 +498,16 @@ export function BookedCareSection({
         />
       )}
     </div>
+  );
+}
+
+function isAutomaticallyDerivedAddition(
+  line: NonNullable<ChildCareOfferings["pending_request"]>["diff"][number],
+) {
+  return (
+    line.old_state === "not_booked" &&
+    line.new_state === "booked" &&
+    line.new_days.length > 0 &&
+    line.new_automatic_days?.length === line.new_days.length
   );
 }

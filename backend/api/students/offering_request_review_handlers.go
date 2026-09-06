@@ -73,6 +73,9 @@ type OfferingRequestDiffResponse struct {
 	TriggerNames []string `json:"trigger_names,omitempty"`
 	// Optoutable marks a rule-triggered line staff may exclude per request.
 	Optoutable bool `json:"optoutable,omitempty"`
+	// IsCourse marks a line about a Kurs (an AG reached through a care
+	// offering, #3075), so the card can say what kind of request this is.
+	IsCourse bool `json:"is_course,omitempty"`
 }
 
 // OfferingRequestUnchangedResponse is one booking the request does not touch.
@@ -94,6 +97,7 @@ func offeringRequestDiffLines(
 			Label:      entry.Label,
 			Old:        germanOfferingDiffLabel(entry.OldState, entry.OldDays),
 			New:        germanOfferingDiffLabel(entry.NewState, entry.NewDays),
+			IsCourse:   entry.IsCourse,
 		}
 		if len(entry.NewAutomaticDays) > 0 {
 			line.Automatic = true

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import {
   AppRouterContext,
   type AppRouterInstance,
@@ -44,6 +44,7 @@ export function NavLink({
   target,
   onPointerEnter,
   onFocus,
+  children,
   ...rest
 }: NavLinkProps) {
   const router = useContext<AppRouterInstance | null>(AppRouterContext);
@@ -73,7 +74,9 @@ export function NavLink({
         onFocus?.(event);
         prefetch();
       }}
-    />
+    >
+      {children}
+    </Link>
   );
 }
 

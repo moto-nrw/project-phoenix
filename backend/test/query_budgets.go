@@ -33,6 +33,9 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// capacity and pending-request queue through this bounded service scenario.
+	"api.parent.child_courses": {max: 14},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.

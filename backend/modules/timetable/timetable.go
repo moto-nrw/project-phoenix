@@ -148,6 +148,10 @@ type ScheduleQuery interface {
 	FindTemplateStartTimes(context.Context, []int64) ([]TemplateStartTime, error)
 }
 
+type CourseGroupQuery interface {
+	ListCourseGroups(context.Context, CourseGroupFilter) ([]CourseGroup, error)
+}
+
 type ScheduleCommand interface {
 	CreateSchedule(context.Context, ScheduleInput) (Schedule, error)
 	UpdateSchedule(context.Context, int64, ScheduleInput) (Schedule, error)
@@ -165,6 +169,7 @@ type Query interface {
 	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, error)
 	CourseInstances(context.Context, string, string, string) ([]CourseInstanceRow, error)
 	CourseParticipation(context.Context, string, string, string) ([]CourseParticipationRow, error)
+	CourseGroupQuery
 	ScheduleQuery
 	PlannedSupervisorQuery
 	StudentEnrollmentQuery
@@ -186,6 +191,7 @@ type Query interface {
 	FindGroupForUpdate(context.Context, int64) (Group, error)
 	FindGroupByName(context.Context, string) (Group, error)
 	ListGroups(context.Context, GroupFilter) ([]Group, error)
+	ListCourseGroups(context.Context, CourseGroupFilter) ([]CourseGroup, error)
 	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
 	ListTemplateRowsForPeriod(context.Context, *int64) ([]TemplateListRow, error)
@@ -319,6 +325,16 @@ func (m *Module) ListGroups(ctx context.Context, filter GroupFilter) ([]Group, e
 		return nil, m.reject("list_groups", ErrInvalidGroupQuery)
 	}
 	return m.engine.ListGroups(ctx, filter)
+}
+
+func (m *Module) ListCourseGroups(ctx context.Context, filter CourseGroupFilter) ([]CourseGroup, error) {
+	if hasInvalidID(filter.LegacyGroupIDs) || hasInvalidID(filter.SourceOfferingIDs) {
+		return nil, m.reject("list_course_groups", ErrInvalidGroupQuery)
+	}
+	if len(filter.LegacyGroupIDs) == 0 && len(filter.SourceOfferingIDs) == 0 {
+		return []CourseGroup{}, nil
+	}
+	return m.engine.ListCourseGroups(ctx, filter)
 }
 
 func (m *Module) ListTemplateRows(ctx context.Context, templateID *int64) ([]TemplateListRow, error) {
