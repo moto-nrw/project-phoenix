@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -149,6 +150,80 @@ func TestTransferDeliversTheFileAndRecordsIt(t *testing.T) {
 	assert.Equal(t, server.Port, row.TargetPort)
 	assert.Equal(t, dir, row.TargetDirectory)
 	assert.Equal(t, "A. Beispiel", row.ActorName)
+}
+
+func TestTransactionRollbackRestoresThePreviousRemoteFile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+
+	dir := t.TempDir()
+	server := sftptest.Start(t)
+	module := buildModule(t, db, server, dir)
+	request := transferRequest()
+	finalPath := filepath.Join(dir, request.Filename)
+	require.NoError(t, os.WriteFile(finalPath, []byte("bisherige fassung"), 0o600))
+
+	rollbackErr := errors.New("force transaction rollback")
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		outcome, transferErr := module.Transfer(txCtx, request)
+		require.NoError(t, transferErr)
+		require.True(t, outcome.Transferred)
+		return rollbackErr
+	})
+	require.ErrorIs(t, err, rollbackErr)
+
+	written, err := os.ReadFile(finalPath)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("bisherige fassung"), written)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "the rollback copy must be consumed when the previous file is restored")
+	assert.Empty(t, readTransferRows(t, ctx, db), "a rolled-back attempt must leave no audit row")
+}
+
+func TestTransactionRollbackRemovesANewRemoteFile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+
+	dir := t.TempDir()
+	server := sftptest.Start(t)
+	module := buildModule(t, db, server, dir)
+	request := transferRequest()
+
+	rollbackErr := errors.New("force transaction rollback")
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		outcome, transferErr := module.Transfer(txCtx, request)
+		require.NoError(t, transferErr)
+		require.True(t, outcome.Transferred)
+		return rollbackErr
+	})
+	require.ErrorIs(t, err, rollbackErr)
+
+	_, err = os.Stat(filepath.Join(dir, request.Filename))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "rolling back a first transfer must remove all remote artifacts")
+	assert.Empty(t, readTransferRows(t, ctx, db), "a rolled-back attempt must leave no audit row")
+}
+
+func TestTransferWithoutATransactionDoesNotTouchTheRemote(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+
+	dir := t.TempDir()
+	server := sftptest.Start(t)
+	module := buildModule(t, db, server, dir)
+
+	outcome, err := module.Transfer(ctx, transferRequest())
+	require.Error(t, err)
+	assert.False(t, outcome.Transferred)
+	entries, readErr := os.ReadDir(dir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries)
 }
 
 // A wrong host key is the failure that must never be smoothed over: nothing is

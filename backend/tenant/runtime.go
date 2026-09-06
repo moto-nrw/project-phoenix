@@ -260,9 +260,11 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 	started := time.Now()
 	retries := 0
 	committed := false
+	var attemptHooks *afterCommitHooks
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
 			if !committed {
+				runAfterRollbackHooks(attemptHooks)
 				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
 			}
 			panic(panicValue)
@@ -271,6 +273,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 
 	for attempt := 0; ; attempt++ {
 		attemptCtx, commitHooks := withAfterCommitHooks(ctx)
+		attemptHooks = commitHooks
 		err = run(attemptCtx)
 		if err == nil {
 			committed = true
@@ -278,6 +281,8 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 			runAfterCommitHooks(commitHooks)
 			return nil
 		}
+		runAfterRollbackHooks(commitHooks)
+		attemptHooks = nil
 		if !retry || attempt == maxTransactionRetries || !uow.retryable(err) {
 			observeTransaction(ctx, transactionResult(err), err, started, retries)
 			return err

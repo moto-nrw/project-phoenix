@@ -78,7 +78,7 @@ func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exp
 	journal := postgres.New(database())
 
 	resolver := settingsResolver{settings: dependencies.Settings, keys: dependencies.Keys}
-	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, journal, dependencies.Logger)
+	service := application.New(resolver, uploader{client: sftp.New(transportOptions...)}, journal, transactionLifecycle{}, dependencies.Logger)
 	return exporttransfer.NewModule(engine{service: service}), nil
 }
 
@@ -109,8 +109,8 @@ func database() postgres.Database {
 // a file may go belongs in the transport's address policy.
 type uploader struct{ client *sftp.Client }
 
-func (u uploader) Upload(ctx context.Context, target domain.Target, filename string, data []byte) error {
-	return u.client.Upload(ctx, sftp.Target{
+func (u uploader) Prepare(ctx context.Context, target domain.Target, filename string, data []byte) (func() error, func() error, error) {
+	pending, err := u.client.Prepare(ctx, sftp.Target{
 		Host:               target.Host,
 		Port:               target.Port,
 		Username:           target.Username,
@@ -118,6 +118,24 @@ func (u uploader) Upload(ctx context.Context, target domain.Target, filename str
 		RemoteDirectory:    target.RemoteDirectory,
 		HostKeyFingerprint: target.HostKeyFingerprint,
 	}, filename, data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pending.Commit, pending.Rollback, nil
+}
+
+type transactionLifecycle struct{}
+
+func (transactionLifecycle) Active(ctx context.Context) bool {
+	return tenant.HasAfterCommitHooks(ctx)
+}
+
+func (transactionLifecycle) AfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
+}
+
+func (transactionLifecycle) AfterRollback(ctx context.Context, fn func()) {
+	tenant.RegisterAfterRollback(ctx, fn)
 }
 
 // settingsResolver turns the seven settings into a validated target.

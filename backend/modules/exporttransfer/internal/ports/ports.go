@@ -20,11 +20,19 @@ type TargetResolver interface {
 	State(context.Context) (domain.TargetState, error)
 }
 
-// Uploader moves the bytes. The implementation decides where a file may go —
-// the address policy that keeps this from becoming a request-forgery tool
-// lives with the transport, not here.
+// Uploader moves the bytes and returns a compensating handle. The
+// implementation decides where a file may go — the address policy that keeps
+// this from becoming a request-forgery tool lives with the transport, not here.
 type Uploader interface {
-	Upload(ctx context.Context, target domain.Target, filename string, data []byte) error
+	Prepare(ctx context.Context, target domain.Target, filename string, data []byte) (commit func() error, rollback func() error, err error)
+}
+
+// TransactionLifecycle coordinates external effects with the caller's tenant
+// transaction.
+type TransactionLifecycle interface {
+	Active(context.Context) bool
+	AfterCommit(context.Context, func())
+	AfterRollback(context.Context, func())
 }
 
 // ReasonedError is the transport's error vocabulary: a failure names WHY it

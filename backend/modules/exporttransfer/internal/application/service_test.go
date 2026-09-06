@@ -39,13 +39,73 @@ type fakeUploader struct {
 	calls    int
 	filename string
 	data     []byte
+	pending  *fakePendingUpload
 }
 
-func (f *fakeUploader) Upload(_ context.Context, _ domain.Target, filename string, data []byte) error {
+func (f *fakeUploader) Prepare(_ context.Context, _ domain.Target, filename string, data []byte) (func() error, func() error, error) {
 	f.calls++
 	f.filename = filename
 	f.data = data
-	return f.err
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	if f.pending == nil {
+		f.pending = &fakePendingUpload{}
+	}
+	return f.pending.Commit, f.pending.Rollback, nil
+}
+
+type fakePendingUpload struct {
+	commits   int
+	rollbacks int
+}
+
+func (f *fakePendingUpload) Commit() error   { f.commits++; return nil }
+func (f *fakePendingUpload) Rollback() error { f.rollbacks++; return nil }
+
+type fakeLifecycle struct {
+	registerCommit   func(func())
+	registerRollback func(func())
+}
+
+func (*fakeLifecycle) Active(context.Context) bool { return true }
+
+func (f *fakeLifecycle) AfterCommit(_ context.Context, fn func()) {
+	f.registerCommit(fn)
+}
+
+func (f *fakeLifecycle) AfterRollback(_ context.Context, fn func()) {
+	f.registerRollback(fn)
+}
+
+type fakeLifecycleControl struct {
+	commitFns   []func()
+	rollbackFns []func()
+}
+
+func (f *fakeLifecycleControl) commit() {
+	for _, fn := range f.commitFns {
+		fn()
+	}
+}
+
+func (f *fakeLifecycleControl) rollback() {
+	for i := len(f.rollbackFns) - 1; i >= 0; i-- {
+		f.rollbackFns[i]()
+	}
+}
+
+func newTestService(resolver fakeResolver, uploader *fakeUploader, journal *fakeJournal) (*Service, *fakeLifecycleControl) {
+	control := &fakeLifecycleControl{}
+	lifecycle := &fakeLifecycle{
+		registerCommit: func(fn func()) {
+			control.commitFns = append(control.commitFns, fn)
+		},
+		registerRollback: func(fn func()) {
+			control.rollbackFns = append(control.rollbackFns, fn)
+		},
+	}
+	return New(resolver, uploader, journal, lifecycle, nil), control
 }
 
 type fakeJournal struct {
@@ -90,7 +150,8 @@ func TestTransfer_SuccessIsRecordedWithoutCredentials(t *testing.T) {
 	t.Parallel()
 
 	journal := &fakeJournal{}
-	service := New(fakeResolver{target: configuredTarget()}, &fakeUploader{}, journal, nil)
+	uploader := &fakeUploader{}
+	service, lifecycle := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
@@ -107,6 +168,9 @@ func TestTransfer_SuccessIsRecordedWithoutCredentials(t *testing.T) {
 	assert.Equal(t, int64(len(testRequest().Data)), entry.ByteSize)
 	assert.Equal(t, "dateien.beispiel.de", entry.TargetHost)
 	assert.Equal(t, "/upload/lohn", entry.TargetDirectory)
+	lifecycle.commit()
+	assert.Equal(t, 1, uploader.pending.commits)
+	assert.Zero(t, uploader.pending.rollbacks)
 	// The journal entry has no field for them, which is the point — this
 	// assertion pins that the shape never grows one.
 	assert.NotContains(t, entry.Filename, "s3hr-geheim")
@@ -117,7 +181,7 @@ func TestTransfer_FailureIsRecordedAsFailureWithItsReason(t *testing.T) {
 
 	journal := &fakeJournal{}
 	uploader := &fakeUploader{err: reasonedFailure{code: domain.ReasonHostKey}}
-	service := New(fakeResolver{target: configuredTarget()}, uploader, journal, nil)
+	service, _ := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err, "a counterpart that refuses is a normal answer, not a server error")
@@ -136,7 +200,7 @@ func TestTransfer_UnnamedFailureBecomesAnInternalReason(t *testing.T) {
 
 	journal := &fakeJournal{}
 	uploader := &fakeUploader{err: errors.New("something nobody classified")}
-	service := New(fakeResolver{target: configuredTarget()}, uploader, journal, nil)
+	service, _ := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
@@ -150,7 +214,7 @@ func TestTransfer_UnconfiguredTargetAttemptsAndRecordsNothing(t *testing.T) {
 
 	journal := &fakeJournal{}
 	uploader := &fakeUploader{}
-	service := New(fakeResolver{err: domain.ErrNotConfigured}, uploader, journal, nil)
+	service, _ := newTestService(fakeResolver{err: domain.ErrNotConfigured}, uploader, journal)
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.NoError(t, err)
@@ -166,12 +230,16 @@ func TestTransfer_UnrecordableAttemptIsNotReportedAsSuccess(t *testing.T) {
 	t.Parallel()
 
 	journal := &fakeJournal{err: errors.New("journal unavailable")}
-	service := New(fakeResolver{target: configuredTarget()}, &fakeUploader{}, journal, nil)
+	uploader := &fakeUploader{}
+	service, lifecycle := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
 
 	result, err := service.Transfer(context.Background(), testRequest())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnavailable)
 	assert.False(t, result.Success)
+	lifecycle.rollback()
+	assert.Equal(t, 1, uploader.pending.rollbacks, "an unrecorded upload must be reversed")
+	assert.Zero(t, uploader.pending.commits)
 }
 
 // A settings store that cannot answer is not an unconfigured school.
@@ -179,7 +247,7 @@ func TestTransfer_ResolverFailureIsUnavailableNotUnconfigured(t *testing.T) {
 	t.Parallel()
 
 	boom := errors.New("settings unavailable")
-	service := New(fakeResolver{err: boom}, &fakeUploader{}, &fakeJournal{}, nil)
+	service, _ := newTestService(fakeResolver{err: boom}, &fakeUploader{}, &fakeJournal{})
 
 	_, err := service.Transfer(context.Background(), testRequest())
 	require.Error(t, err)
@@ -192,7 +260,7 @@ func TestTransfer_SendsTheFileItWasGivenUnchanged(t *testing.T) {
 	t.Parallel()
 
 	uploader := &fakeUploader{}
-	service := New(fakeResolver{target: configuredTarget()}, uploader, &fakeJournal{}, nil)
+	service, _ := newTestService(fakeResolver{target: configuredTarget()}, uploader, &fakeJournal{})
 
 	request := testRequest()
 	request.Data = []byte("Personalnummer;Lohnart\r\n4711;100\r\n")
@@ -207,7 +275,7 @@ func TestState_PassesTheConfigurationThrough(t *testing.T) {
 	t.Parallel()
 
 	state := domain.TargetState{Enabled: true, Host: "dateien.beispiel.de", Port: 22, RemoteDirectory: "/upload/lohn"}
-	service := New(fakeResolver{state: state}, &fakeUploader{}, &fakeJournal{}, nil)
+	service, _ := newTestService(fakeResolver{state: state}, &fakeUploader{}, &fakeJournal{})
 
 	got, err := service.State(context.Background())
 	require.NoError(t, err)

@@ -125,6 +125,25 @@ func TestRunAfterCommitHooks_DrainsAndExecutes(t *testing.T) {
 	assert.Empty(t, h.drain(), "queue must be empty after run")
 }
 
+func TestTransactionHooksRunOnlyTheMatchingOutcome(t *testing.T) {
+	t.Parallel()
+
+	committed := &afterCommitHooks{}
+	var commitCalls, rollbackCalls int
+	committed.add(func() { commitCalls++ })
+	committed.addRollback(func() { rollbackCalls++ })
+	runAfterCommitHooks(committed)
+	assert.Equal(t, 1, commitCalls)
+	assert.Zero(t, rollbackCalls)
+
+	rolledBack := &afterCommitHooks{}
+	rolledBack.add(func() { commitCalls++ })
+	rolledBack.addRollback(func() { rollbackCalls++ })
+	runAfterRollbackHooks(rolledBack)
+	assert.Equal(t, 1, commitCalls)
+	assert.Equal(t, 1, rollbackCalls)
+}
+
 // TestRegisterAfterCommit_QueuesOntoHolderInContext covers the queued
 // path (caller is inside a WithTenantTx) — fn must NOT execute inline,
 // it must wait for the outer commit drain.

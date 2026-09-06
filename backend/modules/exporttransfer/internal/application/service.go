@@ -21,14 +21,15 @@ var ErrUnavailable = errors.New("export transfer unavailable")
 // feature is a manual action, and a silent background retry of a payroll file
 // is exactly the behaviour nobody asked for.
 type Service struct {
-	targets  ports.TargetResolver
-	uploader ports.Uploader
-	journal  ports.Journal
-	logger   *slog.Logger
+	targets   ports.TargetResolver
+	uploader  ports.Uploader
+	journal   ports.Journal
+	lifecycle ports.TransactionLifecycle
+	logger    *slog.Logger
 }
 
-func New(targets ports.TargetResolver, uploader ports.Uploader, journal ports.Journal, logger *slog.Logger) *Service {
-	return &Service{targets: targets, uploader: uploader, journal: journal, logger: logger}
+func New(targets ports.TargetResolver, uploader ports.Uploader, journal ports.Journal, lifecycle ports.TransactionLifecycle, logger *slog.Logger) *Service {
+	return &Service{targets: targets, uploader: uploader, journal: journal, lifecycle: lifecycle, logger: logger}
 }
 
 func (s *Service) log() *slog.Logger {
@@ -58,8 +59,27 @@ func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.
 		}
 		return domain.Result{}, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
+	if !s.lifecycle.Active(ctx) {
+		return domain.Result{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
+	}
 
-	uploadErr := s.uploader.Upload(ctx, target, request.Filename, request.Data)
+	commitUpload, rollbackUpload, uploadErr := s.uploader.Prepare(ctx, target, request.Filename, request.Data)
+	if uploadErr == nil {
+		// The remote replacement stays reversible until the surrounding audit
+		// transaction has a final outcome. A failed insert, handler rollback or
+		// commit failure restores the prior file; a commit only discards the
+		// rollback copy.
+		s.lifecycle.AfterCommit(ctx, func() {
+			if err := commitUpload(); err != nil {
+				s.log().Error("failed to finalize export transfer", "error", err.Error())
+			}
+		})
+		s.lifecycle.AfterRollback(ctx, func() {
+			if err := rollbackUpload(); err != nil {
+				s.log().Error("failed to roll back export transfer", "error", err.Error())
+			}
+		})
+	}
 
 	result := domain.Result{
 		Success:         uploadErr == nil,
@@ -95,9 +115,9 @@ func (s *Service) Transfer(ctx context.Context, request domain.Request) (domain.
 		Reason:          result.Reason,
 	}
 	if err := s.journal.Record(ctx, entry); err != nil {
-		// An attempt that cannot be recorded must not be reported as a
-		// success: the file may well have arrived, and a success without a
-		// trail is exactly what the audit requirement exists to prevent.
+		// Returning an error makes the surrounding transaction roll back;
+		// its rollback hook restores the previous remote state, so an
+		// unrecorded transfer is never reported as a success.
 		return domain.Result{}, fmt.Errorf("%w: record attempt: %w", ErrUnavailable, err)
 	}
 	return result, nil

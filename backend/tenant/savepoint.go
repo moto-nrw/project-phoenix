@@ -39,13 +39,13 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 		return fmt.Errorf("%w: create: %w", ErrSavepointControl, err)
 	}
 
-	hooks, hookCount := afterCommitCheckpoint(ctx)
+	hooks, commitHookCount, rollbackHookCount := transactionHookCheckpoint(ctx)
 	operationErr := fn(ctx)
 	if operationErr != nil {
 		if err := uow.savepoint(ctx, RollbackSavepoint); err != nil {
 			return errors.Join(operationErr, fmt.Errorf("%w: rollback: %w", ErrSavepointControl, err))
 		}
-		discardAfterCommitHooksAfter(hooks, hookCount)
+		runSavepointRollbackHooks(hooks, commitHookCount, rollbackHookCount)
 		if err := uow.savepoint(ctx, ReleaseSavepoint); err != nil {
 			return errors.Join(operationErr, fmt.Errorf("%w: release after rollback: %w", ErrSavepointControl, err))
 		}
@@ -58,26 +58,40 @@ func WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
 	return nil
 }
 
-func afterCommitCheckpoint(ctx context.Context) (*afterCommitHooks, int) {
+func transactionHookCheckpoint(ctx context.Context) (*afterCommitHooks, int, int) {
 	hooks, _ := ctx.Value(afterCommitKey{}).(*afterCommitHooks)
 	if hooks == nil {
-		return nil, 0
+		return nil, 0, 0
 	}
 	hooks.mu.Lock()
 	defer hooks.mu.Unlock()
-	return hooks, len(hooks.fns)
+	return hooks, len(hooks.fns), len(hooks.rollbackFns)
 }
 
-func discardAfterCommitHooksAfter(hooks *afterCommitHooks, count int) {
+func runSavepointRollbackHooks(hooks *afterCommitHooks, commitCount, rollbackCount int) {
 	if hooks == nil {
 		return
 	}
 	hooks.mu.Lock()
-	defer hooks.mu.Unlock()
-	if count < 0 {
-		count = 0
+	if commitCount < 0 {
+		commitCount = 0
 	}
-	if count < len(hooks.fns) {
-		hooks.fns = hooks.fns[:count]
+	if commitCount > len(hooks.fns) {
+		commitCount = len(hooks.fns)
+	}
+	if commitCount < len(hooks.fns) {
+		hooks.fns = hooks.fns[:commitCount]
+	}
+	if rollbackCount < 0 {
+		rollbackCount = 0
+	}
+	if rollbackCount > len(hooks.rollbackFns) {
+		rollbackCount = len(hooks.rollbackFns)
+	}
+	fns := append([]func(){}, hooks.rollbackFns[rollbackCount:]...)
+	hooks.rollbackFns = hooks.rollbackFns[:rollbackCount]
+	hooks.mu.Unlock()
+	for i := len(fns) - 1; i >= 0; i-- {
+		fns[i]()
 	}
 }

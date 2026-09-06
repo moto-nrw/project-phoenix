@@ -9,9 +9,11 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/netip"
+	"os"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -22,9 +24,9 @@ import (
 //
 // moto is a client only; it runs no SFTP server. The package deliberately
 // exposes ONE operation — put this byte slice under this name into the
-// configured directory. There is no listing, no download, no delete, no
-// rename of somebody else's file, because none of those are needed and each
-// would be a new way to misuse a school's credentials.
+// configured directory. Its internal reads, renames and removals are limited
+// to temporary copies of that exact file so a failed audit transaction can be
+// compensated; callers cannot operate on arbitrary remote paths.
 
 // Failure reasons. They are returned as sentinels so the caller can map each
 // to one German sentence and to an audit entry, WITHOUT ever putting the
@@ -84,6 +86,13 @@ type Target struct {
 // Uploader transfers one file to one counterpart.
 type Uploader interface {
 	Upload(ctx context.Context, target Target, filename string, data []byte) error
+}
+
+// PendingUpload is a completed remote replacement whose previous state is
+// retained until the caller's audit transaction commits or rolls back.
+type PendingUpload interface {
+	Commit() error
+	Rollback() error
 }
 
 // DialFunc opens the TCP connection. Injected so tests can reach an
@@ -196,36 +205,45 @@ func tempName(final string) string {
 }
 
 func (c *Client) Upload(ctx context.Context, target Target, filename string, data []byte) error {
-	if err := ValidateFilename(filename); err != nil {
+	pending, err := c.Prepare(ctx, target, filename, data)
+	if err != nil {
 		return err
 	}
+	return pending.Commit()
+}
+
+// Prepare uploads and atomically installs the new file while retaining enough
+// remote state to restore the previous file if the caller's transaction fails.
+func (c *Client) Prepare(ctx context.Context, target Target, filename string, data []byte) (PendingUpload, error) {
+	if err := ValidateFilename(filename); err != nil {
+		return nil, err
+	}
 	if int64(len(data)) > c.maxBytes {
-		return fmt.Errorf("%w: %d bytes", ErrFileTooLarge, len(data))
+		return nil, fmt.Errorf("%w: %d bytes", ErrFileTooLarge, len(data))
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
 
 	addr, err := resolveAllowedAddr(ctx, c.resolve, c.policy, target.Host)
 	if err != nil {
+		cancel()
 		if errors.Is(err, ErrAddressNotAllowed) {
-			return err
+			return nil, err
 		}
-		return fmt.Errorf("%w: %w", ErrConnect, err)
+		return nil, fmt.Errorf("%w: %w", ErrConnect, err)
 	}
 
 	conn, err := c.dial(ctx, "tcp", net.JoinHostPort(addr.String(), strconv.Itoa(target.Port)))
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrConnect, err)
+		cancel()
+		return nil, fmt.Errorf("%w: %w", ErrConnect, err)
 	}
-	defer func() { _ = conn.Close() }()
 
 	// Cancellation is enforced by closing the connection, not by an absolute
 	// deadline on it. A deadline would still be armed while the session is
 	// being torn down, and the SFTP client's receive loop would then sit in a
 	// read until it expired instead of returning at once.
 	stop := make(chan struct{})
-	defer close(stop)
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -242,21 +260,94 @@ func (c *Client) Upload(ctx context.Context, target Target, filename string, dat
 
 	sshClient, client, err := c.newSFTPClient(conn, addr, target)
 	if err != nil {
-		return err
+		close(stop)
+		cancel()
+		_ = conn.Close()
+		return nil, err
 	}
-	// Tear the SSH transport down FIRST. sftp.Client.Close() waits for its
-	// receive loop, which only ends when the counterpart closes the channel —
-	// a server that never does would otherwise hold the request open until
-	// the context expires, long after the file already arrived.
-	defer func() {
-		_ = sshClient.Close()
-		_ = client.Close()
-	}()
+	var closeOnce sync.Once
+	closeConnection := func() {
+		closeOnce.Do(func() {
+			close(stop)
+			cancel()
+			// Tear the SSH transport down FIRST. sftp.Client.Close() waits for
+			// its receive loop, which only ends when the counterpart closes.
+			_ = sshClient.Close()
+			_ = client.Close()
+			_ = conn.Close()
+		})
+	}
 
 	// Handshake done: hand the timing back to the context watchdog.
 	_ = conn.SetDeadline(time.Time{})
 
-	return c.writeAtomically(client, target.RemoteDirectory, filename, data)
+	pending, err := c.writeAtomically(fileOperations(client), target.RemoteDirectory, filename, data)
+	if err != nil {
+		closeConnection()
+		return nil, err
+	}
+	pending.close = closeConnection
+	return pending, nil
+}
+
+type remoteFileOperations struct {
+	create       func(string) (io.WriteCloser, error)
+	open         func(string) (io.ReadCloser, error)
+	stat         func(string) (os.FileInfo, error)
+	remove       func(string) error
+	rename       func(string, string) error
+	posixRename  func(string, string) error
+	hasExtension func(string) bool
+}
+
+func fileOperations(client *sftp.Client) remoteFileOperations {
+	return remoteFileOperations{
+		create:      func(name string) (io.WriteCloser, error) { return client.Create(name) },
+		open:        func(name string) (io.ReadCloser, error) { return client.Open(name) },
+		stat:        client.Stat,
+		remove:      client.Remove,
+		rename:      client.Rename,
+		posixRename: client.PosixRename,
+		hasExtension: func(name string) bool {
+			_, ok := client.HasExtension(name)
+			return ok
+		},
+	}
+}
+
+type pendingUpload struct {
+	client     remoteFileOperations
+	finalPath  string
+	backupPath string
+	close      func()
+	once       sync.Once
+	err        error
+}
+
+func (u *pendingUpload) Commit() error {
+	u.once.Do(func() {
+		if u.backupPath != "" {
+			u.err = u.client.remove(u.backupPath)
+		}
+		if u.close != nil {
+			u.close()
+		}
+	})
+	return u.err
+}
+
+func (u *pendingUpload) Rollback() error {
+	u.once.Do(func() {
+		if u.backupPath != "" {
+			u.err = u.client.posixRename(u.backupPath, u.finalPath)
+		} else if err := u.client.remove(u.finalPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			u.err = err
+		}
+		if u.close != nil {
+			u.close()
+		}
+	})
+	return u.err
 }
 
 // newSFTPClient completes the SSH handshake and opens the SFTP subsystem. It
@@ -306,7 +397,7 @@ func isAuthFailure(err error) bool {
 
 // writeAtomically uploads to a temporary name and renames on success, so the
 // final name never appears until the complete file is there.
-func (c *Client) writeAtomically(client *sftp.Client, dir, filename string, data []byte) error {
+func (c *Client) writeAtomically(client remoteFileOperations, dir, filename string, data []byte) (*pendingUpload, error) {
 	tempPath := path.Join(dir, tempName(filename))
 	finalPath := path.Join(dir, filename)
 
@@ -314,25 +405,72 @@ func (c *Client) writeAtomically(client *sftp.Client, dir, filename string, data
 		// Leave nothing behind. A failed removal is not reported: the
 		// transfer already failed, and the leftover is a temporary name that
 		// no consumer reads.
-		_ = client.Remove(tempPath)
-		return err
+		_ = client.remove(tempPath)
+		return nil, err
 	}
 
-	// Some servers refuse a rename onto an existing name. Removing the
-	// previous file first makes re-transferring the same month possible,
-	// which is the normal case after a correction.
-	if _, statErr := client.Stat(finalPath); statErr == nil {
-		_ = client.Remove(finalPath)
+	_, statErr := client.stat(finalPath)
+	if errors.Is(statErr, os.ErrNotExist) {
+		if err := client.rename(tempPath, finalPath); err != nil {
+			_ = client.remove(tempPath)
+			return nil, fmt.Errorf("%w: rename: %w", ErrUpload, err)
+		}
+		return &pendingUpload{client: client, finalPath: finalPath}, nil
 	}
-	if err := client.Rename(tempPath, finalPath); err != nil {
-		_ = client.Remove(tempPath)
-		return fmt.Errorf("%w: rename: %w", ErrUpload, err)
+	if statErr != nil {
+		_ = client.remove(tempPath)
+		return nil, fmt.Errorf("%w: inspect existing file: %w", ErrUpload, statErr)
+	}
+
+	// Replacing a prior export is allowed only through the POSIX extension:
+	// unlike SFTP v3 Rename, it overwrites atomically and never requires the
+	// valid old file to be deleted first.
+	if !client.hasExtension("posix-rename@openssh.com") {
+		_ = client.remove(tempPath)
+		return nil, fmt.Errorf("%w: counterpart does not support atomic replacement", ErrUpload)
+	}
+
+	backupPath := path.Join(dir, tempName(filename)+".previous")
+	if err := copyRemoteFile(client, finalPath, backupPath); err != nil {
+		_ = client.remove(tempPath)
+		_ = client.remove(backupPath)
+		return nil, err
+	}
+	if err := client.posixRename(tempPath, finalPath); err != nil {
+		_ = client.remove(tempPath)
+		_ = client.remove(backupPath)
+		return nil, fmt.Errorf("%w: atomic rename: %w", ErrUpload, err)
+	}
+	return &pendingUpload{client: client, finalPath: finalPath, backupPath: backupPath}, nil
+}
+
+func copyRemoteFile(client remoteFileOperations, sourcePath, targetPath string) error {
+	source, err := client.open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("%w: open previous file: %w", ErrUpload, err)
+	}
+	target, err := client.create(targetPath)
+	if err != nil {
+		_ = source.Close()
+		return fmt.Errorf("%w: create rollback copy: %w", ErrUpload, err)
+	}
+	_, copyErr := io.Copy(target, source)
+	targetCloseErr := target.Close()
+	sourceCloseErr := source.Close()
+	if copyErr != nil {
+		return fmt.Errorf("%w: copy previous file: %w", ErrUpload, copyErr)
+	}
+	if targetCloseErr != nil {
+		return fmt.Errorf("%w: close rollback copy: %w", ErrUpload, targetCloseErr)
+	}
+	if sourceCloseErr != nil {
+		return fmt.Errorf("%w: close previous file: %w", ErrUpload, sourceCloseErr)
 	}
 	return nil
 }
 
-func (c *Client) writeFile(client *sftp.Client, remotePath string, data []byte) error {
-	file, err := client.Create(remotePath)
+func (c *Client) writeFile(client remoteFileOperations, remotePath string, data []byte) error {
+	file, err := client.create(remotePath)
 	if err != nil {
 		return fmt.Errorf("%w: create: %w", ErrUpload, err)
 	}
