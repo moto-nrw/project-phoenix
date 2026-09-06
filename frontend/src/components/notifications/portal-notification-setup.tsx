@@ -1,16 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { DeferredNotificationSetup } from "~/components/notifications/deferred-notification-setup";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import type { PushPortal } from "~/lib/push-api";
-
-const NotificationSetupDialog = dynamic(
-  () =>
-    import("~/components/notifications/notification-setup-dialog").then(
-      (module) => module.NotificationSetupDialog,
-    ),
-  { ssr: false },
-);
 
 /**
  * Hängt den geführten Einstieg an die Sitzung des jeweiligen Portals (#2831).
@@ -25,5 +17,5 @@ export function PortalNotificationSetup({
   const shell = useShellAuthSafe();
   const accountId = shell?.user?.id;
   if (shell?.status !== "authenticated" || accountId === undefined) return null;
-  return <NotificationSetupDialog portal={portal} accountId={accountId} />;
+  return <DeferredNotificationSetup portal={portal} accountId={accountId} />;
 }

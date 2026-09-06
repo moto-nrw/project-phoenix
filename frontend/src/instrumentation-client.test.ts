@@ -90,7 +90,7 @@ describe("instrumentation-client", () => {
     },
   );
 
-  it("leaves Chrome's native install prompt enabled on desktop tenant hosts", async () => {
+  it("retains Chrome's desktop prompt while leaving its native offer enabled", async () => {
     vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
     await import("./instrumentation-client");
     const { canPromptInstall } = await import("./lib/pwa-install-prompt");
@@ -105,7 +105,10 @@ describe("instrumentation-client", () => {
     window.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(false);
-    expect(canPromptInstall()).toBe(false);
+    expect(canPromptInstall()).toBe(true);
+
+    window.location.href = "https://school-a.moto-app.de/profile";
+    expect(canPromptInstall()).toBe(true);
   });
 
   it("captures Chrome's install prompt on the path-routed tenant profile", async () => {
@@ -125,6 +128,19 @@ describe("instrumentation-client", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(canPromptInstall()).toBe(true);
+  });
+
+  it("recognizes an installation from the path-routed tenant profile", async () => {
+    vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });
+    window.location.href = "https://moto-app.de/school-a/profile";
+    await import("./instrumentation-client");
+    const { canPromptInstall, isInstallationCompleted } =
+      await import("./lib/pwa-install-prompt");
+
+    window.dispatchEvent(new Event("appinstalled"));
+
+    expect(canPromptInstall()).toBe(false);
+    expect(isInstallationCompleted()).toBe(true);
   });
 
   it.each([

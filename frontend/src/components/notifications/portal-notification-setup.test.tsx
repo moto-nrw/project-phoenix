@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalNotificationSetup } from "./portal-notification-setup";
 
 const shellAuth = vi.hoisted(() => ({ useShellAuthSafe: vi.fn() }));
-const dialog = vi.hoisted(() => ({ NotificationSetupDialog: vi.fn() }));
+const setup = vi.hoisted(() => ({ DeferredNotificationSetup: vi.fn() }));
 
 vi.mock("~/lib/shell-auth-context", () => shellAuth);
-vi.mock("~/components/notifications/notification-setup-dialog", () => ({
-  NotificationSetupDialog: (props: Record<string, unknown>) => {
-    dialog.NotificationSetupDialog(props);
+vi.mock("~/components/notifications/deferred-notification-setup", () => ({
+  DeferredNotificationSetup: (props: Record<string, unknown>) => {
+    setup.DeferredNotificationSetup(props);
     return <div data-testid="setup-dialog" />;
   },
 }));
@@ -26,8 +26,8 @@ describe("PortalNotificationSetup", () => {
 
     render(<PortalNotificationSetup portal="school" />);
 
-    expect(await screen.findByTestId("setup-dialog")).toBeInTheDocument();
-    expect(dialog.NotificationSetupDialog).toHaveBeenCalledWith(
+    expect(screen.getByTestId("setup-dialog")).toBeInTheDocument();
+    expect(setup.DeferredNotificationSetup).toHaveBeenCalledWith(
       expect.objectContaining({ portal: "school", accountId: "42" }),
     );
   });

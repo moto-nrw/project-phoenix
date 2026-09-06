@@ -208,6 +208,14 @@ function isCurrentDeviceSettingsPath(): boolean {
 }
 
 function isCurrentPathTenantDeviceSettingsPath(): boolean {
+  const tenantSlug = currentPathTenantSlug();
+  return (
+    tenantSlug !== null && window.location.pathname === `/${tenantSlug}/profile`
+  );
+}
+
+/** Returns the active path-routed tenant slug, if the URL identifies one. */
+function currentPathTenantSlug(): string | null {
   const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
   if (!tenantDomain) {
     throw new Error("NEXT_PUBLIC_TENANT_DOMAIN is not set.");
@@ -216,19 +224,26 @@ function isCurrentPathTenantDeviceSettingsPath(): boolean {
     window.location.hostname.toLowerCase() !==
     tenantDomain.toLowerCase().replace(/\.$/, "")
   ) {
-    return false;
+    return null;
   }
 
   const match = /^\/([^/]+)(\/.*)?$/.exec(window.location.pathname);
   const tenantSlug = match?.[1];
-  return (
-    match?.[2] === "/profile" &&
-    Boolean(
-      tenantSlug &&
-      isValidTenantSlug(tenantSlug) &&
-      !RESERVED_SLUGS.has(tenantSlug),
-    )
-  );
+  if (
+    !tenantSlug ||
+    !isValidTenantSlug(tenantSlug) ||
+    RESERVED_SLUGS.has(tenantSlug)
+  ) {
+    return null;
+  }
+  return tenantSlug;
+}
+
+function isCurrentProtectedInstallPortal(): boolean {
+  if (isCurrentTenantInstallHost()) return isCurrentProtectedTenantPath();
+  if (isCurrentParentInstallHost()) return isCurrentProtectedParentPath();
+  if (isCurrentSchoolInstallHost()) return isCurrentProtectedSchoolPath();
+  return currentPathTenantSlug() !== null;
 }
 
 // Never suppress Chrome unless the replacement card can actually render, or the
@@ -323,6 +338,16 @@ if (typeof window !== "undefined") {
       if (canSuppressSamsungInstallPrompt()) event.preventDefault();
       return;
     }
+    if (isDesktopDevice(window.navigator)) {
+      // Chrome delivers this event only once. Keep it while the person moves
+      // from a protected start page to the device settings, but leave Chrome's
+      // native affordance untouched until the replacement card is present.
+      if (!isCurrentProtectedInstallPortal()) return;
+      if (canCaptureInstallPrompt()) event.preventDefault();
+      deferredPrompt = event as BeforeInstallPromptEvent;
+      notify();
+      return;
+    }
     if (!canCaptureInstallPrompt()) return;
 
     event.preventDefault();
@@ -330,7 +355,10 @@ if (typeof window !== "undefined") {
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    if (!isCurrentInstallHost() || isIosDevice(window.navigator)) {
+    if (
+      (!isCurrentInstallHost() && currentPathTenantSlug() === null) ||
+      isIosDevice(window.navigator)
+    ) {
       return;
     }
     deferredPrompt = null;

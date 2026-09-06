@@ -1,14 +1,6 @@
 "use client";
 
-import dynamic from "next/dynamic";
-
-const NotificationSetupDialog = dynamic(
-  () =>
-    import("~/components/notifications/notification-setup-dialog").then(
-      (module) => module.NotificationSetupDialog,
-    ),
-  { ssr: false },
-);
+import { DeferredNotificationSetup } from "~/components/notifications/deferred-notification-setup";
 
 /**
  * Der Einrichtungs-Dialog des Elternportals.
@@ -20,5 +12,5 @@ const NotificationSetupDialog = dynamic(
 export function ParentNotificationOnboarding({
   accountId,
 }: Readonly<{ accountId: string }>) {
-  return <NotificationSetupDialog portal="parent" accountId={accountId} />;
+  return <DeferredNotificationSetup portal="parent" accountId={accountId} />;
 }

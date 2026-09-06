@@ -39,6 +39,9 @@ import {
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { setupStorageKey } from "./notification-setup-decision";
+
+export { setupStorageKey } from "./notification-setup-decision";
 
 const logger = createLogger({ component: "NotificationSetupDialog" });
 const INSTALL_GUIDE_REMIND_MS = 24 * 60 * 60 * 1000;
@@ -66,15 +69,6 @@ function writeDecision(key: string, decision: StoredDecision): void {
   } catch {
     // The setup still works when browser storage is unavailable.
   }
-}
-
-export function setupStorageKey(
-  portal: PushPortal,
-  accountId: string,
-  tenantSlug?: string | null,
-): string {
-  const tenantScope = portal === "tenant" && tenantSlug ? `.${tenantSlug}` : "";
-  return `moto.${portal}.notification-setup.v1${tenantScope}.${accountId}`;
 }
 
 /**
