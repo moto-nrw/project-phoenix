@@ -95,6 +95,7 @@ var seedCoverageExemptions = map[string]string{
 	"users.guests":                            "empty in prod too",
 	"users.parent_announcement_options":       "empty in prod too",
 	"users.parent_announcement_responses":     "empty in prod too",
+	"users.parent_request_rss_feeds":          "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.persons_guardians":                 "empty in prod too",
 	"users.profiles":                          "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":       "empty in prod too",
