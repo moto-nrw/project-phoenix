@@ -201,8 +201,8 @@ func (w *world) ResolveString(_ context.Context, key string) (string, error) {
 
 // --- attendanceReader ---------------------------------------------------------
 
-func (w *world) ListOpenStudentIDsForDate(_ context.Context, _ string) ([]int64, error) {
-	w.hit("ListOpenStudentIDsForDate")
+func (w *world) ListOpenAttendanceStudentIDs(_ context.Context, _ string) ([]int64, error) {
+	w.hit("ListOpenAttendanceStudentIDs")
 	return append([]int64(nil), w.attendanceIDs...), nil
 }
 

@@ -544,13 +544,9 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 	_, err = service.GetStudentCurrentVisit(ctx, inRoomStudent.ID)
 	assert.ErrorIs(t, err, activeSvc.ErrVisitNotFound)
 
-	var reloaded activeModel.Attendance
-	err = db.NewSelect().
-		Model(&reloaded).
-		ModelTableExpr(`active.attendance`).
-		Where("id = ?", inRoomAttendance.ID).
-		Scan(ctx)
+	reloaded, err := testSchoolPresence(t, db).FindAttendance(ctx, inRoomAttendance.ID)
 	require.NoError(t, err)
+	require.NotNil(t, reloaded)
 	assert.Nil(t, reloaded.CheckOutTime, "moving to transit must not perform a daily checkout")
 }
 

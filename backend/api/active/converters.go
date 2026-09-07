@@ -37,10 +37,6 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 		UpdatedAt: group.UpdatedAt,
 	}
 
-	// Add counts if available
-	if group.Visits != nil {
-		response.VisitCount = len(group.Visits)
-	}
 	if group.Supervisors != nil {
 		// Only expose currently active supervisors
 		now := time.Now()
@@ -69,30 +65,6 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 			Name:  group.Room.Name,
 			Color: group.Room.Color,
 		}
-	}
-
-	return response
-}
-
-// newVisitResponse converts a visit model to a response object
-func newVisitResponse(visit *active.Visit) VisitResponse {
-	response := VisitResponse{
-		ID:            visit.ID,
-		StudentID:     visit.StudentID,
-		ActiveGroupID: visit.ActiveGroupID,
-		CheckInTime:   visit.EntryTime,
-		CheckOutTime:  visit.ExitTime,
-		IsActive:      visit.IsActive(),
-		CreatedAt:     visit.CreatedAt,
-		UpdatedAt:     visit.UpdatedAt,
-	}
-
-	// Add related information if available
-	if visit.Student != nil && visit.Student.Person != nil {
-		response.StudentName = visit.Student.Person.GetFullName()
-	}
-	if visit.ActiveGroup != nil {
-		response.ActiveGroupName = activeGroupDisplayName(visit.ActiveGroup)
 	}
 
 	return response

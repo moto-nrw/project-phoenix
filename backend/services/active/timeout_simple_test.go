@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -252,33 +251,9 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
-		// Insert visits directly into database (bypasses attendance creation logic)
-		// This is acceptable for testing GetSessionTimeoutInfo since we're testing
-		// the timeout info retrieval, not the visit creation business logic
-		visit1 := &active.Visit{
-			StudentID:     student1.ID,
-			ActiveGroupID: session.ID,
-			EntryTime:     time.Now(),
-		}
-		visit1.SetTenantID(testpkg.Tenant(t))
-		_, err = db.NewInsert().
-			Model(visit1).
-			ModelTableExpr("active.visits").
-			Exec(ctx)
-		require.NoError(t, err)
-
-		visit2 := &active.Visit{
-			StudentID:     student2.ID,
-			ActiveGroupID: session.ID,
-			EntryTime:     time.Now(),
-		}
-		visit2.SetTenantID(testpkg.Tenant(t))
-		_, err = db.NewInsert().
-			Model(visit2).
-			ModelTableExpr("active.visits").
-			Exec(ctx)
-		require.NoError(t, err)
-
+		// Timeout retrieval needs room stays without school attendance transitions.
+		testpkg.CreateTestVisit(t, db, student1.ID, session.ID, time.Now(), nil)
+		testpkg.CreateTestVisit(t, db, student2.ID, session.ID, time.Now(), nil)
 		// ACT: Get timeout info
 		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
 

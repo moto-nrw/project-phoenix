@@ -20,13 +20,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -63,11 +66,10 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -82,6 +84,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		return configModel.GetDefinition(key).Default.(string), nil
+	}})
 
 	// Fixtures: activity + room + active.group + student + staff + device.
 	// CreateVisit requires staff + device on ctx for attendance FK.
@@ -121,7 +126,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -223,11 +228,10 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -242,6 +246,9 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		return configModel.GetDefinition(key).Default.(string), nil
+	}})
 
 	// NO instance bridges to this active.group — it's a walk-in session.
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Walk-%d", suffix))
@@ -255,7 +262,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),

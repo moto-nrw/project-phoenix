@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -203,7 +203,7 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	repo := newPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkVisitRoom")
@@ -219,23 +219,29 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 	testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
 
 	t.Run("groups open visits by room and drops checked-out children", func(t *testing.T) {
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		assert.Contains(t, byRoom[room.ID], present.ID,
+		assert.Contains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: present.ID},
 			"a child with an open visit belongs to its room")
-		assert.NotContains(t, byRoom[room.ID], departed.ID,
+		assert.NotContains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: departed.ID},
 			"a child who already left must not be reported as present")
 	})
 
 	t.Run("agrees with the single-room reader it replaces", func(t *testing.T) {
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		single, err := repo.ListActiveStudentIDsByRoomID(ctx, room.ID)
+		single, err := repo.ListOpenVisitRooms(ctx, room.ID)
 		require.NoError(t, err)
 
-		assert.ElementsMatch(t, single, byRoom[room.ID],
+		selected := make([]studentpresence.OpenVisitRoom, 0)
+		for _, row := range byRoom {
+			if row.RoomID == room.ID {
+				selected = append(selected, row)
+			}
+		}
+		assert.ElementsMatch(t, single, selected,
 			"the bulk reader must return exactly what the per-room reader returns")
 	})
 
@@ -256,10 +262,10 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 			require.NoError(t, resetErr)
 		}()
 
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		assert.NotContains(t, byRoom[room.ID], present.ID,
+		assert.NotContains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: present.ID},
 			"a closed session leaves no presence behind")
 	})
 }

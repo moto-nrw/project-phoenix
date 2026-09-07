@@ -19,13 +19,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -42,7 +43,7 @@ type scenario struct {
 	t              *testing.T
 	db             *bun.DB
 	resource       *timetableTestResource
-	createVisit    func(context.Context, *activeModel.Visit) error
+	createVisit    func(context.Context, *studentpresence.Visit) error
 	endVisit       func(context.Context, int64) error
 	previewCleanup func(context.Context) (*scheduleSvc.TimetableCleanupPreview, error)
 	cleanup        func(context.Context) (*scheduleSvc.TimetableCleanupResult, error)
@@ -95,7 +96,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 	return s
 }
 
-func (s *scenario) createActiveVisit(ctx context.Context, visit *activeModel.Visit) error {
+func (s *scenario) createActiveVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return s.createVisit(ctx, visit)
 }
 

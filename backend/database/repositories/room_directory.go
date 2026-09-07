@@ -62,11 +62,6 @@ func (f *Factory) registerActiveRoomBinders() {
 			repo.BindRoomDirectory(activeRoomDirectory{rooms})
 		})
 	}
-	if repo, ok := f.ActiveVisit.(*activeRepo.VisitRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(activeRoomDirectory{rooms})
-		})
-	}
 }
 
 func (f *Factory) registerRemainingRoomBinders() {

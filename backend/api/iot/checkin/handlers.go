@@ -13,7 +13,6 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -308,32 +307,26 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// attendance row directly. This keeps PyrePortal's existing response
 	// contract intact (same CheckinResponse shape) while skipping all the
 	// visit/room/supervision complexity that doesn't apply here.
-	if rs.ActiveService.GetPresenceMode(ctx) == "binary" {
+	mode, err := rs.ActiveService.GetPresenceMode(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
+	if mode == "binary" {
 		rs.processBinaryModeCheckin(w, r, student, deviceCtx, now)
 		return
 	}
 
-	// Step 5: Load current visit with room information
-	currentVisit := rs.Checkin.LoadCurrentVisitWithRoom(ctx, student.ID)
-
-	// Step 6: Process checkout if student has active visit
-	var checkoutVisitID *int64
-	var previousRoomName string
-	var checkedOut bool
-
-	// Step 6b: Process checkout if student has active visit.
-	// Checkout always produces "unterwegs" state — attendance is NOT synced here.
-	// Daily attendance checkout is confirmed separately via confirm_daily_checkout
-	// when the student selects "nach Hause" on the device.
-	if currentVisit != nil {
-		var err error
-		checkoutVisitID, previousRoomName, err = rs.Checkin.ProcessCheckout(ctx, student, person, currentVisit)
-		if err != nil {
-			rs.renderCheckinError(w, r, err)
-			return
-		}
-		checkedOut = true
+	// Resolve and close any current room stay before considering re-entry.
+	checkout, err := rs.Checkin.CheckoutCurrentVisit(ctx, student, person)
+	if err != nil {
+		rs.renderCheckinError(w, r, err)
+		return
 	}
+	currentVisit := checkout.Visit
+	checkoutVisitID := checkout.VisitID
+	previousRoomName := checkout.PreviousRoomName
+	checkedOut := checkout.CheckedOut
 
 	// Step 7: Determine if checkin should be skipped (same room scenario)
 	skipCheckin := checkinSvc.ShouldSkipCheckin(req.RoomID, checkedOut, currentVisit, now)
@@ -423,7 +416,7 @@ func shouldRollbackDestinationCheckin(checkedOut bool, err error) bool {
 // response flags. Both are only meaningful when the student just left a room via
 // checkout, so the flags stay at their defaults otherwise. feedback_enabled
 // defaults to false (opt-in, GDPR).
-func (rs *Resource) applyCheckoutFlags(ctx context.Context, result *checkinSvc.CheckinResult, student *users.Student, currentVisit *active.Visit) {
+func (rs *Resource) applyCheckoutFlags(ctx context.Context, result *checkinSvc.CheckinResult, student *users.Student, currentVisit *activeSvc.VisitWithRoom) {
 	if currentVisit == nil || (result.Action != "checked_out" && result.Action != "checked_out_daily") {
 		return
 	}

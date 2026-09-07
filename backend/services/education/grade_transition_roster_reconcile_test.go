@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -46,8 +45,7 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
-		VisitRepo:        activeRepo.NewVisitRepository(db),
-		AttendanceRepo:   activeRepo.NewAttendanceRepository(db),
+		Presence:         graduationPresence(t, db),
 		RosterReconciler: reconciler,
 		DB:               db,
 	})
@@ -397,8 +395,7 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 		TransitionRepo:   newGradeTransitionRepository(t, db),
 		StudentRepo:      usersRepo.NewStudentRepository(db),
 		PersonRepo:       usersRepo.NewPersonRepository(db),
-		VisitRepo:        activeRepo.NewVisitRepository(db),
-		AttendanceRepo:   activeRepo.NewAttendanceRepository(db),
+		Presence:         graduationPresence(t, db),
 		RosterReconciler: reconciler,
 		DB:               db,
 		Today:            func() timezone.Date { return timezone.NewDate(2026, 8, 24) },

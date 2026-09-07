@@ -10,10 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -133,13 +132,13 @@ type visitFixture struct {
 	visitErr         error
 }
 
-type visitActiveService struct {
-	activeSvc.Service
+type visitPresenceQueries struct {
+	PresenceQueries
 	fixture visitFixture
 }
 
-func (s visitActiveService) GetVisit(context.Context, int64) (*activeModel.Visit, error) {
-	return &activeModel.Visit{StudentID: 10}, s.fixture.visitErr
+func (s visitPresenceQueries) FindVisit(context.Context, int64) (*studentpresence.Visit, error) {
+	return &studentpresence.Visit{StudentID: 10}, s.fixture.visitErr
 }
 
 type visitPersonService struct {
@@ -164,7 +163,7 @@ func (s visitPersonService) GetStaffByPersonID(context.Context, int64) (*userMod
 
 func visitResource(fixture visitFixture) *Resource {
 	return &Resource{
-		ActiveService: visitActiveService{fixture: fixture}, PersonService: visitPersonService{fixture: fixture},
+		Presence: visitPresenceQueries{fixture: fixture}, PersonService: visitPersonService{fixture: fixture},
 	}
 }
 

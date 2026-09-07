@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ===== Visit Handlers =====
@@ -17,10 +17,7 @@ import (
 // listVisits handles listing all visits
 func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
-	queryOptions := base.NewQueryOptions()
-
-	// Set table alias to match repository implementation
-	queryOptions.Filter.WithTableAlias("visit")
+	filter := studentpresence.VisitFilter{}
 
 	// Get active status filter
 	activeStr := r.URL.Query().Get("active")
@@ -28,10 +25,10 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 		isActive := activeStr == "true" || activeStr == "1"
 		if isActive {
 			// For active visits, exit_time should be NULL
-			queryOptions.Filter.IsNull("exit_time")
+			filter.OpenOnly = true
 		} else {
 			// For inactive visits, exit_time should NOT be NULL
-			queryOptions.Filter.IsNotNull("exit_time")
+			filter.ClosedOnly = true
 		}
 	}
 
@@ -40,24 +37,20 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(activeGroupIDs) > 0 {
-		groupIDs := make([]any, len(activeGroupIDs))
-		for i, id := range activeGroupIDs {
-			groupIDs[i] = id
-		}
-		queryOptions.Filter.In("active_group_id", groupIDs...)
+		filter.ActiveGroupIDs = activeGroupIDs
 	}
 
 	// Get visits
-	visits, err := rs.ActiveService.ListVisits(r.Context(), queryOptions)
+	visits, err := rs.Presence.ListVisits(r.Context(), filter)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, ErrorInternalServer(presenceQueryError("ListVisits", err)))
 		return
 	}
 
 	// Build response
 	responses := make([]VisitResponse, 0, len(visits))
 	for _, visit := range visits {
-		responses = append(responses, newVisitResponse(visit))
+		responses = append(responses, newPresenceVisitResponse(visit))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Visits retrieved successfully")
@@ -95,14 +88,14 @@ func (rs *Resource) getVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visit
-	visit, err := rs.ActiveService.GetVisit(r.Context(), id)
+	visit, err := rs.findPresenceVisit(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Prepare response
-	response := newVisitResponse(visit)
+	response := newPresenceVisitResponse(*visit)
 
 	common.Respond(w, r, http.StatusOK, response, "Visit retrieved successfully")
 }
@@ -117,16 +110,16 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for student
-	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
+	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
 	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByStudentID", err)))
 		return
 	}
 
 	// Build response
 	responses := make([]VisitResponse, 0, len(visits))
 	for _, visit := range visits {
-		responses = append(responses, newVisitResponse(visit))
+		responses = append(responses, newPresenceVisitResponse(visit))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Student visits retrieved successfully")
@@ -142,7 +135,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Get current visit for student
-	visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
+	visit, err := rs.currentPresenceVisit(r.Context(), studentID)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -155,7 +148,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Prepare response
-	response := newVisitResponse(visit)
+	response := newPresenceVisitResponse(*visit)
 
 	common.Respond(w, r, http.StatusOK, response, "Student current visit retrieved successfully")
 }
@@ -170,16 +163,16 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for active group
-	visits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), groupID)
+	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
-		common.RenderError(w, r, ErrorRenderer(err))
+		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByActiveGroupID", err)))
 		return
 	}
 
 	// Build response
 	responses := make([]VisitResponse, 0, len(visits))
 	for _, visit := range visits {
-		responses = append(responses, newVisitResponse(visit))
+		responses = append(responses, newPresenceVisitResponse(visit))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group visits retrieved successfully")
@@ -195,7 +188,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create visit
-	visit := &active.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     req.StudentID,
 		ActiveGroupID: req.ActiveGroupID,
 		EntryTime:     req.CheckInTime,
@@ -208,17 +201,28 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Binary mode deliberately succeeds without creating a room visit.
+	if visit.ID == 0 {
+		mode, err := rs.ActiveService.GetPresenceMode(r.Context())
+		if err != nil {
+			common.RenderError(w, r, ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
+			return
+		}
+		if mode == activeService.PresenceModeBinary {
+			common.Respond(w, r, http.StatusCreated, newPresenceVisitResponse(*visit), "Visit created successfully")
+			return
+		}
+	}
+
 	// Get the created visit
-	createdVisit, err := rs.ActiveService.GetVisit(r.Context(), visit.ID)
+	createdVisit, err := rs.findPresenceVisit(r.Context(), visit.ID)
 	if err != nil {
-		// Still return success but with the basic visit info
-		response := newVisitResponse(visit)
-		common.Respond(w, r, http.StatusCreated, response, "Visit created successfully")
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Return the visit with all details
-	response := newVisitResponse(createdVisit)
+	response := newPresenceVisitResponse(*createdVisit)
 	common.Respond(w, r, http.StatusCreated, response, "Visit created successfully")
 }
 
@@ -239,7 +243,7 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing visit
-	existing, err := rs.ActiveService.GetVisit(r.Context(), id)
+	existing, err := rs.findPresenceVisit(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -258,16 +262,14 @@ func (rs *Resource) updateVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated visit
-	updatedVisit, err := rs.ActiveService.GetVisit(r.Context(), id)
+	updatedVisit, err := rs.findPresenceVisit(r.Context(), id)
 	if err != nil {
-		// Still return success but with the basic visit info
-		response := newVisitResponse(existing)
-		common.Respond(w, r, http.StatusOK, response, "Visit updated successfully")
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Return the updated visit with all details
-	response := newVisitResponse(updatedVisit)
+	response := newPresenceVisitResponse(*updatedVisit)
 	common.Respond(w, r, http.StatusOK, response, "Visit updated successfully")
 }
 
@@ -305,13 +307,13 @@ func (rs *Resource) endVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated visit
-	updatedVisit, err := rs.ActiveService.GetVisit(r.Context(), id)
+	updatedVisit, err := rs.findPresenceVisit(r.Context(), id)
 	if err != nil {
-		common.Respond(w, r, http.StatusOK, nil, "Visit ended successfully")
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Return the updated visit
-	response := newVisitResponse(updatedVisit)
+	response := newPresenceVisitResponse(*updatedVisit)
 	common.Respond(w, r, http.StatusOK, response, "Visit ended successfully")
 }

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // DayState ist die auf Elternsicht reduzierte Projektion eines Betreuungstages.
@@ -110,12 +110,9 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 // beiden Fakten, die Eltern sehen duerfen: seit wann das Kind da ist und wann
 // es gegangen ist. Eine offene Zeile gewinnt immer, auch wenn davor am selben
 // Tag schon eine geschlossene steht.
-func applyAttendanceRows(facts *todayStatusFacts, rows []*activeModels.Attendance) {
+func applyAttendanceRows(facts *todayStatusFacts, rows []studentpresence.Attendance) {
 	var latestCheckOut *time.Time
 	for _, row := range rows {
-		if row == nil {
-			continue
-		}
 		facts.HasAttendanceToday = true
 		if row.CheckOutTime == nil {
 			facts.CheckIn = berlinHHMM(row.CheckInTime)

@@ -20,7 +20,7 @@ func NewActivityRecoveryRepository(db *bun.DB, assignments scheduleModels.Instan
 	if !ok {
 		panic("activity recovery: timetable assignment adapter is required")
 	}
-	return scheduleRepo.NewActivityRecoveryRepository(db, recoveryAssignments{capability: owner.timetable})
+	return scheduleRepo.NewActivityRecoveryRepository(db, recoveryAssignments{capability: owner.timetable}, newStudentPresence(db))
 }
 
 func (r recoveryAssignments) LockAttendance(ctx context.Context, instanceID int64) error {

@@ -7,11 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	active "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -30,13 +33,20 @@ func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studen
 
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
-	return newServiceWithBroadcaster(t, testpkg.SetupTestDB(t))
+	db := testpkg.SetupTestDB(t)
+	return newServiceWithBroadcaster(t, db, testSchoolPresence(t, db))
 }
 
 func newServiceWithBroadcaster(
 	t *testing.T,
 	db *bun.DB,
+	presence active.StudentPresence,
 ) (active.Service, *testpkg.RecordingBroadcaster) {
+	t.Helper()
+	return newServiceWithPresenceSync(t, db, presence, nil)
+}
+
+func newServiceWithPresenceSync(t *testing.T, db *bun.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -45,11 +55,11 @@ func newServiceWithBroadcaster(
 	deps := active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
 		SessionStartLock:   repos.SessionStartLock,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     presence,
+		AttendanceSyncer:   syncer,
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -63,7 +73,13 @@ func newServiceWithBroadcaster(
 		Broadcaster:        broadcaster,
 		Logger:             slog.Default(),
 	}
+	if len(now) > 0 {
+		deps.Now = now[0]
+	}
 	svc := active.NewService(deps)
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		return configModel.GetDefinition(key).Default.(string), nil
+	}})
 
 	return svc, broadcaster
 }
@@ -88,7 +104,7 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -186,7 +202,7 @@ func TestBroadcast_EndVisitRunsAfterCommit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	svc, broadcaster := newServiceWithBroadcaster(t, db)
+	svc, broadcaster := newServiceWithBroadcaster(t, db, testSchoolPresence(t, db))
 	activity := testpkg.CreateTestActivityGroup(t, db, "end-visit-after-commit")
 	room := testpkg.CreateTestRoom(t, db, "End Visit After Commit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -214,11 +230,10 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -338,7 +353,7 @@ func TestBroadcast_EndActivitySessionEmitsActivityEndOnServeRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	serveDB := testpkg.SetupServeTestDB(t)
 	t.Cleanup(func() { assert.NoError(t, serveDB.Close()) })
-	svc, broadcaster := newServiceWithBroadcaster(t, serveDB)
+	svc, broadcaster := newServiceWithBroadcaster(t, serveDB, testSchoolPresence(t, serveDB))
 
 	room := testpkg.CreateTestRoom(t, db, "Serve Role End Room")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "serve-role-end")
@@ -631,7 +646,7 @@ func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
 	studentIDStr := strconv.FormatInt(student.ID, 10)
 
 	// --- check-in -----------------------------------------------------------
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),

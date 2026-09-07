@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -24,14 +25,22 @@ func reminderClock(clocks ...func() time.Time) func() (string, int) {
 	}
 }
 
-type reminderAttendanceReader struct {
+type reminderVisitReader struct {
 	source interface {
-		ListOpenStudentIDsForDate(context.Context, timezone.Date) ([]int64, error)
+		ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, error)
 	}
 }
 
-func (r reminderAttendanceReader) ListOpenStudentIDsForDate(ctx context.Context, date string) ([]int64, error) {
-	return r.source.ListOpenStudentIDsForDate(ctx, timezone.Date(date))
+func (r reminderVisitReader) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := r.source.ListOpenVisitRooms(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]int64)
+	for _, row := range rows {
+		result[row.RoomID] = append(result[row.RoomID], row.StudentID)
+	}
+	return result, nil
 }
 
 type reminderPickupReader struct {

@@ -41,17 +41,14 @@ var queryBudgets = map[string]queryBudget{
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
 	// api/students — GET /students list, 10 students, page_size=50.
-	//
-	// 32 → 33 in #2687: this is not a new N+1 (the count is flat from 3 to 10
-	// students) but the ownership split #3074 made. FindOpenPresence used to
-	// read active.attendance, active.visits and schedule.instance_students in
-	// one three-arm UNION; the roster arm now goes through the Timetable
-	// owner, so live presence costs two statements instead of one. Recovering
-	// the statement would mean re-introducing the foreign join.
+	// 33 since #3074 (#2685): schedule.instance_students moved to the
+	// timetable module, so CareExitCleanupRepository.FindOpenPresence reads
+	// the open roster rows through the owner instead of as a third UNION
+	// branch. Flat at 3 and at 10 students — a boundary cost, not an N+1.
 	"api.students.list": {max: 33},
 	// api/students — #2056: aggregated OGS group view, 10 students. Measured
 	// well below; the cap leaves room for benign changes only.
-	// 41 → 42 in #2687 for the same #3074 ownership split as the list above.
+	// 42 for the same FindOpenPresence split as api.students.list.
 	"api.students.ogs_group_live": {max: 42},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},

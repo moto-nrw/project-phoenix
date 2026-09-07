@@ -663,8 +663,7 @@ func newFactory(
 		TransitionRepo:      repos.GradeTransition,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
-		VisitRepo:           repos.ActiveVisit,
-		AttendanceRepo:      repos.Attendance,
+		Presence:            newStudentPresence(db, logger),
 		ClassTeacherRepo:    repos.ClassTeacher,
 		StaffRepo:           repos.Staff,
 		ClassListEntryRepo:  repos.ClassListEntry,
@@ -1105,13 +1104,13 @@ func newFactory(
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
+		SchoolPresence:           newStudentPresence(db, logger),
+		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
 		SessionStartLock:         repos.SessionStartLock,
-		VisitRepo:                repos.ActiveVisit,
 		SupervisorRepo:           repos.GroupSupervisor,
 		CombinedGroupRepo:        repos.CombinedGroup,
 		GroupMappingRepo:         repos.GroupMapping,
-		AttendanceRepo:           repos.Attendance,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
@@ -1370,10 +1369,9 @@ func newFactory(
 		SchoolRepo:        repos.School,
 		Facilities:        rooms,
 		ActiveGroupRepo:   repos.ActiveGroup,
-		VisitRepo:         repos.ActiveVisit,
+		Presence:          newStudentPresence(db, logger),
 		ActivityGroupRepo: repos.ActivityGroup,
 		InstanceRepo:      repos.ActivityInstance,
-		AttendanceRepo:    repos.Attendance,
 		PickupSchedule:    pickupScheduleService,
 		SettingsService:   settingsService,
 		DB:                db,
@@ -1420,6 +1418,7 @@ func newFactory(
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		Presence:           newStudentPresence(db, logger),
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		IdempotencyRepo:    repos.InstanceIdempotency,
@@ -1428,7 +1427,6 @@ func newFactory(
 		ExceptionRepo:      repos.ActivityException,
 		ActiveGroupRepo:    repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		VisitRepo:          repos.ActiveVisit,
 		RoomRepo:           repos.Room,
 		ActivityGroupRepo:  repos.ActivityGroup,
 		StaffRepo:          repos.Staff,
@@ -1517,7 +1515,7 @@ func newFactory(
 		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		SupervisorRepo:    repos.GroupSupervisor,
-		VisitRepo:         repos.ActiveVisit,
+		Presence:          newStudentPresence(db, logger),
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 	autoEndService := schedule.NewAutoEndService(repos.ActivityInstance, instanceService)
@@ -1547,7 +1545,7 @@ func newFactory(
 		PickupService:      pickupScheduleService,
 		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
-		VisitRepo:          repos.ActiveVisit,
+		Presence:           newStudentPresence(db, logger),
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,
@@ -1817,7 +1815,7 @@ func newFactory(
 		EducationGroupRepo: repos.Group,
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveGroupRepo:    repos.ActiveGroup,
-		VisitsRepo:         repos.ActiveVisit,
+		Presence:           newStudentPresence(db, logger),
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
@@ -1877,8 +1875,7 @@ func newFactory(
 	// Initialize cleanup service
 	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
-		repos.ActiveVisit,
-		repos.Attendance,
+		newStudentPresence(db, logger),
 		repos.GroupSupervisor,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
@@ -2458,7 +2455,7 @@ func newFactory(
 		arrivalScheduleService,
 		pickupScheduleService,
 		repos.StudentPickupException,
-		repos.Attendance,
+		newStudentPresence(db, logger),
 		pickupAutoExcusal,
 		userContextService,
 		pillEmitter,
@@ -2658,7 +2655,7 @@ func newFactory(
 		EnrollmentSettings:        settingsService,
 		EnrollmentRequestRepo:     repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:       repos.GuardianProfile,
-		AttendanceRepo:            repos.Attendance,
+		Attendance:                newStudentPresence(db, logger),
 		StatusDayRepo:             repos.StudentStatusDay,
 		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
@@ -2762,10 +2759,21 @@ func newFactory(
 
 	listExportService := listexport.NewService()
 	emergencyService := emergency.NewService(emergency.Dependencies{
-		AttendanceRepo:      repos.Attendance,
-		StudentRepo:         repos.Student,
-		PersonRepo:          repos.Person,
-		VisitRepo:           repos.ActiveVisit,
+		Attendance:  newStudentPresence(db, logger),
+		StudentRepo: repos.Student,
+		PersonRepo:  repos.Person,
+		Visits:      newStudentPresence(db, logger),
+		RoomNames: func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			rows, err := rooms.ListRoomsByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			names := make(map[int64]string, len(rows))
+			for _, room := range rows {
+				names[room.ID] = room.Name
+			}
+			return names, nil
+		},
 		StudentGuardianRepo: repos.StudentGuardian,
 		ActiveService:       activeService,
 		ListExport:          listExportService,
@@ -2775,8 +2783,7 @@ func newFactory(
 	slotListsService := slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        repos.ActivityInstance,
 		InstanceStudentRepo: repos.InstanceStudent,
-		VisitRepo:           repos.ActiveVisit,
-		AttendanceRepo:      repos.Attendance,
+		Presence:            newStudentPresence(db, logger),
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
 		PickupExceptionRepo: repos.StudentPickupException,
@@ -2846,14 +2853,14 @@ func newFactory(
 		Clock:        reminderClock(),
 		CurrentStaff: reminderStaffIdentity(userContextService),
 		Settings:     reminderSettings{settingsService},
-		Attendance:   reminderAttendanceReader{source: repos.Attendance},
+		Attendance:   newStudentPresence(db, logger),
 		Pickup:       reminderPickupReader{source: pickupScheduleService},
 		Instance:     reminderTimetableReader{source: timetableCapability},
 		Room:         reminderRoomReader{source: rooms},
 		Student:      reminderStudentReader{source: repos.Student},
 		Person:       reminderPersonReader{source: repos.Person},
 		Supervision:  reminderSupervisionReader{source: activeService},
-		Visits:       repos.ActiveVisit,
+		Visits:       reminderVisitReader{source: newStudentPresence(db, logger)},
 		Logger:       logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
@@ -2871,6 +2878,7 @@ func newFactory(
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,
@@ -2916,7 +2924,7 @@ func newFactory(
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
 		PickupBaselines:            pickupBaselines,
 		PickupExceptionRepo:        repos.StudentPickupException,
-		VisitRepo:                  repos.ActiveVisit,
+		Presence:                   newStudentPresence(db, logger),
 		RoomRepo:                   repos.Room,
 		ActivityCategoryRepo:       repos.ActivityCategory,
 		PlanningTrackRepo:          repos.PlanningTrack,
@@ -3117,7 +3125,7 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), repos.DataAccessLog, repos.InstanceStudent),
 		Statistics: statistics.NewService(statistics.Config{
 			Statistics:      repos.Statistics,
 			Courses:         repos.CourseStatistics,

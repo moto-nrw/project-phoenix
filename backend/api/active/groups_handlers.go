@@ -219,16 +219,16 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get active group with visits
-	group, err := rs.ActiveService.GetActiveGroupWithVisits(r.Context(), id)
+	visits, err := rs.ActiveService.GetActiveGroupVisits(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	// Build response
-	responses := make([]VisitResponse, 0, len(group.Visits))
-	for _, visit := range group.Visits {
-		responses = append(responses, newVisitResponse(visit))
+	responses := make([]VisitResponse, 0, len(visits))
+	for _, visit := range visits {
+		responses = append(responses, newPresenceVisitResponse(visit))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits retrieved successfully")
@@ -336,9 +336,8 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	return nil
 }
 
-// visitWithStudent aliases the repository read model (issue #584: the JOIN
-// query moved into VisitRepository.FindActiveWithStudentDisplayByGroup).
-type visitWithStudent = active.VisitWithStudentDisplay
+// visitWithStudent is the service projection of visits and student display data.
+type visitWithStudent = activeService.VisitWithStudentDisplay
 
 // fetchVisitsWithDisplayData fetches visits with student display data
 func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
