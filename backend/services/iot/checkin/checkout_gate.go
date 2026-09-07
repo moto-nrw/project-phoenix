@@ -231,6 +231,13 @@ func (s *CheckinService) isFromOwnGroupRoom(ctx context.Context, student *users.
 // isSchulhofRoom reports whether roomID is this tenant's canonical Schulhof
 // room. A school that never provisioned the yard has no such room, which is
 // normal and simply means the answer is no — the scan must not fail over it.
+//
+// Deliberately NOT switched to the room release (#3064): home checkout is a
+// separate permission and policy, and releasing a room must never grant it.
+// Reading is_open_room here would hand "nach Hause" to every gym and craft
+// room a school opens up — the one outcome #3062 rules out by name. The
+// established Schulhof home-checkout behavior stays bound to the canonical
+// yard, with its existing time and permission gates unchanged.
 func (s *CheckinService) isSchulhofRoom(ctx context.Context, roomID int64) bool {
 	if s.facilities == nil {
 		return false

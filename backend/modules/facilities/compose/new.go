@@ -95,6 +95,7 @@ func (e engine) CreateRoom(ctx context.Context, input facilities.CreateRoom) (fa
 	value, err := e.service.Create(ctx, domain.CreateRoom{
 		Name: input.Name, Building: input.Building, Floor: input.Floor, Capacity: input.Capacity,
 		Category: input.Category, Color: input.Color, IsSystem: input.IsSystem,
+		IsOpenRoom: input.IsOpenRoom,
 	})
 	return toPublic(value), mapError(err)
 }
@@ -103,6 +104,7 @@ func (e engine) UpdateRoom(ctx context.Context, input facilities.UpdateRoom) (fa
 	value, err := e.service.Update(ctx, domain.UpdateRoom{
 		ID: input.ID, Name: input.Name, Building: input.Building, Floor: input.Floor,
 		Capacity: input.Capacity, Category: input.Category, Color: input.Color,
+		IsOpenRoom: input.IsOpenRoom,
 	})
 	return toPublic(value), mapError(err)
 }
@@ -174,6 +176,7 @@ func toPublic(value domain.Room) facilities.Room {
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 		Name: value.Name, Building: value.Building, Floor: value.Floor, Capacity: value.Capacity,
 		Category: value.Category, Color: value.Color, IsSystem: value.IsSystem,
+		IsOpenRoom: value.IsOpenRoom,
 	}
 }
 
