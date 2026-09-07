@@ -138,11 +138,15 @@ type renderedError struct {
 	}
 }
 
+// renderErrorResponse drives the classification the composition root renders
+// with the shared envelope: status, message and code are the stable contract,
+// the underlying cause never reaches the body.
 func renderErrorResponse(t *testing.T, err error) renderedError {
 	t.Helper()
-	request := httptest.NewRequest("GET", "/api/substitutions", nil)
+	failure := classify(err)
 	recorder := httptest.NewRecorder()
-	renderModuleError(recorder, request, err)
+	recorder.WriteHeader(failure.Status)
+	require.NoError(t, json.NewEncoder(recorder).Encode(map[string]string{"status": "error", "error": failure.Message, "code": failure.Code}))
 	response := renderedError{status: recorder.Code, rawBody: recorder.Body.String()}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response.body))
 	return response

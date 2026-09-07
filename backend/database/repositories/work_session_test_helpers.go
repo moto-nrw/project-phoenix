@@ -10,6 +10,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -44,11 +45,11 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 		WorkSession:       activeRepo.NewWorkSessionRepository(db, clocks...),
 		WorkSessionBreak:  activeRepo.NewWorkSessionBreakRepository(db),
 		WorkSessionEdit:   auditRepo.NewWorkSessionEditRepository(newTestAuditRuntime(db)),
-		StaffAbsence:      activeRepo.NewStaffAbsenceRepository(db),
+		StaffAbsence:      workforceLegacy.NewStaffAbsenceRepository(workTime),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime),
 	}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt, WorkSession: r.WorkSession, WorkSessionBreak: r.WorkSessionBreak,
 		WorkSessionEdit: r.WorkSessionEdit, StaffAbsence: r.StaffAbsence, StaffWorkSchedule: r.StaffWorkSchedule, WorkTimeModel: r.WorkTimeModel}, nil

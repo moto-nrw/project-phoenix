@@ -2025,6 +2025,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce/legacy",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/inbound",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -12356,6 +12370,201 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.public",
+      "description": "Workforce compatibility and inbound adapters call the public Workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.adapter.student-presence-domain",
+      "description": "The Workforce compatibility adapter serves the retained models/active staff absence contracts while their consumers migrate (#2688).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.school-structure-domain",
+      "description": "The Workforce compatibility adapter serves the retained models/education group substitution contract while its consumers migrate (#2688).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.people-domain",
+      "description": "The Workforce compatibility adapter attaches the retained staff relation and caregiver blocker views.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.transaction-domain",
+      "description": "The Workforce compatibility adapter preserves the shared repository error and query-option contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.legacy-shared-domain",
+      "description": "The Workforce compatibility adapter translates the retained calendar-date signatures.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.orm-sql",
+      "description": "Workforce adapters preserve the legacy no-rows error value and pass the concrete Bun database to the shared tenant middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.adapter.inbound-common",
+      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter.security-contract",
+      "description": "Workforce HTTP composition supplies the established time-tracking permissions and resolves the request principal.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.adapter.tenant-runtime",
+      "description": "Workforce HTTP composition checks the request principal against the ambient tenant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.adapter.absence-types-http",
+      "description": "Workforce HTTP composition constructs the absence-type administration adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-absence-types",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter.substitutions-http",
+      "description": "Workforce HTTP composition constructs the substitutions adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-substitutions",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter-test.legacy-composition",
+      "description": "Workforce HTTP composition tests build the retained service graph the routes serve.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.adapter-test.http-router",
+      "description": "Workforce HTTP composition tests exercise the real router.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.adapter-test.orm-sql",
+      "description": "Workforce HTTP composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.adapter-test.substitutions-http",
+      "description": "Workforce HTTP composition tests render the substitutions failure contract.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-substitutions",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.workforce-adapter",
+      "description": "The production root constructs the Workforce HTTP composition for the absence-type and substitution routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.to.workforce-adapter",
+      "description": "Legacy composition constructs the Workforce compatibility adapters for the retained absence and substitution repository contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "adapter"
     }
   ]
 }
