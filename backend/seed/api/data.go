@@ -7,6 +7,8 @@ type DemoRoom struct {
 	Capacity int
 	Building string // Building name: "Hauptgebäude", "Sporthalle", "Außenbereich"
 	Floor    *int   // Floor number: 0=EG, 1=1.OG, 2=2.OG, nil for outdoor
+	// IsOpenRoom releases the room permanently ("offener Raum", #3064).
+	IsOpenRoom bool
 }
 
 // DemoStaffMember represents a staff member to be created via API
@@ -56,15 +58,19 @@ var DemoRooms = []DemoRoom{
 	// Hauptgebäude - 1. Obergeschoss (First Floor)
 	{Name: "OGS-Raum 2", Category: "Gruppenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
 	{Name: "OGS-Raum 3", Category: "Gruppenraum", Capacity: 18, Building: "Hauptgebäude", Floor: floor(1)},
-	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1)},
+	// Released alongside the gym: #3062's own examples for an open room are a
+	// gym and a craft area, and the demo has to show more than one so the
+	// shared-room work has something to look at.
+	{Name: "Kreativraum", Category: "Themenraum", Capacity: 20, Building: "Hauptgebäude", Floor: floor(1), IsOpenRoom: true},
 	{Name: "Musikraum", Category: "Themenraum", Capacity: 15, Building: "Hauptgebäude", Floor: floor(1)},
 	// Hauptgebäude - 2. Obergeschoss (Second Floor)
 	{Name: "Werkraum", Category: "Themenraum", Capacity: 12, Building: "Hauptgebäude", Floor: floor(2)},
 	{Name: "Leseecke", Category: "Themenraum", Capacity: 10, Building: "Hauptgebäude", Floor: floor(2)},
 	// Sporthalle - Separate Building
-	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0)},
+	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0), IsOpenRoom: true},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Note: Schulhof is auto-created as a system room by schulhof_service
+	// Note: Schulhof is auto-created as a system room by schulhof_service, and
+	// is released there — so the demo carries three open rooms in total.
 }
 
 // DemoStaff defines staff members for the demo environment

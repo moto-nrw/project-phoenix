@@ -3,7 +3,12 @@
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 import { LOCATION_COLORS } from "@/lib/location-helper";
-import { isColorLockedRoom, isSystemRoom, type Room } from "@/lib/room-helpers";
+import {
+  isColorLockedRoom,
+  isSystemRoom,
+  isToiletRoom,
+  type Room,
+} from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";
 
 /**
@@ -56,6 +61,16 @@ export function buildRoomFormSections(
           ],
         };
       }),
+    }));
+  }
+
+  // Toilet rooms can never be an open room — the backend refuses the release
+  // with ErrToiletRoomNotReleasable. A switch that always fails is worse than
+  // no switch, so it is dropped rather than disabled (#3064).
+  if (isToiletRoom(room)) {
+    sections = sections.map((section) => ({
+      ...section,
+      fields: section.fields.filter((field) => field.name !== "isOpenRoom"),
     }));
   }
 

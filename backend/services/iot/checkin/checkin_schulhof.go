@@ -26,14 +26,15 @@ var schulhofSpace = systemSpace{
 		}
 		return room, nil
 	},
-	roomName:        constants.SchulhofRoomName,
-	roomCapacity:    constants.SchulhofRoomCapacity,
-	categoryName:    constants.SchulhofCategoryName,
-	categoryDesc:    constants.SchulhofCategoryDescription,
-	color:           constants.SchulhofColor,
-	roomColorless:   true,
-	activityName:    constants.SchulhofActivityName,
-	maxParticipants: constants.SchulhofMaxParticipants,
+	roomName:            constants.SchulhofRoomName,
+	roomCapacity:        constants.SchulhofRoomCapacity,
+	categoryName:        constants.SchulhofCategoryName,
+	categoryDesc:        constants.SchulhofCategoryDescription,
+	color:               constants.SchulhofColor,
+	roomColorless:       true,
+	releaseRoomOnCreate: true,
+	activityName:        constants.SchulhofActivityName,
+	maxParticipants:     constants.SchulhofMaxParticipants,
 	selectActivity: func(groups []*activities.Group, room *facilityModels.Room) *activities.Group {
 		for _, group := range groups {
 			if facilitiesSvc.ValidateSchulhofActivityRoom(systemActivity(group), room) == nil {
