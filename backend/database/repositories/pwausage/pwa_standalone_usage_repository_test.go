@@ -1,4 +1,4 @@
-package iot_test
+package pwausage_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	pwausage "github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*testPWAUsag
 func TestPWAStandaloneUsageRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := iotRepo.NewPWAStandaloneUsageRepository(db)
+	repo := pwausage.NewPWAStandaloneUsageRepository(db)
 	tenantID := testpkg.Tenant(t)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-usage-%d@example.com", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)

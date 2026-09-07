@@ -8,7 +8,6 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -18,6 +17,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
@@ -71,14 +71,17 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	if timetableCapability == nil {
 		panic("session cleanup repositories: timetable capability is required")
 	}
-	group := activeRepo.NewGroupRepository(db)
-	device := iotRepo.NewDeviceRepository(db)
+	fleet, err := NewDeviceFleet(db)
+	if err != nil {
+		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
+	}
+	group := activeRepo.NewGroupRepository(db, activeDeviceDirectory{devices: fleet})
+	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
 	rooms, err := NewFacilities(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
 	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
-	device.(*iotRepo.DeviceRepository).BindRoomDirectory(iotRoomDirectory{rooms})
 	return SessionCleanupRepositories{
 		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
 		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},

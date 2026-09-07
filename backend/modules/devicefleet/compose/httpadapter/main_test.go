@@ -1,4 +1,4 @@
-package display_test
+package httpadapter
 
 import (
 	"testing"

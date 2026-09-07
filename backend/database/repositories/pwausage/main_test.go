@@ -1,4 +1,4 @@
-package iot_test
+package pwausage_test
 
 import (
 	"testing"

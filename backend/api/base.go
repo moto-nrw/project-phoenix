@@ -32,7 +32,6 @@ import (
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
@@ -67,6 +66,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -75,6 +75,10 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -345,12 +349,45 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, 
 		observability.ObserveAuditAppend,
 		observability.ObserveSynchronousDelivery,
 		observability.ObserveDurableDelivery,
+		observability.ObserveDeviceFleetOperation,
 	)
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
 	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
+}
+
+// composeDeviceFleet builds the observed Device Fleet owner. The info-point
+// dashboard reads Facilities and Student Presence through their public
+// capabilities; the remaining cross-owner facts arrive through this owner's
+// consumer-owned ports.
+func composeDeviceFleet(
+	db *bun.DB,
+	logger *slog.Logger,
+	rooms *facilitiesModule.Module,
+	repoFactory *repositories.Factory,
+	serviceFactory *services.Factory,
+) (devicefleetModule.Capability, error) {
+	return devicefleetCompose.New(devicefleetCompose.Dependencies{
+		DB:       db,
+		Rooms:    rooms,
+		Presence: newStudentPresence(db, logger),
+		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
+			ActiveGroups:   repoFactory.ActiveGroup,
+			Templates:      repoFactory.ActivityGroup,
+			Instances:      repoFactory.ActivityInstance,
+			PickupSchedule: serviceFactory.PickupSchedule,
+		}),
+		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
+			Schools:  repoFactory.School,
+			Settings: serviceFactory.Settings,
+		}),
+		Now: timezone.Now,
+		Observe: func(observation devicefleetCompose.Observation) {
+			observability.ObserveDeviceFleetOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -608,7 +645,7 @@ type API struct {
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
-	Display          *displayAPI.Resource
+	Display          *displayHTTPAdapter.Resource
 	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -1188,7 +1225,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
-	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
+	deviceFleet, err := composeDeviceFleet(db, logger, api.rooms, repoFactory, api.Services)
+	if err != nil {
+		panic(fmt.Sprintf("api: compose device fleet: %v", err))
+	}
+	api.Display = displayHTTPAdapter.NewResource(deviceFleet, api.Services.Settings)
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)

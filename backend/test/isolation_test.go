@@ -20,7 +20,6 @@ import (
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
@@ -48,20 +47,6 @@ func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.R
 	repository := facilitiesRepositoryAdapter.New()
 	repository.Bind(rooms)
 	return repository
-}
-
-// deviceRoomRows is the test double for the Facilities directory: it reads
-// the room rows the fixtures inserted, exactly what the bound owner returns.
-type deviceRoomRows struct{ db *bun.DB }
-
-func (d deviceRoomRows) ListRoomsByID(ctx context.Context, ids []int64) ([]repoIot.DirectoryRoom, error) {
-	var rooms []repoIot.DirectoryRoom
-	err := d.db.NewSelect().
-		TableExpr(`facilities.rooms AS "room"`).
-		ColumnExpr(`"room".id, "room".tenant_id, "room".name`).
-		Where(`"room".id IN (?)`, bun.List(ids)).
-		Scan(ctx, &rooms)
-	return rooms, err
 }
 
 // ctxForTenant returns a background context with the given tenant ID set.
@@ -269,10 +254,10 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	dA := CreateTestDeviceForTenant(t, db, tenantA, "DEV-A")
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
 
-	repo := repoIot.NewDeviceRepository(db)
-	// Device reads resolve room names through the Facilities owner (#2665);
-	// the composition root binds it, a bare repository needs it bound here.
-	repo.(*repoIot.DeviceRepository).BindRoomDirectory(deviceRoomRows{db: db})
+	// Device reads go through the Device Fleet owner (#2676), which resolves
+	// room names through the Facilities owner.
+	repo, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -368,7 +353,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repoActive.NewGroupRepository(db)
+	repo := repoActive.NewGroupRepository(db, nil)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

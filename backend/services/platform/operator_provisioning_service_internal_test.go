@@ -2117,7 +2117,7 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -2180,7 +2180,7 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -2217,7 +2217,7 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -2356,7 +2356,7 @@ func TestDeleteDevice_ProtectedDevice(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   iotModels.WebManualDeviceID,
 				DeviceType: iotModels.DeviceTypeVirtual,
 			}, nil
@@ -2375,7 +2375,7 @@ func TestDeleteDevice_DeleteErrors(t *testing.T) {
 
 	t.Run("foreign key violation becomes device in use", func(t *testing.T) {
 		device := &iotModels.Device{
-			Model:      modelBase.Model{ID: 10},
+			ID:         10,
 			DeviceID:   "reader-10",
 			DeviceType: "rfid",
 		}
@@ -2399,7 +2399,7 @@ func TestDeleteDevice_DeleteErrors(t *testing.T) {
 
 	t.Run("generic delete error is wrapped", func(t *testing.T) {
 		device := &iotModels.Device{
-			Model:      modelBase.Model{ID: 10},
+			ID:         10,
 			DeviceID:   "reader-10",
 			DeviceType: "rfid",
 		}
@@ -2428,7 +2428,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 	var deletedID interface{}
 	var auditEntry *platformModels.OperatorAuditLog
 	device := &iotModels.Device{
-		Model:      modelBase.Model{ID: 10},
+		ID:         10,
 		DeviceID:   "reader-10",
 		DeviceType: "rfid",
 	}

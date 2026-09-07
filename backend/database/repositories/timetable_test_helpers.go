@@ -108,7 +108,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
 		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               activeRepo.NewGroupRepository(db),
+		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
 		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),

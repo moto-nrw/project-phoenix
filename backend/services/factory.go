@@ -33,6 +33,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -52,7 +55,6 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -249,9 +251,6 @@ type Factory struct {
 	EmailTemplateRegistry *platform.TemplateRegistry
 	Delivery              *deliveryModule.Module
 
-	// Display domain (info-point dashboards, issue #1325)
-	Display display.Service
-
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema      enrollment.FormSchemaService
 	EnrollmentCareOffering    enrollment.CareOfferingService
@@ -398,6 +397,10 @@ func currentFactoryConfig() FactoryConfig {
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
 
 type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
+// DeviceFleetObserver records one Device Fleet operation. The composition
+// root supplies it so this package keeps no metrics dependency.
+type DeviceFleetObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
@@ -446,14 +449,15 @@ func NewFactoryWithModules(
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
+	observeDeviceFleet DeviceFleetObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, false, clocks...)
 }
 
 func newFactory(
@@ -477,6 +481,7 @@ func newFactory(
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
+	observeDeviceFleet DeviceFleetObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -1137,19 +1142,10 @@ func newFactory(
 		Now:                      now,
 	})
 
-	// Initialize IoT service
-	iotService := iot.NewService(
-		repos.Device,
-	)
-
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
 	// operations.excused_clear_mode settings.
 	activeService.SetSettingsService(settingsService)
-
-	// Inject settings resolver into the IoT service so the device-online window
-	// (iot.device_online_window_minutes) is resolved per tenant (issue #586).
-	iotService.SetSettingsService(settingsService)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -1338,6 +1334,35 @@ func newFactory(
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
+	// Compose the Device Fleet owner (#2676). It owns iot.devices and
+	// display.displays; the info-point dashboard reads Facilities and Student
+	// Presence through their public capabilities and the remaining
+	// cross-owner facts through this owner's consumer-owned ports.
+	deviceFleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
+		DB:       db,
+		Rooms:    rooms,
+		Presence: newStudentPresence(db, logger),
+		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
+			ActiveGroups:   repos.ActiveGroup,
+			Templates:      repos.ActivityGroup,
+			Instances:      repos.ActivityInstance,
+			PickupSchedule: pickupScheduleService,
+		}),
+		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
+			Schools:  repos.School,
+			Settings: settingsService,
+		}),
+		Now:          timezone.Now,
+		OnlineWindow: devicefleetLegacy.NewOnlineWindowResolver(settingsService, logger.With("module", "device-fleet")),
+		Observe: func(observation devicefleetCompose.Observation) {
+			observeDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	iotService := iot.NewService(deviceFleet)
+
 	partialAbsenceService := schedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
@@ -1362,22 +1387,6 @@ func newFactory(
 		Education:             educationService,
 		Logger:                logger.With("service", "checkin"),
 		DailyCheckoutFallback: cfg.StudentDailyCheckoutTime,
-	})
-
-	// Initialize display service (info-point dashboards, issue #1325).
-	// Aggregates existing data sources; owns no queries beyond its own repo.
-	displayService := display.NewService(display.Dependencies{
-		DisplayRepo:       repos.Display,
-		SchoolRepo:        repos.School,
-		Facilities:        rooms,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		Presence:          newStudentPresence(db, logger),
-		ActivityGroupRepo: repos.ActivityGroup,
-		InstanceRepo:      repos.ActivityInstance,
-		PickupSchedule:    pickupScheduleService,
-		SettingsService:   settingsService,
-		DB:                db,
-		Logger:            logger.With("service", "display"),
 	})
 
 	// Period updates/deletes use the same tenant recurrence transaction and
@@ -3052,7 +3061,6 @@ func newFactory(
 		PlanningTracks:          planningTrackService,
 		PickupSchedule:          pickupScheduleService,
 		PartialAbsence:          partialAbsenceService,
-		Display:                 displayService,
 		ArrivalSchedule:         arrivalScheduleService,
 		CareDay:                 careDayService,
 		TimetableBridge:         timetableBridgeService,

@@ -105,7 +105,6 @@ func (m *mockIoTService) IsDeviceOnline(_ context.Context, _ *iot.Device) bool {
 func (m *mockIoTService) IsDeviceOnlineAt(_ context.Context, _ *iot.Device, _ time.Time) bool {
 	return false
 }
-func (m *mockIoTService) SetSettingsService(_ iotSvc.SettingsResolver)              {}
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
 func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, lastSeen time.Time) error {
@@ -1071,7 +1070,7 @@ func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockSchoolRepo{school: &platform.School{Active: true}}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.Nil(t, result, "active school should not be rejected")
@@ -1082,7 +1081,7 @@ func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
 
 	now := time.Now()
 	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now, Active: true}}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.NotNil(t, result, "deleted school should be rejected")
@@ -1091,7 +1090,7 @@ func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
 func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), nil, device)
 	assert.Nil(t, result, "nil repo should fail open")
@@ -1101,7 +1100,7 @@ func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockSchoolRepo{school: nil, err: nil}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.NotNil(t, result, "non-existent school should be rejected")
@@ -1113,7 +1112,7 @@ func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
 	// Non-transient errors (bad query, permission issue, etc.) must fail closed
 	// to prevent bypassing the soft-delete guard.
 	repo := &mockSchoolRepo{err: errors.New("connection refused")}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.NotNil(t, result, "non-transient DB errors should reject device")
@@ -1129,7 +1128,7 @@ func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
 		Net: "tcp",
 		Err: errors.New("connection refused"),
 	}}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.Nil(t, result, "transient DB errors should fail open")
@@ -1139,7 +1138,7 @@ func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
 	t.Parallel()
 
 	repo := &mockSchoolRepo{err: context.DeadlineExceeded}
-	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
+	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
 	assert.Nil(t, result, "context deadline errors should fail open")
@@ -1151,10 +1150,10 @@ func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-deleted"
 	device := &iot.Device{
-		TenantModel: modelBase.TenantModel{TenantID: 100},
-		DeviceID:    "device-deleted-school",
-		DeviceType:  "terminal",
-		Status:      iot.DeviceStatusActive,
+		TenantID:   100,
+		DeviceID:   "device-deleted-school",
+		DeviceType: "terminal",
+		Status:     iot.DeviceStatusActive,
 	}
 	mockService.addDevice(apiKey, device)
 
@@ -1316,8 +1315,8 @@ func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
 		err: &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
 	}
 	device := &iot.Device{
-		DeviceID:    "device-notfound",
-		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID: "device-notfound",
+		TenantID: 100,
 	}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
@@ -1332,8 +1331,8 @@ func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
 		err: &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
 	}
 	device := &iot.Device{
-		DeviceID:    "device-timeout",
-		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID: "device-timeout",
+		TenantID: 100,
 	}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
@@ -1348,8 +1347,8 @@ func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
 		err: &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
 	}
 	device := &iot.Device{
-		DeviceID:    "device-permission",
-		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID: "device-permission",
+		TenantID: 100,
 	}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)
@@ -1362,8 +1361,8 @@ func TestRejectDeletedSchool_NilSchool(t *testing.T) {
 	// FindByID returns (nil, nil) — school doesn't exist, reject.
 	repo := &mockSchoolRepo{school: nil, err: nil}
 	device := &iot.Device{
-		DeviceID:    "device-nil-school",
-		TenantModel: modelBase.TenantModel{TenantID: 100},
+		DeviceID: "device-nil-school",
+		TenantID: 100,
 	}
 
 	result := rejectDeletedSchool(context.Background(), repo, device)

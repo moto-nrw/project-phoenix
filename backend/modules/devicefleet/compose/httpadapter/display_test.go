@@ -1,4 +1,4 @@
-package display_test
+package httpadapter
 
 import (
 	"bytes"
@@ -16,16 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
+	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -72,29 +73,36 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	svc := displayService.NewService(displayService.Dependencies{
-		DisplayRepo:       repos.Display,
-		SchoolRepo:        repos.School,
-		Facilities:        rooms,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		Presence:          presence,
-		ActivityGroupRepo: repos.ActivityGroup,
-		InstanceRepo:      repos.ActivityInstance,
-		PickupSchedule: schedule.NewPickupScheduleServiceWithBulk(
-			repos.StudentPickupSchedule,
-			repos.StudentPickupException,
-			repos.StudentPickupNote,
-			repos.Student,
-			repos.Person,
-			nil,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
-			db,
-			slog.Default(),
-		),
-		SettingsService: settingsService,
-		DB:              db, Now: firstClock(clocks),
+	pickup := schedule.NewPickupScheduleServiceWithBulk(
+		repos.StudentPickupSchedule,
+		repos.StudentPickupException,
+		repos.StudentPickupNote,
+		repos.Student,
+		repos.Person,
+		nil,
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering),
+		db,
+		slog.Default(),
+	)
+	fleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
+		DB:       db,
+		Rooms:    rooms,
+		Presence: presence,
+		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
+			ActiveGroups:   repos.ActiveGroup,
+			Templates:      repos.ActivityGroup,
+			Instances:      repos.ActivityInstance,
+			PickupSchedule: pickup,
+		}),
+		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
+			Schools:  repos.School,
+			Settings: settingsService,
+		}),
+		Now:     firstClock(clocks),
+		Observe: func(devicefleetCompose.Observation) {},
 	})
-	return testpkg.TenantRuntimeMiddleware(t, db)(displayAPI.NewResource(svc, settingsService, db).Router())
+	require.NoError(t, err)
+	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settingsService).Router())
 }
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {
@@ -275,7 +283,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-		var payload displayService.DashboardPayload
+		var payload displayHTTP.DashboardResponse
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 
 		assert.Equal(t, "active", payload.Status)
@@ -283,7 +291,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		assert.Equal(t, "Eingang", payload.DisplayName)
 		assert.Equal(t, timezone.NewDate(2026, 8, 24).String(), payload.Date)
 
-		var bauraum *displayService.RoomOccupancy
+		var bauraum *displayHTTP.RoomOccupancy
 		for i := range payload.RoomOccupancy {
 			if payload.RoomOccupancy[i].Name == room.Name {
 				bauraum = &payload.RoomOccupancy[i]
@@ -337,7 +345,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code)
 
-		var payload displayService.DashboardPayload
+		var payload displayHTTP.DashboardResponse
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 		require.Len(t, payload.UpcomingActivities, 1, "past instance must be filtered: %s", rec.Body.String())
 		assert.Equal(t, fmt.Sprintf("%d", instances[0].ID), payload.UpcomingActivities[0].ID)
@@ -445,7 +453,7 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	rec := doDashboardRequest(t, router, rawToken)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	var payload displayService.DashboardPayload
+	var payload displayHTTP.DashboardResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 
 	assert.Equal(t, 2, payload.Totals.StudentsPresent)
@@ -607,7 +615,7 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
 	t.Parallel()
 
-	payload := displayService.DashboardPayload{}
+	payload := displayHTTP.DashboardResponse{}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
 	lower := strings.ToLower(string(raw))

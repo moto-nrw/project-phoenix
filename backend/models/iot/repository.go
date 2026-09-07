@@ -3,13 +3,17 @@ package iot
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// DeviceRepository defines operations for managing IoT devices
+// DeviceRepository is the retained repository shape for iot.devices. The
+// concrete implementation delegates to the Device Fleet owner; the interface
+// spells its CRUD block out so this package stays free of ORM plumbing.
 type DeviceRepository interface {
-	base.CRUDRepository[*Device]
+	Create(ctx context.Context, entity *Device) error
+	FindByID(ctx context.Context, id any) (*Device, error)
+	Update(ctx context.Context, entity *Device) error
+	Delete(ctx context.Context, id any) error
+	List(ctx context.Context, filters map[string]any) ([]*Device, error)
 
 	// Domain-specific operations
 	FindByDeviceID(ctx context.Context, deviceID string) (*Device, error)

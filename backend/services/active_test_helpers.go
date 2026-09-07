@@ -54,7 +54,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	devices, err := repositories.NewDeviceTestRepository(db)
+	devices, err := repositories.NewDeviceRepository(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
