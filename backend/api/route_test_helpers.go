@@ -16,7 +16,7 @@ import (
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
 func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
-	admin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, logger)
+	admin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, nil, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, db, logger)

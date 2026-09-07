@@ -108,7 +108,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
 		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               activeRepo.NewGroupRepository(db),
+		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
 		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
@@ -125,7 +125,11 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	}
 	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
+	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)
 	rooms, err := NewFacilities(db)

@@ -17,6 +17,7 @@ type Query interface {
 type Command interface {
 	AttendanceCommand
 	VisitCommand
+	GroupRecovery
 	LockOpenPresence(context.Context, []int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error

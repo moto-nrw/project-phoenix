@@ -57,6 +57,29 @@ func TestWithSavepoint_OperationFailureRollsBack(t *testing.T) {
 	}, actions)
 }
 
+func TestWithSavepoint_OperationFailureRunsOnlyItsRollbackHooks(t *testing.T) {
+	t.Parallel()
+	ctx, commit, rollback := tenant.WithTransactionHooksForTest(savepointContext(t, func(tenant.SavepointAction) error {
+		return nil
+	}))
+	var outerCommit, innerCommit, innerRollback int
+	tenant.RegisterAfterCommit(ctx, func() { outerCommit++ })
+
+	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		tenant.RegisterAfterCommit(ctx, func() { innerCommit++ })
+		tenant.RegisterAfterRollback(ctx, func() { innerRollback++ })
+		return errors.New("operation failed")
+	})
+	require.Error(t, err)
+	assert.Zero(t, innerCommit)
+	assert.Equal(t, 1, innerRollback)
+
+	commit()
+	rollback()
+	assert.Equal(t, 1, outerCommit)
+	assert.Zero(t, innerCommit)
+}
+
 func TestWithSavepoint_FailsWithoutRuntime(t *testing.T) {
 	t.Parallel()
 	err := tenant.WithSavepoint(context.Background(), func(context.Context) error { return nil })

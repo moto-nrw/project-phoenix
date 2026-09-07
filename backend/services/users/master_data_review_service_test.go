@@ -16,8 +16,8 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -663,9 +663,8 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -695,9 +694,8 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

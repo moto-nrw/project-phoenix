@@ -98,6 +98,7 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 		Request: &sentry.Request{
 			Data: `{"notes":"person names and free text"}`,
 			Headers: map[string]string{
+				"Authorization":    "Basic replayable-caldav-credentials",
 				"X-Staff-PIN":      "1234",
 				"X-Staff-Auth-Pin": "5678",
 				"Accept":           "application/json",
@@ -109,25 +110,27 @@ func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
 
 	require.NotNil(t, scrubbed.Request)
 	assert.Empty(t, scrubbed.Request.Data)
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["Authorization"])
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-PIN"])
 	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-Auth-Pin"])
 	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
-func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
+func TestScrubSentryEvent_RedactsFeedTokens(t *testing.T) {
 	t.Parallel()
-	const token = "supersecretcapabilitytoken123456"
+	const calendarToken = "supersecretcalendarcapability123"
+	const requestToken = "supersecretrequestcapability456"
 	event := &sentry.Event{
-		Message:     "GET /public/calendar/" + token + " failed",
-		Transaction: "/public/calendar/" + token,
+		Message:     "GET /public/calendar/" + calendarToken + " then /public/request-feed/" + requestToken + " failed",
+		Transaction: "/public/request-feed/" + requestToken,
 		Request: &sentry.Request{
-			URL:         "https://api.example/public/calendar/" + token,
+			URL:         "https://api.example/public/request-feed/" + requestToken,
 			QueryString: "",
 		},
 		Breadcrumbs: []*sentry.Breadcrumb{
 			{
-				Message: "request /public/calendar/" + token,
-				Data:    map[string]any{"url": "https://api.example/public/calendar/" + token},
+				Message: "request /public/calendar/" + calendarToken,
+				Data:    map[string]any{"url": "https://api.example/public/request-feed/" + requestToken},
 			},
 		},
 	}
@@ -135,15 +138,16 @@ func TestScrubSentryEvent_RedactsCalendarFeedToken(t *testing.T) {
 	scrubbed := scrubSentryEvent(event)
 
 	// The capability token must not survive anywhere the SDK captured the path.
-	assert.NotContains(t, scrubbed.Message, token)
-	assert.NotContains(t, scrubbed.Transaction, token)
+	assert.NotContains(t, scrubbed.Message, calendarToken)
+	assert.NotContains(t, scrubbed.Message, requestToken)
+	assert.NotContains(t, scrubbed.Transaction, requestToken)
 	require.NotNil(t, scrubbed.Request)
-	assert.NotContains(t, scrubbed.Request.URL, token)
+	assert.NotContains(t, scrubbed.Request.URL, requestToken)
 	assert.Contains(t, scrubbed.Request.URL, "[REDACTED]")
 	require.Len(t, scrubbed.Breadcrumbs, 1)
-	assert.NotContains(t, scrubbed.Breadcrumbs[0].Message, token)
+	assert.NotContains(t, scrubbed.Breadcrumbs[0].Message, calendarToken)
 	if url, ok := scrubbed.Breadcrumbs[0].Data["url"].(string); ok {
-		assert.NotContains(t, url, token)
+		assert.NotContains(t, url, requestToken)
 	}
 }
 
@@ -156,6 +160,7 @@ func validServeConfig() serveConfig {
 		JWTExpiry:           "15m",
 		JWTRefreshExpiry:    "168h",
 		FrontendURL:         "http://localhost:3000",
+		PublicAPIURL:        "http://localhost:8080",
 		ParentsURL:          "http://parents.localhost:3000",
 		PhoenixAuthPassword: "phoenix_auth_dev",
 		DatabaseDSN:         "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",

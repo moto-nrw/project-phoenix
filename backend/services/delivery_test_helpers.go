@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -17,6 +18,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// NewNotificationConsentTestStore builds Communication's consent capability
+// for tests that need the real rows. It lives at this composition seam because
+// a consumer's test package may not reach into another owner's composition.
+func NewNotificationConsentTestStore(db *bun.DB) notifications.ConsentStore {
+	consent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{DB: db})
+	if err != nil {
+		panic(err)
+	}
+	return consent
+}
 
 type DeliveryTestModule struct {
 	Delivery                *deliveryModule.Module
@@ -70,7 +82,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	push := notifications.NewPushSubscriptionService(db, pushRepo, members.AccountTenant, vapid, logger)
 	push.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	preferences := notifications.NewPreferenceService(repositories.NewNotificationPreferenceTestRepository(db), settings.Settings, db, members.AccountTenant)
+	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members.AccountTenant)
 	preferences.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: platform.NewOutboxService(durableEmailAdapter{module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil

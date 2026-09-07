@@ -7,10 +7,9 @@ import (
 )
 
 // feedCalendarPathMarker is the public subscription feed prefix. The path
-// segment after it is the parent's iCalendar token — the sole credential for the
-// unauthenticated feed, so it must never be written to logs where it could be
-// replayed.
-const feedCalendarPathMarker = "/public/calendar/"
+// The segment after either marker is the sole credential for an unauthenticated
+// feed, so it must never be written to logs where it could be replayed.
+var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 
 // attrRedactor wraps a slog.Handler and rewrites the message and every string
 // attribute (including nested groups) through transform. transform receives the
@@ -27,7 +26,10 @@ type attrRedactor struct {
 // "path" attribute would otherwise capture the token verbatim (the security
 // logger records it on rate-limited requests).
 func NewFeedTokenRedactor(inner slog.Handler) slog.Handler {
-	return &attrRedactor{inner: inner, transform: func(_, value string) string {
+	return &attrRedactor{inner: inner, transform: func(key, value string) string {
+		if key == "token" {
+			return "[REDACTED]"
+		}
 		return RedactFeedToken(value)
 	}}
 }
@@ -89,30 +91,47 @@ func (h *attrRedactor) redactAttr(a slog.Attr) slog.Attr {
 			redacted[i] = h.redactAttr(ga)
 		}
 		return slog.Attr{Key: a.Key, Value: slog.GroupValue(redacted...)}
+	case slog.KindAny:
+		if values, ok := a.Value.Any().(map[string]string); ok {
+			redacted := make(map[string]string, len(values))
+			for key, value := range values {
+				redacted[key] = h.transform(key, value)
+			}
+			return slog.Any(a.Key, redacted)
+		}
+		return a
 	default:
 		return a
 	}
 }
 
-// RedactFeedToken replaces the token segment of any "/public/calendar/<token>"
-// occurrence in s with "[REDACTED]", preserving any trailing path or query.
+// RedactFeedToken replaces the token segment of a public calendar or request
+// feed URL with "[REDACTED]", preserving any trailing path or query.
 func RedactFeedToken(s string) string {
-	idx := strings.Index(s, feedCalendarPathMarker)
-	if idx < 0 {
-		return s
-	}
-	start := idx + len(feedCalendarPathMarker)
-	end := start
-	for end < len(s) {
-		if c := s[end]; c == '/' || c == '?' || c == ' ' || c == '"' {
-			break
+	for _, marker := range feedPathMarkers {
+		searchFrom := 0
+		for {
+			relative := strings.Index(s[searchFrom:], marker)
+			if relative < 0 {
+				break
+			}
+			start := searchFrom + relative + len(marker)
+			end := start
+			for end < len(s) {
+				if c := s[end]; c == '/' || c == '?' || c == ' ' || c == '"' {
+					break
+				}
+				end++
+			}
+			if end == start {
+				searchFrom = start
+				continue
+			}
+			s = s[:start] + "[REDACTED]" + s[end:]
+			searchFrom = start + len("[REDACTED]")
 		}
-		end++
 	}
-	if end == start {
-		return s
-	}
-	return s[:start] + "[REDACTED]" + s[end:]
+	return s
 }
 
 // RedactQueryValues strips the values from a raw query string, keeping only

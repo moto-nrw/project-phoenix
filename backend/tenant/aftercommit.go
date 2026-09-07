@@ -10,22 +10,21 @@ import (
 type afterCommitKey struct{}
 
 type afterCommitHooks struct {
-	mu  sync.Mutex
-	fns []func()
+	mu          sync.Mutex
+	fns         []func()
+	rollbackFns []func()
+}
+
+func (h *afterCommitHooks) addRollback(fn func()) {
+	h.mu.Lock()
+	h.rollbackFns = append(h.rollbackFns, fn)
+	h.mu.Unlock()
 }
 
 func (h *afterCommitHooks) add(fn func()) {
 	h.mu.Lock()
 	h.fns = append(h.fns, fn)
 	h.mu.Unlock()
-}
-
-func (h *afterCommitHooks) drain() []func() {
-	h.mu.Lock()
-	fns := h.fns
-	h.fns = nil
-	h.mu.Unlock()
-	return fns
 }
 
 // HasAfterCommitHooks reports whether ctx is inside WithTenantTx (or a
@@ -47,6 +46,18 @@ func RegisterAfterCommit(ctx context.Context, fn func()) {
 		return
 	}
 	fn()
+}
+
+// RegisterAfterRollback queues fn to run if the surrounding tenant transaction
+// does not commit. Outside a transaction there is nothing that can roll back,
+// so the callback is ignored.
+func RegisterAfterRollback(ctx context.Context, fn func()) {
+	if fn == nil {
+		return
+	}
+	if h, ok := ctx.Value(afterCommitKey{}).(*afterCommitHooks); ok && h != nil {
+		h.addRollback(fn)
+	}
 }
 
 // ContextWithoutAfterCommitHooks masks hooks inherited from an ambient
@@ -71,7 +82,26 @@ func runAfterCommitHooks(h *afterCommitHooks) {
 	if h == nil {
 		return
 	}
-	for _, fn := range h.drain() {
+	h.mu.Lock()
+	fns := h.fns
+	h.fns = nil
+	h.rollbackFns = nil
+	h.mu.Unlock()
+	for _, fn := range fns {
 		fn()
+	}
+}
+
+func runAfterRollbackHooks(h *afterCommitHooks) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	fns := h.rollbackFns
+	h.fns = nil
+	h.rollbackFns = nil
+	h.mu.Unlock()
+	for i := len(fns) - 1; i >= 0; i-- {
+		fns[i]()
 	}
 }

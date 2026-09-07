@@ -33,6 +33,10 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// database/repositories — the operator device listing (#2676). Three
+	// statements: school summaries, organization summaries, and one device
+	// read through the Device Fleet owner. Flat in the number of devices.
+	"repositories.operator.device_rows": {max: 3},
 	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
@@ -79,6 +83,10 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.planned_now": {max: 4},
 	// services/calendar — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// services/calendar — one authenticated CalDAV snapshot. The operation
+	// resolves the capability owner once, then batch-loads the shared personal
+	// calendar projection regardless of the number of returned VEVENTs.
+	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
 	"services.active.work_session_history.reads":           {max: 7},
 	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
@@ -117,6 +125,7 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	"modules.careplan.request_feed.list":               {max: 1, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

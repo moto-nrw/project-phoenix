@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        276
+        279
       ],
       "tables": []
     },
@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        97
+        105
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        164
+        172
       ],
       "tables": []
     },
@@ -119,8 +119,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        89,
-        100
+        103,
+        114
       ],
       "tables": []
     },
@@ -3457,220 +3457,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_ArchivedDevicesAreHistoricalOnly",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": [
-        "iot.devices"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_CountDevicesByType",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        604
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        24
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Create_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        232
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        157
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByAPIKey",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        288
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByDeviceID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        83
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByRegisteredBy",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        394
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        361
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus_Active",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        197
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus_Maintenance",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        499
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByType",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        321
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindOfflineDevices",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        531
-      ],
-      "tables": [
-        "iot.devices"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        180
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_List_WithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        717
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        136
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateLastSeen",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        442
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateRoomID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        644
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        464
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Update_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        269
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/platform/operator_mfa_atomic_test.go",
       "declaration": "TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",
@@ -4743,88 +4529,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/notification_preference_test.go",
-      "declaration": "TestNotificationPreferenceRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_message_extra_test.go",
-      "declaration": "TestListInboxForStaff_ScopeFlag",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        135
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_OneThreadPerGuardian",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        397
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_RequestCreatedPillNotCounted",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        349
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        219
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_ThreadsMessagesAndReadState",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        68
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_UnreadCountExcludesAlumni",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        635
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_UnreadCreatedAtTie",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        170
       ],
       "tables": []
     },
@@ -6299,7 +6003,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        756
+        755
       ],
       "tables": []
     },
@@ -6309,7 +6013,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        708
+        707
       ],
       "tables": []
     },
@@ -6319,7 +6023,7 @@
       "declaration": "TestListForStudent_FiltersOutcomes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        272
       ],
       "tables": []
     },
@@ -6339,7 +6043,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        597
+        596
       ],
       "tables": []
     },
@@ -6827,7 +6531,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        53
       ],
       "tables": []
     },
@@ -6874,7 +6578,7 @@
       "declaration": "TestFactoryOperatorMFARefusesChallengeWithoutSMTP",
       "target": "database/repositories.NewFactory",
       "lines": [
-        31
+        32
       ],
       "tables": []
     },
@@ -7096,7 +6800,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        519
       ],
       "tables": []
     },
@@ -7106,7 +6810,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        460
+        473
       ],
       "tables": []
     },
@@ -7116,7 +6820,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1255
+        1378
       ],
       "tables": []
     },
@@ -7126,7 +6830,7 @@
       "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1039
+        1162
       ],
       "tables": [
         "calendar.appointments",
@@ -7140,7 +6844,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1132
+        1255
       ],
       "tables": []
     },
@@ -7150,7 +6854,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1202
+        1325
       ],
       "tables": []
     },
@@ -7160,7 +6864,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2258
+        2381
       ],
       "tables": [
         "auth.accounts"
@@ -7172,7 +6876,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2852
+        2975
       ],
       "tables": []
     },
@@ -7182,7 +6886,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1951
+        2074
       ],
       "tables": []
     },
@@ -7192,7 +6896,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2915
+        3038
       ],
       "tables": []
     },
@@ -7202,7 +6906,27 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2084
+        2207
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvailable",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        862
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndToken",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        777
       ],
       "tables": []
     },
@@ -7212,7 +6936,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        764
+        887
       ],
       "tables": []
     },
@@ -7222,7 +6946,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        712
+        725
       ],
       "tables": [
         "auth.account_tenants"
@@ -7234,7 +6958,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        786
+        909
       ],
       "tables": []
     },
@@ -7244,7 +6968,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        833
+        956
       ],
       "tables": []
     },
@@ -7254,7 +6978,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        989
+        1112
       ],
       "tables": []
     },
@@ -7264,7 +6988,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        937
+        1060
       ],
       "tables": [
         "schedule.activity_instances"
@@ -7276,7 +7000,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        890
+        1013
       ],
       "tables": []
     },
@@ -7286,7 +7010,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        610
+        623
       ],
       "tables": [
         "auth.accounts"
@@ -8597,7 +8321,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        36
+        37
       ],
       "tables": []
     },
@@ -8607,7 +8331,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        273
       ],
       "tables": []
     },
@@ -8617,7 +8341,7 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        288
       ],
       "tables": []
     },
@@ -8627,7 +8351,7 @@
       "declaration": "TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        85
       ],
       "tables": []
     },
@@ -8637,7 +8361,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        220
       ],
       "tables": []
     },
@@ -8647,7 +8371,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        203
+        204
       ],
       "tables": []
     },
@@ -8657,7 +8381,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        125
+        126
       ],
       "tables": []
     },
@@ -8667,7 +8391,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        141
+        142
       ],
       "tables": []
     },
@@ -8677,7 +8401,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -8687,7 +8411,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        306
       ],
       "tables": []
     },
@@ -8697,7 +8421,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        322
       ],
       "tables": []
     },
@@ -8707,7 +8431,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        171
+        172
       ],
       "tables": []
     },
@@ -8717,7 +8441,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        188
       ],
       "tables": []
     },
@@ -8727,7 +8451,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        157
+        158
       ],
       "tables": []
     },
@@ -8737,7 +8461,17 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        248
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_test.go",
+      "declaration": "TestNewFactory_PublicAPIURL_Required",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        238
       ],
       "tables": []
     },
@@ -8747,7 +8481,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        95
+        96
       ],
       "tables": []
     },
@@ -8778,16 +8512,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/iot/iot_service_test.go",
-      "declaration": "setupIoTService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
       ],
       "tables": []
     },
@@ -9047,7 +8771,7 @@
       "declaration": "buildCareScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
+        44
       ],
       "tables": []
     },
@@ -9556,7 +9280,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        840
+        842
       ],
       "tables": []
     },
@@ -9566,7 +9290,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        568
+        570
       ],
       "tables": []
     },
@@ -9576,7 +9300,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        402
       ],
       "tables": []
     },
@@ -9586,7 +9310,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        711
+        713
       ],
       "tables": []
     },
@@ -9596,7 +9320,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        362
+        364
       ],
       "tables": []
     },
@@ -9606,7 +9330,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        120
       ],
       "tables": []
     },
@@ -9616,141 +9340,9 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        89
+        90
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": [
-        "active.excused_absence_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        153
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestResolveDecisionAudience_SplitsSharedFromNeutral",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        120
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        159
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_PushesDecisionToSubmittingGuardian",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        86
-      ],
-      "tables": [
-        "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestRequestDecisionEnqueueAndPillBothCheckChildAccess",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        135
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        213
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_CreatesThreadThenReconcilesClose",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": [
-        "users.student_data_change_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_DisabledDropsNonTerminal",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        172
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_DisabledSchoolNeverBornsThread",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        145
-      ],
-      "tables": [
-        "users.student_data_change_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_RevokedGuardianClosesWithoutWaking",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        198
-      ],
-      "tables": [
-        "users.student_data_change_requests",
-        "users.students",
-        "users.students_guardians"
-      ]
     },
     {
       "scope": "test",
@@ -11441,7 +11033,7 @@
       "declaration": "TestMasterDataDecisionTellsTheOtherGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        63
+        64
       ],
       "tables": []
     },
@@ -11486,7 +11078,7 @@
       "declaration": "TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        849
+        847
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -11498,7 +11090,7 @@
       "declaration": "TestMasterDataCorrect_RefusesAnUndecidedRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        906
       ],
       "tables": []
     },
@@ -11508,7 +11100,7 @@
       "declaration": "TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        880
+        878
       ],
       "tables": [
         "users.persons"
@@ -11590,7 +11182,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        735
+        733
       ],
       "tables": []
     },
@@ -11660,7 +11252,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        695
+        694
       ],
       "tables": []
     },
@@ -12080,7 +11672,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        417
+        462
       ],
       "tables": []
     },
@@ -12090,7 +11682,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        209
       ],
       "tables": []
     },
@@ -28404,22 +27996,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 162,
+          "line": 165,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 435,
+          "line": 439,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 598,
+          "line": 602,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1095,
+          "line": 840,
+          "declaration": "initializeAPIResourcesWithRequestFeed"
+        },
+        {
+          "file": "api/base.go",
+          "line": 1126,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28429,7 +28026,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 276,
+          "line": 279,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28439,18 +28036,23 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 166,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 595,
+          "line": 599,
           "declaration": "type API"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 109,
+          "line": 111,
           "declaration": "newStaffComposition"
+        },
+        {
+          "file": "api/staff_composition.go",
+          "line": 126,
+          "declaration": "newExportTransferModule"
         }
       ]
     },
@@ -28539,22 +28141,22 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 427,
+          "line": 432,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 458,
+          "line": 468,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 32,
+          "line": 33,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 40,
+          "line": 41,
           "declaration": "NewFactoryForTestsWithConfig"
         }
       ]

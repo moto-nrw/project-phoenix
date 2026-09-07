@@ -17,7 +17,7 @@ import (
 func TestGroupRepositoryListRoomOccupancyUsesOneTenantScopedAggregate(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := activeRepo.NewGroupRepository(db)
+	repo := activeRepo.NewGroupRepository(db, nil)
 	fixture := setupOccupancyFixture(t, db)
 
 	var rows []activeModels.RoomOccupancy
@@ -105,7 +105,7 @@ func createSupervisorForTenant(t *testing.T, db *bun.DB, tenantID, staffID, grou
 
 func TestGroupRepositoryListRoomOccupancySkipsDatabaseForEmptyIDs(t *testing.T) {
 	t.Parallel()
-	repo := activeRepo.NewGroupRepository(nil)
+	repo := activeRepo.NewGroupRepository(nil, nil)
 
 	rows, err := repo.ListRoomOccupancy(context.Background(), nil)
 

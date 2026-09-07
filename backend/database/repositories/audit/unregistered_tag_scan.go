@@ -13,10 +13,15 @@ import (
 
 type unregisteredTagScanRepository struct {
 	runtime Runtime
+	devices DeviceDirectory
 }
 
-func NewUnregisteredTagScanRepository(runtime Runtime) auditModels.UnregisteredTagScanRepository {
-	return &unregisteredTagScanRepository{runtime: requireRuntime(runtime)}
+// NewUnregisteredTagScanRepository builds the scan repository. devices is the
+// Device Fleet directory the scanning device is resolved through (#2676); a
+// nil directory makes every device-bearing read fail loudly instead of
+// falling back to a join this package no longer owns.
+func NewUnregisteredTagScanRepository(runtime Runtime, devices DeviceDirectory) auditModels.UnregisteredTagScanRepository {
+	return &unregisteredTagScanRepository{runtime: requireRuntime(runtime), devices: devices}
 }
 
 func (r *unregisteredTagScanRepository) Create(ctx context.Context, scan *auditModels.UnregisteredTagScan) error {
@@ -34,6 +39,9 @@ func (r *unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) 
 		}
 		return nil, wrapDatabase("find unregistered tag scan", err)
 	}
+	if err := attachDeviceIdentity(ctx, r.devices, []*auditModels.UnregisteredTagScan{&scan}); err != nil {
+		return nil, wrapDatabase("find unregistered tag scan", err)
+	}
 	return &scan, nil
 }
 
@@ -48,6 +56,9 @@ func (r *unregisteredTagScanRepository) ListForOperator(ctx context.Context, fil
 	}
 	if scans == nil {
 		scans = []*auditModels.UnregisteredTagScan{}
+	}
+	if err := attachDeviceIdentity(ctx, r.devices, scans); err != nil {
+		return nil, wrapDatabase("list unregistered tag scans", err)
 	}
 	return scans, nil
 }
@@ -97,10 +108,7 @@ func (r *unregisteredTagScanRepository) operatorBaseQuery(ctx context.Context) *
 		Model((*auditModels.UnregisteredTagScan)(nil)).
 		ModelTableExpr(`audit.unregistered_tag_scans AS "scan"`).
 		ColumnExpr(`"scan".*`).
-		ColumnExpr(`"scan".tenant_id AS school_id`).
-		ColumnExpr(`"device".device_id AS device_identifier`).
-		ColumnExpr(`"device".name AS device_name`).
-		Join(`LEFT JOIN iot.devices AS "device" ON "device".id = "scan".device_id`)
+		ColumnExpr(`"scan".tenant_id AS school_id`)
 }
 
 func applyUnregisteredTagScanFilter(query *bun.SelectQuery, filter auditModels.UnregisteredTagScanFilter) {

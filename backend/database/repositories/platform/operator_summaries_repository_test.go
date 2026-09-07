@@ -177,8 +177,14 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	repo := platformRepo.NewOperatorSummariesRepository(db)
-	ctx := context.Background()
+	// Device counts come from the Device Fleet composition (#2676), person
+	// counts from the People Directory composition (#2661).
+	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
+	repo := factory.OperatorSummaries
+	// Operator summaries are a cross-tenant read; production runs them inside
+	// the admin transaction, so the context carries the runtime but no tenant.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	before, err := repo.Stats(ctx)
 	require.NoError(t, err)
@@ -209,7 +215,9 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
-	ctx := testpkg.Ctx(t)
+	// Operator summaries are a cross-tenant read; production runs them inside
+	// the admin transaction, so the context carries the runtime but no tenant.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	fix := setupSummariesFixture(t, db)
 
@@ -259,7 +267,9 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
-	ctx := testpkg.Ctx(t)
+	// Operator summaries are a cross-tenant read; production runs them inside
+	// the admin transaction, so the context carries the runtime but no tenant.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	fix := setupSummariesFixture(t, db)
 
@@ -302,7 +312,9 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
-	ctx := testpkg.Ctx(t)
+	// Operator summaries are a cross-tenant read; production runs them inside
+	// the admin transaction, so the context carries the runtime but no tenant.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	fix := setupSummariesFixture(t, db)
 
@@ -336,7 +348,9 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	repo := factory.OperatorSummaries
-	ctx := testpkg.Ctx(t)
+	// Operator summaries are a cross-tenant read; production runs them inside
+	// the admin transaction, so the context carries the runtime but no tenant.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	fix := setupSummariesFixture(t, db)
 

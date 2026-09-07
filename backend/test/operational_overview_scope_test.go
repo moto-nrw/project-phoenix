@@ -128,7 +128,7 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 	groupA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	groupB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repository := activeRepo.NewGroupRepository(db)
+	repository := activeRepo.NewGroupRepository(db, nil)
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()

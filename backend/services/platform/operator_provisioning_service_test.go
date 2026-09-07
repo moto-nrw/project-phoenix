@@ -3999,7 +3999,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsDeletedSchool(t *tes
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -4043,7 +4043,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsNilSchool(t *testing
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -4079,7 +4079,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsInactiveSchool(t *te
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -4116,7 +4116,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsBlockers(t *
 
 	now := time.Now()
 	device := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Status:     iotModels.DeviceStatusActive,
@@ -4161,7 +4161,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsProtectedDev
 	t.Parallel()
 
 	device := &iotModels.Device{
-		Model:    base.Model{ID: 200},
+		ID:       200,
 		DeviceID: iotModels.WebManualDeviceID,
 	}
 	device.SetTenantID(10)
@@ -4184,7 +4184,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 	t.Parallel()
 
 	startedAt := time.Now().Add(-time.Hour)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4249,7 +4249,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_NilDeviceIsNotFound
 func TestOperatorProvisioningService_GetDeviceTransferStatus_SessionLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4271,7 +4271,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_UsesTenantOnlineWin
 	t.Parallel()
 
 	lastSeen := time.Now().Add(-10 * time.Minute)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
 	device.SetTenantID(10)
 
 	var resolvedTenantID int64
@@ -4304,7 +4304,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_OnlineWindowResolve
 	t.Parallel()
 
 	lastSeen := time.Now().Add(-10 * time.Minute)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
 	device.SetTenantID(10)
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
@@ -4333,7 +4333,7 @@ func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesId
 	apiKey := "dev_existing-key"
 	deviceName := "Burbach 2"
 	source := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Name:       &deviceName,
@@ -4404,7 +4404,7 @@ func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesId
 func TestOperatorProvisioningService_TransferDevice_RejectsDifferentOrganization(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", DeviceType: "terminal", Status: iotModels.DeviceStatusActive}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", DeviceType: "terminal", Status: iotModels.DeviceStatusActive}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4427,7 +4427,7 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 
 	now := time.Now()
 	source := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Status:     iotModels.DeviceStatusActive,
@@ -4466,7 +4466,7 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4485,7 +4485,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing
 func TestOperatorProvisioningService_TransferDevice_RejectsProtectedDevice(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: iotModels.WebManualDeviceID}
+	source := &iotModels.Device{ID: 200, DeviceID: iotModels.WebManualDeviceID}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4518,7 +4518,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsInvalidIDs(t *testing
 func TestOperatorProvisioningService_TransferDevice_ActiveSessionDoesNotWrite(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
 	writes := 0
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{

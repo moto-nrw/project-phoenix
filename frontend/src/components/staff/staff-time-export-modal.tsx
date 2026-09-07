@@ -12,6 +12,13 @@ import {
   type DatevExportReport,
   type DatevFormat,
 } from "~/lib/datev-export-api";
+import {
+  fetchSFTPStatus,
+  transferExportViaSFTP,
+  transferFailureMessage,
+  type SFTPStatus,
+  type TransferOutcome,
+} from "~/lib/sftp-export-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffTimeExportModal" });
@@ -20,6 +27,13 @@ type Scope = "month" | "year";
 type Granularity = "month" | "day";
 type FileFormat = "csv" | "xlsx" | DatevFormat;
 type TimeFormat = "hhmm" | "decimal";
+/** Wohin die Datei geht: auf das eigene Gerät oder an die Gegenstelle. */
+type Delivery = "download" | "sftp";
+type TransferState =
+  | { readonly status: "idle" }
+  | { readonly status: "running" }
+  | { readonly status: "done"; readonly outcome: TransferOutcome }
+  | { readonly status: "error" };
 type DatevReportState =
   | { readonly status: "idle"; readonly requestKey: null }
   | { readonly status: "loading"; readonly requestKey: string }
@@ -154,14 +168,83 @@ function DatevReportPanel({
   );
 }
 
+// Ergebnis der Übertragung. Ein Fehlschlag wird als Fehlschlag gezeigt — das
+// Backend antwortet auch dann mit 200, damit der Eintrag im Protokoll erhalten
+// bleibt, also entscheidet hier `transferred`, nicht der HTTP-Status.
+function TransferResultPanel({ state }: { readonly state: TransferState }) {
+  if (state.status === "idle") return null;
+  if (state.status === "running") {
+    return <p className="text-sm text-gray-500">Datei wird übertragen …</p>;
+  }
+  if (state.status === "error") {
+    return (
+      <Alert
+        type="error"
+        message="Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal."
+      />
+    );
+  }
+  const { outcome } = state;
+  if (!outcome.transferred) {
+    return (
+      <Alert type="error" message={transferFailureMessage(outcome.reason)} />
+    );
+  }
+  return (
+    <Alert
+      type="success"
+      message={`${outcome.filename} wurde übertragen${
+        outcome.targetHost ? ` an ${outcome.targetHost}` : ""
+      }${outcome.targetDirectory ? `, Ordner ${outcome.targetDirectory}` : ""}.`}
+    />
+  );
+}
+
 // Export-Dialog der Zeitkonten (#1417 2b). Baut nur die Query — die Zahlen
 // kommen vollständig aus dem Backend (dieselbe Monatslogik wie die Tabelle);
 // der Download läuft über die Streaming-Proxy-Route.
+//
+// Die Übertragung an die Gegenstelle (#3050) nutzt dieselbe Auswahl und
+// dieselbe Datei; sie erzeugt keinen zweiten Export.
 export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   const [scope, setScope] = useState<Scope>("month");
   const [granularity, setGranularity] = useState<Granularity>("month");
   const [format, setFormat] = useState<FileFormat>("csv");
   const [timeFormat, setTimeFormat] = useState<TimeFormat>("hhmm");
+  const [delivery, setDelivery] = useState<Delivery>("download");
+  const [sftpStatus, setSftpStatus] = useState<SFTPStatus | null>(null);
+  const [transferState, setTransferState] = useState<TransferState>({
+    status: "idle",
+  });
+
+  // Der Status entscheidet, ob die Übertragung überhaupt angeboten wird. Ohne
+  // ihn bleibt es beim Download — eine Schaltfläche, die nichts tun kann, ist
+  // schlimmer als keine.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    fetchSFTPStatus()
+      .then((status) => {
+        if (!cancelled) setSftpStatus(status);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        logger.error("sftp_status_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setSftpStatus({ enabled: false, ready: false, missingSettings: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Auswahl zurücksetzen, sobald die Übertragung nicht mehr möglich ist.
+  useEffect(() => {
+    if (sftpStatus && !sftpStatus.ready && delivery === "sftp") {
+      setDelivery("download");
+    }
+  }, [sftpStatus, delivery]);
 
   const datev = isDatevFormat(format);
   const reportRequestKey = datev ? `${format}:${year}:${month}` : null;
@@ -227,10 +310,34 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
     onClose();
   };
 
-  const exportDisabled =
+  // Die Übertragung nutzt dieselbe Auswahl. Der Dialog bleibt danach offen,
+  // damit das Ergebnis sichtbar ist — auch ein Fehlschlag.
+  const handleTransfer = async () => {
+    setTransferState({ status: "running" });
+    try {
+      const outcome = await transferExportViaSFTP({
+        year,
+        month,
+        format,
+        wholeYear: !datev && scope === "year",
+        granularity: datev ? undefined : granularity,
+        timeFormat: !datev && granularity === "month" ? timeFormat : undefined,
+      });
+      setTransferState({ status: "done", outcome });
+    } catch (error: unknown) {
+      logger.error("sftp_transfer_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setTransferState({ status: "error" });
+    }
+  };
+
+  const datevBlocked =
     datev &&
     (activeReportState.status !== "ready" ||
       activeReportState.report.staffSkipped.length > 0);
+  const transferring = transferState.status === "running";
+  const exportDisabled = datevBlocked || transferring;
 
   return (
     <Modal
@@ -247,9 +354,13 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
             size="md"
             variant="primary"
             disabled={exportDisabled}
-            onClick={handleExport}
+            onClick={delivery === "sftp" ? handleTransfer : handleExport}
           >
-            Exportieren
+            {delivery === "sftp"
+              ? transferring
+                ? "Wird übertragen …"
+                : "Übertragen"
+              : "Exportieren"}
           </Button>
         </div>
       }
@@ -291,6 +402,50 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
           value={format}
           onChange={setFormat}
         />
+        {/*
+          Ohne eingeschaltete Schnittstelle gibt es nichts zu wählen: Der
+          Download ist dann der einzige Weg, und eine Gruppe "Wohin" mit einer
+          einzigen Möglichkeit stellt eine Frage, die keine ist. Erst der
+          Schalter in den Einstellungen bringt die Auswahl hervor.
+
+          Eingeschaltet, aber unvollständig, wird dagegen gezeigt — dort hat
+          jemand die Übertragung gewollt, und ein stiller Rückfall auf den
+          Download würde die halbfertige Einrichtung unsichtbar machen.
+        */}
+        {sftpStatus?.enabled && (
+          <div>
+            <OptionGroup
+              label="Wohin"
+              options={[
+                { id: "download", label: "Herunterladen" },
+                { id: "sftp", label: "An die Gegenstelle übertragen" },
+              ]}
+              value={delivery}
+              onChange={setDelivery}
+              disabled={!sftpStatus.ready}
+            />
+            {!sftpStatus.ready && (
+              <p className="mt-1.5 text-xs text-gray-500">
+                Die Übertragung ist eingeschaltet, aber noch nicht vollständig
+                eingerichtet. Ein Admin kann die fehlenden Angaben in den
+                Einstellungen unter `System` im Bereich `Schnittstellen`
+                ergänzen. Solange laden Sie die Datei herunter.
+              </p>
+            )}
+            {delivery === "sftp" && sftpStatus.host && (
+              <p className="mt-1.5 text-xs text-gray-500">
+                Die Datei geht an {sftpStatus.host}
+                {sftpStatus.remoteDirectory
+                  ? `, Ordner ${sftpStatus.remoteDirectory}`
+                  : ""}
+                . Es ist dieselbe Datei wie beim Herunterladen.
+              </p>
+            )}
+          </div>
+        )}
+        {transferState.status !== "idle" && (
+          <TransferResultPanel state={transferState} />
+        )}
         {!datev && (
           <OptionGroup
             label="Zeitangaben"

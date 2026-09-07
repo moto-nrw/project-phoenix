@@ -80,7 +80,7 @@ func TestProcessBinaryModeCheckinAllowsDeviceAttributionWithoutStaffContext(t *t
 			LastName:  "Mustermann",
 		},
 	}
-	kiosk := &iot.Device{Model: base.Model{ID: 7}}
+	kiosk := &iot.Device{ID: 7}
 	request := httptest.NewRequest(http.MethodPost, "/checkin", nil)
 	response := httptest.NewRecorder()
 

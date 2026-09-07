@@ -60,3 +60,23 @@ func TestCanonicalPolicyOwnerLists(t *testing.T) {
 		})
 	}
 }
+
+func TestCanonicalPolicyOwnerListsAcceptPreviousEpoch(t *testing.T) {
+	t.Parallel()
+	policyPath := filepath.Join("..", "..", "architecture", "policy.json")
+	policy, err := LoadPolicy(policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.PolicyEpoch = 1
+	index := slices.IndexFunc(policy.Owners, func(item Owner) bool { return item.ID == "export-transfer" })
+	policy.Owners = slices.Delete(policy.Owners, index, index+1)
+	policy.Packages = slices.DeleteFunc(policy.Packages, func(item Package) bool { return item.Owner == "export-transfer" })
+	policy.DataObjects = slices.DeleteFunc(policy.DataObjects, func(item DataObject) bool { return item.WriteOwner == "export-transfer" })
+	policy.Rules = slices.DeleteFunc(policy.Rules, func(item Rule) bool {
+		return item.SourceOwner == "export-transfer" || item.TargetOwner == "export-transfer"
+	})
+	if err := policy.Validate(); err != nil {
+		t.Fatalf("previous canonical policy epoch must remain decodable: %v", err)
+	}
+}

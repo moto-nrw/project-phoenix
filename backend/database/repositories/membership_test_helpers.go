@@ -63,7 +63,11 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 		authRepo.NewPermissionRepository(db), authRepo.NewRoleRepository(db))
 	repos.membershipDeps.groupTeachers = func() educationModels.GroupTeacherRepository { return repos.GroupTeacher }
 	repos.bindStaffMembershipAdapters(membership)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return MembershipTestRepositories{}, err
+	}
+	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	return MembershipTestRepositories{
 		Person: repos.Person, Account: repos.Account, AccountTenant: repos.AccountTenant,

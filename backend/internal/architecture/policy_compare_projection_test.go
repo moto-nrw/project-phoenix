@@ -22,11 +22,11 @@ func TestCandidateProjectionRequiresNewPackage(t *testing.T) {
 	}
 	created := map[string]struct{}{"example.test/project/projection": {}}
 
-	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, created, map[string]struct{}{}); err != nil {
+	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{}); err != nil {
 		t.Fatalf("candidate projection was rejected: %v", err)
 	}
 
-	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
+	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
 	if err == nil || !strings.Contains(err.Error(), "owner view with kind projection was added") || !strings.Contains(err.Error(), "new tenant-safe read projection grant") {
 		t.Fatalf("existing package bypassed the projection guard: %v", err)
 	}
