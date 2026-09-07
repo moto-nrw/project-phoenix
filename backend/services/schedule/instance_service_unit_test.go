@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -222,21 +222,26 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 }
 
 type reopenVisitStub struct {
-	activeModel.VisitRepository
-	byGroup map[int64][]*activeModel.Visit
-	current map[int64]*activeModel.Visit
+	InstancePresence
+	byGroup map[int64][]studentpresence.Visit
+	current map[int64]studentpresence.Visit
 	findErr error
 }
 
-func (r *reopenVisitStub) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+func (r *reopenVisitStub) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	if r.findErr != nil {
 		return nil, r.findErr
 	}
-	return r.byGroup[activeGroupID], nil
-}
-
-func (r *reopenVisitStub) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
-	return r.current[studentID], nil
+	if len(filter.ActiveGroupIDs) > 0 {
+		return r.byGroup[filter.ActiveGroupIDs[0]], nil
+	}
+	var visits []studentpresence.Visit
+	for _, studentID := range filter.StudentIDs {
+		if visit, ok := r.current[studentID]; ok {
+			visits = append(visits, visit)
+		}
+	}
+	return visits, nil
 }
 
 type reopenStudentLockStub struct {
@@ -254,15 +259,15 @@ func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (
 func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	t.Parallel()
 
-	visitA := &activeModel.Visit{StudentID: 52}
+	visitA := studentpresence.Visit{StudentID: 52}
 	visitA.ID = 20
-	visitB := &activeModel.Visit{StudentID: 41}
+	visitB := studentpresence.Visit{StudentID: 41}
 	visitB.ID = 21
-	visitDup := &activeModel.Visit{StudentID: 52}
+	visitDup := studentpresence.Visit{StudentID: 52}
 	visitDup.ID = 22
 	students := &reopenStudentLockStub{}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		VisitRepo: &reopenVisitStub{byGroup: map[int64][]*activeModel.Visit{
+		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
 		}},
 		StudentRepo: students,
@@ -280,14 +285,14 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	t.Parallel()
 
-	visit := &activeModel.Visit{StudentID: 52}
+	visit := studentpresence.Visit{StudentID: 52}
 	visit.ID = 20
-	current := &activeModel.Visit{StudentID: 52}
+	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		VisitRepo: &reopenVisitStub{
-			byGroup: map[int64][]*activeModel.Visit{90: {visit}},
-			current: map[int64]*activeModel.Visit{52: current},
+		Presence: &reopenVisitStub{
+			byGroup: map[int64][]studentpresence.Visit{90: {visit}},
+			current: map[int64]studentpresence.Visit{52: current},
 		},
 		StudentRepo: &reopenStudentLockStub{},
 	}}

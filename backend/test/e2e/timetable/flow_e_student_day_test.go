@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -79,7 +79,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	ctx = context.WithValue(ctx, device.CtxStaff, staff)
 
 	// First visit: B into X (enrolled) → flips instance_students to present.
-	v1 := &activeModel.Visit{
+	v1 := &studentpresence.Visit{
 		StudentID:     studentB.ID,
 		ActiveGroupID: startX.ActiveGroupID,
 		EntryTime:     time.Now(),
@@ -92,7 +92,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	require.NoError(t, s.endActiveVisit(ctx, v1.ID), "end visit B→X")
 
 	// Second visit: B into Y (not enrolled) → surfaces as is_unplanned=true.
-	v2 := &activeModel.Visit{
+	v2 := &studentpresence.Visit{
 		StudentID:     studentB.ID,
 		ActiveGroupID: startY.ActiveGroupID,
 		EntryTime:     time.Now(),

@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -27,7 +28,7 @@ const presenceModeBinary = "binary"
 const healthInfoMissing = "Nicht hinterlegt"
 
 type attendanceReader interface {
-	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
+	ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, error)
 }
 
 type studentReader interface {
@@ -39,12 +40,12 @@ type personReader interface {
 }
 
 type activePresenceReader interface {
-	GetPresenceMode(ctx context.Context) string
+	GetPresenceMode(ctx context.Context) (string, error)
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
 }
 
 type visitLocationReader interface {
-	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+	ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error)
 }
 
 type guardianContactReader interface {
@@ -58,10 +59,11 @@ type settingsReader interface {
 }
 
 type Dependencies struct {
-	AttendanceRepo      attendanceReader
+	Attendance          attendanceReader
 	StudentRepo         studentReader
 	PersonRepo          personReader
-	VisitRepo           visitLocationReader
+	Visits              visitLocationReader
+	RoomNames           func(context.Context, []int64) (map[int64]string, error)
 	StudentGuardianRepo guardianContactReader
 	ActiveService       activePresenceReader
 	ListExport          *listexport.RendererService
@@ -105,11 +107,11 @@ func (s *Service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
 }
 
 func (s *Service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error) {
-	if s.AttendanceRepo == nil || s.StudentRepo == nil || s.PersonRepo == nil || s.ListExport == nil || s.VisitRepo == nil || s.StudentGuardianRepo == nil {
+	if s.Attendance == nil || s.StudentRepo == nil || s.PersonRepo == nil || s.ListExport == nil || s.Visits == nil || s.RoomNames == nil || s.StudentGuardianRepo == nil {
 		return listexport.Document{}, fmt.Errorf("emergency snapshot service is not configured")
 	}
 
-	studentIDs, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	studentIDs, err := s.Attendance.ListOpenAttendanceStudentIDs(ctx, timezone.TodayDate().String())
 	if err != nil {
 		return listexport.Document{}, err
 	}
@@ -259,11 +261,54 @@ func sortSnapshotRows(rows []snapshotRow) {
 }
 
 func (s *Service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	if s.ActiveService != nil && s.ActiveService.GetPresenceMode(ctx) == presenceModeBinary {
-		return s.loadBinaryLocations(ctx, studentIDs)
+	if s.ActiveService != nil {
+		mode, err := s.ActiveService.GetPresenceMode(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if mode == presenceModeBinary {
+			return s.loadBinaryLocations(ctx, studentIDs)
+		}
 	}
 
-	return s.VisitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
+	return s.loadVisitLocations(ctx, studentIDs)
+}
+
+func (s *Service) loadVisitLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	locations := make(map[int64]string)
+	if len(studentIDs) == 0 {
+		return locations, nil
+	}
+	visits, err := s.Visits.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{
+		VisitFilter:       studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true},
+		RunningGroupsOnly: true, LatestPerStudent: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	roomIDs := make([]int64, 0, len(visits))
+	seen := make(map[int64]bool)
+	for _, visit := range visits {
+		if visit.Group != nil && !seen[visit.Group.RoomID] {
+			seen[visit.Group.RoomID] = true
+			roomIDs = append(roomIDs, visit.Group.RoomID)
+		}
+	}
+	if len(roomIDs) == 0 {
+		return locations, nil
+	}
+	names, err := s.RoomNames(ctx, roomIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, visit := range visits {
+		if visit.Group != nil {
+			if name, ok := names[visit.Group.RoomID]; ok {
+				locations[visit.Visit.StudentID] = name
+			}
+		}
+	}
+	return locations, nil
 }
 
 func (s *Service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {

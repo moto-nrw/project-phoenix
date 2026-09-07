@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -562,10 +564,10 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 }
 
 // =============================================================================
-// GetActiveGroupWithVisits Tests
+// GetActiveGroupVisits Tests
 // =============================================================================
 
-func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
+func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -579,22 +581,24 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Visits Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "1a")
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().UTC().Truncate(time.Microsecond), nil)
 
 		// ACT
-		result, err := service.GetActiveGroupWithVisits(ctx, activeGroup.ID)
+		result, err := service.GetActiveGroupVisits(ctx, activeGroup.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.NotNil(t, result)
-		assert.Equal(t, activeGroup.ID, result.ID)
-		// Visits relation should be loaded
-		assert.NotNil(t, result.Visits)
+		require.Len(t, result, 1)
+		// Compare the stored instant independently of the database session timezone.
+		actual := result[0]
+		actual.EntryTime = actual.EntryTime.UTC()
+		assert.Equal(t, *visit, actual)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetActiveGroupWithVisits(ctx, 99999999)
+		result, err := service.GetActiveGroupVisits(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1099,7 +1103,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
-		visit1 := &activeModels.Visit{
+		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
@@ -1107,7 +1111,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		err = service.CreateVisit(deviceCtx, visit1)
 		require.NoError(t, err)
 
-		visit2 := &activeModels.Visit{
+		visit2 := &studentpresence.Visit{
 			StudentID:     student2.ID,
 			ActiveGroupID: session.ID,
 			EntryTime:     time.Now(),
@@ -1271,7 +1275,7 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		// Add a visit to session1
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, device1)
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,
 			EntryTime:     time.Now(),

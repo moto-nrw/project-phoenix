@@ -263,6 +263,22 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	assert.True(t, data["is_active"].(bool), "Session should be active")
 	assert.NotNil(t, data["active_group_id"], "Should have active_group_id")
 	assert.NotNil(t, data["activity_id"], "Should have activity_id")
+	assert.Equal(t, float64(0), data["active_students"], "an empty session has zero active students")
+	groupID := int64(data["active_group_id"].(float64))
+	closedStudent := testpkg.CreateTestStudent(t, ctx.db, "Exited", "Session", "3a")
+	exitedAt := time.Now().Add(-time.Minute)
+	testpkg.CreateTestVisit(t, ctx.db, closedStudent.ID, groupID, exitedAt.Add(-time.Hour), &exitedAt)
+	for _, openCount := range []int{0, 2} {
+		for range openCount {
+			student := testpkg.CreateTestStudent(t, ctx.db, "Open", "Session", "3a")
+			testpkg.CreateTestVisit(t, ctx.db, student.ID, groupID, time.Now(), nil)
+		}
+		request := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil, testutil.WithDeviceContext(testDevice))
+		response := testutil.ExecuteRequest(router, request)
+		testutil.AssertSuccessResponse(t, response, http.StatusOK)
+		body := testutil.ParseJSONResponse(t, response.Body.Bytes())
+		assert.Equal(t, float64(openCount), body["data"].(map[string]interface{})["active_students"], "exited visits must not count")
+	}
 
 	// Verify supervisors are included in the response
 	if supervisors, hasSupervisors := data["supervisors"]; hasSupervisors && supervisors != nil {

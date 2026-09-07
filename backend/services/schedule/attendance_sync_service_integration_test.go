@@ -30,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -135,13 +136,14 @@ func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
 	row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 
 	entryTime := time.Date(2026, 4, 21, 13, 5, 0, 0, time.UTC)
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 		EntryTime:     entryTime,
 	}
 
-	snap := s.syncer.MirrorCheckInForVisit(s.ctx, visit)
+	snap, checkInErr1 := s.syncer.MirrorCheckInForVisit(s.ctx, visit)
+	require.NoError(t, checkInErr1)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
 	assert.Nil(t, snap.Substatus)
@@ -164,11 +166,12 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NoInstance(t *testing.T) {
 	// NEW active.group that is NOT bridged to any instance.
 	orphanGroup := testpkg.CreateTestActiveGroup(t, s.db, s.activityID, s.roomID)
 
-	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	snap, checkInErr2 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: orphanGroup.ID,
 		EntryTime:     time.Now(),
 	})
+	require.NoError(t, checkInErr2)
 	assert.Nil(t, snap, "no instance bridged — walk-in, no snapshot")
 }
 
@@ -179,11 +182,12 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	// No instance_students row seeded for this student.
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Unsubbed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
 
-	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	snap, checkInErr3 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 		EntryTime:     time.Now(),
 	})
+	require.NoError(t, checkInErr3)
 	require.NotNil(t, snap)
 	assert.True(t, snap.IsUnplanned)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
@@ -201,10 +205,11 @@ func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *t
 
 	entryTime := time.Date(2026, 4, 21, 12, 10, 0, 0, time.UTC)
 	exitTime := entryTime.Add(45 * time.Minute)
-	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	snap, checkInErr4 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID,
 		EntryTime: entryTime, ExitTime: &exitTime,
 	})
+	require.NoError(t, checkInErr4)
 	require.NotNil(t, snap)
 	assert.True(t, snap.IsUnplanned)
 
@@ -235,9 +240,11 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 
 			row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 			entryTime := time.Now().Add(-time.Hour)
-			require.NotNil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+			checkInSnapshot5, checkInErr5 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 				StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: entryTime,
-			}))
+			})
+			require.NoError(t, checkInErr5)
+			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
 			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
@@ -273,13 +280,17 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	morning := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
 	morningCheckIn := time.Date(2026, 4, 21, 5, 5, 0, 0, time.UTC)
 	morningCheckOut := time.Date(2026, 4, 21, 6, 0, 0, 0, time.UTC)
-	require.NotNil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	checkInSnapshot6, checkInErr6 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: morningCheckIn,
-	}))
-	require.NotNil(t, s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
+	})
+	require.NoError(t, checkInErr6)
+	require.NotNil(t, checkInSnapshot6)
+	checkoutSnapshot, checkoutErr := s.syncer.MirrorCheckOutForVisit(s.ctx, &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID,
 		EntryTime: morningCheckIn, ExitTime: &morningCheckOut,
-	}))
+	})
+	require.NoError(t, checkoutErr)
+	require.NotNil(t, checkoutSnapshot)
 
 	afternoonInstance := &scheduleModels.ActivityInstance{
 		Date: scheduleModels.NewDate(2026, 4, 21), Title: fmt.Sprintf("AS-Afternoon-%d", time.Now().UnixNano()),
@@ -358,11 +369,12 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 
 	// Second check-in — later time. Mirror MUST NOT overwrite checked_in_at
 	// or the substatus.
-	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	snap, checkInErr7 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 		EntryTime:     time.Date(2026, 4, 21, 14, 30, 0, 0, time.UTC),
 	})
+	require.NoError(t, checkInErr7)
 	require.NotNil(t, snap, "snapshot should still reflect current state for SSE")
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
@@ -384,13 +396,17 @@ func TestAttendanceSync_MirrorCheckIn_NilVisitOrZeroActiveGroup(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "AS-B1", fmt.Sprintf("B1-%d", time.Now().UnixNano()), "3a")
 
 	// Nil visit — B1
-	assert.Nil(t, s.syncer.MirrorCheckInForVisit(s.ctx, nil))
+	checkInSnapshot8, checkInErr8 := s.syncer.MirrorCheckInForVisit(s.ctx, nil)
+	require.NoError(t, checkInErr8)
+	assert.Nil(t, checkInSnapshot8)
 
 	// Zero ActiveGroupID — B1
-	assert.Nil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+	checkInSnapshot9, checkInErr9 := s.syncer.MirrorCheckInForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: 0,
-	}))
+	})
+	require.NoError(t, checkInErr9)
+	assert.Nil(t, checkInSnapshot9)
 }
 
 func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
@@ -402,11 +418,12 @@ func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
 
 	// Call with tenant 2 context — RLS should hide everything.
 	ctxT2 := testpkg.TenantContext(2)
-	snap := s.syncer.MirrorCheckInForVisit(ctxT2, &activeModels.Visit{
+	snap, checkInErr10 := s.syncer.MirrorCheckInForVisit(ctxT2, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 		EntryTime:     time.Now(),
 	})
+	require.NoError(t, checkInErr10)
 	assert.Nil(t, snap, "wrong tenant — instance invisible under RLS")
 }
 
@@ -430,10 +447,11 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
 
-	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
+	snap, err := s.syncer.MirrorCheckOutForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 	})
+	require.NoError(t, err)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
@@ -453,9 +471,10 @@ func TestAttendanceSync_LoadAttendance_NoRow(t *testing.T) {
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-NoRow", fmt.Sprintf("N-%d", time.Now().UnixNano()), "3a")
 
-	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
+	snap, err := s.syncer.MirrorCheckOutForVisit(s.ctx, &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 	})
+	require.NoError(t, err)
 	assert.Nil(t, snap)
 }

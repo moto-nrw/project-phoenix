@@ -12,10 +12,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -181,7 +181,7 @@ func attendanceSessionExportColumns() []listexport.Column {
 // attendanceExportRows merges slot rows and unassigned observed sessions into
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
-func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanceRows []*activeModel.Attendance) []listexport.Row {
+func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanceRows []*studentpresence.Attendance) []listexport.Row {
 	type sortableExportRow struct {
 		date  timezone.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
@@ -211,11 +211,11 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[attendance.Date], attendance.CheckInTime) {
+		if sessionCoveredBySlots(coverageByDate[timezone.Date(attendance.Date)], attendance.CheckInTime) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
-			date:  attendance.Date,
+			date:  timezone.Date(attendance.Date),
 			clock: attendance.CheckInTime.In(timezone.Berlin).Format("15:04:05"),
 			row:   unassignedExportRow(attendance),
 		})
@@ -251,9 +251,9 @@ func slotExportRow(row *scheduleModel.ScheduledInstanceRow) listexport.Row {
 // assignment is deliberately neutral: whether a booking existed is unknown
 // here (zero or several candidate slots) — "Ungeplant, ohne Buchung" is
 // reserved for persisted walk-in slot rows (is_unplanned).
-func unassignedExportRow(attendance *activeModel.Attendance) listexport.Row {
+func unassignedExportRow(attendance *studentpresence.Attendance) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		attendanceColumnDate: attendance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
+		attendanceColumnDate: timezone.Date(attendance.Date).Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",

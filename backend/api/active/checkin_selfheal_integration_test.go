@@ -7,7 +7,6 @@
 package active_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,28 +73,18 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		assert.NotZero(t, data["visit_id"])
 
 		// The orphaned visit is closed...
-		healedVisit := new(activeModels.Visit)
-		err := db.NewSelect().
-			Model(healedVisit).
-			ModelTableExpr(`active.visits AS "visit"`).
-			Where(`"visit".id = ?`, orphanVisit.ID).
-			Scan(context.Background())
+		presence := testPresenceQueries(t, db)
+		healedVisit, err := presence.FindVisit(testpkg.Ctx(t), orphanVisit.ID)
 		require.NoError(t, err)
+		require.NotNil(t, healedVisit)
 		require.NotNil(t, healedVisit.ExitTime, "orphaned visit must be ended during checkin (issue #895)")
 
 		// ...and exactly one new open visit exists, in the target group.
-		var openVisits []*activeModels.Visit
-		err = db.NewSelect().
-			Model(&openVisits).
-			ModelTableExpr(`active.visits AS "visit"`).
-			Where(`"visit".student_id = ?`, student.ID).
-			Where(`"visit".exit_time IS NULL`).
-			Scan(context.Background())
+		openVisits, err := presence.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}, OpenOnly: true})
 		require.NoError(t, err)
 		require.Len(t, openVisits, 1)
 		assert.Equal(t, targetGroup.ID, openVisits[0].ActiveGroupID)
 
-		// Cleanup the visit created by the request.
 	})
 
 	t.Run("capacity rejection rolls back orphan cleanup", func(t *testing.T) {
@@ -132,9 +121,9 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		handler.Router().ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
-		persisted := new(activeModels.Visit)
-		err = db.NewSelect().Model(persisted).ModelTableExpr(`active.visits AS "visit"`).Where(`"visit".id = ?`, orphanVisit.ID).Scan(t.Context())
+		persisted, err := testPresenceQueries(t, db).FindVisit(testpkg.Ctx(t), orphanVisit.ID)
 		require.NoError(t, err)
+		require.NotNil(t, persisted)
 		assert.Nil(t, persisted.ExitTime)
 	})
 
@@ -204,13 +193,9 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Student already has an active visit in another room")
 
 		// The genuine visit must remain open — no healing here.
-		untouched := new(activeModels.Visit)
-		err := db.NewSelect().
-			Model(untouched).
-			ModelTableExpr(`active.visits AS "visit"`).
-			Where(`"visit".id = ?`, visit.ID).
-			Scan(context.Background())
+		untouched, err := testPresenceQueries(t, db).FindVisit(testpkg.Ctx(t), visit.ID)
 		require.NoError(t, err)
+		require.NotNil(t, untouched)
 		assert.Nil(t, untouched.ExitTime, "genuine active visit must not be ended by validation")
 	})
 }

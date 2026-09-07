@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,8 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 
 	repos := usercontextSvc.UserContextRepositories{
 		AccountRepo:        repoFactory.Account,
@@ -32,7 +35,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		EducationGroupRepo: repoFactory.Group,
 		ActivityGroupRepo:  repoFactory.ActivityGroup,
 		ActiveGroupRepo:    repoFactory.ActiveGroup,
-		VisitsRepo:         repoFactory.ActiveVisit,
+		Presence:           presence,
 		SupervisorRepo:     repoFactory.GroupSupervisor,
 		ProfileRepo:        repoFactory.Profile,
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
@@ -767,6 +770,8 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 
 		// Create an active visit (no exit time)
 		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		closedAt := time.Now().Add(-time.Hour)
+		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, closedAt.Add(-time.Hour), &closedAt)
 
 		ctx := contextWithClaims(t, int(account.ID))
 
@@ -796,6 +801,10 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, visits)
 		assert.GreaterOrEqual(t, len(visits), 1, "Should have at least 1 active visit")
+		for _, visit := range visits {
+			assert.Nil(t, visit.ExitTime, "closed visits must not be exposed as active")
+			assert.Equal(t, activeGroup.ID, visit.ActiveGroupID)
+		}
 	})
 }
 

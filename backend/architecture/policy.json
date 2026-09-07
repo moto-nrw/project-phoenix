@@ -422,6 +422,41 @@
   ],
   "packages": [
     {
+      "path": "modules/studentpresence",
+      "owner": "student-presence",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/compose",
+      "owner": "student-presence",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/ports",
+      "owner": "student-presence",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/adapters/postgres",
+      "owner": "student-presence",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/enrollment/enrollmenttest",
       "owner": "enrollment",
       "role": "test-support",
@@ -3759,6 +3794,476 @@
   ],
   "rules": [
     {
+      "id": "inbound-students.http.student-presence-public",
+      "description": "Student history, exports and day logs consume the owner attendance DTOs.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.adapter-test.student-presence-compose",
+      "description": "Student HTTP fixtures construct the production presence provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.internal-test.student-presence-public",
+      "description": "CLI cleanup contract tests verify the public presence DTOs and commands.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.internal-test.student-presence-compose",
+      "description": "CLI cleanup fixtures construct the tenant-scoped presence provider.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.application.public",
+      "description": "Presence workflows consume the owner facade for attendance and visit persistence.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.behavior-test.student-presence-compose",
+      "description": "Care-lifecycle fixtures construct the presence facade used by check-in commands.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.compose.student-presence-public",
+      "description": "The API composition root supplies the owner query facade to migrated active handlers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.compose.student-presence-compose",
+      "description": "The API composition root constructs the owner provider without adding a broad factory dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-iot-checkin.adapter-test.student-presence-compose",
+      "description": "Kiosk checkout contract tests verify attendance and visit state through the production presence facade.",
+      "scopes": ["external_test"],
+      "source_owner": "inbound-iot-checkin",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-active.adapter-test.student-presence-compose",
+      "description": "Active HTTP contract tests use the production presence facade.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-active",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.module-behavior-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.adapter-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "emergency-snapshot.module-internal-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.port.calendar-date",
+      "description": "Presence records retain the canonical calendar-date value without legacy ORM models.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "port",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.compose.calendar-dates",
+      "description": "Presence composition maps public calendar strings through the canonical Date parser.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.module-behavior-test.student-presence-public",
+      "description": "Slot-list fixtures use public Student Presence facts and commands (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.module-internal-test.student-presence-public",
+      "description": "Emergency snapshot tests verify public visit-location selection and read failures (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "emergency-snapshot",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.module-internal-test.student-presence-public",
+      "description": "Reminder composition tests preserve room grouping and failed-read behavior from public presence facts (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "legacy-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.presence-cutover.student-presence.public",
+      "description": "Composition shares the Student Presence facade across legacy consumers.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.public",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.application",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.port",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "port"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.postgres",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.postgres.presence-cutover.student-presence.port",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "postgres",
+      "target_owner": "student-presence",
+      "target_role": "port"
+    },
+    {
+      "id": "legacy-composition.compose.presence-cutover.student-presence.compose",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.http.student-presence-public",
+      "description": "Timetable day/week responses map plain Student Presence visits (#2691).",
+      "scopes": ["production"],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.application.student-presence-public",
+      "description": "Grade-transition guards consume Student Presence facts before graduating students (#2691).",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.module-internal-test.student-presence-public",
+      "description": "Grade-transition guard tests verify presence read failures and latest attendance semantics (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.student-presence-public",
+      "description": "Display occupancy aggregates plain Student Presence facts (#2691).",
+      "scopes": ["production"],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-display.adapter-test.student-presence-compose",
+      "description": "Display API fixtures construct Student Presence for tenant-isolated aggregates (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "inbound-display",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "identity-access.application.student-presence-public",
+      "description": "Authorized user-context group queries consume plain Student Presence visits (#2691).",
+      "scopes": ["production"],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-usercontext.http.student-presence-public",
+      "description": "User-context HTTP maps plain visits into its existing response contract (#2691).",
+      "scopes": ["production"],
+      "source_owner": "inbound-usercontext",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.module-behavior-test.student-presence-compose",
+      "description": "User-context behavior fixtures construct the Student Presence owner (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-calendar.module-behavior-test.student-presence-compose",
+      "description": "Calendar fixtures wire user-context queries to Student Presence (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "school-calendar",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.application.student-presence-public",
+      "description": "Parent status and pickup guards consume attendance-only Student Presence facts (#2691).",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.module-internal-test.student-presence-public",
+      "description": "Parent status projection tests use plain Student Presence attendance (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-behavior-test.student-presence-public",
+      "description": "Attendance-sync behavior tests pass plain Student Presence visits (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.student-presence-public",
+      "description": "Lifecycle test doubles exercise the plain Student Presence contract (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.student-presence-public",
+      "description": "Schedule workflows read and lock attendance through the Student Presence facade (#2691).",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.behavior-test.student-presence-compose",
+      "description": "Schedule behavior tests inject the production Student Presence facade (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.behavior-test.student-presence-compose",
+      "description": "Parent pickup-change tests inject the production attendance guard (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.compose.orm-sql",
+      "description": "Presence composition binds the ambient Bun transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "student-presence.integration-test.student-presence.compose",
+      "description": "Presence tests use production composition and hermetic tenant fixtures.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
       "id": "people-directory.behavior-test.enrollment-support",
       "description": "Announcement adapter tests compose Enrollment audience queries through owner test support.",
       "scopes": [
@@ -5069,6 +5574,51 @@
         "external_test"
       ],
       "target_class": "utility"
+    },
+    {
+      "id": "process-device-scan.decision-test.student-presence",
+      "description": "Device scan decision tests inject failures through public visit command DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e.student-presence",
+      "description": "End-to-end timetable scenarios create visits through the public presence DTO contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.internal-test.student-presence",
+      "description": "Scheduler service doubles use public visit DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.internal-test.student-presence",
+      "description": "User-context service doubles use public visit DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.internal-test.student-presence",
+      "description": "Group live-view fixtures use public visit DTOs in location snapshots.",
+      "scopes": ["internal_test"],
+      "source_owner": "group-live-view",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
     },
     {
       "id": "group-live-view.from.school-structure",
@@ -6476,6 +7026,24 @@
       "source_role": "http",
       "target_owner": "feedback",
       "target_role": "public"
+    },
+    {
+      "id": "test-support.to.student-presence-public",
+      "description": "Shared presence fixtures return public attendance and visit DTOs.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.student-presence-compose",
+      "description": "Shared presence fixtures create records through the real owner module.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "compose"
     },
     {
       "id": "test-support.to.feedback-public",

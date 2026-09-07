@@ -112,123 +112,6 @@ type RoomSessionAggregate struct {
 	StudentCount    int        `bun:"student_count"`
 }
 
-// VisitRepository defines operations for managing active visits
-type VisitRepository interface {
-	base.Repository[*Visit]
-
-	// FindActiveByStudentID finds all active visits for a specific student
-	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
-
-	// GetCurrentRoomNamesForStudents returns the room name of each student's
-	// current open visit; students without one are absent from the map.
-	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
-
-	// FindByActiveGroupID finds all visits for a specific active group
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
-
-	// FindByActiveGroupIDs finds all visits belonging to any of the given active
-	// groups in a single query — the bulk form of FindByActiveGroupID for callers
-	// resolving many groups at once (e.g. a full day of slots).
-	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*Visit, error)
-
-	// FindByTimeRange finds all visits active during a specific time range
-	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
-
-	// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
-	// student whose entry_time falls within [start, end], ordered by entry_time desc.
-	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
-
-	// FindActiveWithStudentDisplayByGroup returns the open visits of an
-	// active group joined with the students' display data (name, class,
-	// education group, status flags, photo path), newest entry first.
-	FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
-
-	// FindByStudentAndActiveGroupIDs returns visits for the student whose
-	// active_group_id is in the given list. Used by the timetable per-student
-	// day view to detect unplanned attendance in a single batch query.
-	// Returns an empty slice (no DB call) when the id list is empty.
-	FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*Visit, error)
-
-	// EndVisit marks a visit as ended at the current time
-	EndVisit(ctx context.Context, id int64) error
-
-	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
-	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
-
-	// TransferActiveVisitsBetweenGroups moves still-open visits from one active
-	// group to another. Ended visits are ignored so stale callers cannot reopen
-	// a checkout by writing an old NULL exit_time back to the row.
-	TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
-
-	// Cleanup operations for data retention
-	// DeleteExpiredVisits deletes visits older than retention days for a specific student
-	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
-
-	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
-	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
-
-	// CountExpiredVisits counts visits that are older than retention period for all students
-	CountExpiredVisits(ctx context.Context) (int64, error)
-
-	// OldestExpiredVisitDate returns the created_at of the oldest visit past
-	// its per-student retention window, or nil when no visit is expired.
-	OldestExpiredVisitDate(ctx context.Context) (*time.Time, error)
-
-	// ExpiredVisitMonthlyCounts groups expired visits by calendar month of
-	// created_at, keyed YYYY-MM. Feeds the GDPR retention statistics.
-	ExpiredVisitMonthlyCounts(ctx context.Context) (map[string]int64, error)
-
-	// GetCurrentByStudentID finds the current active visit for a student
-	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDWithRoom finds the current active visit with its active group and room.
-	GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDs finds the current active visit for multiple students
-	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
-
-	// GetCurrentByStudentIDsForUpdate finds and locks current active visits for
-	// multiple students.
-	GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
-
-	// CountActiveByRoomID counts currently active visits across all active groups in a room.
-	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)
-
-	// ListActiveStudentIDsByRoomID returns the IDs of students currently
-	// checked-in to any active (end_time IS NULL) group in the given room.
-	// Callers feed the IDs into the standard student list pipeline, which
-	// owns display fields, GDPR redaction, and pagination. Tenant scoping
-	// flows through TenantTxMiddleware.
-	ListActiveStudentIDsByRoomID(ctx context.Context, roomID int64) ([]int64, error)
-
-	// ListOpenVisitStudentIDsByRoom returns every currently checked-in student
-	// of the tenant grouped by the room they are in. It is the whole-tenant
-	// counterpart of ListActiveStudentIDsByRoomID: one query instead of one per
-	// room, which is what a caller iterating many supervised rooms needs.
-	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
-
-	// CountActiveByGroupID counts currently active visits in a single active group.
-	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
-
-	// FindActiveVisits finds all visits with no exit time (currently active)
-	FindActiveVisits(ctx context.Context) ([]*Visit, error)
-
-	// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
-	// Returns the number of visits ended.
-	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
-
-	// EndVisitsByIDs ends the given visits at the supplied instant in one
-	// state-checked UPDATE (WHERE exit_time IS NULL) and returns the rows it
-	// actually ended. Visits a concurrent caller already ended are absorbed
-	// and missing from the result — the batch counterpart of EndVisit's
-	// already-ended tolerance.
-	EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*Visit, error)
-
-	// GetTodayVisitNamesForStudents returns activity group + room names for all of
-	// today's visits for the given students. Used for tracking indicator matching.
-	GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]VisitGroupNames, error)
-}
-
 // GroupSupervisorRepository defines operations for managing active group supervisors
 type GroupSupervisorRepository interface {
 	base.Repository[*GroupSupervisor]
@@ -327,8 +210,6 @@ type GroupMappingRepository interface {
 	// RemoveGroupFromCombination removes an active group from a combined group
 	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
 }
-
-// AttendanceRepository is already defined above
 
 // WorkSessionRepository defines operations for managing staff work sessions
 type WorkSessionRepository interface {

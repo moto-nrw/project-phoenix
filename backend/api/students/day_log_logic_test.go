@@ -11,14 +11,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func dayLogAttendanceRow(checkIn time.Time, checkOut *time.Time) *active.Attendance {
-	return &active.Attendance{StudentID: 1, Date: timezone.TodayDate(), CheckInTime: checkIn, CheckOutTime: checkOut}
+func dayLogAttendanceRow(checkIn time.Time, checkOut *time.Time) *studentpresence.Attendance {
+	return &studentpresence.Attendance{StudentID: 1, Date: timezone.TodayDate().String(), CheckInTime: checkIn, CheckOutTime: checkOut}
 }
 
 func dayLogStatusRow(status, source string, reportedAt time.Time) *active.StudentStatusDay {
@@ -32,7 +33,7 @@ func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
 	checkOut := now.Add(6 * time.Hour)
 	row := dayLogStudent{}
 	classifyDayLogStudent(&row,
-		[]*active.Attendance{dayLogAttendanceRow(now, &checkOut)},
+		[]*studentpresence.Attendance{dayLogAttendanceRow(now, &checkOut)},
 		[]*active.StudentStatusDay{dayLogStatusRow(active.StudentStatusDaySick, "parent", now)},
 		scheduleService.CareDayScheduled,
 	)
@@ -157,7 +158,7 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
 		studentsByGroup:     map[int64][]*usersModel.Student{group.ID: {student}},
 		persons:             map[int64]*usersModel.Person{},
-		attendanceByStudent: map[int64][]*active.Attendance{},
+		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
 		careDays:            map[int64]scheduleService.CareDayStatus{student.ID: scheduleService.CareDayScheduled},
 		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{student.ID: {ArrivalTime: &arrival}},
@@ -193,8 +194,8 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 	response := buildDayLogResponse(date, []*educationModel.Group{group}, &dayLogData{
 		studentsByGroup: map[int64][]*usersModel.Student{group.ID: {notYetStarted, checkedIn}},
 		persons:         map[int64]*usersModel.Person{},
-		attendanceByStudent: map[int64][]*active.Attendance{
-			checkedIn.ID: {{StudentID: checkedIn.ID, Date: date, CheckInTime: now}},
+		attendanceByStudent: map[int64][]*studentpresence.Attendance{
+			checkedIn.ID: {{StudentID: checkedIn.ID, Date: date.String(), CheckInTime: now}},
 		},
 		statusByStudent: map[int64][]*active.StudentStatusDay{},
 		careDays: map[int64]scheduleService.CareDayStatus{
@@ -307,14 +308,14 @@ func TestMergeDayLogAttendance_OpenSessionKeepsDepartureOpen(t *testing.T) {
 	noon := morning.Add(4 * time.Hour)
 	noonOut := morning.Add(3 * time.Hour)
 
-	checkIn, checkOut := mergeDayLogAttendance([]*active.Attendance{
+	checkIn, checkOut := mergeDayLogAttendance([]*studentpresence.Attendance{
 		dayLogAttendanceRow(noon, nil), // re-entry, still checked in
 		dayLogAttendanceRow(morning, &noonOut),
 	})
 	assert.Equal(t, morning, checkIn, "earliest arrival wins")
 	assert.Nil(t, checkOut, "open session keeps the day open")
 
-	checkIn, checkOut = mergeDayLogAttendance([]*active.Attendance{
+	checkIn, checkOut = mergeDayLogAttendance([]*studentpresence.Attendance{
 		dayLogAttendanceRow(morning, &noonOut),
 		dayLogAttendanceRow(noon, &noon),
 	})

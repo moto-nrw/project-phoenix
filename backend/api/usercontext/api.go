@@ -279,7 +279,7 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusOK)
-	common.RenderError(w, r, common.NewResponse(visits, "Group visits retrieved successfully"))
+	common.RenderError(w, r, common.NewResponse(groupVisitResponses(visits), "Group visits retrieved successfully"))
 }
 
 // Avatar upload constants

@@ -28,7 +28,7 @@ func NewGradeTransitionTestModule(db *bun.DB, clocks ...func() time.Time) (Grade
 	tt := r.Timetable
 	service := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
 		TransitionRepo: r.Transition, StudentRepo: tt.Student, PersonRepo: tt.Person,
-		VisitRepo: tt.ActiveVisit, AttendanceRepo: r.Attendance, ClassTeacherRepo: tt.ClassTeacher, StaffRepo: tt.Staff,
+		Presence: newStudentPresence(db, slog.Default()), ClassTeacherRepo: tt.ClassTeacher, StaffRepo: tt.Staff,
 		ClassListEntryRepo: r.ClassListEntry, ClassListEntryAudit: r.ClassListEntryAudit,
 		RosterReconciler: schedule.NewRosterReconciler(tt.ActivityInstance, tt.InstanceStudent, tt.StudentEnrollment, slog.Default(), optionalClock(clocks)),
 		DB:               db, Today: timezone.CalendarDateClock(optionalClock(clocks)),

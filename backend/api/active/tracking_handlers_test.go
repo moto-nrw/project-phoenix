@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -61,7 +63,7 @@ type trackingMockActiveService struct {
 	moveStudentsToTransitFunc               func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
 	moveStudentsToTransitAuthorizedFunc     func(ctx context.Context, studentIDs []int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
 	getActiveGroupFunc                      func(ctx context.Context, id int64) (*activeModel.Group, error)
-	getStudentCurrentVisitFunc              func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
+	getStudentCurrentVisitFunc              func(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
 	getStudentsAttendanceStatusesFunc       func(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error)
 	getStaffActiveSupervisionsFunc          func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	checkTeacherStudentAccessFunc           func(ctx context.Context, teacherID, studentID int64) (bool, error)
@@ -72,7 +74,7 @@ func (m *trackingMockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) 
 	return nil, nil
 }
 
-func (m *trackingMockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+func (m *trackingMockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeSvc.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -92,8 +94,8 @@ func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, s
 }
 func (m *trackingMockActiveService) SetSettingsService(_ activeSvc.SettingsResolver) {}
 func (m *trackingMockActiveService) SetTenantRuntime(_ tenant.UnitOfWork)            {}
-func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
-	return "detailed"
+func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
 }
 
 // Stub out the rest of the Service interface:
@@ -127,42 +129,39 @@ func (m *trackingMockActiveService) FindActiveGroupsByGroupID(ctx context.Contex
 func (m *trackingMockActiveService) EndActiveGroupSession(ctx context.Context, id int64) error {
 	return nil
 }
-func (m *trackingMockActiveService) GetActiveGroupWithVisits(ctx context.Context, id int64) (*activeModel.Group, error) {
+func (m *trackingMockActiveService) GetActiveGroupVisits(ctx context.Context, id int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*activeModel.Group, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) GetVisit(ctx context.Context, id int64) (*activeModel.Visit, error) {
+func (m *trackingMockActiveService) GetVisit(ctx context.Context, id int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) CreateVisit(ctx context.Context, visit *activeModel.Visit) error {
+func (m *trackingMockActiveService) CreateVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return nil
 }
-func (m *trackingMockActiveService) UpdateVisit(ctx context.Context, visit *activeModel.Visit) error {
+func (m *trackingMockActiveService) UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return nil
 }
 func (m *trackingMockActiveService) DeleteVisit(ctx context.Context, id int64) error { return nil }
-func (m *trackingMockActiveService) ListVisits(ctx context.Context, options *base.QueryOptions) ([]*activeModel.Visit, error) {
+func (m *trackingMockActiveService) FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (m *trackingMockActiveService) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+func (m *trackingMockActiveService) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) EndVisit(ctx context.Context, id int64) error { return nil }
-func (m *trackingMockActiveService) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
+func (m *trackingMockActiveService) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
 	if m.getStudentCurrentVisitFunc != nil {
 		return m.getStudentCurrentVisitFunc(ctx, studentID)
 	}
 	return nil, nil
 }
-func (m *trackingMockActiveService) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
+func (m *trackingMockActiveService) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*activeSvc.VisitWithRoom, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*activeModel.Visit, error) {
+func (m *trackingMockActiveService) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error) {

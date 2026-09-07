@@ -18,6 +18,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -362,19 +363,19 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 		findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 			return &activeModels.Group{Model: modelBase.Model{ID: 100}, GroupID: &activityID}, nil
 		},
-	}, VisitRepo: &mockVisitRepository{
-		findByActiveGroupIDFunc: func(context.Context, int64) ([]*activeModels.Visit, error) {
+	}, SchoolPresence: &mockVisitRepository{
+		findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
 			findCalls++
 			if findCalls == 1 {
 				return nil, errors.New("student lookup prefetch failed")
 			}
-			return []*activeModels.Visit{
-				{Model: modelBase.Model{ID: 300}, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime},
+			return []*studentpresence.Visit{
+				{ID: 300, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime},
 			}, nil
 		},
-		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-			visit := &activeModels.Visit{
-				Model: modelBase.Model{ID: 300}, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime,
+		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
+			visit := &studentpresence.Visit{
+				ID: 300, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime,
 			}
 			if visitEnded {
 				exitTime := time.Now()
@@ -411,11 +412,11 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
 				return activeGroup, nil
 			},
-		}, VisitRepo: &mockVisitRepository{
-			findByActiveGroupIDFunc: func(context.Context, int64) ([]*activeModels.Visit, error) {
+		}, SchoolPresence: &mockVisitRepository{
+			findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
 				findCalls++
 				if findCalls == 1 {
-					return []*activeModels.Visit{}, nil
+					return []*studentpresence.Visit{}, nil
 				}
 				return nil, errors.New("visit checkout lookup failed")
 			},
@@ -437,7 +438,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			endSessionFunc: func(context.Context, int64) error {
 				return errors.New("session end failed")
 			},
-		}, VisitRepo: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
+		}, SchoolPresence: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -471,7 +472,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 					return nil
 				},
 			},
-			VisitRepo:      &mockVisitRepository{},
+			SchoolPresence: &mockVisitRepository{},
 			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -527,7 +528,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 				},
 				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
 			},
-			VisitRepo:      &mockVisitRepository{},
+			SchoolPresence: &mockVisitRepository{},
 			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
@@ -594,7 +595,7 @@ func newEndGroupService(
 				return sessionEndErr
 			},
 		},
-		VisitRepo:      &mockVisitRepository{},
+		SchoolPresence: &mockVisitRepository{},
 		SupervisorRepo: &mockGroupSupervisorRepository{},
 		TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 			completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -937,7 +938,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 			createFunc: func(context.Context, *activeModels.Group) error {
 				return expectedErr
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
 				transferCalls++
 				return 0, nil
@@ -960,7 +961,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 				group.ID = 44
 				return nil
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			transferVisitsFromRecentSessionsFunc: func(_ context.Context, newActiveGroupID, deviceID int64) (int, error) {
 				assert.Equal(t, int64(44), newActiveGroupID)
 				assert.Equal(t, int64(20), deviceID)
@@ -983,7 +984,7 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 				group.ID = 45
 				return nil
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			transferVisitsFromRecentSessionsFunc: func(_ context.Context, newActiveGroupID, deviceID int64) (int, error) {
 				assert.Equal(t, int64(45), newActiveGroupID)
 				assert.Zero(t, deviceID)
@@ -1033,7 +1034,7 @@ func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing
 			group.ID = 60
 			return nil
 		},
-	}, VisitRepo: &mockVisitRepository{
+	}, SchoolPresence: &mockVisitRepository{
 		transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
 			return 2, nil
 		},
@@ -1225,7 +1226,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	supervisorErr := errors.New("supervisor lookup failed")
 
 	t.Run("visit transfer error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
 			transferActiveVisitsBetweenGroupsFunc: func(context.Context, int64, int64) (int, error) {
 				return 0, visitErr
 			},
@@ -1238,7 +1239,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	})
 
 	t.Run("supervisor transfer error", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{
 			findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
 				return nil, supervisorErr
 			},
@@ -1385,7 +1386,7 @@ func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTrans
 
 	ctx := context.Background()
 	var gotOldGroupID, gotNewGroupID int64
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
 		transferActiveVisitsBetweenGroupsFunc: func(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
 			gotOldGroupID = oldGroupID
 			gotNewGroupID = newGroupID
@@ -1629,6 +1630,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}},
 		}
 
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1644,13 +1646,14 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			endVisitsByActiveGroupIDsFunc: func(context.Context, []int64) (int64, error) {
 				return 0, errors.New("bulk visit close failed")
 			},
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(withSessionTestRuntime(t, ctx, db))
 
 		require.Error(t, err)
@@ -1668,7 +1671,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 			endSessionsByIDsFunc: func(context.Context, []int64) (int64, error) {
 				return 0, errors.New("bulk session close failed")
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			endVisitsByActiveGroupIDsFunc: func(context.Context, []int64) (int64, error) {
 				return 2, nil
 			},
@@ -1679,6 +1682,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}},
 		}
 
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)
@@ -1696,7 +1700,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 			endSessionsByIDsFunc: func(context.Context, []int64) (int64, error) {
 				return 1, nil
 			},
-		}, VisitRepo: &mockVisitRepository{
+		}, SchoolPresence: &mockVisitRepository{
 			endVisitsByActiveGroupIDsFunc: func(context.Context, []int64) (int64, error) {
 				return 2, nil
 			},
@@ -1707,6 +1711,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}},
 		}
 
+		svc.settings = &stubSettingsResolver{stringValues: map[string]string{configModels.KeyPresenceMode: PresenceModeDetailed}}
 		result, err := svc.EndDailySessions(ctx)
 
 		require.Error(t, err)

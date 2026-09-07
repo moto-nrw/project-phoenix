@@ -16,7 +16,7 @@ import (
 func TestReminderNamedTablesIsolateTwoTenants(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := calendarTestConfig(db).Appointments
+	module := calendarTestConfig(t, db).Appointments
 	secondTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, secondTenant)
 	tenantIDs := []int64{testpkg.Tenant(t), secondTenant}

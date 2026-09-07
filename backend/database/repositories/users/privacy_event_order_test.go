@@ -66,8 +66,10 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	older := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{91})
-	newer := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{92})
+	olderRecipient := testpkg.CreateTestAccount(t, db, "older-share-recipient")
+	newerRecipient := testpkg.CreateTestAccount(t, db, "newer-share-recipient")
+	older := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{olderRecipient.ID})
+	newer := requestShareEvent(chain.StudentID, chain.AccountID, chain.TenantID, []int64{newerRecipient.ID})
 	require.NoError(t, repos.ParentRequestShare.Create(ctx, older))
 	require.NoError(t, repos.ParentRequestShare.Create(ctx, newer))
 	invertPrivacyEventTimestamps(t, db, ctx, "users.parent_request_share_events", older.ID, newer.ID)
@@ -75,7 +77,7 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	current, err := repos.ParentRequestShare.CurrentForStudent(ctx, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, current, 1)
-	assert.Equal(t, []int64{92}, current[0].RecipientAccountIDs)
+	assert.Equal(t, []int64{newerRecipient.ID}, current[0].RecipientAccountIDs)
 }
 
 func familyProtectionEvent(studentID, actorID, tenantID int64, enabled bool) *userModels.FamilyProtectionEvent {

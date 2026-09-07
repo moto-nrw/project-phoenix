@@ -49,29 +49,6 @@ func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentI
 	return consents, nil
 }
 
-// FindActiveByStudentID retrieves active privacy consents for a student
-func (r *PrivacyConsentRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*users.PrivacyConsent, error) {
-	var consents []*users.PrivacyConsent
-	now := time.Now()
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&consents).
-		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
-		Where(`"privacy_consent".student_id = ? AND "privacy_consent".accepted = TRUE AND ("privacy_consent".expires_at IS NULL OR "privacy_consent".expires_at > ?)`, studentID, now)
-
-	query = base.WithTenantFilter(ctx, query, "privacy_consent")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active by student ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return consents, nil
-}
-
 // ListAcceptedRetentionSettings returns the distinct (student_id,
 // data_retention_days) pairs of accepted privacy consents, ordered by
 // student_id. Custom method: the DISTINCT projection is not expressible via

@@ -1,10 +1,8 @@
 package repositories
 
 import (
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -16,7 +14,6 @@ type DisplayTestRepositories struct {
 	SettingsTestRepositories
 	Display           displayModels.Repository
 	School            platformModels.SchoolRepository
-	Attendance        activeModels.AttendanceRepository
 	StudentPickupNote scheduleModels.StudentPickupNoteRepository
 }
 
@@ -40,6 +37,6 @@ func NewDisplayTestRepositories(db *bun.DB, runtime configRepo.Runtime) (Display
 	return DisplayTestRepositories{
 		TimetableTestRepositories: r, SettingsTestRepositories: NewSettingsTestRepositories(db, runtime),
 		Display: displayRepo.NewDisplayRepository(db), School: NewSchoolCapabilityAdapter(organizations, nil),
-		Attendance: activeRepo.NewAttendanceRepository(db), StudentPickupNote: NewPickupNoteRepository(care),
+		StudentPickupNote: NewPickupNoteRepository(care),
 	}, nil
 }

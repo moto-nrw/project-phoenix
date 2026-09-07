@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,6 +29,8 @@ func timetableDataWithArrivalBaseline(
 	authoritative bool,
 ) *scheduleService.TimetableDataService {
 	t.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	return scheduleService.NewTimetableDataService(scheduleService.TimetableDataDependencies{
 		InstanceStudentRepo:   env.repos.InstanceStudent,
 		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
@@ -43,7 +46,7 @@ func timetableDataWithArrivalBaseline(
 			env.repos.CareOffering,
 		),
 		PickupExceptionRepo: env.repos.StudentPickupException,
-		VisitRepo:           activeRepo.NewVisitRepository(env.db),
+		Presence:            presence,
 		EducationGroupRepo:  educationRepo.NewGroupRepository(env.db),
 		Logger:              slog.Default(),
 		DB:                  env.db,

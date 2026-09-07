@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,38 +43,37 @@ func (s *stubSettingsResolver) ResolveInt(_ context.Context, key string) (int, e
 	return s.intValues[key], nil
 }
 
-func TestService_GetPresenceMode_NoSettings_FallsBackToDetailed(t *testing.T) {
+func TestResolvePresenceModeRejectsFailuresAndInvalidValues(t *testing.T) {
 	t.Parallel()
-
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
-	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
-}
-
-func TestService_GetPresenceMode_ResolveError_FallsBackToDetailed(t *testing.T) {
-	t.Parallel()
-
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{stringErr: errors.New("db gone")}}
-	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
-}
-
-func TestService_GetPresenceMode_EmptyString_FallsBackToDetailed(t *testing.T) {
-	t.Parallel()
-
-	// When no tenant override AND the registry default happens to resolve to
-	// empty (shouldn't, but be defensive), we still return detailed rather
-	// than propagating the empty string.
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{stringValues: map[string]string{}}}
-	assert.Equal(t, "detailed", s.GetPresenceMode(context.Background()))
-}
-
-func TestService_GetPresenceMode_Binary_ReturnsBinary(t *testing.T) {
-	t.Parallel()
-
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-		stringValues: map[string]string{"operations.presence_mode": "binary"},
-	},
+	injected := errors.New("settings read failed")
+	for _, tc := range []struct {
+		name     string
+		resolver SettingsResolver
+		want     string
+		wantErr  bool
+	}{
+		{name: "missing wiring", wantErr: true},
+		{name: "read error", resolver: &stubSettingsResolver{stringErr: injected}, wantErr: true},
+		{name: "empty", resolver: &stubSettingsResolver{}, wantErr: true},
+		{name: "invalid", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: "manual"}}, wantErr: true},
+		{name: "detailed", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: PresenceModeDetailed}}, want: PresenceModeDetailed},
+		{name: "binary", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: PresenceModeBinary}}, want: PresenceModeBinary},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &service{settings: tc.resolver}
+			mode, err := svc.GetPresenceMode(context.Background())
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Empty(t, mode)
+				if tc.name == "read error" {
+					require.ErrorIs(t, err, injected)
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, mode)
+		})
 	}
-	assert.Equal(t, "binary", s.GetPresenceMode(context.Background()))
 }
 
 func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
@@ -86,7 +87,7 @@ func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
 		stringValues: map[string]string{"operations.presence_mode": "binary"},
 	},
 	}
-	visit := &active.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     1,
 		ActiveGroupID: 2,
 		EntryTime:     time.Now(),
