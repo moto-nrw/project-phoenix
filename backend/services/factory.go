@@ -26,6 +26,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -44,7 +45,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
@@ -222,7 +222,7 @@ type Factory struct {
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges   enrollment.OfferingChangeRequestService
 	PickupAdjustments enrollment.PickupAdjustmentService
-	ExcusedRequests   absence.ExcusedAbsenceRequestService
+	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	ParentRequests    *users.ParentRequestCoordinator
 	FamilyProtection  *users.FamilyProtectionService
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
@@ -444,6 +444,7 @@ func NewFactoryWithModules(
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
+	observeCarePlan CarePlanObserver,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -454,14 +455,14 @@ func NewFactoryWithModules(
 	observeDeviceFleet DeviceFleetObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, false, clocks...)
 }
 
 func newFactory(
@@ -479,6 +480,7 @@ func newFactory(
 	timetableCapability timetable.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
+	observeCarePlan CarePlanObserver,
 	mealPlan parent.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
@@ -2537,25 +2539,6 @@ func newFactory(
 		Today:               today,
 	})
 
-	// Excused-absence approval requests (#1845): the optional office-approval
-	// gate for parent-submitted excused absences. Reuses the same review queue,
-	// badge and pill machinery as the care-schedule requests above; on approval
-	// it writes the excused status days directly.
-	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		userContextService,
-		pillEmitter,
-		realtimeHub,
-		requestReviewPolicy,
-		parentRequestEvents,
-		logger.With("service", "excused-requests"),
-		db,
-	)
-
 	// Review access is one cross-domain policy: admins remain school-wide;
 	// group leaders are opt-in and limited to their current groups. Attach it
 	// to every request service so the unified queue and the legacy per-type
@@ -2610,6 +2593,39 @@ func newFactory(
 	// Decided change requests reach the parent's devices through the pill
 	// emitter, which is where all three request flows already converge (#1671).
 	pillEmitter.WithDecisionNotifications(notificationsService, notificationPreferencesService)
+
+	absenceNotifier := notifications.NewAbsenceNotifier(
+		notificationsService,
+		staffNotificationRecipients,
+		db,
+		logger.With("producer", "absence_notifications"),
+	)
+
+	// Excused-absence approval requests (#1845): the optional office-approval
+	// gate for parent-submitted excused absences. Reuses the same review queue,
+	// badge and pill machinery as the care-schedule requests; on approval it
+	// writes the excused status days directly. The workflow is owned by Care
+	// Plan (#3093); this root adapts the legacy directories, the review policy,
+	// and the effect sinks. The sharing rules live in the parents domain, which
+	// is composed after the request services it serves, so the sharing port
+	// resolves that service lazily through requestShareVisibility.
+	var requestShareVisibility parentmessaging.ShareVisibilityResolver
+	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
+		carePlan: repos.CarePlan(), students: repos.Student, persons: repos.Person,
+		scope:   parentRequestReviewScope(requestReviewPolicy),
+		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
+		notifier: absenceNotifier, observe: observeCarePlan,
+		shares: shareVisibilityFunc(func(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
+			if requestShareVisibility == nil {
+				return nil, nil
+			}
+			return requestShareVisibility.SharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
+		}),
+		logger: logger.With("service", "excused-requests"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose excused absence requests: %w", err)
+	}
 
 	messagingService := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo:  repos.ParentMessageThread,
@@ -2873,18 +2889,9 @@ func newFactory(
 		logger.With("service", "pwa_usage"),
 	)
 
-	absenceNotifier := notifications.NewAbsenceNotifier(
-		notificationsService,
-		staffNotificationRecipients,
-		db,
-		logger.With("producer", "absence_notifications"),
-	)
 	// Injected after the fact: the parent service is wired before the
 	// notification stack exists.
 	if setter, ok := parentService.(parent.AbsenceNotifierSetter); ok {
-		setter.SetAbsenceNotifier(absenceNotifier)
-	}
-	if setter, ok := excusedRequestService.(absence.AbsenceNotifierSetter); ok {
 		setter.SetAbsenceNotifier(absenceNotifier)
 	}
 
@@ -3013,8 +3020,8 @@ func newFactory(
 	// the four request domains must not import it just to ask who a request
 	// was shared with.
 	if resolver, ok := parentService.(parentmessaging.ShareVisibilityResolver); ok {
+		requestShareVisibility = resolver
 		for _, service := range []any{
-			excusedRequestService,
 			careRequestService,
 			offeringChangeRequestService,
 			masterDataReviewService,
@@ -3027,16 +3034,17 @@ func newFactory(
 		}
 	}
 
+	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
 	parentRequestCoordinator := users.NewParentRequestCoordinator(
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
-		excusedRequestService,
+		excusedCoordinatorPort,
 	)
 	// Conflict-resolution ports (#2267, stories 6-10) — injected by setter, so
 	// adding a domain to the resolver never rewrites the bulk-approval
 	// constructor above. All five request kinds are wired here or the resolve
 	// route answers conflict_kind_unsupported for the missing one.
 	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetExcusedConflictPort(excusedRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	// The resolver records ONLY the staff-entered result. Every verdict it

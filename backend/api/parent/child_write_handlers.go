@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -104,7 +105,7 @@ type ParentExcusedRequestResponse struct {
 	IsSelf bool `json:"is_self"`
 }
 
-func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, accountID int64) ParentExcusedRequestResponse {
+func toParentExcusedRequestResponse(req *careplan.ExcusedAbsenceRequest, accountID int64) ParentExcusedRequestResponse {
 	dates := make([]string, 0, len(req.Dates))
 	for _, d := range req.Dates {
 		dates = append(dates, d.String())

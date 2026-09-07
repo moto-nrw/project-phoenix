@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -68,30 +67,15 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
-	lock, notFound, err := repositories.NewCareStudentLock(db)
-	require.NoError(t, err)
-	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, nil, nil,
-		testpkg.AbsenceRequestReviewPolicy{},
-		nil,
-		slog.Default(),
-		db,
-	)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
 		Settings:            settings,
-		ExcusedRequests:     excused,
+		ExcusedRequests:     repos.ExcusedRequests,
 		DB:                  db,
 		Logger:              slog.Default(),
 	})

@@ -10,6 +10,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -17,6 +18,9 @@ import (
 )
 
 type StudentTestRepositories struct {
+	// CarePlan is the owner capability the legacy adapters below delegate to;
+	// Care Plan workflows composed by the test root share the same instance.
+	CarePlan           careplan.Capability
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
@@ -89,6 +93,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
+		CarePlan:                     care,
 		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(db),
 		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,

@@ -21,6 +21,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -147,10 +148,10 @@ func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []time
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
-func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*scheduleModels.CareScheduleChangeRequest, error) {

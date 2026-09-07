@@ -26,7 +26,6 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -220,7 +219,7 @@ func (c *parentChild) hasPermission(permission string) bool {
 // the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*activeModels.StudentStatusDay
-	PendingRequest *activeModels.ExcusedAbsenceRequest
+	PendingRequest *careplan.ExcusedAbsenceRequest
 }
 
 // SubmitSickNote reports the child absent for the given dates with the chosen
@@ -457,7 +456,7 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 	if s.ExcusedRequests == nil {
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
-	var req *activeModels.ExcusedAbsenceRequest
+	var req *careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
@@ -471,10 +470,10 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 		}
 		// The note is mandatory only while the school's reason policy asks the
 		// family for one (#2267, story 28).
-		created, err := s.ExcusedRequests.Create(txCtx, absenceSvc.ExcusedRequestCreateInput{
+		created, err := s.ExcusedRequests.Submit(txCtx, careplan.ExcusedRequestCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
-			Dates:             dates,
+			Dates:             carePlanDates(dates),
 			Note:              note,
 			AbsenceStatus:     status,
 			NoteRequired:      s.guardianReasonRequired(ctx, child.tenantID),
@@ -495,19 +494,19 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 	})
 	if txErr != nil {
 		switch {
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestNoDates):
+		case errors.Is(txErr, careplan.ErrExcusedRequestNoDates):
 			return nil, ErrNoDates
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestEmptyNote):
+		case errors.Is(txErr, careplan.ErrExcusedRequestEmptyNote):
 			return nil, ErrEmptyNote
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestNoteTooLong):
+		case errors.Is(txErr, careplan.ErrExcusedRequestNoteTooLong):
 			return nil, ErrNoteTooLong
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestOverlap):
+		case errors.Is(txErr, careplan.ErrExcusedRequestOverlap):
 			return nil, ErrExcusedRequestOverlap
 		// A planned partial-day excusal already owns one of the requested dates
 		// (same refusal as a direct parent status write that hits
 		// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
 		// conflict so the handler returns HTTP 409, not 500.
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
+		case errors.Is(txErr, careplan.ErrExcusedRequestStatusConflict):
 			return nil, ErrCareExceptionConflict
 		default:
 			return nil, fmt.Errorf("parent: submit absence request: %w", txErr)
@@ -528,18 +527,18 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 // recently decided absence requests submitted by the calling guardian. The
 // child's effective absence state is shared separately; request notes and
 // decision reasons remain private to their submitter.
-func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
 	if s.ExcusedRequests == nil {
-		return []*activeModels.ExcusedAbsenceRequest{}, nil
+		return []*careplan.ExcusedAbsenceRequest{}, nil
 	}
 	// Show rejected/withdrawn requests for two weeks so a parent learns the
 	// outcome, while pending ones show regardless of age.
 	recentSince := time.Now().AddDate(0, 0, -14)
-	var out []*activeModels.ExcusedAbsenceRequest
+	var out []*careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
@@ -558,10 +557,20 @@ func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
+// carePlanDates hands the calendar days to the Care Plan owner in its own
+// canonical form; both types carry YYYY-MM-DD.
+func carePlanDates(dates []timezone.Date) []careplan.Date {
+	result := make([]careplan.Date, len(dates))
+	for i := range dates {
+		result[i] = careplan.Date(dates[i])
+	}
+	return result
+}
+
 func visibleExcusedRequests(
-	rows []*activeModels.ExcusedAbsenceRequest, accountID int64, visibility *requestShareVisibility,
-) []*activeModels.ExcusedAbsenceRequest {
-	out := make([]*activeModels.ExcusedAbsenceRequest, 0, len(rows))
+	rows []*careplan.ExcusedAbsenceRequest, accountID int64, visibility *requestShareVisibility,
+) []*careplan.ExcusedAbsenceRequest {
+	out := make([]*careplan.ExcusedAbsenceRequest, 0, len(rows))
 	for _, row := range rows {
 		if row != nil && visibility.allows(RequestShareExcused, row.ID, accountID, row.SubmittedBy) {
 			out = append(out, row)
@@ -596,9 +605,9 @@ func (s *service) guardianReasonRequired(ctx context.Context, tenantID int64) bo
 // (stale, reason required).
 func mapExcusedRequestError(err error, op string) error {
 	switch {
-	case errors.Is(err, activeModels.ErrExcusedRequestNotFound):
+	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
 		return ErrExcusedRequestNotFound
-	case errors.Is(err, activeModels.ErrExcusedRequestNotPending):
+	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
 		return ErrExcusedRequestNotPending
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)
@@ -614,7 +623,7 @@ func mapExcusedRequestError(err error, op string) error {
 func (s *service) EditExcusedRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	dates []timezone.Date, note, expectedVersion string,
-) (*activeModels.ExcusedAbsenceRequest, error) {
+) (*careplan.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -625,7 +634,7 @@ func (s *service) EditExcusedRequest(
 	if s.ExcusedRequests == nil {
 		return nil, ErrExcusedRequestNotFound
 	}
-	var out *activeModels.ExcusedAbsenceRequest
+	var out *careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -634,12 +643,12 @@ func (s *service) EditExcusedRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		req, editErr := s.ExcusedRequests.EditRequest(txCtx, absenceSvc.ExcusedRequestEditInput{
+		req, editErr := s.ExcusedRequests.EditRequest(txCtx, careplan.ExcusedRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			ExpectedVersion:   expectedVersion,
-			Dates:             dates,
+			Dates:             carePlanDates(dates),
 			Note:              note,
 			NoteRequired:      s.guardianReasonRequired(ctx, child.tenantID),
 		})

@@ -25,8 +25,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -59,7 +59,7 @@ type Dependencies struct {
 	Instances         scheduleService.InstanceService
 	CareDays          scheduleService.CareDayService
 	CareParticipation CareParticipationResolver
-	ExcusedRequests   absenceService.ExcusedAbsenceRequestService
+	ExcusedRequests   excusedrequests.Service
 	StatusDays        *activeService.StudentStatusDayService
 	Logger            *slog.Logger
 	Now               func() time.Time
@@ -676,17 +676,21 @@ func (s *service) loadTimetable(ctx context.Context, studentIDs []int64, date ti
 	return result, nil
 }
 
-func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
+// pendingExcusedRequest is the Care Plan request row the planning badge reads
+// its note from; the alias keeps the projection tests free of that import.
+type pendingExcusedRequest = excusedrequests.Request
+
+func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (map[int64]*pendingExcusedRequest, error) {
 	// Same gate as the student list/detail badge: whoever may decide the
 	// request may see its note — users:update, or users:absence under open
 	// care (#2232). See authorize.CanReviewExcusedAbsenceRequests.
 	if s.deps.ExcusedRequests == nil || !authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
-		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
+		return map[int64]*pendingExcusedRequest{}, nil
 	}
-	return s.deps.ExcusedRequests.PendingByStudentForDate(ctx, date)
+	return s.deps.ExcusedRequests.PendingByStudentForDate(ctx, excusedrequests.Date(date))
 }
 
-func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbsenceRequest) {
+func applyPlanning(state *buildState, pending map[int64]*pendingExcusedRequest) {
 	for i := range state.projected {
 		student := &state.projected[i]
 		// The parent's pending note runs FIRST and outside the full-access

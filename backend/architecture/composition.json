@@ -5989,66 +5989,6 @@
     },
     {
       "scope": "test",
-      "file": "services/absence/excused_request_history_test.go",
-      "declaration": "TestListHistory_DecidedExcusedRequests",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        44
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/absence/excused_request_service_test.go",
-      "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        755
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/absence/excused_request_service_test.go",
-      "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        707
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/absence/excused_request_service_test.go",
-      "declaration": "TestListForStudent_FiltersOutcomes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        272
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/absence/excused_request_service_test.go",
-      "declaration": "buildAbsenceService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        84
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/absence/excused_request_service_test.go",
-      "declaration": "insertStatusDay",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        596
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/active/active_group_service_test.go",
       "declaration": "createActiveService",
       "target": "database/repositories.NewFactory",
@@ -8721,7 +8661,7 @@
       "declaration": "buildAbsenceApprovalServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        67
       ],
       "tables": []
     },
@@ -9176,7 +9116,7 @@
       "declaration": "buildLedgerServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -9186,7 +9126,7 @@
       "declaration": "buildReasonPolicyServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        52
       ],
       "tables": []
     },
@@ -9280,7 +9220,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        842
+        835
       ],
       "tables": []
     },
@@ -9290,7 +9230,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        570
+        563
       ],
       "tables": []
     },
@@ -9300,7 +9240,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        395
       ],
       "tables": []
     },
@@ -9310,7 +9250,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        713
+        706
       ],
       "tables": []
     },
@@ -9320,7 +9260,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        357
       ],
       "tables": []
     },
@@ -9330,7 +9270,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        120
+        113
       ],
       "tables": []
     },
@@ -9340,7 +9280,7 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        90
+        86
       ],
       "tables": []
     },
@@ -28001,22 +27941,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 439,
+          "line": 442,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 602,
+          "line": 605,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 840,
+          "line": 843,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1126,
+          "line": 1129,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28041,7 +27981,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 599,
+          "line": 602,
           "declaration": "type API"
         },
         {
@@ -28146,7 +28086,7 @@
         },
         {
           "file": "services/factory.go",
-          "line": 468,
+          "line": 469,
           "declaration": "newFactory"
         },
         {

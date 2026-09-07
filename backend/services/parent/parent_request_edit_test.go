@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,7 +67,7 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, original.ID, edited.ID, "an edit keeps the request id, so the share survives")
 	require.Len(t, edited.Dates, 1)
-	assert.Equal(t, corrected, edited.Dates[0])
+	assert.Equal(t, careplan.Date(corrected), edited.Dates[0])
 	assert.Equal(t, "Doch einen Tag später", edited.Note)
 	assert.Equal(t, activeModels.ExcusedRequestStatusPending, edited.Status)
 	assert.NotEqual(t, version, usersSvc.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")
@@ -101,7 +101,7 @@ func TestEditExcusedRequestRefusesStaleVersion(t *testing.T) {
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
 		[]timezone.Date{day.AddDays(2)}, "Zweite Korrektur", stale)
-	require.ErrorIs(t, err, usersSvc.ErrParentRequestStale)
+	require.ErrorIs(t, err, careplan.ErrParentRequestStale)
 }
 
 // TestEditExcusedRequestRevalidatesPayload pins that an edit runs the same
@@ -139,7 +139,7 @@ func TestEditDecidedExcusedRequestIsRefused(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, decideErr := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: res.PendingRequest.ID, Approve: true, ReviewedBy: chain.AccountID,
 		})
 		return decideErr

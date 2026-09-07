@@ -361,6 +361,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 				observation.Err,
 			)
 		},
+		func(observation carePlanCompose.Observation) {
+			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+		},
 		mealPlan, mealPlanSettings.Bind,
 		feedbackCapability, feedbackSettings.Bind,
 		observability.ObserveAuditAppend,

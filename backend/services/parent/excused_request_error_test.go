@@ -13,7 +13,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -24,29 +24,29 @@ import (
 // mapping (which is otherwise unreachable because the parent path validates
 // input upstream) can be exercised.
 type stubExcused struct {
-	absenceSvc.ExcusedAbsenceRequestService
+	careplan.ExcusedAbsenceRequests
 	createErr error
 	listErr   error
 }
 
-func (s stubExcused) CreateRequest(_ context.Context, _, _ int64, _ []timezone.Date, _ string) (*activeModels.ExcusedAbsenceRequest, error) {
+func (s stubExcused) CreateRequest(_ context.Context, _, _ int64, _ []careplan.Date, _ string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.createErr
 }
 
-// Create is the reason-policy-aware create entry point the parent service now
+// Submit is the reason-policy-aware create entry point the parent service now
 // uses (#2267). It returns the same injected error as CreateRequest so the
 // error-mapping cases below are unchanged.
-func (s stubExcused) Create(_ context.Context, _ absenceSvc.ExcusedRequestCreateInput) (*activeModels.ExcusedAbsenceRequest, error) {
+func (s stubExcused) Submit(_ context.Context, _ careplan.ExcusedRequestCreateInput) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.createErr
 }
 
-func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.listErr
 }
 
 // buildParentServiceWithExcused wires a parent service (approval gate on) with a
 // caller-supplied excused-request service (real, stub, or nil).
-func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsenceRequestService) (parentService.Service, *bun.DB) {
+func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsenceRequests) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -75,11 +75,11 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 		in   error
 		want error
 	}{
-		{"no dates", absenceSvc.ErrExcusedRequestNoDates, parentService.ErrNoDates},
-		{"empty note", absenceSvc.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
-		{"note too long", absenceSvc.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
-		{"overlap", absenceSvc.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
-		{"partial absence conflict", absenceSvc.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
+		{"no dates", careplan.ErrExcusedRequestNoDates, parentService.ErrNoDates},
+		{"empty note", careplan.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
+		{"note too long", careplan.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", careplan.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", careplan.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
 		{"other error is wrapped", errors.New("boom"), nil},
 	}
 	for _, tc := range cases {

@@ -1495,9 +1495,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/absence",
-      "owner": "workforce",
-      "role": "application",
+      "path": "modules/careplan/excusedrequests",
+      "owner": "care-plan",
+      "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -6650,6 +6650,39 @@
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
+    },
+    {
+      "id": "care-plan.public.excused-request-contract",
+      "description": "The Care Plan facade re-exports the excused-absence request contract (#3093).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.to.care-plan-contract",
+      "description": "The staff request queue and decision routes consume the Care Plan excused-absence request contract (#3093); the facade edge stays with #2731.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.to.care-plan-contract",
+      "description": "The OGS group live projection reads pending excused requests through the Care Plan contract (#3093); the facade edge stays with #2702.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
     },
     {
       "id": "inbound-platform.to.organization-tenancy",

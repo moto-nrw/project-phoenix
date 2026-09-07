@@ -13,7 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,25 +24,15 @@ import (
 // absence-approval fixtures, but with the parent-request event recorder
 // attached on both sides, so the ledger written inside the domain
 // transactions is observable.
-func buildLedgerServices(t *testing.T) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, usersSvc.ParentRequestEventRecorder, *bun.DB) {
+func buildLedgerServices(t *testing.T) (parentService.Service, careplan.ExcusedAbsenceRequests, usersSvc.ParentRequestEventRecorder, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	events := usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent)
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, // userContext: admin perms in the ctx short-circuit the write gate
-		nil, // emitter: pill is best-effort and nil-safe
-		nil, // broadcaster
-		testpkg.AbsenceRequestReviewPolicy{},
-		events,
-		slog.Default(),
-		db,
-	)
+	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),
+	})
+	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -86,7 +77,7 @@ func TestParentRequestLedgerRecordsSubmitAndDecision(t *testing.T) {
 	assert.Equal(t, chain.StudentID, rows[0].StudentID)
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, decideErr := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID:  requestID,
 			Approve:    true,
 			Reason:     "Passt so",
@@ -123,7 +114,7 @@ func TestParentRequestLedgerRollsBackWithItsWrite(t *testing.T) {
 
 	// A rejection without a reason is refused, so the transaction rolls back.
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, decideErr := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID:  requestID,
 			Approve:    false,
 			ReviewedBy: chain.AccountID,
