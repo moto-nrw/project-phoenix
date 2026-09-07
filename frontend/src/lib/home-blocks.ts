@@ -315,8 +315,9 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
   {
     key: "section.active_groups",
     kind: "section",
-    label: "Aktive Gruppen",
-    description: "Welche Gruppen gerade betreut werden und wo.",
+    label: "Laufende Betreuung",
+    description:
+      "Welche Betreuungsgruppen und Aktivitäten gerade laufen, mit Ort und Kinderzahl.",
     concept: "groups",
     spans: SECTION_SPANS,
     permitted: operationalNumbers,

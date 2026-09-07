@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -232,19 +233,17 @@ function ArrangeTile({
   readonly dropTarget: boolean;
   readonly onSelect: () => void;
 }) {
-  const frame = selected
-    ? "border-moto-green bg-moto-green/5 ring-moto-green ring-2"
-    : dropTarget
-      ? "border-moto-blue bg-moto-blue/5 border-dashed"
-      : "border-gray-300 bg-white/70 border-dashed hover:border-gray-400 hover:bg-white";
-
   return (
-    <button
-      type="button"
+    <ChoiceTile
+      as="button"
+      selected={selected}
+      tone={selected ? "green" : dropTarget ? "blue" : "gray"}
       onClick={onSelect}
       aria-pressed={selected}
       aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}`}
-      className={`flex h-full w-full cursor-grab flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-colors ${frame} ${dragging ? "opacity-50" : ""}`}
+      className={`flex h-full w-full cursor-grab flex-col items-start gap-2 p-4 text-left ${
+        dropTarget ? "ring-moto-blue ring-2" : ""
+      } ${dragging ? "opacity-50" : ""}`}
     >
       <span className="flex w-full items-center gap-2">
         <GripVertical
@@ -276,7 +275,7 @@ function ArrangeTile({
           </span>
         </>
       )}
-    </button>
+    </ChoiceTile>
   );
 }
 
@@ -394,11 +393,11 @@ function AddPanel({
       {addable.length > 0 && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {addable.map((block) => (
-            <button
+            <ChoiceTile
               key={block.key}
-              type="button"
+              as="button"
               onClick={() => onAdd(block.key)}
-              className="flex items-start gap-3 rounded-xl border border-dashed border-gray-300 p-3 text-left transition-colors hover:border-gray-400 hover:bg-gray-50"
+              className="flex items-start gap-3 p-3 text-left"
             >
               <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">
                 <MotoConceptIcon concept={block.concept} size={18} />
@@ -415,7 +414,7 @@ function AddPanel({
                 className="mt-1 h-4 w-4 shrink-0 text-gray-400"
                 aria-hidden="true"
               />
-            </button>
+            </ChoiceTile>
           ))}
         </div>
       )}

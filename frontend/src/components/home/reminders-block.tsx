@@ -4,9 +4,12 @@ import { ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  HOME_CARD_BODY,
+  HomeCardIcon,
+} from "~/components/home/home-block-content";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import {
   isReminderOverdue,
@@ -40,8 +43,8 @@ export function RemindersBlock() {
     <SectionCard
       title="Erinnerungen"
       className="flex h-full flex-col"
-      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
-      leading={<MotoConceptIcon concept="pickup" size={20} />}
+      bodyClassName={HOME_CARD_BODY}
+      leading={<HomeCardIcon concept="pickup" />}
       actions={
         <Link
           href={tenantPath("/reminders")}

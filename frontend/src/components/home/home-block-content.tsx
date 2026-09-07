@@ -47,6 +47,32 @@ export interface HomeBlockData {
   readonly tenantPath: (path: string) => string;
 }
 
+/**
+ * Der scrollende Körper jeder Karte der Startseite.
+ *
+ * `-mx-1 px-1` gibt dem Schatten von Knöpfen und Zeilen den Platz, den ihm
+ * `overflow-y-auto` sonst am Rand abschneidet — daher sah der Knopf „Zur
+ * Kenntnis nehmen" aus, als wäre er angeschnitten.
+ */
+export const HOME_CARD_BODY = "mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto px-1";
+
+/**
+ * Symbolfläche aller Karten der Startseite: ein Kasten, eine Größe. Vorher
+ * trugen die einen ihr Symbol im grauen Kasten und die anderen nackt — auf
+ * einer Fläche nebeneinander fällt genau das auf.
+ */
+export function HomeCardIcon({
+  concept,
+}: {
+  readonly concept: MotoConceptKey;
+}) {
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+      <MotoConceptIcon concept={concept} size={20} />
+    </span>
+  );
+}
+
 /** Kartenfläche der Listen: füllt ihren Platz, der Inhalt scrollt in ihr. */
 function ListCard({
   title,
@@ -65,12 +91,8 @@ function ListCard({
     <SectionCard
       title={title}
       className="flex h-full flex-col"
-      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
-      leading={
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-          <MotoConceptIcon concept={concept} size={20} />
-        </span>
-      }
+      bodyClassName={HOME_CARD_BODY}
+      leading={<HomeCardIcon concept={concept} />}
       actions={
         href ? (
           <Link
@@ -200,18 +222,30 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
   );
 }
 
+/**
+ * Was in einer laufenden Betreuung steht: eine Betreuungsgruppe, eine
+ * Aktivität oder eine spontane Runde. Der Server unterscheidet das seit jeher
+ * im Feld `type`; auf der Karte stand bisher nur der Name, und „Kochen" unter
+ * der Überschrift „Aktive Gruppen" liest sich wie ein Fehler.
+ */
+const ACTIVE_GROUP_KIND: Record<string, string> = {
+  ogs_group: "Gruppe",
+  activity: "Aktivität",
+  spontaneous: "Spontan",
+};
+
 function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
   const groups = data.analytics?.activeGroupsSummary;
   return (
     <ListCard
-      title="Aktive Gruppen"
+      title="Laufende Betreuung"
       concept="groups"
       href={data.tenantPath("/ogs-groups")}
     >
       {data.analyticsLoading ? (
         <RowSkeleton />
       ) : !groups || groups.length === 0 ? (
-        <EmptyState className="py-8" title="Keine aktiven Gruppen" />
+        <EmptyState className="py-8" title="Es läuft gerade nichts" />
       ) : (
         <div className="space-y-2">
           {groups.slice(0, 5).map((group) => (
@@ -224,7 +258,13 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
                   {group.name}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {group.location} • {group.studentCount} Kinder
+                  {[
+                    ACTIVE_GROUP_KIND[group.type],
+                    group.location,
+                    `${group.studentCount} Kinder`,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")}
                 </p>
               </div>
               <div

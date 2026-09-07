@@ -5,8 +5,11 @@ import { ChevronRight } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  HOME_CARD_BODY,
+  HomeCardIcon,
+} from "~/components/home/home-block-content";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -41,9 +44,9 @@ export function DayFlowBlock() {
   return (
     <SectionCard
       title="Ablauf des Tages"
-      leading={<MotoConceptIcon concept="carePlan" size={20} />}
+      leading={<HomeCardIcon concept="carePlan" />}
       className="flex h-full flex-col"
-      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
+      bodyClassName={HOME_CARD_BODY}
       actions={
         <Link
           href={tenantPath("/tagesplan")}

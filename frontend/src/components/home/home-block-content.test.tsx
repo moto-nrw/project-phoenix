@@ -65,7 +65,7 @@ const analytics: DashboardAnalytics = {
   ],
   activeGroupsSummary: [
     {
-      type: "ogs",
+      type: "ogs_group",
       name: "OGS Gruppe A",
       location: "Raum 101",
       studentCount: 15,
@@ -170,14 +170,17 @@ describe("HomeBlockContent — Listen", () => {
     expect(screen.getByText("Keine laufenden Aktivitäten")).toBeInTheDocument();
   });
 
-  it("zeigt aktive Gruppen mit Ort und Kinderzahl", () => {
+  // Die Karte zeigt Betreuungsgruppen UND Aktivitäten; ohne die Art davor
+  // liest sich „Kochen" unter „Laufende Betreuung" wie ein Fehler.
+  it("zeigt die laufende Betreuung mit Art, Ort und Kinderzahl", () => {
     render(<HomeBlockContent blockKey="section.active_groups" data={data()} />);
 
+    expect(screen.getByText("Laufende Betreuung")).toBeInTheDocument();
     expect(screen.getByText("OGS Gruppe A")).toBeInTheDocument();
-    expect(screen.getByText("Raum 101 • 15 Kinder")).toBeInTheDocument();
+    expect(screen.getByText("Gruppe • Raum 101 • 15 Kinder")).toBeInTheDocument();
   });
 
-  it("sagt es, wenn keine Gruppe aktiv ist", () => {
+  it("sagt es, wenn gerade nichts läuft", () => {
     render(
       <HomeBlockContent
         blockKey="section.active_groups"
@@ -185,7 +188,7 @@ describe("HomeBlockContent — Listen", () => {
       />,
     );
 
-    expect(screen.getByText("Keine aktiven Gruppen")).toBeInTheDocument();
+    expect(screen.getByText("Es läuft gerade nichts")).toBeInTheDocument();
   });
 
   it("zeigt die Geburtstage der Kinder", () => {

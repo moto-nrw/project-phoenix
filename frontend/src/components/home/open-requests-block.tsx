@@ -4,8 +4,11 @@ import { ChevronRight } from "lucide-react";
 
 import Link from "~/components/ui/navigation-link";
 import { EmptyState } from "~/components/ui/empty-state";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  HOME_CARD_BODY,
+  HomeCardIcon,
+} from "~/components/home/home-block-content";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
@@ -63,9 +66,9 @@ export function OpenRequestsBlock() {
   return (
     <SectionCard
       title="Offene Anfragen"
-      leading={<MotoConceptIcon concept="requests" size={20} />}
+      leading={<HomeCardIcon concept="requests" />}
       className="flex h-full flex-col"
-      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
+      bodyClassName={HOME_CARD_BODY}
       actions={
         <Link
           href={tenantPath("/anfragen")}

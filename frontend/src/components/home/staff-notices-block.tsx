@@ -7,8 +7,11 @@ import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  HOME_CARD_BODY,
+  HomeCardIcon,
+} from "~/components/home/home-block-content";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
@@ -37,8 +40,8 @@ export function StaffNoticesBlock() {
       // Die Karte füllt ihren Platz im Raster und scrollt in sich; ohne das
       // stünde sie kürzer als ihre Nachbarn und die Reihe wirkt kaputt.
       className="flex h-full flex-col"
-      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
-      leading={<MotoConceptIcon concept="announcements" size={20} />}
+      bodyClassName={HOME_CARD_BODY}
+      leading={<HomeCardIcon concept="announcements" />}
       actions={
         <Link
           href={tenantPath("/tagesinformationen")}
