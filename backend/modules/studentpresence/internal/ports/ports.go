@@ -28,6 +28,10 @@ type Store interface {
 	ListOpenPresence(context.Context, []int64) ([]int64, Stats, error)
 	LockOpenVisits(context.Context, int64) (Stats, error)
 	RestoreVisits(context.Context, []int64) (Stats, error)
+	LockOpenSupervisors(context.Context, int64) (Stats, error)
+	LockSupervisors(context.Context, []int64) (Stats, error)
+	RestoreGroup(context.Context, int64, time.Time) (Stats, error)
+	RestoreSupervisors(context.Context, []int64) (Stats, error)
 }
 
 type Transaction interface {
