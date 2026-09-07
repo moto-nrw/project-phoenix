@@ -274,11 +274,11 @@ func (s *Service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 	// Shared with the parent side via parentmessaging.DecorateReadReceipts so the
 	// receipt rule can't drift between the two chats (the staff reader's own read
 	// is excluded by passing the thread's guardian as the "other" account).
-	parentmessaging.DecorateReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, thread.GuardianAccountID, messages)
+	DecorateReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, thread.GuardianAccountID, messages)
 	// "Gelesen" receipt on the staff's OWN messages: flag staff messages the
 	// guardian has read, using the guardian's read cursor. Symmetric to the
 	// "OGS hat gelesen" receipt above so each side sees when the other has read.
-	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
+	DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,
@@ -317,7 +317,7 @@ func (s *Service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
+	advanced, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -401,7 +401,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	if err := parentmessaging.MarkStaffHandledToVisible(ctx, s.ReadRepo, thread.TenantID, thread.ID, handledUpToMessageID, visibleMessages); err != nil {
+	if err := MarkStaffHandledToVisible(ctx, s.ReadRepo, thread.TenantID, thread.ID, handledUpToMessageID, visibleMessages); err != nil {
 		return nil, fmt.Errorf("messaging: mark handled: %w", err)
 	}
 	// Advance the staff reader's cursor over this returned snapshot, exactly as the
@@ -412,7 +412,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+	if _, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
@@ -420,7 +420,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	// guardian-read messages would lose their receipt until the next GET/SSE refresh.
 	// The just-sent message is unread by the guardian (cursor unchanged by our send),
 	// so it correctly stays unstamped.
-	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
+	DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread, message.ID)
 	return messages, nil
@@ -495,7 +495,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild. The advance flag
 	// is ignored: this is a SEND path, and broadcastAfterCommit above already wakes
 	// the guardian with the new message (which refreshes receipts too).
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+	if _, err := MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
@@ -573,7 +573,7 @@ func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 		Kind:             usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
-	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
+	if err := AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
 		return nil, fmt.Errorf("messaging: append staff message: %w", err)
 	}
 	return msg, nil
@@ -652,7 +652,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 }
 
 func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+	Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 }
 
 // notifyGuardianDevice pushes a staff reply to the guardian's registered devices
@@ -746,7 +746,7 @@ func (s *Service) broadcastReadAfterCommit(ctx context.Context, thread *usersMod
 	threadID := thread.ID
 	studentID := thread.StudentID
 	tenant.RegisterAfterCommit(ctx, func() {
-		parentmessaging.BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 	})
 }
 

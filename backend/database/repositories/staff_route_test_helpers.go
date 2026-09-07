@@ -57,7 +57,3 @@ func NewStudentLookupTestRepository(db *bun.DB) usersModels.StudentRepository {
 func NewGuardianProfileTestRepository(db *bun.DB) usersModels.GuardianProfileRepository {
 	return usersRepo.NewGuardianProfileRepository(db)
 }
-
-func NewNotificationPreferenceTestRepository(db *bun.DB) usersModels.NotificationPreferenceRepository {
-	return usersRepo.NewNotificationPreferenceRepository(db)
-}

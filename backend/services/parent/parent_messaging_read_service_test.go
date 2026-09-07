@@ -19,9 +19,9 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -62,6 +62,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 		MessageThreadRepo:     repos.ParentMessageThread,
 		MessageRepo:           repos.ParentMessage,
 		MessageReadRepo:       repos.ParentMessageRead,
+		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		DB:                    db,
 		Logger:                slog.Default(),
@@ -99,7 +100,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain
 	m.SetTenantID(chain.TenantID)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, parentmessaging.AppendMessage(ctx, repos.ParentMessage, repos.ParentMessageThread, m))
+	require.NoError(t, communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
 	return thread.ID, staffAccount.ID
 }
 

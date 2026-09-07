@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -154,8 +155,6 @@ type Factory struct {
 	AnnouncementAttachment filestoreModels.AnnouncementAttachmentRepository
 	FileEvent              auditModels.FileEventRepository
 	SubstitutionChange     auditModels.SubstitutionChangeCreator
-
-	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -362,7 +361,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, newStudentPresence(f.db).CountAttendanceRecords)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db), newStudentPresence(f.db).CountAttendanceRecords)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -527,7 +526,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	}
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
-	parentAnnouncement := users.NewParentAnnouncementRepository(db, enrollmentModule, now)
+	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
 		tenantID := auditModels.TenantIDFromContext(ctx)
 		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
@@ -622,8 +621,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AnnouncementAttachment: filestore.NewAnnouncementAttachmentRepository(db),
 		FileEvent:              audit.NewFileEventRepository(auditRepositoryRuntime),
 		SubstitutionChange:     audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
-
-		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
 		Room: facilitiesRepositoryAdapter.New(),
@@ -753,8 +750,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: users.NewParentMessageThreadRepository(db),
-		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db)),
+		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
@@ -813,7 +810,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		},
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
 	)
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, presenceCapability.CountAttendanceRecords)
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db), presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.

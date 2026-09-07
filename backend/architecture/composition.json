@@ -4748,88 +4748,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/users/notification_preference_test.go",
-      "declaration": "TestNotificationPreferenceRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_message_extra_test.go",
-      "declaration": "TestListInboxForStaff_ScopeFlag",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        135
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_OneThreadPerGuardian",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        397
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_RequestCreatedPillNotCounted",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        349
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        219
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_ThreadsMessagesAndReadState",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        68
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_UnreadCountExcludesAlumni",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        635
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/parent_messaging_repository_test.go",
-      "declaration": "TestParentMessaging_UnreadCreatedAtTie",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        170
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/users/person_repository_test.go",
       "declaration": "TestPersonRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -6299,7 +6217,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        756
+        755
       ],
       "tables": []
     },
@@ -6309,7 +6227,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        708
+        707
       ],
       "tables": []
     },
@@ -6319,7 +6237,7 @@
       "declaration": "TestListForStudent_FiltersOutcomes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        272
       ],
       "tables": []
     },
@@ -6339,7 +6257,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        597
+        596
       ],
       "tables": []
     },
@@ -9047,7 +8965,7 @@
       "declaration": "buildCareScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
+        44
       ],
       "tables": []
     },
@@ -9556,7 +9474,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        840
+        842
       ],
       "tables": []
     },
@@ -9566,7 +9484,7 @@
       "declaration": "TestSubmitSickNote_ClearsClassTripForSubmittedDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        568
+        570
       ],
       "tables": []
     },
@@ -9576,7 +9494,7 @@
       "declaration": "TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        402
       ],
       "tables": []
     },
@@ -9586,7 +9504,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        711
+        713
       ],
       "tables": []
     },
@@ -9596,7 +9514,7 @@
       "declaration": "TestSubmitSickNote_RefusesPartialAbsenceConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        362
+        364
       ],
       "tables": []
     },
@@ -9606,7 +9524,7 @@
       "declaration": "buildMessagingWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        119
+        120
       ],
       "tables": []
     },
@@ -9616,141 +9534,9 @@
       "declaration": "buildWriteService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        89
+        90
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": [
-        "active.excused_absence_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        153
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/co_guardian_notice_integration_test.go",
-      "declaration": "TestResolveDecisionAudience_SplitsSharedFromNeutral",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        120
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        159
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestEmitChildEvent_PushesDecisionToSubmittingGuardian",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        86
-      ],
-      "tables": [
-        "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestRequestDecisionEnqueueAndPillBothCheckChildAccess",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        135
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/decision_notification_integration_test.go",
-      "declaration": "TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        213
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_CreatesThreadThenReconcilesClose",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": [
-        "users.student_data_change_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_DisabledDropsNonTerminal",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        172
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_DisabledSchoolNeverBornsThread",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        145
-      ],
-      "tables": [
-        "users.student_data_change_requests"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parentmessaging/emitter_integration_test.go",
-      "declaration": "TestEmitChildEvent_RevokedGuardianClosesWithoutWaking",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        198
-      ],
-      "tables": [
-        "users.student_data_change_requests",
-        "users.students",
-        "users.students_guardians"
-      ]
     },
     {
       "scope": "test",
@@ -11441,7 +11227,7 @@
       "declaration": "TestMasterDataDecisionTellsTheOtherGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        63
+        64
       ],
       "tables": []
     },
@@ -11486,7 +11272,7 @@
       "declaration": "TestMasterDataCorrect_ApprovedToRejectedRestoresTheOldValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        849
+        847
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -11498,7 +11284,7 @@
       "declaration": "TestMasterDataCorrect_RefusesAnUndecidedRequest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        908
+        906
       ],
       "tables": []
     },
@@ -11508,7 +11294,7 @@
       "declaration": "TestMasterDataCorrect_RefusesWhenTheValueMovedOnAfterTheDecision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        880
+        878
       ],
       "tables": [
         "users.persons"
@@ -11590,7 +11376,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        735
+        733
       ],
       "tables": []
     },
@@ -11660,7 +11446,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        695
+        694
       ],
       "tables": []
     },
@@ -28544,17 +28330,17 @@
         },
         {
           "file": "services/factory.go",
-          "line": 458,
+          "line": 459,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 32,
+          "line": 33,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 40,
+          "line": 41,
           "declaration": "NewFactoryForTestsWithConfig"
         }
       ]

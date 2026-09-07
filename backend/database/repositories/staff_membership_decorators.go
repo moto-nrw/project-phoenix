@@ -6,6 +6,7 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -25,7 +26,7 @@ func (f *Factory) bindStaffMembershipDecorators() {
 		StaffDocumentRepository: usersRepo.NewStaffDocumentRepository(f.db), membership: capability,
 	}
 	f.ParentMessageRead = parentMessageStaffRepository{
-		ParentMessageReadRepository: usersRepo.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
+		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
 	}
 	f.StaffMessageRead = usersRepo.NewStaffMessageReadRepository(f.db, func(ctx context.Context) ([]int64, error) {
 		return currentTenantStaffAccounts(ctx, capability(), persons())
@@ -100,7 +101,7 @@ func (r staffDocumentMembershipRepository) ListOffboardedPendingFileCleanups(ctx
 // --- parent messaging ---
 
 type parentMessageStaffRepository struct {
-	*usersRepo.ParentMessageReadRepository
+	*parentStore.ParentMessageReads
 	membership func() schoolmembership.Capability
 	persons    func() userModels.PersonRepository
 }
