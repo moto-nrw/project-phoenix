@@ -3,7 +3,8 @@ package checkin
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 )
@@ -23,7 +24,7 @@ func (s *CheckinService) RoomNameByIDForTest(ctx context.Context, room *faciliti
 	return s.roomNameByID(ctx, room, roomID)
 }
 
-func (s *CheckinService) RoomNameForResponseForTest(ctx context.Context, currentVisit *active.Visit, roomID *int64) string {
+func (s *CheckinService) RoomNameForResponseForTest(ctx context.Context, currentVisit *activeSvc.VisitWithRoom, roomID *int64) string {
 	return s.roomNameForResponse(ctx, currentVisit, roomID)
 }
 

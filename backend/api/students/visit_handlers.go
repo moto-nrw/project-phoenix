@@ -36,7 +36,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	// Build student response
-	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
 		Group:         group,
@@ -46,6 +46,11 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
 	})
+
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	// Create location response structure
 	locationResponse := struct {
@@ -58,11 +63,8 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	// If student is present and user has full access, try to get current room
 	if hasFullAccess && response.Location == "Anwesend" {
 		if currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil && currentVisit != nil {
-			if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil {
-				// The room should be loaded as part of the active group
-				if activeGroup.Room != nil {
-					locationResponse.CurrentRoom = activeGroup.Room.Name
-				}
+			if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil && activeGroup.Room != nil {
+				locationResponse.CurrentRoom = activeGroup.Room.Name
 			}
 		}
 	}
@@ -185,7 +187,7 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, currentVisit, "Current visit retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newStudentVisitResponse(*currentVisit), "Current visit retrieved successfully")
 }
 
 // getStudentVisitHistory handles getting a student's visit history for today.
@@ -221,10 +223,10 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	today := timezone.Today()
 	tomorrow := today.Add(24 * time.Hour)
 
-	var todaysVisits []*active.Visit
+	var todaysVisits []studentVisitResponse
 	for _, visit := range visits {
 		if visit.EntryTime.After(today) && visit.EntryTime.Before(tomorrow) {
-			todaysVisits = append(todaysVisits, visit)
+			todaysVisits = append(todaysVisits, newStudentVisitResponse(visit))
 		}
 	}
 

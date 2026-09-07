@@ -25,6 +25,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -51,6 +52,7 @@ type Dependencies struct {
 	Substitutions     educationService.SubstitutionModule
 	UserContext       userContextService.UserContextService
 	Active            activeService.Service
+	Presence          PresenceReader
 	Settings          configService.SettingsService
 	Pickups           scheduleService.PickupScheduleService
 	Arrivals          scheduleService.ArrivalScheduleService
@@ -61,6 +63,11 @@ type Dependencies struct {
 	StatusDays        *activeService.StudentStatusDayService
 	Logger            *slog.Logger
 	Now               func() time.Time
+}
+
+type PresenceReader interface {
+	ListSchoolStatuses(context.Context, []int64, string) ([]studentpresence.SchoolStatus, error)
+	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
 }
 
 type CareParticipationResolver interface {
@@ -251,8 +258,8 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 		return ctx, nil
 	}
 	snapshot, err := batch.ResolveMany(ctx, []string{
-		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyOperationalOverviewScope,
+		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyTrackingIndicatorsEnabled,
@@ -472,23 +479,30 @@ func (s *service) loadSnapshot(ctx context.Context, studentIDs, personIDs []int6
 
 func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activeService.StudentLocationSnapshot, error) {
 	ids := sliceutil.Unique(studentIDs)
-	mode := s.deps.Active.GetPresenceMode(ctx)
-	if mode == "" {
-		mode = activeService.PresenceModeDetailed
+	mode, err := s.deps.Active.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, err
 	}
 	result := &activeService.StudentLocationSnapshot{
 		Mode: mode, Attendances: map[int64]*activeService.AttendanceStatus{},
-		Visits: map[int64]*activeModels.Visit{}, Groups: map[int64]*activeModels.Group{},
+		Visits: map[int64]*studentpresence.Visit{}, Groups: map[int64]*activeModels.Group{},
 	}
 	if len(ids) == 0 {
 		return result, nil
 	}
-	attendances, err := s.deps.Active.GetStudentsAttendanceStatuses(ctx, ids)
+	if s.deps.Presence == nil {
+		return nil, errors.New("student presence reader is required")
+	}
+	day := timezone.DateFromTime(s.deps.Now())
+	attendances, err := s.deps.Presence.ListSchoolStatuses(ctx, ids, day.String())
 	if err != nil {
 		return nil, err
 	}
-	if attendances != nil {
-		result.Attendances = attendances
+	for _, attendance := range attendances {
+		result.Attendances[attendance.StudentID] = &activeService.AttendanceStatus{
+			StudentID: attendance.StudentID, Date: day, Status: attendance.Status,
+			CheckInTime: attendance.CheckInTime, CheckOutTime: attendance.CheckOutTime, YardSince: attendance.YardSince,
+		}
 	}
 	if mode == activeService.PresenceModeBinary {
 		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
@@ -503,12 +517,15 @@ func (s *service) loadDetailedLocations(
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	visits, err := s.deps.Active.GetStudentsCurrentVisits(ctx, studentIDs)
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, StudentOrder: true, NewestFirst: true})
 	if err != nil {
 		return nil, err
 	}
-	if visits != nil {
-		result.Visits = visits
+	for _, visit := range visits {
+		if _, found := result.Visits[visit.StudentID]; found {
+			continue
+		}
+		result.Visits[visit.StudentID] = &visit
 	}
 	groupSet := make(map[int64]struct{})
 	for _, visit := range result.Visits {

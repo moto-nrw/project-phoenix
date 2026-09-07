@@ -25,14 +25,15 @@ func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTe
 	}
 	tt := r.Timetable
 	activeQueries := active.NewService(active.ServiceDependencies{
-		GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor, RoomRepo: tt.Room,
+		SchoolPresence: newStudentPresence(db, slog.Default()),
+		GroupRepo:      tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor, RoomRepo: tt.Room,
 		ActivityGroupRepo: tt.ActivityGroup, StudentRepo: tt.Student, StaffRepo: tt.Staff,
 		PersonRepo: tt.Person, DB: db, Logger: slog.Default(),
 	})
 	service := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
 		AccountRepo: r.Account, PersonRepo: tt.Person, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher,
 		StudentRepo: tt.Student, EducationGroupRepo: tt.Group, ActivityGroupRepo: tt.ActivityGroup,
-		ActiveGroupRepo: tt.ActiveGroup, VisitsRepo: tt.ActiveVisit, SupervisorRepo: tt.GroupSupervisor,
+		ActiveGroupRepo: tt.ActiveGroup, Presence: newStudentPresence(db, slog.Default()), SupervisorRepo: tt.GroupSupervisor,
 		ProfileRepo: r.Profile, SubstitutionRepo: r.Substitutions, ClassTeacherRepo: tt.ClassTeacher,
 		ActiveService: activeQueries, SSESettings: settings.Settings,
 	}, slog.Default())

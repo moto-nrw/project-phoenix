@@ -1,6 +1,7 @@
 package students_test
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,8 +18,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -51,15 +53,14 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	// wake (parent_child_updated fan-out after a care write, #1725) is exercised
 	// and assertable via broadcaster.CallsByMethod("guardian"). Message-independent:
 	// it reads the guardian list and broadcasts regardless of the messaging setting.
-	parentEventEmitter := parentmessaging.NewEmitter(
-		db,
+	parentEventEmitter := communicationtest.NewParentEventEmitter(
+		db, testpkg.TenantRuntime(t, db),
 		repoFactory.ParentMessageThread,
 		repoFactory.ParentMessage,
 		svc.Settings,
 		broadcaster,
 		slog.Default(),
 	)
-	testpkg.SetTenantRuntime(t, parentEventEmitter, db)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,
@@ -71,22 +72,34 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Logger:      slog.Default(),
 	})
 
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:           svc.Users,
-		PeopleDirectory:         svc.PeopleDirectory,
-		GradeTransitionService:  svc.GradeTransition,
-		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
-		EducationService:        svc.Education,
-		UserContextService:      svc.UserContext,
-		ActiveService:           svc.Active,
-		IoTService:              svc.IoT,
-		DevicePINFallback:       testDevicePIN,
-		PickupScheduleService:   svc.PickupSchedule,
-		PartialAbsenceService:   svc.PartialAbsence,
-		ArrivalScheduleService:  svc.ArrivalSchedule,
-		SchoolService:           svc.Schools,
-		SettingsService:         svc.Settings,
-		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		PersonService:          svc.Users,
+		PeopleDirectory:        svc.PeopleDirectory,
+		GradeTransitionService: svc.GradeTransition,
+		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
+		EducationService:       svc.Education,
+		UserContextService:     svc.UserContext,
+		ActiveService:          svc.Active,
+		IoTService:             svc.IoT,
+		DevicePINFallback:      testDevicePIN,
+		PickupScheduleService:  svc.PickupSchedule,
+		PartialAbsenceService:  svc.PartialAbsence,
+		ArrivalScheduleService: svc.ArrivalSchedule,
+		SchoolService:          svc.Schools,
+		SettingsService:        svc.Settings,
+		StudentHistoryService: activeSvc.NewStudentHistoryService(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			names := make(map[int64]string, len(rooms))
+			for _, room := range rooms {
+				names[room.ID] = room.Name
+			}
+			return names, nil
+		}, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,

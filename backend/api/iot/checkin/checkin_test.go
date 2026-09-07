@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -766,8 +768,9 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	// The student checkout from room 1 will succeed, but checkin to room 2 will fail
 	testutil.AssertNotFound(t, rr)
 
-	var persisted active.Visit
-	require.NoError(t, ctx.db.NewSelect().Model(&persisted).Where("id = ?", visit.ID).Scan(t.Context()))
+	persisted, err := attendancePresence(t, ctx.db).FindVisit(testpkg.Ctx(t), visit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
 	assert.NotNil(t, persisted.ExitTime)
 }
 
@@ -1555,8 +1558,9 @@ func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T)
 	rr := testutil.ExecuteRequest(router, req)
 
 	require.Equal(t, http.StatusConflict, rr.Code)
-	var persisted active.Visit
-	require.NoError(t, ctx.db.NewSelect().Model(&persisted).Where("id = ?", sourceVisit.ID).Scan(t.Context()))
+	persisted, err := attendancePresence(t, ctx.db).FindVisit(testpkg.Ctx(t), sourceVisit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
 	assert.Nil(t, persisted.ExitTime)
 	assert.Equal(t, sourceGroup.ID, persisted.ActiveGroupID)
 }
@@ -3047,7 +3051,7 @@ type duplicateVisitActiveService struct {
 	activeSvc.Service
 }
 
-func (d *duplicateVisitActiveService) CreateVisit(ctx context.Context, visit *active.Visit) error {
+func (d *duplicateVisitActiveService) CreateVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return &activeSvc.ActiveError{Op: "CreateVisit", Err: activeSvc.ErrStudentAlreadyActive}
 }
 

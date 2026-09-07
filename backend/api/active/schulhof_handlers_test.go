@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -111,7 +112,7 @@ func (m *mockUserContextService) GetGroupStudents(ctx context.Context, groupID i
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockUserContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
+func (m *mockUserContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error) {
 	return nil, errors.New("not implemented")
 }
 

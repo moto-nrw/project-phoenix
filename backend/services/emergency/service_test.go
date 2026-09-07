@@ -2,15 +2,17 @@ package emergency
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -25,7 +27,7 @@ type stubAttendanceRepo struct {
 	err error
 }
 
-func (r stubAttendanceRepo) ListOpenStudentIDsForDate(_ context.Context, _ timezone.Date) ([]int64, error) {
+func (r stubAttendanceRepo) ListOpenAttendanceStudentIDs(_ context.Context, _ string) ([]int64, error) {
 	return r.ids, r.err
 }
 
@@ -48,13 +50,23 @@ func (r stubPersonRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*user
 }
 
 type stubActivePresence struct {
+	modeErr  error
 	mode     string
 	statuses map[int64]*activeService.AttendanceStatus
 	err      error
 }
 
-func (s stubActivePresence) GetPresenceMode(_ context.Context) string {
-	return s.mode
+func (s stubActivePresence) GetPresenceMode(_ context.Context) (string, error) {
+	return s.mode, s.modeErr
+}
+
+func TestCurrentLocationsPropagatesPresenceModeFailure(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("presence mode unavailable")
+	svc := &Service{ActiveService: stubActivePresence{modeErr: injected}}
+	locations, err := svc.loadCurrentLocations(context.Background(), nil)
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, locations)
 }
 
 func (s stubActivePresence) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeService.AttendanceStatus, error) {
@@ -73,24 +85,24 @@ func (s stubSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 // kreativraumRoomID is the room the mocked visit row points at.
 const kreativraumRoomID int64 = 7007
 
-// stubRoomDirectory stands in for the Facilities owner the visit repository
-// resolves room names through (#2665).
+// stubRoomDirectory supplies names from the Facilities owner.
 type stubRoomDirectory struct{}
 
-func (stubRoomDirectory) ListRoomsByID(_ context.Context, ids []int64) ([]activeRepo.DirectoryRoom, error) {
-	rooms := make([]activeRepo.DirectoryRoom, 0, len(ids))
+func (stubRoomDirectory) names(_ context.Context, ids []int64) (map[int64]string, error) {
+	rooms := make(map[int64]string, len(ids))
 	for _, id := range ids {
 		if id == kreativraumRoomID {
-			rooms = append(rooms, activeRepo.DirectoryRoom{ID: id, Name: "Kreativraum"})
+			rooms[id] = "Kreativraum"
 		}
 	}
 	return rooms, nil
 }
 
-func newVisitRepo(db *bun.DB) *activeRepo.VisitRepository {
-	repo := activeRepo.NewVisitRepository(db).(*activeRepo.VisitRepository)
-	repo.BindRoomDirectory(stubRoomDirectory{})
-	return repo
+func newVisitPresence(t *testing.T, db *bun.DB) visitLocationReader {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }
 
 func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
@@ -111,8 +123,8 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 	defer cleanup()
 
 	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
-		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_id"}).
-			AddRow(int64(101), kreativraumRoomID))
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "location_group_id", "location_room_id"}).
+			AddRow(int64(101), int64(5005), kreativraumRoomID))
 	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
 		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}).
 			AddRow(int64(101), "Lea", "Albrecht", "02551 111").
@@ -122,7 +134,7 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 	legacyName := "Familie Schmitt"
 	legacyPhone := "02551 444"
 	svc := NewService(Dependencies{
-		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
+		Attendance: stubAttendanceRepo{ids: []int64{101, 202}},
 		StudentRepo: stubStudentRepo{students: map[int64]*users.Student{
 			101: {PersonID: 301, SchoolClass: "Klasse 3b"},
 			202: {PersonID: 302, SchoolClass: "Klasse 2a", GuardianName: &legacyName, GuardianPhone: &legacyPhone},
@@ -132,11 +144,12 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 			302: {FirstName: "Max", LastName: "Schmitt"},
 		}},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           newVisitRepo(db),
+		Visits:              newVisitPresence(t, db),
+		RoomNames:           stubRoomDirectory{}.names,
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 
@@ -163,7 +176,7 @@ func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}))
 
 	svc := NewService(Dependencies{
-		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
+		Attendance: stubAttendanceRepo{ids: []int64{101, 202}},
 		StudentRepo: stubStudentRepo{students: map[int64]*users.Student{
 			101: {PersonID: 301, SchoolClass: "Klasse 3b"},
 			202: {PersonID: 302, SchoolClass: "Klasse 2a"},
@@ -180,11 +193,12 @@ func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
 			},
 		},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           newVisitRepo(db),
+		Visits:              newVisitPresence(t, db),
+		RoomNames:           stubRoomDirectory{}.names,
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 
@@ -200,15 +214,16 @@ func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
 	defer cleanup()
 
 	svc := NewService(Dependencies{
-		AttendanceRepo:      stubAttendanceRepo{ids: []int64{}},
+		Attendance:          stubAttendanceRepo{ids: []int64{}},
 		StudentRepo:         stubStudentRepo{},
 		PersonRepo:          stubPersonRepo{},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           newVisitRepo(db),
+		Visits:              newVisitPresence(t, db),
+		RoomNames:           stubRoomDirectory{}.names,
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Time{})
 	require.NoError(t, err)
 	assert.Equal(t, "0 anwesende Kinder", doc.Subtitle)
 	assert.Empty(t, doc.Rows)
@@ -221,11 +236,12 @@ func TestRenderSnapshot(t *testing.T) {
 	defer cleanup()
 
 	svc := NewService(Dependencies{
-		AttendanceRepo:      stubAttendanceRepo{ids: []int64{}},
+		Attendance:          stubAttendanceRepo{ids: []int64{}},
 		StudentRepo:         stubStudentRepo{},
 		PersonRepo:          stubPersonRepo{},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           newVisitRepo(db),
+		Visits:              newVisitPresence(t, db),
+		RoomNames:           stubRoomDirectory{}.names,
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
@@ -241,7 +257,7 @@ func TestBuildSnapshotDocumentRejectsMissingDependencies(t *testing.T) {
 
 	svc := NewService(Dependencies{})
 
-	_, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	_, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Time{})
 	require.Error(t, err)
 }
 
@@ -319,14 +335,15 @@ func healthDeps(t *testing.T, db *bun.DB, settings settingsReader, health map[in
 		202: {PersonID: 302, SchoolClass: "Klasse 2a", HealthInfo: health[202]},
 	}
 	return Dependencies{
-		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
-		StudentRepo:    stubStudentRepo{students: students},
+		Attendance:  stubAttendanceRepo{ids: []int64{101, 202}},
+		StudentRepo: stubStudentRepo{students: students},
 		PersonRepo: stubPersonRepo{persons: map[int64]*users.Person{
 			301: {FirstName: "Mila", LastName: "Albrecht"},
 			302: {FirstName: "Max", LastName: "Schmitt"},
 		}},
 		ListExport:          listexport.NewService(),
-		VisitRepo:           newVisitRepo(db),
+		Visits:              newVisitPresence(t, db),
+		RoomNames:           stubRoomDirectory{}.names,
 		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 		Settings:            settings,
 	}
@@ -334,7 +351,7 @@ func healthDeps(t *testing.T, db *bun.DB, settings settingsReader, health map[in
 
 func expectEmptySnapshotQueries(mock sqlmock.Sqlmock) {
 	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
-		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_id"}))
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "location_group_id", "location_room_id"}))
 	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
 		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}))
 }
@@ -372,7 +389,7 @@ func TestBuildSnapshotDocumentIncludesHealthInfoWhenEnabled(t *testing.T) {
 	note := "Nussallergie, Epipen im Gruppenraum"
 	svc := NewService(healthDeps(t, db, stubSettings{enabled: true}, map[int64]*string{101: &note}))
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC))
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 
@@ -395,7 +412,7 @@ func TestBuildSnapshotDocumentTreatsBlankHealthInfoAsMissing(t *testing.T) {
 	blank := "   \n\t "
 	svc := NewService(healthDeps(t, db, stubSettings{enabled: true}, map[int64]*string{101: &blank}))
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Time{})
 	require.NoError(t, err)
 	require.Len(t, doc.Rows, 2)
 	assert.Equal(t, "Nicht hinterlegt", healthByName(t, doc)["Mila Albrecht"])
@@ -413,7 +430,7 @@ func TestBuildSnapshotDocumentOmitsHealthInfoWhenDisabled(t *testing.T) {
 	note := "Asthma, Spray in der Tasche"
 	svc := NewService(healthDeps(t, db, stubSettings{enabled: false}, map[int64]*string{101: &note}))
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Time{})
 	require.NoError(t, err)
 
 	assert.NotContains(t, columnIDs(doc), listexport.ColumnHealthInfo)
@@ -437,7 +454,7 @@ func TestBuildSnapshotDocumentOmitsHealthInfoWhenSettingUnreadable(t *testing.T)
 	note := "Diabetes Typ 1"
 	svc := NewService(healthDeps(t, db, stubSettings{enabled: true, err: assert.AnError}, map[int64]*string{101: &note}))
 
-	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	doc, err := svc.BuildSnapshotDocument(testpkg.Ctx(t), time.Time{})
 	require.NoError(t, err)
 
 	assert.NotContains(t, columnIDs(doc), listexport.ColumnHealthInfo)

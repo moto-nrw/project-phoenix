@@ -10,18 +10,32 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type attendanceRepoForActiveWrapperTest struct {
-	activeModels.AttendanceRepository
+	StudentPresence
 	has     bool
 	err     error
-	gotDate timezone.Date
+	gotDate studentpresence.AttendanceFilter
 }
 
-func (r *attendanceRepoForActiveWrapperTest) HasOpenAttendanceOn(_ context.Context, date timezone.Date) (bool, error) {
+func TestActiveGroupVisitsPropagatesGroupLookupFailure(t *testing.T) {
+	t.Parallel()
+	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+			return nil, errors.New("group storage unavailable")
+		},
+	}}}
+	visits, err := svc.GetActiveGroupVisits(context.Background(), 1)
+	require.ErrorIs(t, err, ErrDatabaseOperation)
+	assert.NotErrorIs(t, err, ErrActiveGroupNotFound)
+	assert.Nil(t, visits)
+}
+
+func (r *attendanceRepoForActiveWrapperTest) HasAttendance(_ context.Context, date studentpresence.AttendanceFilter) (bool, error) {
 	r.gotDate = date
 	return r.has, r.err
 }
@@ -39,21 +53,70 @@ func (r *roomRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64)
 }
 
 type visitRepoForActiveWrapperTest struct {
-	activeModels.VisitRepository
-	rows             []*activeModels.VisitWithStudentDisplay
+	StudentPresence
+	rows             []*VisitWithStudentDisplay
 	err              error
 	gotActiveGroupID int64
 }
 
-func (r *visitRepoForActiveWrapperTest) FindActiveWithStudentDisplayByGroup(_ context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
-	r.gotActiveGroupID = activeGroupID
-	return r.rows, r.err
+func (r *visitRepoForActiveWrapperTest) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	r.gotActiveGroupID = filter.ActiveGroupIDs[0]
+	result := make([]studentpresence.Visit, 0, len(r.rows))
+	for _, row := range r.rows {
+		result = append(result, studentpresence.Visit{ID: row.VisitID, StudentID: row.StudentID})
+	}
+	return result, r.err
+}
+
+func (r *visitRepoForActiveWrapperTest) ListStudentDisplayFacts(context.Context, []int64) ([]StudentDisplayFacts, error) {
+	result := make([]StudentDisplayFacts, 0, len(r.rows))
+	for _, row := range r.rows {
+		result = append(result, StudentDisplayFacts{ID: row.StudentID})
+	}
+	return result, r.err
 }
 
 type crossTenantRepoForActiveWrapperTest struct {
 	students           []activeModels.CrossTenantStudent
 	err                error
 	gotHostingTenantID int64
+}
+
+type displayFactsForActiveTest struct {
+	rows []StudentDisplayFacts
+	err  error
+}
+
+func (d displayFactsForActiveTest) ListStudentDisplayFacts(context.Context, []int64) ([]StudentDisplayFacts, error) {
+	return d.rows, d.err
+}
+
+func TestVisitDisplayOmitsUnknownStudentsAndPropagatesDirectoryFailure(t *testing.T) {
+	t.Parallel()
+	presence := &visitRepoForActiveWrapperTest{rows: []*VisitWithStudentDisplay{
+		{VisitID: 90, StudentID: 91}, {VisitID: 92, StudentID: 93},
+	}}
+	sick := true
+	photo := "student-photo"
+	directory := displayFactsForActiveTest{rows: []StudentDisplayFacts{{
+		ID: 93, PersonID: 94, SchoolClass: "3a", Sick: &sick, PhotoPath: &photo,
+	}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: presence, StudentDisplay: directory}}
+	rows, err := svc.GetActiveGroupVisitsWithDisplay(context.Background(), 80)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "a visit cannot expose a student missing from the tenant directory")
+	assert.Equal(t, int64(92), rows[0].VisitID)
+	assert.Equal(t, int64(93), rows[0].StudentID)
+	assert.Equal(t, int64(94), rows[0].PersonID)
+	assert.Equal(t, "3a", rows[0].SchoolClass)
+	assert.Equal(t, &sick, rows[0].Sick)
+	assert.Equal(t, &photo, rows[0].PhotoPath)
+
+	injected := errors.New("student directory failed")
+	svc.StudentDisplay = displayFactsForActiveTest{err: injected}
+	rows, err = svc.GetActiveGroupVisitsWithDisplay(context.Background(), 80)
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, rows)
 }
 
 func (r *crossTenantRepoForActiveWrapperTest) FindCrossTenantStudents(_ context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
@@ -121,19 +184,19 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Run("has open attendance delegates date and result", func(t *testing.T) {
 		date := timezone.DateFromTime(timezone.NewDate(2026, 8, 24).BerlinMidnight())
 		repo := &attendanceRepoForActiveWrapperTest{has: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{AttendanceRepo: repo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: repo}}
 
 		hasOpen, err := svc.HasOpenAttendanceOn(ctx, date)
 
 		require.NoError(t, err)
 		assert.True(t, hasOpen)
-		assert.Equal(t, date, repo.gotDate)
+		assert.Equal(t, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true}, repo.gotDate)
 	})
 
 	t.Run("has open attendance preserves repository error", func(t *testing.T) {
 		expectedErr := errors.New("attendance lookup failed")
 		repo := &attendanceRepoForActiveWrapperTest{err: expectedErr}
-		svc := &service{ServiceDependencies: ServiceDependencies{AttendanceRepo: repo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: repo}}
 
 		hasOpen, err := svc.HasOpenAttendanceOn(ctx, timezone.NewDate(2026, 8, 24))
 
@@ -154,9 +217,9 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	})
 
 	t.Run("get active group visits with display delegates active group id", func(t *testing.T) {
-		rows := []*activeModels.VisitWithStudentDisplay{{VisitID: 90, StudentID: 91}}
+		rows := []*VisitWithStudentDisplay{{VisitID: 90, StudentID: 91}}
 		repo := &visitRepoForActiveWrapperTest{rows: rows}
-		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: repo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: repo, StudentDisplay: repo}}
 
 		got, err := svc.GetActiveGroupVisitsWithDisplay(ctx, 80)
 

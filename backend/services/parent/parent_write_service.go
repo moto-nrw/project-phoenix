@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -1455,10 +1456,10 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 }
 
 func (s *service) childAlreadyLeftToday(ctx context.Context, studentID int64, date, today timezone.Date) (bool, error) {
-	if date != today || s.AttendanceRepo == nil {
+	if date != today || s.Attendance == nil {
 		return false, nil
 	}
-	rows, err := s.AttendanceRepo.FindByStudentAndDate(ctx, studentID, date)
+	rows, err := s.Attendance.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String()})
 	if err != nil {
 		return false, err
 	}

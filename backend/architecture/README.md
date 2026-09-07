@@ -216,6 +216,16 @@ rules. Restoring its target permission is still policy loosening. Removing the
 import requires removing its debt entry in the same change. No schema change
 or second allowlist is needed for the final contract step.
 
+The Workforce compatibility adapter (`modules/workforce/legacy`) and the
+Workforce HTTP composition (`modules/workforce/inbound`) are classified as
+`workforce`/`adapter`. Their imports of the retained `models/active`,
+`models/education`, `models/users`, `models/base` and calendar-date contracts
+are target-allowed `workforce.adapter.*` rules only because PR mode cannot
+record debt for a package the candidate creates. They are compatibility
+permissions for #2688's retained consumers, not target dependencies: convert
+them to exact debt with the rule below once the packages exist at a base SHA,
+and delete the adapter with the last consumer of those contracts.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to

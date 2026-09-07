@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -23,12 +22,10 @@ import (
 // Compile-time assertions for base.Entity interface compliance
 var (
 	// active package
-	_ base.Entity = (*active.Attendance)(nil)
 	_ base.Entity = (*active.CombinedGroup)(nil)
 	_ base.Entity = (*active.Group)(nil)
 	_ base.Entity = (*active.GroupMapping)(nil)
 	_ base.Entity = (*active.GroupSupervisor)(nil)
-	_ base.Entity = (*active.Visit)(nil)
 
 	// activities package
 
@@ -49,9 +46,6 @@ var (
 	_ base.Entity = (*education.Group)(nil)
 	_ base.Entity = (*education.GroupSubstitution)(nil)
 	_ base.Entity = (*education.GroupTeacher)(nil)
-
-	// iot package
-	_ base.Entity = (*iot.Device)(nil)
 
 	// platform package
 	_ base.Entity = (*platform.OperatorRefreshToken)(nil)

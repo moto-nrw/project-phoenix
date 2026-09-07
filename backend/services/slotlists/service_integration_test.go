@@ -17,7 +17,8 @@ import (
 	"testing"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -31,6 +32,7 @@ import (
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -277,8 +279,7 @@ func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: newBoundInstanceStudentRepository(db),
-		VisitRepo:           activeRepo.NewVisitRepository(db),
-		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
+		Presence:            newSlotListPresence(db),
 		StatusDayRepo:       scheduleRepos.StatusDay,
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
 			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
@@ -1253,17 +1254,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	checkIn := atOn(pickupDate, 8, 0)
 	checkOut := atOn(pickupDate, 15, 30)
 	for _, sid := range []int64{early.ID, late.ID, walkIn.ID} {
-		att := &activeModels.Attendance{
-			StudentID:    sid,
-			Date:         pickupDate,
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			CheckedInBy:  staff.ID,
-			DeviceID:     device.ID,
-		}
-		att.SetTenantID(testpkg.Tenant(t))
-		_, err := db.NewInsert().Model(att).ModelTableExpr(`active.attendance`).Exec(ctx)
-		require.NoError(t, err)
+		testpkg.CreateTestAttendanceForDate(t, db, sid, staff.ID, device.ID, pickupDate, checkIn, &checkOut)
 	}
 
 	svc := newTestService(db)
@@ -1903,10 +1894,10 @@ func TestBuildList_PickupCohortKeepsExpiredActualAttendance(t *testing.T) {
 		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID}
 	pickup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, studentPickupScheduleRepository(db).Create(ctx, pickup))
-	attendance := &activeModels.Attendance{StudentID: student.ID, Date: pickupDate,
+	attendance := studentpresence.Attendance{StudentID: student.ID, Date: pickupDate.String(), TenantID: testpkg.Tenant(t),
 		CheckInTime: atOn(pickupDate, 8, 0), CheckedInBy: staff.ID, DeviceID: device.ID}
-	attendance.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, activeRepo.NewAttendanceRepository(db).Create(ctx, attendance))
+	_, err = newSlotListPresence(db).RecordAttendance(ctx, attendance)
+	require.NoError(t, err)
 	svc := newTestServiceWithParticipation(db, newTestRoomRepository(db), stubSlotListSettings{},
 		slotListUserContext{currentStaff: &userModels.Staff{}}, slotListParticipation{student.ID: false})
 	result, err := svc.BuildList(ctx, slotlists.Params{Date: pickupDate, Target: slotlists.TargetPickupCohort,
@@ -2929,17 +2920,7 @@ func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing
 	// The child attended anyway (closed attendance still counts).
 	checkIn := atOn(pickupDate, 8, 0)
 	checkOut := atOn(pickupDate, 15, 30)
-	att := &activeModels.Attendance{
-		StudentID:    child.ID,
-		Date:         pickupDate,
-		CheckInTime:  checkIn,
-		CheckOutTime: &checkOut,
-		CheckedInBy:  staff.ID,
-		DeviceID:     device.ID,
-	}
-	att.SetTenantID(testpkg.Tenant(t))
-	_, err = db.NewInsert().Model(att).ModelTableExpr(`active.attendance`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.CreateTestAttendanceForDate(t, db, child.ID, staff.ID, device.ID, pickupDate, checkIn, &checkOut)
 
 	svc := newTestService(db)
 	result, err := svc.BuildList(ctx, slotlists.Params{
@@ -3020,4 +3001,12 @@ func newApprovedOfferingProjection(db *bun.DB) scheduleSvc.ApprovedBookingReader
 		panic(err)
 	}
 	return projection
+}
+
+func newSlotListPresence(db *bun.DB) *studentpresence.Module {
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	if err != nil {
+		panic(err)
+	}
+	return module
 }

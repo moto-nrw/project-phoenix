@@ -35,11 +35,6 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
-	if err != nil {
-		return WorkSessionTestModule{}, err
-	}
-	r = r.WithConfigRuntime(newSettingsRuntime(db, &unit).WithSchoolMembership(membership))
 	service := active.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, r.WorkSessionEdit,
 		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, r.Staff, r.StaffWorkSchedule, r.WorkTimeModel, settings.Settings, slog.Default(), db)
 	service.SetStaffShiftRepo(r.StaffShift)

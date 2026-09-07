@@ -154,7 +154,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
@@ -196,7 +196,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Notifier = notifier
@@ -251,7 +251,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: errors.New("temporary notification failure")}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Notifier = notifier
@@ -328,7 +328,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	require.NoError(t, err)
 
 	notifier := &reminderCaptureNotifier{}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = nil
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
@@ -355,7 +355,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
@@ -399,7 +399,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}

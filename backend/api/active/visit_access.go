@@ -16,7 +16,7 @@ const visitAccessPolicyName = "student_visit_access"
 type visitAccessQuery struct{ resource *Resource }
 
 func (q visitAccessQuery) VisitStudentID(ctx context.Context, visitID int64) (int64, error) {
-	visit, err := q.resource.ActiveService.GetVisit(ctx, visitID)
+	visit, err := q.resource.findPresenceVisit(ctx, visitID)
 	if err != nil {
 		return 0, err
 	}
@@ -92,7 +92,7 @@ func (q visitAccessQuery) SupervisedActiveGroupIDs(ctx context.Context, staffID 
 }
 
 func (q visitAccessQuery) StudentCurrentActiveGroupID(ctx context.Context, studentID int64) (int64, bool) {
-	visit, err := q.resource.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	visit, err := q.resource.currentPresenceVisit(ctx, studentID)
 	if err != nil || visit == nil {
 		return 0, false
 	}

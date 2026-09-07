@@ -20,9 +20,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	if repo, ok := f.CrossTenant.(*activeRepo.CrossTenantRepository); ok {
 		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
 	}
-	if repo, ok := f.ActiveVisit.(*activeRepo.VisitRepository); ok {
-		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
-	}
 
 	if repo, ok := f.ParentChild.(*parentRepo.ChildRepository); ok {
 		repo.BindStudentDirectory(parentStudentDirectory{students})

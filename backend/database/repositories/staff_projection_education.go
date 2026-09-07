@@ -7,32 +7,41 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// supervisionStaffResolverSetter and substitutionStaffResolverSetter are the
-// seams the education repositories expose for their staff lookups. They are
-// declared with plain function types so this package needs neither the
-// calendar-date nor the query-option vocabulary of the repository layer.
+// supervisionStaffResolverSetter is the seam the group repository exposes
+// for its staff lookup. It is declared with a plain function type so this
+// package needs neither the calendar-date nor the query-option vocabulary
+// of the repository layer.
 type supervisionStaffResolverSetter interface {
 	SetSupervisionStaffResolver(func(context.Context, educationRepo.GroupMembershipPairs) ([]educationModels.StaffGroupID, error))
 }
 
-type substitutionStaffResolverSetter interface {
-	SetSubstitutionStaffResolver(func(context.Context, []*educationModels.GroupSubstitution) error)
-}
+// substitutedStaffQuery answers who substitutes in the given groups on a
+// day. education.group_substitution belongs to Workforce (#2688); the root
+// supplies the owner's query so the group repository never joins the table.
+type substitutedStaffQuery = func(ctx context.Context, groupIDs []int64, on string) ([]educationModels.StaffGroupID, error)
 
 // supervisionStaffResolver resolves who supervises a group on a day: the
 // assigned teachers through their live teacher and staff rows, plus the
 // substituting staff that are still live. Offboarded teachers and staff drop
 // out, as the replaced inner joins did.
-func supervisionStaffResolver(membership staffLookup) func(context.Context, educationRepo.GroupMembershipPairs) ([]educationModels.StaffGroupID, error) {
+func supervisionStaffResolver(membership staffLookup, substitutions substitutedStaffQuery) func(context.Context, educationRepo.GroupMembershipPairs) ([]educationModels.StaffGroupID, error) {
 	return func(ctx context.Context, raw educationRepo.GroupMembershipPairs) ([]educationModels.StaffGroupID, error) {
 		staffByTeacher, err := resolveTeacherStaff(ctx, membership, raw.Assigned)
 		if err != nil {
 			return nil, err
 		}
-		substituteIDs := make([]int64, 0, len(raw.Substituted))
-		for _, pair := range raw.Substituted {
+		if substitutions == nil {
+			return nil, fmt.Errorf("group supervision resolves substitutions through Workforce")
+		}
+		substituted, err := substitutions(ctx, raw.GroupIDs, raw.On.String())
+		if err != nil {
+			return nil, fmt.Errorf("load substitutions of group supervision: %w", err)
+		}
+		substituteIDs := make([]int64, 0, len(substituted))
+		for _, pair := range substituted {
 			substituteIDs = append(substituteIDs, pair.StaffID)
 		}
 		liveSubstitutes, err := staffByID(ctx, membership, substituteIDs, false)
@@ -41,7 +50,7 @@ func supervisionStaffResolver(membership staffLookup) func(context.Context, educ
 		}
 
 		// Assignments first, then substitutions, each in query order.
-		result := make([]educationModels.StaffGroupID, 0, len(raw.Assigned)+len(raw.Substituted))
+		result := make([]educationModels.StaffGroupID, 0, len(raw.Assigned)+len(substituted))
 		seen := make(map[educationModels.StaffGroupID]struct{}, cap(result))
 		appendPair := func(pair educationModels.StaffGroupID) {
 			if _, dup := seen[pair]; dup {
@@ -57,13 +66,35 @@ func supervisionStaffResolver(membership staffLookup) func(context.Context, educ
 			}
 			appendPair(educationModels.StaffGroupID{StaffID: staffID, GroupID: pair.GroupID})
 		}
-		for _, pair := range raw.Substituted {
+		for _, pair := range substituted {
 			if _, found := liveSubstitutes[pair.StaffID]; !found {
 				continue
 			}
 			appendPair(pair)
 		}
 		return result, nil
+	}
+}
+
+// workforceSubstitutedStaff adapts the Workforce capability to the
+// supervision resolver's substitution query.
+func workforceSubstitutedStaff(capability workforce.Capability) substitutedStaffQuery {
+	if capability == nil {
+		return nil
+	}
+	return func(ctx context.Context, groupIDs []int64, on string) ([]educationModels.StaffGroupID, error) {
+		if len(groupIDs) == 0 {
+			return []educationModels.StaffGroupID{}, nil
+		}
+		rows, err := capability.ListGroupSubstitutions(ctx, workforce.GroupSubstitutionFilter{GroupIDs: groupIDs, On: on})
+		if err != nil {
+			return nil, err
+		}
+		pairs := make([]educationModels.StaffGroupID, 0, len(rows))
+		for _, row := range rows {
+			pairs = append(pairs, educationModels.StaffGroupID{StaffID: row.SubstituteStaffID, GroupID: row.GroupID})
+		}
+		return pairs, nil
 	}
 }
 

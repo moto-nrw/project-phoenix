@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +22,23 @@ import (
 )
 
 type failingBoolSettings struct{ err error }
+
+type failedPresenceMode struct {
+	activeService.Service
+	err error
+}
+
+func (s failedPresenceMode) GetPresenceMode(context.Context) (string, error) { return "", s.err }
+
+func TestLoadLocationsPropagatesPresenceModeFailure(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("presence mode unavailable")
+	svc := &service{}
+	svc.deps.Active = failedPresenceMode{err: injected}
+	result, err := svc.loadLocations(context.Background(), nil)
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, result)
+}
 
 type presenceCapturingResolver struct {
 	actuallyPresent map[int64]bool
@@ -52,7 +71,7 @@ func TestRoomStatusesOmitCurrentRoomWithoutGroupRoom(t *testing.T) {
 
 	students := []Student{{ID: 101}}
 	locations := &activeService.StudentLocationSnapshot{
-		Visits: map[int64]*activeModels.Visit{101: {ActiveGroupID: 201}},
+		Visits: map[int64]*studentpresence.Visit{101: {ActiveGroupID: 201}},
 		Groups: map[int64]*activeModels.Group{201: {RoomID: 301}},
 	}
 
@@ -87,7 +106,7 @@ func TestFilterCareParticipationLetsResolverLoadOpenRosterCheckins(t *testing.T)
 		studentIDs: []int64{student.ID},
 		data: &snapshot{locations: &activeService.StudentLocationSnapshot{
 			Attendances: map[int64]*activeService.AttendanceStatus{student.ID: {Status: "checked_out"}},
-			Visits:      map[int64]*activeModels.Visit{},
+			Visits:      map[int64]*studentpresence.Visit{},
 		}},
 		today: timezone.TodayDate(),
 	}
@@ -197,7 +216,7 @@ func TestProjectStudentsAppliesAccessAndPhotoRules(t *testing.T) {
 		locations: &activeService.StudentLocationSnapshot{
 			Mode:        activeService.PresenceModeDetailed,
 			Attendances: map[int64]*activeService.AttendanceStatus{},
-			Visits:      map[int64]*activeModels.Visit{},
+			Visits:      map[int64]*studentpresence.Visit{},
 			Groups:      map[int64]*activeModels.Group{},
 		},
 	}

@@ -6,9 +6,10 @@
 package checkin_test
 
 import (
-	"context"
 	"testing"
 	"time"
+
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	result := tc.svc.GetDeviceActiveGroupInRoom(ctx, 999999, 1)
 
@@ -124,7 +125,7 @@ func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "count-students")
 	room := testpkg.CreateTestRoom(t, tc.db, "CountStudentsRoom")
@@ -144,7 +145,7 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "EmptyCountRoom")
 
@@ -162,7 +163,7 @@ func TestUpdateSessionActivity_Success(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "session-activity")
 	room := testpkg.CreateTestRoom(t, tc.db, "SessionActivityRoom")
@@ -176,7 +177,7 @@ func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	// Should log warning but not panic
 	tc.svc.UpdateSessionActivity(ctx, 999999)
@@ -190,7 +191,7 @@ func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "occ-count")
 	room := testpkg.CreateTestRoom(t, tc.db, "OccCountRoom")
@@ -208,7 +209,7 @@ func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "occ-empty")
 	room := testpkg.CreateTestRoom(t, tc.db, "OccEmptyRoom")
@@ -224,7 +225,7 @@ func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "occ-exited")
 	room := testpkg.CreateTestRoom(t, tc.db, "OccExitedRoom")
@@ -250,10 +251,11 @@ func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 	t.Parallel()
 	tc := setupCheckinServiceModule(t)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	// Non-existent student
-	result := tc.svc.LoadCurrentVisitWithRoom(ctx, 999999)
+	result, err := tc.svc.LoadCurrentVisitWithRoom(ctx, 999999)
+	require.NoError(t, err)
 	assert.Nil(t, result, "Should return nil for a student with no current visit")
 }
 
@@ -269,7 +271,8 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Load", "Visit", "1a")
 	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
-	result := tc.svc.LoadCurrentVisitWithRoom(ctx, student.ID)
+	result, err := tc.svc.LoadCurrentVisitWithRoom(ctx, student.ID)
+	require.NoError(t, err)
 
 	require.NotNil(t, result, "Should return the current visit")
 	assert.Equal(t, visit.ID, result.ID)
@@ -298,7 +301,7 @@ func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 	tc := setupCheckinServiceModule(t)
 
 	// Use a non-existent room ID
-	name := tc.svc.RoomNameByIDForTest(context.Background(), nil, 999999)
+	name := tc.svc.RoomNameByIDForTest(testpkg.Ctx(t), nil, 999999)
 	assert.Equal(t, "Room 999999", name)
 }
 
@@ -320,7 +323,7 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
 
 	// Visit without ActiveGroup.Room loaded
-	visit := &active.Visit{ActiveGroup: &active.Group{}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{}}
 	roomID := room.ID
 	name := tc.svc.RoomNameForResponseForTest(testpkg.Ctx(t), visit, &roomID)
 	assert.Contains(t, name, "FallbackRoom")

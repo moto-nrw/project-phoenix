@@ -8,7 +8,6 @@ import (
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	fileRepo "github.com/moto-nrw/project-phoenix/database/repositories/filestore"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	fileModels "github.com/moto-nrw/project-phoenix/models/filestore"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -54,7 +53,7 @@ func NewFileStoreTestRepositories(db *bun.DB, command auditModels.Command) (File
 	return FileStoreTestRepositories{
 		Folders: personFolderRepository{FolderRepository: fileRepo.NewFolderRepository(db), persons: persons},
 		Files:   fileRepo.NewFileRepository(db), Attachments: fileRepo.NewAnnouncementAttachmentRepository(db),
-		Events: NewFileEventTestRepository(db, command), Announcements: usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New()),
+		Events: NewFileEventTestRepository(db, command), Announcements: NewParentAnnouncementRepository(db, enrollmentAudience.New()),
 	}, nil
 }
 

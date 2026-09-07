@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // Conflict kinds — stable string values exported to clients so the frontend
@@ -69,17 +70,16 @@ type InstanceConflictWarning struct {
 type ConflictDependencies struct {
 	GroupRepo         active.GroupRepository
 	SupervisorRepo    active.GroupSupervisorRepository
-	VisitRepo         active.VisitRepository
+	Presence          StudentVisitReader
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
 }
 
 // DetectStartConflicts runs the three sub-checks for the given planned
-// instance and returns a (possibly empty) list of warnings. It mutates
-// nothing and never returns an error that should block the transition —
-// a DB error on one sub-check is logged and surfaces as zero warnings for
-// that kind; the caller continues.
+// instance and returns a (possibly empty) list of warnings. Conflicts remain
+// advisory, but failures to load expected students or their current presence
+// abort the transition: unavailable presence is not evidence of no conflict.
 //
 // Ordering is deterministic: staff first (sorted by instance_staff row ID),
 // then student (sorted by instance_students row ID). Tests rely on that
@@ -89,7 +89,7 @@ func DetectStartConflicts(
 	deps ConflictDependencies,
 	instance *scheduleModel.ActivityInstance,
 	logger *slog.Logger,
-) []InstanceConflictWarning {
+) ([]InstanceConflictWarning, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -179,10 +179,7 @@ func DetectStartConflicts(
 	// OGS group), measurable latency inside the tenant tx.
 	studentRows, err := deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		logger.Warn("conflict detection: load instance_students failed",
-			slog.Int64("instance_id", instance.ID),
-			slog.String("error", err.Error()),
-		)
+		return nil, &ScheduleError{Op: "detect start conflicts: load students", Err: err}
 	}
 	expectedIDs := make([]int64, 0, len(studentRows))
 	for _, row := range studentRows {
@@ -192,20 +189,22 @@ func DetectStartConflicts(
 		expectedIDs = append(expectedIDs, row.StudentID)
 	}
 	if len(expectedIDs) > 0 {
-		visits, err := deps.VisitRepo.GetCurrentByStudentIDs(ctx, expectedIDs)
+		rows, err := deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: expectedIDs, OpenOnly: true, NewestFirst: true, StudentOrder: true})
 		if err != nil {
-			logger.Warn("conflict detection: student current visits lookup failed",
-				slog.Int64("instance_id", instance.ID),
-				slog.Int("student_count", len(expectedIDs)),
-				slog.String("error", err.Error()),
-			)
+			return nil, &ScheduleError{Op: "detect start conflicts: load student presence", Err: err}
 		} else {
+			visits := make(map[int64]studentpresence.Visit, len(rows))
+			for _, row := range rows {
+				if _, found := visits[row.StudentID]; !found {
+					visits[row.StudentID] = row
+				}
+			}
 			// Iterate expectedIDs (not the map) so warning order stays
 			// deterministic — it mirrors the instance_students insertion
 			// order from materialization, which tests rely on.
 			for _, sid := range expectedIDs {
 				visit, ok := visits[sid]
-				if !ok || visit == nil {
+				if !ok {
 					continue
 				}
 				warnings = append(warnings, InstanceConflictWarning{
@@ -218,7 +217,7 @@ func DetectStartConflicts(
 		}
 	}
 
-	return warnings
+	return warnings, nil
 }
 
 type activeStaffConflicts struct {
@@ -408,7 +407,7 @@ type PlannedConflictDependencies struct {
 // DetectStartConflicts, but planning-time: it compares against the timetable
 // (schedule.activity_instances), not the live layer (active.*).
 //
-// Error handling mirrors DetectStartConflicts: a failing sub-check degrades
+// This planning-only probe remains best-effort: a failing sub-check degrades
 // to zero warnings of that kind plus a slog warning — the probe must never
 // turn into a 500 for the planner UI.
 //

@@ -54,7 +54,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	devices, err := repositories.NewDeviceTestRepository(db)
+	devices, err := repositories.NewDeviceRepository(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -78,9 +78,19 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	}
 	schedule.WireCareParticipation(careDay, care.CareLifecycle)
 	bridge := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
+	students, err := repositories.NewPeopleDirectory(db)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	displayGroups, err := repositories.NewSchoolStructure(db)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	presence := active.NewService(active.ServiceDependencies{
-		GroupRepo: r.ActiveGroup, SessionStartLock: r.SessionStartLock, VisitRepo: r.ActiveVisit, SupervisorRepo: r.GroupSupervisor,
-		CombinedGroupRepo: r.CombinedGroup, GroupMappingRepo: r.GroupMapping, AttendanceRepo: r.Attendance,
+		StudentDisplay: studentDisplayProjection{students: students, groups: displayGroups},
+		SchoolPresence: newStudentPresence(db, logger),
+		GroupRepo:      r.ActiveGroup, SessionStartLock: r.SessionStartLock, SupervisorRepo: r.GroupSupervisor,
+		CombinedGroupRepo: r.CombinedGroup, GroupMappingRepo: r.GroupMapping,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
 		StudentRepo: r.Student, PersonRepo: r.Person, TeacherRepo: r.Teacher, StaffRepo: r.Staff, RoomRepo: r.Room,
 		ActivityGroupRepo: r.ActivityGroup, ActivityCatRepo: r.ActivityCategory, EducationGroupRepo: r.Group, DeviceRepo: devices,
@@ -98,7 +108,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	operations := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
 		InstanceRepo: r.ActivityInstance, InstanceStaffRepo: r.InstanceStaff, InstanceStudents: r.InstanceStudent, InstanceService: tt.Instance,
 		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
-		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, VisitRepo: r.ActiveVisit,
+		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, Presence: newStudentPresence(db, logger),
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})

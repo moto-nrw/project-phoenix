@@ -39,11 +39,11 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
+		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
 			if inst.ID == 104 {
-				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}
+				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}, nil
 			}
-			return nil
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -63,6 +63,37 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 	assert.Equal(t, []int64{101, 102, 103, 104, 105}, staffRepo.requestedIDs)
 }
 
+func TestAutoStart_RunForTenant_ReportsConflictReadFailureAndRetries(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
+	injected := errors.New("presence lookup failed")
+	readErr := injected
+	starter := &autoStartInstanceStarter{}
+	svc := NewAutoStartService(AutoStartDependencies{
+		InstanceRepo: &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
+			autoStartInstance(201, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+		}},
+		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{201: 1}},
+		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, readErr
+		},
+		Logger: slog.Default(),
+	})
+	result, err := svc.RunForTenant(context.Background(), now)
+	require.ErrorIs(t, err, injected)
+	assert.Equal(t, 1, result.Failed)
+	assert.Zero(t, result.SkippedConflict)
+	assert.Zero(t, result.Started)
+	assert.Empty(t, starter.startedIDs)
+	readErr = nil
+	result, err = svc.RunForTenant(context.Background(), now)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Started)
+	assert.Equal(t, []int64{201}, starter.startedIDs)
+}
+
 func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 	t.Parallel()
 
@@ -78,8 +109,8 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
-			return nil
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -114,8 +145,8 @@ func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
-			return nil
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -150,9 +181,9 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 			401: {ID: 401, Name: constants.SchulhofRoomName},
 			402: {ID: 402, Name: "Lernraum"},
 		}},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
+		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
 			conflictChecks = append(conflictChecks, inst.ID)
-			return nil
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})

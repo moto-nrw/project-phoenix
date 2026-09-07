@@ -134,15 +134,18 @@ type TeacherGroupID struct {
 }
 
 // GroupMembershipPairs are the raw supervision references of a set of
-// education groups: teacher assignments and substitutions, both unresolved.
-// The composition layer turns them into (staff, group) pairs through School
-// Membership, dropping references to offboarded teachers and staff (#2667).
+// education groups: the teacher assignments, unresolved, plus the groups and
+// day the substitutions must be read for. The composition layer turns them
+// into (staff, group) pairs through School Membership and Workforce, dropping
+// references to offboarded teachers and staff (#2667, #2688).
 type GroupMembershipPairs struct {
 	// Assigned pairs a group with the teacher assigned to it.
 	Assigned []TeacherGroupID
-	// Substituted pairs a group with the staff member substituting in it
-	// on the requested day.
-	Substituted []education.StaffGroupID
+	// GroupIDs and On name the substitutions to add: whoever substitutes in
+	// one of these groups on that day. education.group_substitution belongs
+	// to Workforce, so this repository does not read it.
+	GroupIDs []int64
+	On       timezone.Date
 }
 
 // SetSupervisionStaffResolver installs the lookup that turns the raw
@@ -156,9 +159,10 @@ func (r *GroupRepository) SetSupervisionStaffResolver(resolve func(ctx context.C
 // listGroupMembershipPairs returns the unresolved supervision references of
 // the given groups on the given day.
 //
-// The bulk mirror of usercontext.GetMyGroups read from the group side, built
-// from the same two sources with the same predicates: teacher assignments
-// plus substitutions active on the day.
+// The bulk mirror of usercontext.GetMyGroups read from the group side: the
+// teacher assignments come from School Membership through the injected query,
+// the substitutions active on the day from Workforce through the supervision
+// resolver installed by the composition root.
 func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs []int64, on timezone.Date) (GroupMembershipPairs, error) {
 	var pairs GroupMembershipPairs
 	if len(groupIDs) == 0 {
@@ -176,22 +180,8 @@ func (r *GroupRepository) listGroupMembershipPairs(ctx context.Context, groupIDs
 		}
 	}
 	pairs.Assigned = append(pairs.Assigned, assignments...)
-
-	substitutedQuery := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`education.group_substitution AS "sub"`).
-		ColumnExpr(`"sub".substitute_staff_id AS staff_id, "sub".group_id AS group_id`).
-		Where(`"sub".group_id IN (?)`, bun.List(groupIDs)).
-		Where(`"sub".start_date <= ?`, on).
-		Where(`"sub".end_date >= ?`, on)
-
-	substitutedQuery = base.WithTenantFilter(ctx, substitutedQuery, "sub")
-
-	if err := substitutedQuery.Scan(ctx, &pairs.Substituted); err != nil {
-		return GroupMembershipPairs{}, &modelBase.DatabaseError{
-			Op:  "list staff IDs by education group IDs (substitutions)",
-			Err: base.TranslateNotFound(err),
-		}
-	}
+	pairs.GroupIDs = groupIDs
+	pairs.On = on
 
 	return pairs, nil
 }

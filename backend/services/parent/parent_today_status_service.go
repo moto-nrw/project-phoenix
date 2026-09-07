@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -50,11 +51,11 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		}
 		facts.HasAbsence = absent
 
-		if s.AttendanceRepo == nil {
+		if s.Attendance == nil {
 			return nil
 		}
 
-		rows, attErr := s.AttendanceRepo.FindByStudentAndDate(txCtx, studentID, today)
+		rows, attErr := s.Attendance.ListAttendance(txCtx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
 		if attErr != nil {
 			return attErr
 		}
@@ -73,9 +74,9 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 			}
 		}
 
-		tracks, trackErr := s.AttendanceRepo.HasAnyInRange(
-			txCtx, today.AddDays(-attendanceCultureLookbackDays), today,
-		)
+		tracks, trackErr := s.Attendance.HasAttendance(txCtx, studentpresence.AttendanceFilter{
+			FromDate: today.AddDays(-attendanceCultureLookbackDays).String(), UntilDate: today.String(),
+		})
 		if trackErr != nil {
 			return trackErr
 		}

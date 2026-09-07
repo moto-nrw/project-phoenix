@@ -37,9 +37,10 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 		PersonRepo: tt.Person, StudentRepo: tt.Student, StaffRepo: tt.Staff, TeacherRepo: tt.Teacher, AccountRepo: r.Account, DB: db, Logger: slog.Default(),
 	})
 	presence := active.NewService(active.ServiceDependencies{
-		UsersService: persons, GroupRepo: tt.ActiveGroup, VisitRepo: tt.ActiveVisit, SupervisorRepo: tt.GroupSupervisor,
+		UsersService: persons, GroupRepo: tt.ActiveGroup, SupervisorRepo: tt.GroupSupervisor,
 		StudentRepo: tt.Student, PersonRepo: tt.Person, StaffRepo: tt.Staff, RoomRepo: tt.Room,
-		ActivityGroupRepo: tt.ActivityGroup, AttendanceRepo: repositories.NewAttendanceTestRepository(db), DB: db, Logger: slog.Default(),
+		ActivityGroupRepo: tt.ActivityGroup, DB: db, Logger: slog.Default(),
+		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 
 	return GroupsTestModule{Education: groups, Active: presence, Users: persons, UserContext: identity.UserContext}, nil

@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,7 +210,7 @@ func TestUpdateDeviceLastSeen_FirstCallWritesImmediately(t *testing.T) {
 	debouncer := newLastSeenDebouncer()
 
 	mockService := newMockIoTService()
-	device := &iot.Device{Model: base.Model{ID: 7001}, DeviceID: "device-first-write"}
+	device := &iot.Device{ID: 7001, DeviceID: "device-first-write"}
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -226,7 +225,7 @@ func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T)
 	debouncer := newLastSeenDebouncer()
 
 	mockService := newMockIoTService()
-	device := &iot.Device{Model: base.Model{ID: 7002}, DeviceID: "device-debounce-timer"}
+	device := &iot.Device{ID: 7002, DeviceID: "device-debounce-timer"}
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -263,7 +262,7 @@ func TestUpdateDeviceLastSeen_ConcurrentFirstCallsOnlyWriteOnce(t *testing.T) {
 	mockService := newMockIoTService()
 	mockService.updateStarted = make(chan struct{}, 2)
 	mockService.updateBlock = make(chan struct{})
-	device := &iot.Device{Model: base.Model{ID: 7003}, DeviceID: "device-concurrent-first-write"}
+	device := &iot.Device{ID: 7003, DeviceID: "device-concurrent-first-write"}
 
 	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -298,7 +297,7 @@ func TestUpdateDeviceLastSeen_ErrorDoesNotPreventSubsequentCalls(t *testing.T) {
 
 	mockService := newMockIoTService()
 	mockService.updateError = errors.New("temporary db error")
-	device := &iot.Device{Model: base.Model{ID: 7004}, DeviceID: "device-error-recovery"}
+	device := &iot.Device{ID: 7004, DeviceID: "device-error-recovery"}
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 

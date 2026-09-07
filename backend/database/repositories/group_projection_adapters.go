@@ -133,22 +133,6 @@ func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Con
 	return rows, nil
 }
 
-type groupVisitRepository struct {
-	activeModels.VisitRepository
-	groups schoolstructure.Query
-}
-
-func (r groupVisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
-	rows, err := r.VisitRepository.FindActiveWithStudentDisplayByGroup(ctx, activeGroupID)
-	if err != nil {
-		return nil, err
-	}
-	return enrichGroupNames(ctx, r.groups, rows,
-		func(row *activeModels.VisitWithStudentDisplay) int64 { return optionalGroupID(row.GroupID) },
-		func(row *activeModels.VisitWithStudentDisplay, name string) { row.OGSGroupName = name },
-		"", "active group visits")
-}
-
 // activityGroupTargets is the shape the timetable services type-assert on
 // the activity group repository; the decorator keeps both halves reachable.
 type activityGroupTargets interface {

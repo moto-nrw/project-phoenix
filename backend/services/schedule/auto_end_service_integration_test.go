@@ -29,13 +29,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	started, err := s.svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
 
-	visit := &activeModels.Visit{
-		StudentID:     s.student1,
-		ActiveGroupID: started.ActiveGroupID,
-		EntryTime:     autoEndNow.Add(-time.Hour),
-	}
-	visit.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, s.repos.ActiveVisit.Create(s.ctx, visit))
+	visit := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
 	updated, err := s.repos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, instance.ID, s.student1, visit.EntryTime,
 	)
