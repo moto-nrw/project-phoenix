@@ -164,6 +164,10 @@ type DeviceQuery interface {
 	ListDevicesByID(context.Context, []int64) ([]Device, error)
 	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)
 	CountDevicesByType(context.Context) (map[string]int, error)
+	// CountDevicesByTenant and ListDevicesByTenant answer the operator
+	// dashboard's cross-tenant questions without a foreign join.
+	CountDevicesByTenant(context.Context) (map[int64]int, error)
+	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
 
 	// DeviceOnlineWindow and the two predicates below are the owner's
 	// online/offline decision (#586, Rule 12): the row holds last_seen, this
@@ -235,6 +239,8 @@ type engine interface {
 	ListDevicesByID(context.Context, []int64) ([]Device, error)
 	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)
 	CountDevicesByType(context.Context) (map[string]int, error)
+	CountDevicesByTenant(context.Context) (map[int64]int, error)
+	ListDevicesByTenant(context.Context, []int64) ([]Device, error)
 	DeviceOnlineWindow(context.Context) time.Duration
 	IsDeviceOnlineAt(context.Context, Device, time.Time) bool
 	Now() time.Time

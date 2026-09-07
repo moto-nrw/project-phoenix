@@ -28,10 +28,20 @@ import (
 // not proof of liveness — it only stops the zero-textual-caller set from
 // growing.
 //
-// The allowlist is intentionally empty: repository interfaces may expose only
-// methods with production callers. Tests must verify behavior through live
-// methods instead of preserving test-only repository API.
-var repoMethodZeroCallerAllowlist = map[string]string{}
+// Repository interfaces may expose only methods with production callers.
+// Tests must verify behavior through live methods instead of preserving
+// test-only repository API; the single entry below is the documented
+// exception, not a place to park new dead API.
+var repoMethodZeroCallerAllowlist = map[string]string{
+	// users.StudentRepository.UpdateStatus is the deliberate test-only twin of
+	// the production TransitionStatus (compare-and-set). It is the isolation
+	// suite's only cover for the custom TenantWhere + AssertRowsAffected write
+	// path: cross-tenant UpdateStatus must return a "rows affected" error,
+	// which the compare-and-set form cannot express (it reports a stale
+	// transition as false, nil). Until #2676 the name had a production caller
+	// only by collision with the retired iot.DeviceRepository.UpdateStatus.
+	"UpdateStatus": "test-only twin of TransitionStatus; covers the tenant-guard write path in test/isolation_test.go",
+}
 
 func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {
 	t.Parallel()

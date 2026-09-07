@@ -221,6 +221,30 @@ func (s *Service) ListOfflineDevices(ctx context.Context, offlineSince time.Dura
 	return devices, err
 }
 
+// CountDevicesByTenant counts live devices grouped by tenant.
+func (s *Service) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
+	var counts map[int64]int
+	err := s.run(ctx, "count_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
+		found, queryStats, err := s.deps.Devices.CountByTenant(ctx)
+		stats.Add(queryStats)
+		counts = found
+		return err
+	})
+	return counts, err
+}
+
+// ListDevicesByTenants reads the live devices of the given tenants.
+func (s *Service) ListDevicesByTenants(ctx context.Context, tenantIDs []int64) ([]domain.Device, error) {
+	var devices []domain.Device
+	err := s.run(ctx, "list_devices_by_tenant", func(ctx context.Context, stats *domain.OperationStats) error {
+		found, queryStats, err := s.deps.Devices.ListByTenants(ctx, tenantIDs)
+		stats.Add(queryStats)
+		devices = found
+		return err
+	})
+	return devices, err
+}
+
 // CountDevicesByType counts live devices grouped by device_type.
 func (s *Service) CountDevicesByType(ctx context.Context) (map[string]int, error) {
 	var counts map[string]int

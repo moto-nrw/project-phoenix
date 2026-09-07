@@ -15,7 +15,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -234,6 +233,26 @@ func internalPublicOrganization(org *platformModels.Organization) organizationte
 		return organizationtenancy.Organization{}
 	}
 	return organizationtenancy.Organization{ID: org.ID, CreatedAt: org.CreatedAt, UpdatedAt: org.UpdatedAt, Name: org.Name, Slug: org.Slug, Active: org.Active, DeletedAt: org.DeletedAt, Settings: org.Settings}
+}
+
+// internalSummariesStub serves the operator device listing without a
+// database. iot.devices belongs to the Device Fleet owner (#2676), so
+// ListDeviceRows is assembled above this repository from the owner query and
+// the school summaries; its statements are covered by the composition
+// integration tests in this package.
+type internalSummariesStub struct {
+	platformModels.OperatorSummariesRepository
+	rows []platformModels.OperatorDeviceRow
+	err  error
+}
+
+func internalStringPtr(value string) *string { return &value }
+
+func (s *internalSummariesStub) ListDeviceRows(
+	context.Context,
+	platformModels.OperatorDeviceFilter,
+) ([]platformModels.OperatorDeviceRow, error) {
+	return s.rows, s.err
 }
 
 type internalDeviceRepoStub struct {
@@ -1434,13 +1453,7 @@ func TestQueryDevices_NoWhereClause(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1458,13 +1471,7 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: testpkg.Int64Ptr(42)})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1482,9 +1489,7 @@ func TestQueryDevices_ScanError(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{err: assert.AnError}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -1510,13 +1515,7 @@ func TestQueryDevices_UsesTransactionFromContext(t *testing.T) {
 	ctx := tenant.WithUnitOfWork(context.Background(), *runtime)
 	ctx = tenant.WithTransactionForTest(ctx, &tx)
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: runtime}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: runtime}
 	result, err := svc.queryDevices(ctx, platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1544,14 +1543,9 @@ func TestListAllDevices_Success(t *testing.T) {
 	// withAdminTx starts a tx; then queryDevices runs the SELECT inside it
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.ListAllDevices(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1575,14 +1569,9 @@ func TestListSchoolDevices_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1618,14 +1607,9 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Organizations: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1775,18 +1759,9 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 	// withAdminTx opens tx; queryDeviceSingle runs SELECT inside it
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", "Test Reader", "active", "dev_autokey",
-		nil, time.Now(), time.Now(),
-		int64(42), "Test School", int64(1), "Test Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: internalStringPtr("Test Reader"), Status: "active", APIKey: internalStringPtr("dev_autokey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "Test School", OrganizationID: int64(1), OrganizationName: "Test Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1843,18 +1818,9 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(11), "dev-2", "rfid", nil, "active", manualKey,
-		nil, time.Now(), time.Now(),
-		int64(42), "Test School", int64(1), "Test Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(11), DeviceID: "dev-2", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr(manualKey), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "Test School", OrganizationID: int64(1), OrganizationName: "Test Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1935,18 +1901,9 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 	attempt := 0
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", "dev_somekey",
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr("dev_somekey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -2103,15 +2060,6 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", "dev_newkey",
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
@@ -2131,7 +2079,7 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr("dev_newkey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.SetDeviceAPIKey(context.Background(), 10, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -2166,18 +2114,9 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", manualKey,
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), DeviceRepo: &internalDeviceRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr(manualKey), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
 				ID:         10,
@@ -2256,9 +2195,7 @@ func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{err: assert.AnError}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", int64(10))
 	require.Nil(t, result)
@@ -2279,13 +2216,7 @@ func TestQueryDeviceSingle_NoRows(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", int64(10))
 	require.Nil(t, result)

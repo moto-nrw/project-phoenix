@@ -34,6 +34,9 @@ func NewService(devices devicefleet.Capability) Service {
 	return &service{devices: devices}
 }
 
+// Fleet exposes the owner this service delegates to.
+func (s *service) Fleet() devicefleet.Capability { return s.devices }
+
 // IsDeviceOnline reports whether the device is currently online.
 func (s *service) IsDeviceOnline(ctx context.Context, device *iot.Device) bool {
 	return s.IsDeviceOnlineAt(ctx, device, time.Now())

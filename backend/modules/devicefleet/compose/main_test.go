@@ -1,4 +1,4 @@
-package iot_test
+package compose_test
 
 import (
 	"testing"

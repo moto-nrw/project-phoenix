@@ -93,6 +93,23 @@ func (m *Module) CountDevicesByType(ctx context.Context) (map[string]int, error)
 	return m.engine.CountDevicesByType(ctx)
 }
 
+// CountDevicesByTenant counts live devices grouped by tenant. A caller
+// without an ambient tenant sees every tenant it may read.
+func (m *Module) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
+	return m.engine.CountDevicesByTenant(ctx)
+}
+
+// ListDevicesByTenant returns the live devices of the given tenants. An empty
+// list means every tenant the caller may read.
+func (m *Module) ListDevicesByTenant(ctx context.Context, tenantIDs []int64) ([]Device, error) {
+	for _, id := range tenantIDs {
+		if id <= 0 {
+			return nil, m.reject("list_devices_by_tenant", ErrInvalidDevice)
+		}
+	}
+	return m.engine.ListDevicesByTenant(ctx, tenantIDs)
+}
+
 // CreateDevice registers a device, minting an API key when none was supplied.
 func (m *Module) CreateDevice(ctx context.Context, input CreateDevice) (Device, error) {
 	return m.engine.CreateDevice(ctx, input)

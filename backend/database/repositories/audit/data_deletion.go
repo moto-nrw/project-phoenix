@@ -88,25 +88,6 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 	return deletions, nil
 }
 
-// FindByType finds all deletion records of a specific type
-func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType string) ([]*audit.DataDeletion, error) {
-	var deletions []*audit.DataDeletion
-	query := runtimeDB(ctx, r.runtime).NewSelect().
-		Model(&deletions).
-		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(whereDeletionTypeEquals, deletionType)
-
-	query = withDataDeletionTenant(ctx, r.runtime, query)
-
-	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
-
-	if err != nil {
-		return nil, wrapDatabase("find data deletions by type", err)
-	}
-
-	return deletions, nil
-}
-
 // List overrides the base List method to apply proper filtering
 func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion

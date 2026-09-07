@@ -21,6 +21,8 @@ type DeviceStore interface {
 	ListByIDs(context.Context, []int64) ([]domain.Device, domain.OperationStats, error)
 	ListOffline(context.Context, time.Time) ([]domain.Device, domain.OperationStats, error)
 	CountByType(context.Context) (map[string]int, domain.OperationStats, error)
+	CountByTenant(context.Context) (map[int64]int, domain.OperationStats, error)
+	ListByTenants(context.Context, []int64) ([]domain.Device, domain.OperationStats, error)
 }
 
 // DisplayStore is the owner's persistence port over display.displays.

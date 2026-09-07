@@ -3457,220 +3457,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_ArchivedDevicesAreHistoricalOnly",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": [
-        "iot.devices"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_CountDevicesByType",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        604
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        24
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Create_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        232
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        157
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByAPIKey",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        288
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByDeviceID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        83
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByRegisteredBy",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        394
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        361
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus_Active",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        197
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByStatus_Maintenance",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        499
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindByType",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        321
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_FindOfflineDevices",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        531
-      ],
-      "tables": [
-        "iot.devices"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        180
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_List_WithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        717
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        136
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateLastSeen",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        442
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateRoomID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        644
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_UpdateStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        464
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/iot/device_repository_test.go",
-      "declaration": "TestDeviceRepository_Update_Validation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        269
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/platform/operator_mfa_atomic_test.go",
       "declaration": "TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",
@@ -8782,16 +8568,6 @@
     },
     {
       "scope": "test",
-      "file": "services/iot/iot_service_test.go",
-      "declaration": "setupIoTService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/parent/care_exception_auto_excusal_test.go",
       "declaration": "TestDeleteCareException_ReleasesAutoExcusedBlocks",
       "target": "database/repositories.NewFactory",
@@ -12079,7 +11855,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        417
+        402
       ],
       "tables": []
     },
@@ -12089,7 +11865,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        209
       ],
       "tables": []
     },
@@ -28408,17 +28184,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 418,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 580,
+          "line": 581,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1076,
+          "line": 1077,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28443,7 +28219,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 577,
+          "line": 578,
           "declaration": "type API"
         },
         {
@@ -28538,12 +28314,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 429,
+          "line": 432,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 460,
+          "line": 464,
           "declaration": "newFactory"
         },
         {

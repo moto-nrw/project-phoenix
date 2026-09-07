@@ -1,16 +1,15 @@
-// Package iot_test tests the IoT service layer with hermetic testing pattern.
-package iot_test
+// Device Fleet integration tests: they drive the retained IoT service shape
+// against the real owner composition and a real database.
+package compose_test
 
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,12 +17,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// setupIoTService creates an IoT Service with real database connection
+// setupIoTService drives the retained IoT service shape against the real
+// Device Fleet owner and a real database.
 func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.IoT
+	fleet, err := repositories.NewDeviceFleet(db)
+	require.NoError(t, err, "Failed to compose the device fleet")
+	return iot.NewService(fleet)
 }
 
 // =============================================================================

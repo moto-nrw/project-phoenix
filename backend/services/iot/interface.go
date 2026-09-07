@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
 // Service defines the IoT service operations
@@ -48,4 +49,8 @@ type Service interface {
 
 	// Targeted last-seen update by PK (skips existence check and full-model update)
 	UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error
+
+	// Fleet exposes the Device Fleet owner this service delegates to, so the
+	// composition root binds one instance for every entry point (#2676).
+	Fleet() devicefleet.Capability
 }

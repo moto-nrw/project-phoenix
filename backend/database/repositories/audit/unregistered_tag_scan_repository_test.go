@@ -11,14 +11,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubDeviceDirectory stands in for the Device Fleet owner: iot.devices is
+// not this package's table, so the scan repository resolves the scanning
+// device through the bound directory (#2676).
+type stubDeviceDirectory struct{ devices []DirectoryDevice }
+
+func (d stubDeviceDirectory) ListDevicesByID(_ context.Context, ids []int64) ([]DirectoryDevice, error) {
+	wanted := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	result := make([]DirectoryDevice, 0, len(d.devices))
+	for _, device := range d.devices {
+		if _, ok := wanted[device.ID]; ok {
+			result = append(result, device)
+		}
+	}
+	return result, nil
+}
+
 func TestUnregisteredTagScanRepository_FindByID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	device := testpkg.CreateTestDevice(t, db, "unregistered-find")
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{devices: []DirectoryDevice{{
+		ID: device.ID, TenantID: device.TenantID, DeviceID: device.DeviceID, Name: device.Name,
+	}}})
 
 	scan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-FIND", &device.ID, time.Now())
 
@@ -43,7 +64,7 @@ func TestUnregisteredTagScanRepository_FindByIDReturnsNilWhenMissing(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 
 	found, err := repo.FindByID(testpkg.Ctx(t), int64(999999))
 
@@ -55,7 +76,7 @@ func TestUnregisteredTagScanRepository_WrapsDatabaseErrors(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	require.NoError(t, db.Close())
 	ctx := testpkg.Ctx(t)
 
@@ -85,7 +106,7 @@ func TestUnregisteredTagScanRepository_ListForOperatorFiltersAndOrders(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
 	oldUnresolved := createTestUnregisteredTagScan(t, repo, ctx, "TAG-OLD", nil, now.Add(-2*time.Hour))
@@ -127,7 +148,7 @@ func TestUnregisteredTagScanRepository_ListForOperatorReturnsEmptySlice(t *testi
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	schoolID := int64(999998)
 
 	scans, err := repo.ListForOperator(testpkg.Ctx(t), auditModels.UnregisteredTagScanFilter{
@@ -144,7 +165,7 @@ func TestUnregisteredTagScanRepository_Resolve(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperatorWithEmail(t, db,
 		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()), "Audit Scan Operator")
@@ -169,7 +190,7 @@ func TestUnregisteredTagScanRepository_ResolveFailsWhenAlreadyResolved(t *testin
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	ctx := testpkg.Ctx(t)
 	operator := testpkg.CreateTestOperatorWithEmail(t, db,
 		fmt.Sprintf("audit-scan-%d@example.com", time.Now().UnixNano()), "Audit Scan Operator")
@@ -188,7 +209,7 @@ func TestUnregisteredTagScanRepository_DeleteOlderThan(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID))
+	repo := NewUnregisteredTagScanRepository(NewRuntime(db, auditTestTenantID), stubDeviceDirectory{})
 	ctx := testpkg.Ctx(t)
 	now := time.Now()
 	oldScan := createTestUnregisteredTagScan(t, repo, ctx, "TAG-DELETE-OLD", nil, now.Add(-120*24*time.Hour))

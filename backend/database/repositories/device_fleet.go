@@ -6,6 +6,7 @@ import (
 	"time"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -60,6 +61,25 @@ func (d activeDeviceDirectory) ListDevicesByID(ctx context.Context, ids []int64)
 			ID: device.ID, TenantID: device.TenantID, CreatedAt: device.CreatedAt,
 			UpdatedAt: device.UpdatedAt, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
 			Name: device.Name, Status: string(device.Status), LastSeen: device.LastSeen,
+		})
+	}
+	return result, nil
+}
+
+// auditDeviceDirectory hands the device owner to the audit repository that
+// used to join iot.devices itself (#2676). Operator listings run without an
+// ambient tenant, exactly as the retired cross-tenant join did.
+type auditDeviceDirectory struct{ devices devicefleet.Query }
+
+func (d auditDeviceDirectory) ListDevicesByID(ctx context.Context, ids []int64) ([]auditRepo.DirectoryDevice, error) {
+	devices, err := d.devices.ListDevicesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]auditRepo.DirectoryDevice, 0, len(devices))
+	for _, device := range devices {
+		result = append(result, auditRepo.DirectoryDevice{
+			ID: device.ID, TenantID: device.TenantID, DeviceID: device.DeviceID, Name: device.Name,
 		})
 	}
 	return result, nil

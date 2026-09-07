@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -55,7 +54,7 @@ func (r *DeviceRepository) translateList(devices []devicefleet.Device, err error
 // Create registers the device and writes the stored row back into entity.
 func (r *DeviceRepository) Create(ctx context.Context, entity *iotModels.Device) error {
 	if entity == nil {
-		return errors.New("Device cannot be nil or zero value")
+		return errors.New("device cannot be nil or zero value")
 	}
 	if err := entity.Validate(); err != nil {
 		return err
@@ -75,7 +74,7 @@ func (r *DeviceRepository) Create(ctx context.Context, entity *iotModels.Device)
 // Update replaces every writable column of the device.
 func (r *DeviceRepository) Update(ctx context.Context, entity *iotModels.Device) error {
 	if entity == nil {
-		return errors.New("Device cannot be nil or zero value")
+		return errors.New("device cannot be nil or zero value")
 	}
 	if err := entity.Validate(); err != nil {
 		return err
@@ -133,27 +132,6 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 	return r.translate("find by API key", device, err)
 }
 
-// FindByType reads every live device of one type.
-func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([]*iotModels.Device, error) {
-	return r.translateList(r.devices.ListDevices(ctx, devicefleet.DeviceFilter{DeviceType: &deviceType}))
-}
-
-// FindByStatus reads every live device in one status.
-func (r *DeviceRepository) FindByStatus(ctx context.Context, status iotModels.DeviceStatus) ([]*iotModels.Device, error) {
-	mapped := devicefleet.DeviceStatus(status)
-	return r.translateList(r.devices.ListDevices(ctx, devicefleet.DeviceFilter{Status: &mapped}))
-}
-
-// FindByRegisteredBy reads every live device registered by one person.
-func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int64) ([]*iotModels.Device, error) {
-	return r.translateList(r.devices.ListDevices(ctx, devicefleet.DeviceFilter{RegisteredByID: &personID}))
-}
-
-// FindOfflineDevices reads devices unseen for at least offlineSince.
-func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]*iotModels.Device, error) {
-	return r.translateList(r.devices.ListOfflineDevices(ctx, offlineSince))
-}
-
 // List reads every live device matching the retired filter map.
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]*iotModels.Device, error) {
 	filter, err := toFilter(filters)
@@ -163,19 +141,9 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]
 	return r.translateList(r.devices.ListDevices(ctx, filter))
 }
 
-// UpdateLastSeen writes last_seen for one device addressed by its primary key.
-func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
-	return r.devices.UpdateDeviceLastSeen(ctx, id, lastSeen)
-}
-
 // UpdateRoomID moves one device into a room.
 func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
 	return r.devices.UpdateDeviceRoom(ctx, id, roomID)
-}
-
-// UpdateStatus sets the status of one live device by its device_id.
-func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iotModels.DeviceStatus) error {
-	return r.devices.UpdateDeviceStatus(ctx, deviceID, devicefleet.DeviceStatus(status))
 }
 
 // CountDevicesByType counts live devices grouped by device_type.

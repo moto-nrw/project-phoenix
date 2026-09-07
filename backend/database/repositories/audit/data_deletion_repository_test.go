@@ -182,43 +182,6 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	})
 }
 
-func TestDataDeletionRepository_FindByType(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
-	ctx := testpkg.Ctx(t)
-
-	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
-
-	t.Run("finds deletions by type", func(t *testing.T) {
-		visitRetention := audit.NewDataDeletion(student.ID, audit.DeletionTypeVisitRetention, 5, "system")
-		manual := audit.NewDataDeletion(student.ID, audit.DeletionTypeManual, 3, "admin")
-
-		err := repo.Create(ctx, visitRetention)
-		require.NoError(t, err)
-		err = repo.Create(ctx, manual)
-		require.NoError(t, err)
-
-		deletions, err := repo.FindByType(ctx, audit.DeletionTypeVisitRetention)
-		require.NoError(t, err)
-
-		for _, d := range deletions {
-			assert.Equal(t, audit.DeletionTypeVisitRetention, d.DeletionType)
-		}
-
-		var found bool
-		for _, d := range deletions {
-			if d.ID == visitRetention.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-}
-
 func TestDataDeletionRepository_List(t *testing.T) {
 	t.Parallel()
 

@@ -353,14 +353,14 @@ func buildUpcomingActivities(
 	now time.Time,
 ) []UpcomingActivity {
 	byTemplate := templatesByID(templates)
-	nowClock := clockMinutes(now)
+	nowClock := wallClock(now)
 
 	upcoming := make([]UpcomingActivity, 0)
 	for _, instance := range planned {
 		if !instance.Planned {
 			continue
 		}
-		if clockMinutes(instance.StartWallClock) < nowClock {
+		if wallClock(instance.StartWallClock).Before(nowClock) {
 			continue
 		}
 		category := fallbackCategoryName
@@ -378,10 +378,11 @@ func buildUpcomingActivities(
 	return upcoming
 }
 
-// clockMinutes reduces a wall clock to minutes since midnight, the only part
-// of the value an activity instance's TIME column carries.
-func clockMinutes(value time.Time) int {
-	return value.Hour()*60 + value.Minute()
+// wallClock anchors a time of day to the same zero date the composition root
+// uses when it normalises a TIME column, so both sides of a comparison carry
+// the clock value only.
+func wallClock(value time.Time) time.Time {
+	return time.Date(1, time.January, 1, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), time.UTC)
 }
 
 // buildPickupBuckets aggregates today's effective pickup times of present
@@ -404,13 +405,13 @@ func (s *Service) buildPickupBuckets(
 		s.deps.Observe(observePickupFailure(err))
 		return buckets
 	}
-	nowClock := clockMinutes(now)
+	nowClock := wallClock(now)
 	counts := make(map[string]int)
 	for _, effective := range times {
 		if effective.PickupWallTime == nil {
 			continue
 		}
-		if clockMinutes(*effective.PickupWallTime) < nowClock {
+		if wallClock(*effective.PickupWallTime).Before(nowClock) {
 			continue
 		}
 		counts[effective.PickupWallTime.Format("15:04")]++

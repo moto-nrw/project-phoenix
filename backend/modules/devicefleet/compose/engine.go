@@ -78,6 +78,16 @@ func (e engine) CountDevicesByType(ctx context.Context) (map[string]int, error) 
 	return counts, mapError(err)
 }
 
+func (e engine) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
+	counts, err := e.service.CountDevicesByTenant(ctx)
+	return counts, mapError(err)
+}
+
+func (e engine) ListDevicesByTenant(ctx context.Context, tenantIDs []int64) ([]devicefleet.Device, error) {
+	values, err := e.service.ListDevicesByTenants(ctx, tenantIDs)
+	return toPublicDevices(values), mapError(err)
+}
+
 func (e engine) CreateDevice(ctx context.Context, input devicefleet.CreateDevice) (devicefleet.Device, error) {
 	value, err := e.service.CreateDevice(ctx, domain.CreateDevice{
 		DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,

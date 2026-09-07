@@ -352,6 +352,57 @@ func (s *DeviceStore) CountByType(ctx context.Context) (map[string]int, domain.O
 	return result, stats, nil
 }
 
+// CountByTenant counts live devices grouped by tenant. Operator listings run
+// without an ambient tenant and then see every tenant, exactly as the retired
+// cross-schema aggregate did.
+func (s *DeviceStore) CountByTenant(ctx context.Context) (map[int64]int, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var counts []struct {
+		TenantID int64 `bun:"tenant_id"`
+		Count    int   `bun:"count"`
+	}
+	query := db.NewSelect().
+		Model((*deviceRow)(nil)).
+		ModelTableExpr(deviceTableExpr).
+		Column("tenant_id").
+		ColumnExpr("COUNT(*) AS count").
+		Where(deviceNotArchive)
+	if tenantID > 0 {
+		query = query.Where(`"device".tenant_id = ?`, tenantID)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Group("tenant_id").Scan(ctx, &counts)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("devicefleet postgres: count devices by tenant: %w", err)
+	}
+	stats.Rows = int64(len(counts))
+	result := make(map[int64]int, len(counts))
+	for _, count := range counts {
+		result[count.TenantID] = count.Count
+	}
+	return result, stats, nil
+}
+
+// ListByTenants reads the live devices of the given tenants. An empty tenant
+// list means every tenant the caller may see.
+func (s *DeviceStore) ListByTenants(ctx context.Context, tenantIDs []int64) ([]domain.Device, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []deviceRow
+	query := s.selectDevices(db, tenantID, &rows)
+	if len(tenantIDs) > 0 {
+		query = query.Where(`"device".tenant_id IN (?)`, bun.List(tenantIDs))
+	}
+	return s.scanList(ctx, query, &rows, "list devices by tenant")
+}
+
 // applyDeviceFilter builds the predicates from fixed columns only, so every
 // device query resolves to iot.devices statically.
 func applyDeviceFilter(query *bun.SelectQuery, filter domain.DeviceFilter) *bun.SelectQuery {
