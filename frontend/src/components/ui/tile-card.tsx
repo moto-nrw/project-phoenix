@@ -1,7 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, ReactNode } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { cn } from "~/lib/utils";
 
 /**

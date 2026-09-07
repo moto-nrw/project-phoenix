@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";

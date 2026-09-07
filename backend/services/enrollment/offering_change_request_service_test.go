@@ -23,6 +23,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,6 +51,7 @@ func newOfferingChangeServiceForTestWithCareRepo(
 ) enrollmentService.OfferingChangeRequestService {
 	t.Helper()
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = true
+	env.settings.boolValues[configModel.KeyEnrollmentParentCourseRequestsEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentOfferingChangesLeadDays] = "14"
 	return enrollmentService.NewOfferingChangeRequestService(enrollmentService.OfferingChangeRequestServiceConfig{
 		ChangeRepo:         env.repos.OfferingChangeRequest,
@@ -153,6 +155,52 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 	}
 	assert.Contains(t, labels, fx.oldOffering.Name, "dropped offering must appear in the diff")
 	assert.Contains(t, labels, fx.newOffering.Name, "added offering must appear in the diff")
+}
+
+func TestCourseCatalogQueryBudget(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
+	group := testpkg.CreateTestActivityGroup(t, env.db, "CourseCatalogBudget")
+	group.Type = activitiesModels.GroupTypeActivity
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, group))
+	zero := 0
+	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &group.ID
+		o.Capacity = &zero
+		o.SortOrder = 203
+		o.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+		o.AvailableDays = []string{"mon"}
+	})
+	_, err := svc.CreateCourseRequest(ctx, enrollmentService.CreateCourseRequestInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, OfferingID: course.ID,
+	})
+	require.NoError(t, err)
+
+	counter := testpkg.CaptureQueriesForContext(t, env.db)
+	ctx = counter.Context(ctx)
+	var catalog *enrollmentService.CourseCatalog
+	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var catalogErr error
+		catalog, catalogErr = svc.CourseCatalog(txCtx, fx.studentID, env.creatorID)
+		return catalogErr
+	})
+	require.NoError(t, err)
+	var courseItem *enrollmentService.CourseCatalogItem
+	for i := range catalog.Items {
+		if catalog.Items[i].OfferingID == course.ID {
+			courseItem = &catalog.Items[i]
+			break
+		}
+	}
+	require.NotNil(t, courseItem)
+	assert.True(t, courseItem.Waitlisted)
+	t.Logf("course catalog issued %d queries", counter.Total())
+	testpkg.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {
@@ -1453,4 +1501,16 @@ func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context
 		result = append(result, enrollmentService.ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date})
 	}
 	return result, nil
+}
+
+func (r manualPlanningFixture) CourseGroupsForOfferings(ctx context.Context, offerings []enrollmentModels.CourseOfferingReference, _ timezone.Date) (map[int64][]enrollmentModels.CourseGroup, error) {
+	return repositories.NewManualPlanningQuery(r.db).CourseGroupsForOfferings(ctx, offerings)
+}
+
+func (r manualPlanningFixture) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]enrollmentModels.CourseGroup, error) {
+	return repositories.NewManualPlanningQuery(r.db).LockCourseGroups(ctx, groupIDs)
+}
+
+func (r manualPlanningFixture) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until timezone.Date, excludeStudentID int64) (map[int64]int, error) {
+	return repositories.NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 }

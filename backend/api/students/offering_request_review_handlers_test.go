@@ -34,6 +34,22 @@ func (f *fakeOfferingChangeRequestService) CatalogAt(context.Context, int64, tim
 	return nil, nil
 }
 
+// Kurse (#3075). The parents-portal course surface has its own tests; the fake
+// only has to satisfy the interface.
+func (f *fakeOfferingChangeRequestService) CourseCatalog(context.Context, int64, int64) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeOfferingChangeRequestService) CreateCourseRequest(
+	context.Context, enrollmentService.CreateCourseRequestInput,
+) (*enrollmentModels.OfferingChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeOfferingChangeRequestService) WithdrawCourseRequest(context.Context, int64, int64, int64) error {
+	return nil
+}
+
 func (f *fakeOfferingChangeRequestService) GetForStudent(context.Context, int64) (*enrollmentService.OfferingChangeView, error) {
 	return nil, nil
 }

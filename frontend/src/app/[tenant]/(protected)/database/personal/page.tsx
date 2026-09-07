@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -518,7 +518,9 @@ function TeachersPageContent() {
       {filteredTeachers.length === 0 ? (
         <SectionCard>
           <EmptyState
-            title={searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"}
+            title={
+              searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
+            }
             description={
               searchTerm
                 ? "Versuchen Sie andere Suchkriterien."
