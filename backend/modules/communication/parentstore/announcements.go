@@ -194,26 +194,25 @@ func (r *announcementRepository) AccountMayAnswerForStudent(ctx context.Context,
 }
 
 // SetResponse replaces a child's answer for a poll. A transaction-scoped
-// advisory lock serializes replacements for one poll and child; the
-// audience/relationship guard is re-checked through the projection before
-// the delete AND before the insert, and the liveness/selection guard is part
-// of each write, so a correction, revocation, or deadline that changes in
-// between rolls the transaction back instead of storing a stale answer.
+// advisory lock serializes replacements for one poll and child. The
+// audience/relationship guard is held through the projection as a share
+// lock on the guardian rows for the rest of the transaction, so a revocation
+// either committed before the check (and is seen) or waits behind the
+// answer; the liveness/selection guard is part of each write. A correction
+// or deadline that changes in between therefore rolls the transaction back
+// instead of storing a stale answer, exactly as the single-statement guard
+// did before the audience rows moved out of the write.
 func (r *announcementRepository) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	if err := r.store.LockResponse(ctx, announcementID, studentID); err != nil {
 		return false, err
 	}
-	allowed, err := r.audience.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
+	allowed, err := r.audience.HoldAnswerPermission(ctx, tenantID, announcementID, accountID, studentID)
 	if err != nil || !allowed {
 		return false, err
 	}
 	live, err := r.store.DeleteResponse(ctx, tenantID, announcementID, studentID, optionIDs, expectedPublishedAt)
 	if err != nil || !live || len(optionIDs) == 0 {
 		return live, err
-	}
-	allowed, err = r.audience.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
-	if err != nil || !allowed {
-		return false, err
 	}
 	return r.store.InsertResponse(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 }

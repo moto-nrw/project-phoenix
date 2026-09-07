@@ -4508,9 +4508,7 @@
     {
       "id": "enrollment.integration-test.enrollment.postgres",
       "description": "Enrollment rollback tests inject failures around real owner writes while exercising the public command.",
-      "scopes": [
-        "internal_test"
-      ],
+      "scopes": ["internal_test"],
       "source_owner": "enrollment",
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
@@ -12446,9 +12444,7 @@
     {
       "id": "test-support.to.enrollment-support",
       "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "enrollment",
@@ -12545,9 +12541,7 @@
     {
       "id": "identity-access.behavior-test.enrollment-public",
       "description": "Guardian invitation integration fixtures create Enrollment requests through public owner values.",
-      "scopes": [
-        "external_test"
-      ],
+      "scopes": ["external_test"],
       "source_owner": "identity-access",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -12556,9 +12550,7 @@
     {
       "id": "timetable-activities.behavior-test.enrollment-public",
       "description": "Sourced-template integration fixtures create Enrollment phases through public owner values.",
-      "scopes": [
-        "external_test"
-      ],
+      "scopes": ["external_test"],
       "source_owner": "timetable-activities",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -12567,9 +12559,7 @@
     {
       "id": "care-plan.internal-test.enrollment-public",
       "description": "Parent care-period tests implement the Enrollment owner query port with public values.",
-      "scopes": [
-        "internal_test"
-      ],
+      "scopes": ["internal_test"],
       "source_owner": "care-plan",
       "source_role": "module-internal-test",
       "target_owner": "enrollment",
