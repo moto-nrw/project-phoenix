@@ -21,7 +21,7 @@ const SENSITIVE_LOG_KEYS = new Set([
 ]);
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
-  /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|public\/calendar|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
+  /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
 const SENSITIVE_INVITATION_PATH_PATTERN =
   /((?:^|\/)auth\/invitations\/)(?!(?:accept|session|validate)(?:[/?#\s"']|$))[^/?#\s"']+/gi;
 const TEXT_FIELD_NAME = String.raw`[^\s"'=:,;{}\[\]&?#]+`;

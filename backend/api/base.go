@@ -72,6 +72,8 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
+	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
@@ -678,7 +680,7 @@ func (resources *apiBuildResources) close() error {
 }
 
 // New creates a new API instance
-func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API, resultErr error) {
+func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL string) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -810,8 +812,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
 
-	// Initialize API resources
-	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, db, logger, frontendURL)
+	if err != nil {
 		return nil, err
 	}
 	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
@@ -829,10 +831,31 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
-	api.registerRoutesWithRateLimiting()
+	api.registerRoutesWithRateLimiting(requestFeedResource)
 
 	buildResources.released = true
 	return api, nil
+}
+
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+		return nil, err
+	}
+	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
+		DB: db, FrontendURL: frontendURL, Now: time.Now,
+		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
+		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
+		Logger:           logger.With("handler", "request-feed"),
+	}), nil
 }
 
 func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
@@ -848,8 +871,8 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	if httpMetrics != nil {
 		router.Use(httpMetrics.middleware)
 	}
-	// Redact calendar-feed tokens (the sole credential for the public
-	// /public/calendar/{token} feed) from the per-request "path" attribute, and
+	// Redact public calendar- and request-feed tokens (the sole credential for
+	// those feeds) from the per-request "path" attribute, and
 	// strip query-string values (staff-UI searches carry student names and
 	// e-mail addresses as query parameters, issue #2105) so neither lands in
 	// access logs.
@@ -1425,7 +1448,7 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 }
 
 // registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
-func (a *API) registerRoutesWithRateLimiting() {
+func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource) {
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if a.securityLogging {
@@ -1439,15 +1462,15 @@ func (a *API) registerRoutesWithRateLimiting() {
 		limiters = buildAuthRateLimiters(securityLogger, a.authRateLimit)
 	}
 
-	a.registerPublicRoutes()
-	a.registerTenantRoutes()
+	a.registerPublicRoutes(requestFeed)
+	a.registerTenantRoutes(requestFeed)
 	a.registerPortalRoutes(limiters)
 }
 
 // registerPublicRoutes registers unauthenticated root-level routes: the
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
-func (a *API) registerPublicRoutes() {
+func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
@@ -1479,6 +1502,9 @@ func (a *API) registerPublicRoutes() {
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
 	// the parent's Termine in sync.
 	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
+	if requestFeed != nil {
+		a.Router.Mount("/public/request-feed", requestFeed.PublicRouter())
+	}
 
 	// Read-only staff CalDAV. Authentication happens inside the protocol
 	// handler with the tenant-bound calendar app password, before a tenant is
@@ -1552,9 +1578,12 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 }
 
 // registerTenantRoutes mounts all tenant API resources under the /api prefix.
-func (a *API) registerTenantRoutes() {
+func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource) {
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
+		if requestFeed != nil {
+			r.Mount("/students/change-requests/rss-feed", requestFeed.TenantRouter())
+		}
 		// Mount room resources
 		r.Mount("/rooms", a.Rooms.Router())
 

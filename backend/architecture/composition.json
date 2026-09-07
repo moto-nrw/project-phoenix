@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        277
+        279
       ],
       "tables": []
     },
@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        101
+        105
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        168
+        172
       ],
       "tables": []
     },
@@ -119,8 +119,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        96,
-        107
+        103,
+        114
       ],
       "tables": []
     },
@@ -27996,22 +27996,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 165,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 437,
+          "line": 439,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 600,
+          "line": 602,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1103,
+          "line": 840,
+          "declaration": "initializeAPIResourcesWithRequestFeed"
+        },
+        {
+          "file": "api/base.go",
+          "line": 1126,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28021,7 +28026,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 277,
+          "line": 279,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28031,12 +28036,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 166,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 597,
+          "line": 599,
           "declaration": "type API"
         },
         {

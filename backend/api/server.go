@@ -24,6 +24,7 @@ const shutdownTimeout = 30 * time.Second
 // ServeConfig contains the typed inputs for the production Serve root.
 type ServeConfig struct {
 	Port         string
+	FrontendURL  string
 	PublicAPIURL string
 	EnableCORS   bool
 	Logger       *slog.Logger
@@ -92,13 +93,16 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if strings.TrimSpace(config.Port) == "" {
 		return nil, fmt.Errorf("serve dependency port is required")
 	}
+	if strings.TrimSpace(config.FrontendURL) == "" {
+		return nil, fmt.Errorf("serve dependency frontend URL is required")
+	}
 	if strings.TrimSpace(config.PublicAPIURL) == "" {
 		return nil, fmt.Errorf("serve dependency public API URL is required")
 	}
 
 	config.Logger.Info("initializing API server")
 
-	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger)
+	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL)
 	if err != nil {
 		return nil, err
 	}

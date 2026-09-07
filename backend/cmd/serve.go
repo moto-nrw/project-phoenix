@@ -61,6 +61,7 @@ var serveCmd = &cobra.Command{
 		defer stop()
 		if err := api.WithRuntime(ctx, api.ServeConfig{
 			Port:         config.Port,
+			FrontendURL:  config.FrontendURL,
 			PublicAPIURL: config.PublicAPIURL,
 			EnableCORS:   config.EnableCORS,
 			Logger:       logger,
@@ -77,8 +78,8 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 	if event == nil {
 		return event
 	}
-	// The public /public/calendar/{token} feed authenticates purely by the token
-	// in its URL. Sentry's HTTP integration captures that URL (and the derived
+	// Public calendar and request feeds authenticate purely by the token in the
+	// URL. Sentry's HTTP integration captures that URL (and the derived
 	// transaction name / breadcrumbs), so a failing feed request would otherwise
 	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
 	// may have recorded the path.

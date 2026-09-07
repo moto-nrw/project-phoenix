@@ -13,12 +13,15 @@ func TestRedactFeedToken(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"/public/calendar/secret-token":     "/public/calendar/[REDACTED]",
-		"/public/calendar/tok123?refresh=1": "/public/calendar/[REDACTED]?refresh=1",
-		"GET /public/calendar/abc 200 12ms": "GET /public/calendar/[REDACTED] 200 12ms",
-		"/public/calendar/":                 "/public/calendar/", // no token segment
-		"/api/calendar/appointments/5/ics":  "/api/calendar/appointments/5/ics",
-		"nothing sensitive here":            "nothing sensitive here",
+		"/public/calendar/secret-token":                     "/public/calendar/[REDACTED]",
+		"/public/request-feed/rss-secret":                   "/public/request-feed/[REDACTED]",
+		"/public/calendar/tok123?refresh=1":                 "/public/calendar/[REDACTED]?refresh=1",
+		"GET /public/calendar/abc 200 12ms":                 "GET /public/calendar/[REDACTED] 200 12ms",
+		"/public/calendar/one /public/request-feed/two":     "/public/calendar/[REDACTED] /public/request-feed/[REDACTED]",
+		"/public/request-feed/one /public/request-feed/two": "/public/request-feed/[REDACTED] /public/request-feed/[REDACTED]",
+		"/public/calendar/":                                 "/public/calendar/", // no token segment
+		"/api/calendar/appointments/5/ics":                  "/api/calendar/appointments/5/ics",
+		"nothing sensitive here":                            "nothing sensitive here",
 	}
 	for in, want := range cases {
 		if got := RedactFeedToken(in); got != want {
@@ -39,13 +42,14 @@ func TestFeedTokenRedactorHandler(t *testing.T) {
 		slog.Group("request",
 			slog.String("method", "GET"),
 			slog.String("path", "/public/calendar/leaky-token"),
+			slog.Any("params", map[string]string{"token": "leaky-param-token"}),
 		),
 	)
 	// A top-level path attribute (as the security logger emits) must be redacted.
 	logger.Info("security event", slog.String("path", "/public/calendar/another-token"))
 
 	out := buf.String()
-	if strings.Contains(out, "leaky-token") || strings.Contains(out, "another-token") {
+	if strings.Contains(out, "leaky-token") || strings.Contains(out, "leaky-param-token") || strings.Contains(out, "another-token") {
 		t.Errorf("feed token leaked into logs:\n%s", out)
 	}
 	if !strings.Contains(out, "[REDACTED]") {
