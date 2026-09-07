@@ -31,7 +31,6 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
@@ -210,7 +209,6 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         communication.Capability
 	Schools              platform.SchoolService
-	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
@@ -2872,10 +2870,6 @@ func newFactory(
 		BulkInstanceStaff: reminderTimetableReader{source: timetableCapability},
 	})
 
-	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
-	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
-		realtimeevents.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
-	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -3115,7 +3109,6 @@ func newFactory(
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              platform.NewSchoolService(repos.School),
-		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
 		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:      studentDeletionService,

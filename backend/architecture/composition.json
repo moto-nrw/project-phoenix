@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        276
       ],
       "tables": []
     },
@@ -5197,7 +5197,7 @@
       "declaration": "TestStaffRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        31
+        29
       ],
       "tables": []
     },
@@ -5207,7 +5207,7 @@
       "declaration": "TestStaffRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        168
+        166
       ],
       "tables": [
         "users.persons"
@@ -5219,7 +5219,7 @@
       "declaration": "TestStaffRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        93
+        91
       ],
       "tables": []
     },
@@ -5229,7 +5229,7 @@
       "declaration": "TestStaffRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        294
+        292
       ],
       "tables": []
     },
@@ -5239,7 +5239,7 @@
       "declaration": "TestStaffRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        115
       ],
       "tables": []
     },
@@ -5249,7 +5249,7 @@
       "declaration": "TestStaffRepository_FindWithPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        231
+        229
       ],
       "tables": []
     },
@@ -5259,7 +5259,7 @@
       "declaration": "TestStaffRepository_FindWithPersonByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        255
+        253
       ],
       "tables": [
         "users.persons"
@@ -5271,7 +5271,7 @@
       "declaration": "TestStaffRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        199
+        197
       ],
       "tables": []
     },
@@ -5281,9 +5281,10 @@
       "declaration": "TestStaffRepository_ListAllWithPerson",
       "target": "database/repositories.NewFactory",
       "lines": [
-        332
+        330
       ],
       "tables": [
+        "config.work_time_models",
         "users.staff"
       ]
     },
@@ -5293,7 +5294,7 @@
       "declaration": "TestStaffRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        140
+        138
       ],
       "tables": []
     },
@@ -28403,22 +28404,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 159,
+          "line": 162,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 435,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 580,
+          "line": 598,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 1076,
+          "line": 1095,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28428,7 +28429,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 258,
+          "line": 276,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -28438,12 +28439,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 160,
+          "line": 163,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 577,
+          "line": 595,
           "declaration": "type API"
         },
         {
@@ -28538,12 +28539,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 429,
+          "line": 427,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 460,
+          "line": 458,
           "declaration": "newFactory"
         },
         {
