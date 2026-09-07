@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,8 +27,8 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
+	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
@@ -71,8 +71,8 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
+	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
@@ -130,8 +130,8 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
+	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
 	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
 	ctx := tenantCtx(t)
 

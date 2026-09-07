@@ -10,7 +10,9 @@ package parentpostgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -34,6 +36,19 @@ func newStore(database Database) store {
 		panic(ErrDatabaseRequired.Error())
 	}
 	return store{database: database}
+}
+
+// assertOneRow turns a write that matched nothing into an explicit error. A
+// silent no-op would let a caller believe a row it never touched was updated.
+func assertOneRow(result sql.Result, operation string) error {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("%s: expected 1 row, affected %d", operation, affected)
+	}
+	return nil
 }
 
 // withTenant applies the defense-in-depth tenant_id filter that complements

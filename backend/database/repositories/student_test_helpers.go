@@ -10,6 +10,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
@@ -105,6 +106,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition, PrivacyConsent: r.PrivacyConsent,
 		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
-		ParentMessageThread: usersRepo.NewParentMessageThreadRepository(db), ParentMessage: usersRepo.NewParentMessageRepository(db),
-		Attendance: activeRepo.NewAttendanceRepository(db)}, nil
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
+		ParentMessage:       parentStore.NewParentMessageRepository(db),
+		Attendance:          activeRepo.NewAttendanceRepository(db)}, nil
 }
