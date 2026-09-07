@@ -18,6 +18,12 @@ type CareOfferingLink struct {
 	ValidUntil     *Date    `json:"valid_until"`
 }
 
+// CareOfferingLinkRecordColumns is the jsonb_to_recordset column list that
+// matches the JSON encoding of CareOfferingLink. Consumers that join the
+// projection inside their own SQL use it as `AS link(` + columns + `)`.
+const CareOfferingLinkRecordColumns = `id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
+ selected_days jsonb, valid_from date, valid_until date`
+
 // CareExitOfferingSnapshot is the verbatim copy of one offering link a care
 // exit ends or deletes. Snapshot is the full row so the restore can put a
 // deleted link back under its original id.

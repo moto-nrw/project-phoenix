@@ -276,10 +276,7 @@ func (r *CareExitCleanupRepository) careExitRemovalProjection(ctx context.Contex
 // careExitOfferingLinkRecordset is the Enrollment offering-link projection
 // (#2695) the care-exit reads join instead of enrollment.request_child_offerings.
 const careExitOfferingLinkRecordset = `offering_links AS (
- SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(
- id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
- selected_days jsonb, valid_from date, valid_until date
- )
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(` + enrollment.CareOfferingLinkRecordColumns + `)
 )`
 
 func (r *CareExitCleanupRepository) CountOpenRequests(
@@ -837,7 +834,7 @@ func (r *CareExitCleanupRepository) endSourceBookings(
 	if err := r.snapshotSourceBookings(ctx, studentIDs, validUntil, tenantID, sourceRequestChildID); err != nil {
 		return 0, err
 	}
-	return r.endSourceBookingRows(ctx, studentIDs, validUntil, tenantID, sourceRequestChildID)
+	return r.endSourceBookingRows(ctx, studentIDs, validUntil, sourceRequestChildID)
 }
 
 func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
@@ -1069,7 +1066,7 @@ func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, 
 	return nil
 }
 
-func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, studentIDs []int64, validUntil timezone.Date, _ int64, sourceRequestChildID *int64) (int64, error) {
+func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, studentIDs []int64, validUntil timezone.Date, sourceRequestChildID *int64) (int64, error) {
 	childIDs, err := r.enrollment.CreatedStudentRequestChildIDs(ctx, studentIDs)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "find source applications for care exit", Err: err}

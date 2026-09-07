@@ -126,10 +126,7 @@ WITH params AS (
   service_start_date date, service_end_date date, care_offering_selection_mode text
  )
 ), offering_links AS (
- SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(
-  id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
-  selected_days jsonb, valid_from date, valid_until date
- )
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(`+enrollment.CareOfferingLinkRecordColumns+`)
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params

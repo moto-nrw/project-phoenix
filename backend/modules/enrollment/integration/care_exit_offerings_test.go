@@ -60,8 +60,8 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 					from, to   *string
 				}{
 					{running.ID, nil, nil},
-					{future.ID, ptr("2031-03-01"), nil},
-					{ended.ID, nil, ptr("2031-01-01")},
+					{future.ID, new("2031-03-01"), nil},
+					{ended.ID, nil, new("2031-01-01")},
 				}
 				ids := []*int64{&fixture.running, &fixture.future, &fixture.ended}
 				for i, row := range rows {
@@ -116,7 +116,7 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 			require.Equal(t, school.requestChildID, snapshot.RequestChildID)
 			require.Contains(t, string(snapshot.Snapshot), `"care_offering_id"`)
 		}
-		none, err := module.CareExitOfferingSnapshots(ctx, []int64{school.studentID}, validUntil, ptr64(school.requestChildID+1_000_000))
+		none, err := module.CareExitOfferingSnapshots(ctx, []int64{school.studentID}, validUntil, new(school.requestChildID+1_000_000))
 		require.NoError(t, err)
 		require.Empty(t, none, "a source application filter narrows the snapshot")
 		foreignSnapshots, err := module.CareExitOfferingSnapshots(foreignCtx, []int64{school.studentID}, validUntil, nil)
@@ -212,7 +212,3 @@ func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, links, 3, "retry succeeds after the failed transaction rolls back")
 }
-
-func ptr(value string) *string { return &value }
-
-func ptr64(value int64) *int64 { return &value }
