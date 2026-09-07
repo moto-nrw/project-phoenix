@@ -33,6 +33,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 			TenantDomain:     "localhost",
 			OperatorHostname: "operator.localhost:3000",
 		},
+		TenantRuntime{},
 		owners.organizations,
 		owners.persons,
 		owners.groups,
