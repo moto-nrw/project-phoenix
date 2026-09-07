@@ -145,6 +145,8 @@ const tenantProviderMock = vi.hoisted(() => ({
   // that default here so unrelated tests don't accidentally exercise the
   // hidden nav item. Tests covering the feature override this mock locally.
   useDisplayEnabled: vi.fn(() => false),
+  // Personal CalDAV is opt-in and hidden unless a test enables it.
+  useCalDAVEnabled: vi.fn(() => false),
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),

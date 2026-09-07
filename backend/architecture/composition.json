@@ -49,7 +49,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        101
+        105
       ],
       "tables": []
     },
@@ -59,7 +59,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        168
+        172
       ],
       "tables": []
     },
@@ -119,8 +119,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        96,
-        107
+        103,
+        114
       ],
       "tables": []
     },
@@ -6531,7 +6531,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        53
       ],
       "tables": []
     },
@@ -6578,7 +6578,7 @@
       "declaration": "TestFactoryOperatorMFARefusesChallengeWithoutSMTP",
       "target": "database/repositories.NewFactory",
       "lines": [
-        31
+        32
       ],
       "tables": []
     },
@@ -6800,7 +6800,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        506
+        519
       ],
       "tables": []
     },
@@ -6810,7 +6810,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        460
+        473
       ],
       "tables": []
     },
@@ -6820,7 +6820,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1255
+        1378
       ],
       "tables": []
     },
@@ -6830,7 +6830,7 @@
       "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1039
+        1162
       ],
       "tables": [
         "calendar.appointments",
@@ -6844,7 +6844,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1132
+        1255
       ],
       "tables": []
     },
@@ -6854,7 +6854,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1202
+        1325
       ],
       "tables": []
     },
@@ -6864,7 +6864,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2258
+        2381
       ],
       "tables": [
         "auth.accounts"
@@ -6876,7 +6876,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2852
+        2975
       ],
       "tables": []
     },
@@ -6886,7 +6886,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1951
+        2074
       ],
       "tables": []
     },
@@ -6896,7 +6896,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2915
+        3038
       ],
       "tables": []
     },
@@ -6906,7 +6906,27 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2084
+        2207
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvailable",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        862
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndToken",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        777
       ],
       "tables": []
     },
@@ -6916,7 +6936,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        764
+        887
       ],
       "tables": []
     },
@@ -6926,7 +6946,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        712
+        725
       ],
       "tables": [
         "auth.account_tenants"
@@ -6938,7 +6958,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        786
+        909
       ],
       "tables": []
     },
@@ -6948,7 +6968,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        833
+        956
       ],
       "tables": []
     },
@@ -6958,7 +6978,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        989
+        1112
       ],
       "tables": []
     },
@@ -6968,7 +6988,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        937
+        1060
       ],
       "tables": [
         "schedule.activity_instances"
@@ -6980,7 +7000,7 @@
       "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        890
+        1013
       ],
       "tables": []
     },
@@ -6990,7 +7010,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        610
+        623
       ],
       "tables": [
         "auth.accounts"
@@ -8301,7 +8321,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        36
+        37
       ],
       "tables": []
     },
@@ -8311,7 +8331,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        273
       ],
       "tables": []
     },
@@ -8321,7 +8341,7 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        288
       ],
       "tables": []
     },
@@ -8331,7 +8351,7 @@
       "declaration": "TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        85
       ],
       "tables": []
     },
@@ -8341,7 +8361,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        220
       ],
       "tables": []
     },
@@ -8351,7 +8371,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        203
+        204
       ],
       "tables": []
     },
@@ -8361,7 +8381,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        125
+        126
       ],
       "tables": []
     },
@@ -8371,7 +8391,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        141
+        142
       ],
       "tables": []
     },
@@ -8381,7 +8401,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -8391,7 +8411,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        306
       ],
       "tables": []
     },
@@ -8401,7 +8421,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        322
       ],
       "tables": []
     },
@@ -8411,7 +8431,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        171
+        172
       ],
       "tables": []
     },
@@ -8421,7 +8441,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        188
       ],
       "tables": []
     },
@@ -8431,7 +8451,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        157
+        158
       ],
       "tables": []
     },
@@ -8441,7 +8461,17 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        248
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/factory_test.go",
+      "declaration": "TestNewFactory_PublicAPIURL_Required",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        238
       ],
       "tables": []
     },
@@ -8451,7 +8481,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        95
+        96
       ],
       "tables": []
     },
@@ -27981,7 +28011,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 1118,
+          "line": 840,
+          "declaration": "initializeAPIResourcesWithRequestFeed"
+        },
+        {
+          "file": "api/base.go",
+          "line": 1126,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28011,8 +28046,13 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 109,
+          "line": 111,
           "declaration": "newStaffComposition"
+        },
+        {
+          "file": "api/staff_composition.go",
+          "line": 126,
+          "declaration": "newExportTransferModule"
         }
       ]
     },
@@ -28101,12 +28141,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 430,
+          "line": 432,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 463,
+          "line": 468,
           "declaration": "newFactory"
         },
         {

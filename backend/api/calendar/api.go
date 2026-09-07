@@ -20,13 +20,16 @@ import (
 )
 
 type Resource struct {
-	service calendarService.Service
-	db      *bun.DB
-	logger  *slog.Logger
+	service       calendarService.FullService
+	db            *bun.DB
+	logger        *slog.Logger
+	calDAVHandler http.Handler
 }
 
-func NewResource(service calendarService.Service, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{service: service, db: db, logger: logger}
+func NewResource(service calendarService.FullService, db *bun.DB, logger *slog.Logger) *Resource {
+	resource := &Resource{service: service, db: db, logger: logger}
+	resource.calDAVHandler = mustNewStaffCalDAVHandler(service, logger)
+	return resource
 }
 
 func (rs *Resource) Router() chi.Router {
@@ -160,27 +163,39 @@ func (rs *Resource) listMy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) calendarFeedURL(w http.ResponseWriter, r *http.Request) {
-	httpsURL, webcalURL, err := rs.service.StaffCalendarFeedURL(r.Context())
+	access, err := rs.service.StaffCalendarAccess(r.Context())
 	if err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]string{
-		"url":        httpsURL,
-		"webcal_url": webcalURL,
-	}, "Calendar feed URL retrieved")
+	w.Header().Set("Cache-Control", "no-store")
+	common.Respond(w, r, http.StatusOK, staffCalendarAccessResponse(access), "Calendar feed URL retrieved")
 }
 
 func (rs *Resource) rotateCalendarFeed(w http.ResponseWriter, r *http.Request) {
-	httpsURL, webcalURL, err := rs.service.RotateStaffCalendarFeed(r.Context())
+	access, err := rs.service.RotateStaffCalendarAccess(r.Context())
 	if err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]string{
-		"url":        httpsURL,
-		"webcal_url": webcalURL,
-	}, "Calendar feed URL rotated")
+	w.Header().Set("Cache-Control", "no-store")
+	common.Respond(w, r, http.StatusOK, staffCalendarAccessResponse(access), "Calendar feed URL rotated")
+}
+
+func staffCalendarAccessResponse(access calendarService.StaffCalendarAccessInfo) map[string]any {
+	var calDAV map[string]string
+	if access.CalDAV != nil {
+		calDAV = map[string]string{
+			"server_url":   access.CalDAV.ServerURL,
+			"username":     access.CalDAV.Username,
+			"app_password": access.CalDAV.AppPassword,
+		}
+	}
+	return map[string]any{
+		"url":        access.URL,
+		"webcal_url": access.WebcalURL,
+		"caldav":     calDAV,
+	}
 }
 
 func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {

@@ -302,6 +302,39 @@ const Value = "replacement"
 	}
 }
 
+func TestCheckAllowsExternalDependencyUsedOnlyByCandidatePackage(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["roles"] = append(document["roles"].([]any), "public")
+		document["external_classes"] = append(document["external_classes"].([]any), "standard")
+		document["external_packages"] = append(document["external_packages"].([]any), map[string]any{
+			"path": "net/url", "class": "standard",
+		})
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "replacement", "owner": "module", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+		document["rules"] = append(document["rules"].([]any), map[string]any{
+			"id": "replacement.to.standard", "description": "Candidate package uses its standard dependency.", "scopes": []string{"production"},
+			"source_owner": "module", "source_role": "public", "target_class": "standard",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+	writeFile(t, filepath.Join(repo, "replacement", "replacement.go"), `package replacement
+
+import "net/url"
+
+func Parse(value string) (*url.URL, error) { return url.Parse(value) }
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("candidate-only external dependency was rejected: %v\n%s", err, output)
+	}
+}
+
 func TestCheckAllowsRemovingGuardForDeletedLegacySymbol(t *testing.T) {
 	t.Parallel()
 

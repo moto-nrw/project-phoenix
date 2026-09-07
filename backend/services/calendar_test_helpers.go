@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type CalendarTestModule struct{ Calendar calendarService.Service }
+type CalendarTestModule struct{ Calendar calendarService.FullService }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
 	command, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})

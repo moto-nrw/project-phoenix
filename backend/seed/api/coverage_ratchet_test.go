@@ -36,6 +36,7 @@ var seedCoverageExemptions = map[string]string{
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",
+	"audit.export_transfers":            "only a real SFTP transfer to an external counterpart writes here; the address policy refuses the loopback target a seeder could offer",
 	"audit.personnel_number_changes":    "empty in prod too",
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",

@@ -8,7 +8,9 @@ diagrams must derive from this file and must not be committed.
 ## Canonical module map
 
 [ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
-records File Storage as the eighteenth domain for
+records File Storage as the eighteenth domain, and
+[ADR 0012](../../docs/adr/0012-export-transfer-is-the-tenth-platform.md)
+records Export Transfer as the tenth platform module, for
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
 [#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
 The canonical owner lists are:
@@ -34,7 +36,7 @@ The canonical owner lists are:
 | Feedback | `feedback` |
 | File Storage | `file-storage` |
 
-| Platform (9) | Policy owner |
+| Platform (10) | Policy owner |
 |---|---|
 | Tenant Runtime | `tenant-runtime` |
 | Transaction Runtime | `transaction-runtime` |
@@ -45,6 +47,7 @@ The canonical owner lists are:
 | Audit Platform | `audit-platform` |
 | Scheduler Runtime | `scheduler-runtime` |
 | Document Rendering | `document-rendering` |
+| Export Transfer | `export-transfer` |
 
 Policy validation pins these exact IDs and kinds for the moto module path;
 missing, extra, renamed, or reclassified owners fail before graph analysis.

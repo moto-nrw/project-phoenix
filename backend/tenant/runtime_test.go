@@ -79,11 +79,12 @@ func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(context.Background(), uow)
-	var hooks []int
+	var hooks, rollbacks []int
 
 	err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
 		attempt := attempts
 		tenant.RegisterAfterCommit(txCtx, func() { hooks = append(hooks, attempt) })
+		tenant.RegisterAfterRollback(txCtx, func() { rollbacks = append(rollbacks, attempt) })
 		if attempt == 1 {
 			return retryErr
 		}
@@ -92,6 +93,38 @@ func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int{2}, hooks, "a rolled-back attempt must not leak its after-commit hooks")
+	assert.Equal(t, []int{1}, rollbacks, "a failed attempt must compensate before it is retried")
+}
+
+func TestUnitOfWorkRunsRollbackHooksWhenCommitFails(t *testing.T) {
+	t.Parallel()
+	commitErr := errors.New("commit failed")
+	uow, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			if err := fn(ctx, struct{}{}); err != nil {
+				return err
+			}
+			return commitErr
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	ctx := tenant.WithUnitOfWork(context.Background(), uow)
+	var commits, rollbacks int
+
+	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+		tenant.RegisterAfterCommit(txCtx, func() { commits++ })
+		tenant.RegisterAfterRollback(txCtx, func() { rollbacks++ })
+		return nil
+	})
+
+	require.ErrorIs(t, err, commitErr)
+	assert.Zero(t, commits)
+	assert.Equal(t, 1, rollbacks)
 }
 
 func TestUnitOfWorkObservesRollbackDurationAndRetries(t *testing.T) {

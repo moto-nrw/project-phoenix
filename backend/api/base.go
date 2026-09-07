@@ -192,7 +192,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
 }
 
-func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -346,7 +346,7 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime api
 		return moduleServices{}, err
 	}
 	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger, tenantRuntime,
+		repoFactory, db, logger, publicAPIURL, tenantRuntime,
 		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 		communicationCapability,
 		func(observation communicationCompose.Observation) {
@@ -680,7 +680,7 @@ func (resources *apiBuildResources) close() error {
 }
 
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger, frontendURL string) (result *API, resultErr error) {
+func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL string) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -723,7 +723,7 @@ func New(enableCORS bool, logger *slog.Logger, frontendURL string) (result *API,
 	}
 
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, logger, tenantRuntime)
+	modules, err := initializeModuleServices(db, publicAPIURL, logger, tenantRuntime)
 	if err != nil {
 		return nil, err
 	}
@@ -812,8 +812,10 @@ func New(enableCORS bool, logger *slog.Logger, frontendURL string) (result *API,
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
 
-	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db, logger)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, db, logger, frontendURL)
+	if err != nil {
+		return nil, err
+	}
 	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
@@ -824,21 +826,6 @@ func New(enableCORS bool, logger *slog.Logger, frontendURL string) (result *API,
 		}
 		return len(cards) > 0, nil
 	}, db)
-	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
-		DB: db, FrontendURL: frontendURL, Now: time.Now,
-		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
-	})
-	if err != nil {
-		return nil, err
-	}
-	requestFeedResource := requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
-		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
-		},
-		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
-		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
-		Logger:           logger.With("handler", "request-feed"),
-	})
 
 	// Register routes with rate limiting
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
@@ -848,6 +835,27 @@ func New(enableCORS bool, logger *slog.Logger, frontendURL string) (result *API,
 
 	buildResources.released = true
 	return api, nil
+}
+
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+		return nil, err
+	}
+	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
+		DB: db, FrontendURL: frontendURL, Now: time.Now,
+		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
+		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
+		Logger:           logger.With("handler", "request-feed"),
+	}), nil
 }
 
 func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
@@ -905,12 +913,6 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	router.Use(apiCommon.RequestIdentityCacheMiddleware)
 }
 
-func setupCORSIfEnabled(router chi.Router, enabled bool) {
-	if enabled {
-		setupCORS(router)
-	}
-}
-
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ip := middleware.GetClientIP(r.Context()); ip != "" {
@@ -918,6 +920,12 @@ func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func setupCORSIfEnabled(router chi.Router, enabled bool) {
+	if enabled {
+		setupCORS(router)
+	}
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment.
@@ -1115,7 +1123,7 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) error {
 	deviceLastSeenDebouncer := iotAPI.NewDeviceLastSeenDebouncer()
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
@@ -1205,7 +1213,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	staffResource, staffAdmin, err := newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	if err != nil {
+		return err
+	}
+	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(api.Services.StaffAbsenceType), db, api.currentStaffID)
@@ -1344,6 +1356,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+	return nil
 }
 
 func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
@@ -1367,7 +1380,38 @@ func (a *API) currentStaffID(ctx context.Context) (int64, error) {
 
 // ServeHTTP implements the http.Handler interface for the API
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.Router.ServeHTTP(w, r)
+	a.Router.ServeHTTP(w, normalizeCalDAVMethodForRouting(r))
+}
+
+type calDAVOriginalMethodKey struct{}
+
+var calDAVExtensionMethods = map[string]struct{}{
+	"ACL": {}, "COPY": {}, "LOCK": {}, "MKCALENDAR": {}, "MKCOL": {},
+	"MOVE": {}, "PROPFIND": {}, "PROPPATCH": {}, "REPORT": {}, "UNLOCK": {},
+}
+
+func normalizeCalDAVMethodForRouting(r *http.Request) *http.Request {
+	isCalDAVPath := r.URL.Path == "/.well-known/caldav" || r.URL.Path == "/api/caldav" || strings.HasPrefix(r.URL.Path, "/api/caldav/")
+	if _, ok := calDAVExtensionMethods[r.Method]; !ok || !isCalDAVPath {
+		return r
+	}
+	ctx := context.WithValue(r.Context(), calDAVOriginalMethodKey{}, r.Method)
+	routed := r.Clone(ctx)
+	routed.Method = "QUERY"
+	return routed
+}
+
+func restoreCalDAVMethod(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		original, _ := r.Context().Value(calDAVOriginalMethodKey{}).(string)
+		if original == "" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		restored := r.Clone(r.Context())
+		restored.Method = original
+		handler.ServeHTTP(w, restored)
+	})
 }
 
 // authRateLimiters bundles the auth-endpoint rate limiters. Each field is nil
@@ -1461,6 +1505,14 @@ func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 	if requestFeed != nil {
 		a.Router.Mount("/public/request-feed", requestFeed.PublicRouter())
 	}
+
+	// Read-only staff CalDAV. Authentication happens inside the protocol
+	// handler with the tenant-bound calendar app password, before a tenant is
+	// known, so these routes intentionally sit outside the JWT tenant group.
+	calDAVHandler := restoreCalDAVMethod(http.HandlerFunc(a.Calendar.ServeCalDAV))
+	a.Router.Handle("/.well-known/caldav", calDAVHandler)
+	a.Router.Handle("/api/caldav", calDAVHandler)
+	a.Router.Handle("/api/caldav/*", calDAVHandler)
 
 	a.Router.With(metricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", metricsHandler())
 }

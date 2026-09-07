@@ -223,6 +223,15 @@ func (s *Service) RenderCalendar(_ context.Context, name string, events []domain
 	return result, err
 }
 
+func (s *Service) RenderCalendarObject(_ context.Context, event domain.CalendarEvent) (result string, err error) {
+	err = s.run("render_calendar_object", func(stats *domain.OperationStats) error {
+		result = domain.RenderCalendarObject(event)
+		stats.Rows = 1
+		return nil
+	})
+	return result, err
+}
+
 // --- plumbing ---
 
 func (s *Service) run(operation string, fn func(*domain.OperationStats) error) (err error) {
