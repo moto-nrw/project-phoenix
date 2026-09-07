@@ -1,14 +1,45 @@
-package config
+package compose
 
 import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// buildWorkforce composes the module over the test tenant runtime. The staff
+// assignment closures stand in for the School Membership capability, which
+// this package cannot compose without an import cycle through the test
+// support package.
+func buildWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
+	t.Helper()
+	runtime := testpkg.ConfigRuntime(db)
+	capability, err := New(Dependencies{
+		DB:                db,
+		AssignedStaffIDs:  runtime.AssignedStaffIDs,
+		RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor,
+		Observe:           func(Observation) {},
+	})
+	require.NoError(t, err)
+	return capability
+}
+
+func buildScheduleRepository(t *testing.T, db *bun.DB) configModel.StaffWorkScheduleRepository {
+	t.Helper()
+	return repositoryadapter.NewStaffWorkScheduleRepository(buildWorkforce(t, db))
+}
+
+func buildModelRepository(t *testing.T, db *bun.DB) configModel.WorkTimeModelRepository {
+	t.Helper()
+	return repositoryadapter.NewWorkTimeModelRepository(buildWorkforce(t, db))
+}
 
 func testCalendarDate(year int, month time.Month, day int) configModel.CalendarDate {
 	return configModel.NewCalendarDate(year, month, day)
@@ -22,7 +53,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Exclusive")
 
-	repo := NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
+	repo := buildScheduleRepository(t, db)
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
 			DayOfWeek:      configModel.DayMonday,
@@ -40,7 +71,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 		},
 	}, configModel.CalendarDate("")))
 
-	today := configModel.CalendarDateFromTime(testpkg.ConfigRuntime(db).TodayTime())
+	today := configModel.CalendarDate(timezone.TodayDate().String())
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
@@ -56,7 +87,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Invalid")
 
-	repo := NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
+	repo := buildScheduleRepository(t, db)
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
 			DayOfWeek:      configModel.DayMonday,
@@ -109,7 +140,7 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 		Exec(ctx)
 	require.NoError(t, err)
 
-	repo := NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
+	repo := buildScheduleRepository(t, db)
 	entries, err := repo.GetByStaffIDAndDate(ctx, ownStaff.ID, queryDate)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
@@ -123,7 +154,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 
 	staff := testpkg.CreateTestStaff(t, db, "Template", "Refresh")
 
-	repo := NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
+	repo := buildModelRepository(t, db)
 	model := &configModel.WorkTimeModel{
 		Name:               "Refresh assigned schedule",
 		RotationLength:     1,
@@ -145,7 +176,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 		_ = repo.Delete(ctx, model.ID)
 	}()
 
-	scheduleRepo := NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
+	scheduleRepo := buildScheduleRepository(t, db)
 	require.NoError(t, scheduleRepo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
@@ -200,7 +231,7 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
-	repo := NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
+	repo := buildModelRepository(t, db)
 	model := &configModel.WorkTimeModel{
 		Name:               "Update safety test",
 		RotationLength:     1,
@@ -238,7 +269,7 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Assigned", "Template")
-	repo := NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
+	repo := buildModelRepository(t, db)
 	model := &configModel.WorkTimeModel{
 		Name:               "Assigned delete safety",
 		RotationLength:     1,
@@ -314,7 +345,7 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 	_, err := db.NewInsert().Model(foreignRow).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 	require.NoError(t, err)
 
-	repo := NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
+	repo := buildScheduleRepository(t, db)
 
 	empty, err := repo.FindByStaffIDsValidInRange(ctx, nil, from, to)
 	require.NoError(t, err)
@@ -342,7 +373,7 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
-	repo := NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
+	repo := buildModelRepository(t, db)
 	anchor := testCalendarDate(2026, time.January, 5)
 
 	localA := &configModel.WorkTimeModel{Name: "FindByIDs A", RotationLength: 1, RotationAnchorDate: anchor}

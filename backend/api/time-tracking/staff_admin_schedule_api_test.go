@@ -22,7 +22,6 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
 	repos := newWorkforceTestRepositories(t, ctx.db)
-	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
 	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
@@ -91,7 +90,6 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
 	repos := newWorkforceTestRepositories(t, ctx.db)
-	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
 	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{

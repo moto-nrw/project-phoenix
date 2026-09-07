@@ -1934,6 +1934,62 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce",
+      "owner": "workforce",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose/httpadapter",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose/repositoryadapter",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/adapters/postgres",
+      "owner": "workforce",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/application",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/domain",
+      "owner": "workforce",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/ports",
+      "owner": "workforce",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -8252,6 +8308,299 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.port-domain",
+      "description": "Workforce ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "workforce.compose.application",
+      "description": "Workforce composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.compose.domain",
+      "description": "Workforce composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.port",
+      "description": "Workforce composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "port"
+    },
+    {
+      "id": "workforce.compose.postgres",
+      "description": "Workforce composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "postgres"
+    },
+    {
+      "id": "workforce.compose.public",
+      "description": "Workforce composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.orm-sql",
+      "description": "Workforce composition supplies the concrete Bun database dependency and preserves the legacy no-rows error value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.compose.tenant-runtime",
+      "description": "Workforce composition resolves the ambient tenant transaction and the staff balance lock through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.legacy-shared-domain",
+      "description": "Workforce composition resolves today's calendar day and wall-clock values with the shared helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.settings-domain",
+      "description": "The Workforce repository adapter serves the retained work-time model contracts while their consumers migrate.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.http-router",
+      "description": "Workforce HTTP composition binds the established Chi transport.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.compose.inbound-common",
+      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.compose.security-contract",
+      "description": "Workforce HTTP composition supplies the established time-tracking permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.compose.work-time-models-http",
+      "description": "Workforce composition constructs its work-time-model HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "inbound-work-time-models",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.integration-test.public",
+      "description": "Workforce integration tests exercise the public facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.integration-test.compose",
+      "description": "Workforce integration tests construct the real owner provider and its compatibility adapters.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.integration-test.support",
+      "description": "Workforce integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "workforce.integration-test.orm-sql",
+      "description": "Workforce integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.integration-test.http-router",
+      "description": "Workforce HTTP integration tests exercise the real router.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.integration-test.identity-adapter",
+      "description": "Workforce HTTP integration tests mint authenticated tenant requests.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.integration-test.work-time-models-http",
+      "description": "Workforce HTTP integration tests drive the work-time-model adapter directly.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-work-time-models",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.integration-test.settings-domain",
+      "description": "Workforce compatibility tests verify the retained work-time model contracts.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.integration-test.legacy-shared-domain",
+      "description": "Workforce integration tests pin calendar-day expectations with the shared helpers.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.workforce-compose",
+      "description": "The production root constructs the Workforce module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.workforce-public",
+      "description": "The production root records stable Workforce capability outcomes and shares the one facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.workforce-compose",
+      "description": "Legacy composition constructs the default Workforce capability and its repository adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.workforce-public",
+      "description": "Legacy composition passes the Workforce facade to the retained work-time repositories.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
       "target_role": "public"
     },
     {

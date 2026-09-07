@@ -1,4 +1,4 @@
-package config
+package compose
 
 import (
 	"context"
@@ -18,7 +18,7 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
 
 	runtime := testpkg.ConfigRuntime(db)
-	schedules := NewStaffWorkScheduleRepository(runtime)
+	schedules := buildScheduleRepository(t, db)
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})

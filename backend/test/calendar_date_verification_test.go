@@ -24,6 +24,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -110,6 +111,20 @@ func declaredTypeIsString(backendRoot, source, name string) bool {
 	return false
 }
 
+// adapterStorageDateIsString reports whether the calendarDate the field uses
+// is declared as a string inside its own adapter package. The type is
+// package-private, so it is either declared in the field's file or in the
+// package's store.go.
+func adapterStorageDateIsString(backendRoot, source string) bool {
+	directory := path.Dir(source)
+	for _, candidate := range []string{source, path.Join(directory, "store.go")} {
+		if declaredTypeIsString(backendRoot, candidate, "calendarDate") {
+			return true
+		}
+	}
+	return false
+}
+
 func TestDateColumnTypes(t *testing.T) {
 	t.Parallel()
 
@@ -143,10 +158,15 @@ func TestDateColumnTypes(t *testing.T) {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
-					if !strings.HasPrefix(f.file, "modules/careplan/internal/adapters/postgres/") ||
-						!declaredTypeIsString(backendRoot, "modules/careplan/internal/adapters/postgres/store.go", "calendarDate") {
+					// An owner's Postgres adapter may keep its own storage-date
+					// type. The declaration is verified rather than the name: a
+					// string value is what BUN binds verbatim, so the driver
+					// cannot shift the day.
+					if !strings.HasPrefix(f.file, "modules/") ||
+						!strings.Contains(f.file, "/internal/adapters/postgres/") ||
+						!adapterStorageDateIsString(backendRoot, f.file) {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" must use Care Plan's string-backed storage date"))
+							col+" must use a string-backed storage date declared in the owner's Postgres adapter"))
 					}
 				case "enrollment.Date", "*enrollment.Date":
 					// Verify the owner type's representation instead of accepting

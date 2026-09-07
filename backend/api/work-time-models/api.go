@@ -1,36 +1,66 @@
-// Package worktimemodels exposes tenant-level CRUD for work-time templates.
-// A template captures a Soll-Stunden pattern (Mo-Fr per rotation week) that
-// admins assign to staff. Per-staff binding lives on /api/staff/{id}/schedule
-// with mode=template.
+// Package worktimemodels serves the established /api/work-time-models
+// contract through the Workforce capability. A template captures a
+// Soll-Stunden pattern (Mo-Fr per rotation week) that admins assign to staff;
+// the per-staff binding lives on /api/staff/{id}/schedule with mode=template.
+//
+// Authentication, transaction scoping, rendering and the post-commit
+// notification are supplied by the composition root.
 package worktimemodels
 
 import (
+	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// Resource bundles the dependencies needed by the work-time-model HTTP handlers.
+// Middleware is the HTTP middleware shape the composition root supplies.
+type Middleware = func(http.Handler) http.Handler
+
+// FailureKind classifies a handler failure so the composition root can render
+// it with the project's shared error envelope.
+type FailureKind string
+
+const (
+	FailureInvalid  FailureKind = "invalid"
+	FailureNotFound FailureKind = "not_found"
+	FailureInternal FailureKind = "internal"
+)
+
+// wireClockLayout is the HH:MM start time the API has always accepted and
+// returned; the capability itself stores a full wall clock.
+const wireClockLayout = "15:04"
+
+// Runtime carries the HTTP-platform behavior this adapter must not own. Every
+// field is required, so missing production wiring fails at startup.
+type Runtime struct {
+	Protected  func(chi.Router, func(chi.Router, Middleware))
+	Permission func(string) Middleware
+	ParseID    func(*http.Request) (int64, error)
+	Success    func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure    func(http.ResponseWriter, *http.Request, FailureKind, error)
+	// Manage is the permission every route requires.
+	Manage string
+	// NotifyChanged invalidates the time-account views after a template edit
+	// rewrote the assigned staff schedules. It runs only after the write
+	// succeeded.
+	NotifyChanged func(context.Context)
+}
+
+// Resource bundles the dependencies needed by the work-time-model handlers.
 type Resource struct {
-	Service *configSvc.WorkTimeModelService
-	db      *bun.DB
-	logger  *slog.Logger
+	models  workforce.Capability
+	runtime Runtime
 }
 
 // NewResource wires the dependencies.
-func NewResource(service *configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, db: db, logger: logger}
+func NewResource(models workforce.Capability, runtime Runtime) *Resource {
+	return &Resource{models: models, runtime: runtime}
 }
 
 // Router returns the chi sub-router for /api/work-time-models.
@@ -38,13 +68,13 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}", rs.get)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
+	rs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {
+		manage := rs.runtime.Permission(rs.runtime.Manage)
+		r.With(manage, withTx).Get("/", rs.list)
+		r.With(manage, withTx).Get("/{id}", rs.get)
+		r.With(manage, withTx).Post("/", rs.create)
+		r.With(manage, withTx).Put("/{id}", rs.update)
+		r.With(manage, withTx).Delete("/{id}", rs.delete)
 	})
 
 	return r
@@ -85,158 +115,166 @@ type ModelResponse struct {
 }
 
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
-	models, err := rs.Service.ListModels(r.Context())
+	models, err := rs.models.ListWorkTimeModels(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.runtime.Failure(w, r, FailureInternal, err)
 		return
 	}
 	out := make([]ModelResponse, 0, len(models))
 	for _, m := range models {
 		out = append(out, toResponse(m))
 	}
-	common.Respond(w, r, http.StatusOK, out, "Work time models retrieved")
+	rs.runtime.Success(w, r, http.StatusOK, out, "Work time models retrieved")
 }
 
 func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	m, err := rs.Service.GetModel(r.Context(), id)
+	model, err := rs.models.FindWorkTimeModel(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("model not found")))
+		rs.runtime.Failure(w, r, FailureNotFound, errors.New("model not found"))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toResponse(m), "Work time model retrieved")
+	rs.runtime.Success(w, r, http.StatusOK, toResponse(model), "Work time model retrieved")
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var req ModelRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	model, entries, err := buildModelAndEntries(req)
+	fields, err := buildFields(req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	saved, err := rs.Service.CreateModel(r.Context(), model, entries)
+	saved, err := rs.models.CreateWorkTimeModel(r.Context(), workforce.CreateWorkTimeModel{WorkTimeModelFields: fields})
 	if err != nil {
 		rs.renderSaveError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toResponse(saved), "Work time model created")
+	rs.runtime.Success(w, r, http.StatusCreated, toResponse(saved), "Work time model created")
 }
 
+// update rewrites the template and, in the same transaction, the schedule
+// snapshots of every staff member bound to it. The time-account views are
+// invalidated only once both writes succeeded.
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
 	var req ModelRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	model, entries, err := buildModelAndEntries(req)
+	fields, err := buildFields(req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	model.ID = id
-	saved, err := rs.Service.UpdateModel(r.Context(), model, entries)
+	saved, err := rs.models.UpdateWorkTimeModel(r.Context(), workforce.UpdateWorkTimeModel{ID: id, WorkTimeModelFields: fields})
 	if err != nil {
 		rs.renderSaveError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toResponse(saved), "Work time model updated")
+	if err := rs.models.RefreshAssignedStaffSchedules(r.Context(), id); err != nil {
+		rs.renderSaveError(w, r, err)
+		return
+	}
+	rs.runtime.NotifyChanged(r.Context())
+	rs.runtime.Success(w, r, http.StatusOK, toResponse(saved), "Work time model updated")
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	if err := rs.Service.DeleteModel(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("model not found or in use")))
+	if err := rs.models.DeleteWorkTimeModel(r.Context(), id); err != nil {
+		rs.runtime.Failure(w, r, FailureNotFound, errors.New("model not found or in use"))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]any{"id": id}, "Work time model deleted")
+	rs.runtime.Success(w, r, http.StatusOK, map[string]any{"id": id}, "Work time model deleted")
 }
 
-// renderSaveError maps a create/update service error to its HTTP response:
+// renderSaveError maps a create/update capability error to its HTTP response:
 // caller-input validation failures become 400, everything else 500.
 func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err error) {
-	var vErr *configSvc.WorkTimeModelValidationError
-	if errors.As(err, &vErr) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	if errors.Is(err, workforce.ErrInvalidWorkTime) {
+		rs.runtime.Failure(w, r, FailureInvalid, err)
 		return
 	}
-	common.RenderError(w, r, common.ErrorInternalServer(err))
+	rs.runtime.Failure(w, r, FailureInternal, err)
 }
 
-// buildModelAndEntries binds the wire request into domain structs. It only
-// parses the wire format (anchor date, per-entry start time) and drops
-// zero-minute entries; the business rules are enforced by the service via
-// WorkTimeModelService.ValidateModelWithEntries.
-func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.WorkTimeModelEntry, error) {
-	anchor := config.CalendarDate("")
+// buildFields binds the wire request into capability input. It only parses the
+// wire format (anchor date, per-entry start time) and drops zero-minute
+// entries; the business rules are enforced by the Workforce capability.
+func buildFields(req ModelRequest) (workforce.WorkTimeModelFields, error) {
+	anchor := ""
 	if req.RotationAnchorDate != "" {
-		parsed, err := config.ParseCalendarDate(req.RotationAnchorDate)
-		if err != nil {
-			return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
+		parsed, err := time.Parse(workforce.DateLayout, req.RotationAnchorDate)
+		if err != nil || parsed.Format(workforce.DateLayout) != req.RotationAnchorDate {
+			return workforce.WorkTimeModelFields{}, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 		}
-		anchor = parsed
+		anchor = req.RotationAnchorDate
 	}
-	model := &config.WorkTimeModel{
+	fields := workforce.WorkTimeModelFields{
 		Name:               req.Name,
 		RotationLength:     req.RotationLength,
 		RotationAnchorDate: anchor,
+		Entries:            make([]workforce.WorkTimeModelEntry, 0, len(req.Entries)),
 	}
-	entries := make([]*config.WorkTimeModelEntry, 0, len(req.Entries))
 	for _, e := range req.Entries {
 		if e.TargetMinutes == 0 {
 			continue
 		}
 		startTime, err := parseOptionalStartTime(e.StartTime)
 		if err != nil {
-			return nil, nil, err
+			return workforce.WorkTimeModelFields{}, err
 		}
-		entries = append(entries, &config.WorkTimeModelEntry{
+		fields.Entries = append(fields.Entries, workforce.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
 			StartTime:     startTime,
 		})
 	}
-	return model, entries, nil
+	return fields, nil
 }
 
-func parseOptionalStartTime(raw *string) (*time.Time, error) {
+func parseOptionalStartTime(raw *string) (string, error) {
 	if raw == nil || *raw == "" {
-		return nil, nil
+		return "", nil
 	}
-	parsed, err := time.Parse("15:04", *raw)
+	parsed, err := time.Parse(wireClockLayout, *raw)
 	if err != nil {
-		return nil, errors.New("start_time must be HH:MM")
+		return "", errors.New("start_time must be HH:MM")
 	}
-	wallClock := timezone.NormalizeWallClock(parsed)
-	return &wallClock, nil
+	return parsed.Format(workforce.ClockLayout), nil
 }
 
-func formatOptionalStartTime(value *time.Time) *string {
-	if value == nil {
+func formatOptionalStartTime(value string) *string {
+	if value == "" {
 		return nil
 	}
-	formatted := timezone.NormalizeWallClock(*value).Format("15:04")
+	parsed, err := time.Parse(workforce.ClockLayout, value)
+	if err != nil {
+		return nil
+	}
+	formatted := parsed.Format(wireClockLayout)
 	return &formatted
 }
 
-func toResponse(m *config.WorkTimeModel) ModelResponse {
+func toResponse(m workforce.WorkTimeModel) ModelResponse {
 	totals := make([]int, m.RotationLength)
 	entries := make([]EntryResponse, 0, len(m.Entries))
 	for _, e := range m.Entries {
@@ -254,8 +292,17 @@ func toResponse(m *config.WorkTimeModel) ModelResponse {
 		ID:                 m.ID,
 		Name:               m.Name,
 		RotationLength:     m.RotationLength,
-		RotationAnchorDate: m.RotationAnchorDate.String(),
+		RotationAnchorDate: rotationAnchor(m.RotationAnchorDate),
 		Entries:            entries,
 		WeeklyTotals:       totals,
 	}
+}
+
+// rotationAnchor preserves the legacy zero-date rendering of a template whose
+// anchor column is somehow empty.
+func rotationAnchor(value string) string {
+	if value == "" {
+		return "0000-00-00"
+	}
+	return value
 }

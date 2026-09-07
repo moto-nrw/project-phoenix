@@ -6,9 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -365,20 +363,20 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	t.Run("loads work-time model linkage fields", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WorkTime", "Linkage")
 
-		modelRepo := configRepo.NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
-		anchor := configModel.NewCalendarDate(2026, time.January, 5)
-		model := &configModel.WorkTimeModel{
-			Name:               fmt.Sprintf("Linkage %d", staff.ID),
-			RotationLength:     2,
-			RotationAnchorDate: anchor,
-		}
-		require.NoError(t, modelRepo.Create(ctx, model, []*configModel.WorkTimeModelEntry{
-			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
-		}))
+		// The template row belongs to Workforce; this test only needs a
+		// referencable id, so it is written directly instead of pulling
+		// that owner's composition into a People Directory test.
+		var modelID int64
+		require.NoError(t, db.NewRaw(
+			`INSERT INTO config.work_time_models (tenant_id, name, rotation_length, rotation_anchor_date)
+			 VALUES (?, ?, 2, DATE '2026-01-05') RETURNING id`,
+			testpkg.Tenant(t), fmt.Sprintf("Linkage %d", staff.ID),
+		).Scan(ctx, &modelID))
+
 		staffAnchor := timezone.NewDate(2026, time.January, 12)
 		_, err := db.NewUpdate().
 			Table("users.staff").
-			Set("work_time_model_id = ?", model.ID).
+			Set("work_time_model_id = ?", modelID).
 			Set("rotation_anchor_date = ?", staffAnchor).
 			Where("id = ?", staff.ID).
 			Exec(ctx)
@@ -389,7 +387,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 				Set("work_time_model_id = NULL").
 				Where("id = ?", staff.ID).
 				Exec(ctx)
-			_ = modelRepo.Delete(ctx, model.ID)
+			_, _ = db.NewDelete().Table("config.work_time_models").Where("id = ?", modelID).Exec(ctx)
 		}()
 
 		results, err := repo.ListAllWithPerson(ctx)
@@ -403,7 +401,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		}
 		require.NotNil(t, found, "should find the created staff member")
 		require.NotNil(t, found.WorkTimeModelID, "work_time_model_id must be scanned")
-		assert.Equal(t, model.ID, *found.WorkTimeModelID)
+		assert.Equal(t, modelID, *found.WorkTimeModelID)
 		require.NotNil(t, found.RotationAnchorDate, "rotation_anchor_date must be scanned")
 		assert.Equal(t, staffAnchor, *found.RotationAnchorDate)
 	})

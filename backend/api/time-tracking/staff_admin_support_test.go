@@ -32,7 +32,6 @@ func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.Workfor
 	t.Helper()
 	repos, err := repositories.NewWorkforceTestRepositories(db, repositories.NewTestAuditStore(db))
 	require.NoError(t, err)
-	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.SettingsRuntime(t, db))
 	return repos
 }
 
