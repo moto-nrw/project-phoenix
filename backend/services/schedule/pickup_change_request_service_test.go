@@ -12,9 +12,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -471,15 +472,18 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	require.NoError(t, err)
 	device := testpkg.CreateTestDeviceForTenant(t, f.db, f.chain.TenantID, "pickup-review-checkout")
 	checkedOutAt := timezone.Now()
-	attendance := &activeModels.Attendance{
+	attendance := studentpresence.Attendance{
+		TenantID:     f.chain.TenantID,
 		StudentID:    f.chain.StudentID,
-		Date:         date,
+		Date:         date.String(),
 		CheckInTime:  checkedOutAt.Add(-time.Hour),
 		CheckOutTime: &checkedOutAt,
 		DeviceID:     device.ID,
 	}
-	attendance.SetTenantID(f.chain.TenantID)
-	require.NoError(t, f.repos.Attendance.Create(ctx, attendance))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: f.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	_, err = presence.RecordAttendance(ctx, attendance)
+	require.NoError(t, err)
 
 	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
 		RequestID:  req.ID,

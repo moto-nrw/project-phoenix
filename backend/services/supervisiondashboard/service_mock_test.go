@@ -36,7 +36,7 @@ type mockActiveService struct {
 	getRoomsByIDsFn            func(ids []int64) ([]*facilitiesModels.Room, error)
 	getUnclaimedActiveGroupsFn func() ([]*activeModels.Group, error)
 	getTrackingIndicatorsFn    func(studentIDs []int64, labels []string) (map[int64][]bool, error)
-	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error)
+	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error)
 	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
 	getStaffSupervisionsFn     func(staffID int64) ([]*activeModels.GroupSupervisor, error)
 }
@@ -61,7 +61,7 @@ func (m *mockActiveService) GetTrackingIndicators(_ context.Context, studentIDs 
 	return m.getTrackingIndicatorsFn(studentIDs, labels)
 }
 
-func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, activeGroupID int64) ([]*activeService.VisitWithStudentDisplay, error) {
 	return m.getActiveGroupVisitsFn(activeGroupID)
 }
 

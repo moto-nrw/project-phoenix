@@ -8,6 +8,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,7 +133,7 @@ func TestProcessActiveGroupsCountsOnlyEducationBoundCareSessions(t *testing.T) {
 	}
 
 	roomData := emptyRoomData()
-	totalCount, ogsCount, _ := processActiveGroups(sessions, map[int64][]*activeModels.Visit{}, templates, roomData)
+	totalCount, ogsCount, _ := processActiveGroups(sessions, map[int64][]studentpresence.Visit{}, templates, roomData)
 
 	assert.Equal(t, len(sessions), totalCount)
 	assert.Equal(t, 1, ogsCount, "only the education-bound care session is a Betreuungsgruppe")
@@ -148,7 +149,7 @@ func TestProcessActiveGroupsWithoutTemplatesCountsNoOGSGroups(t *testing.T) {
 
 	_, ogsCount, _ := processActiveGroups(
 		sessions,
-		map[int64][]*activeModels.Visit{},
+		map[int64][]studentpresence.Visit{},
 		map[int64]*activitiesModels.Group{},
 		emptyRoomData(),
 	)

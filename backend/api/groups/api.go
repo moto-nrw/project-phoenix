@@ -313,24 +313,27 @@ func (rs *Resource) resolveLocationForStudent(
 	return rs.resolveStudentLocation(ctx, studentID, hasFullAccess)
 }
 
-// getStudentVisit retrieves a student's current visit from snapshot or service
-func (rs *Resource) getStudentVisit(ctx context.Context, studentID int64, snapshot *common.StudentLocationSnapshot) *active.Visit {
+// getStudentVisitGroupID reads the student's current group ID from the snapshot or service.
+func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64, snapshot *common.StudentLocationSnapshot) *int64 {
 	if snapshot != nil {
-		return snapshot.Visits[studentID]
-	}
-	visit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil {
+		if visit := snapshot.Visits[studentID]; visit != nil {
+			return &visit.ActiveGroupID
+		}
 		return nil
 	}
-	return visit
+	visit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil || visit == nil {
+		return nil
+	}
+	return &visit.ActiveGroupID
 }
 
 // getVisitActiveGroup retrieves the active group for a visit from snapshot or service
-func (rs *Resource) getVisitActiveGroup(ctx context.Context, visit *active.Visit, snapshot *common.StudentLocationSnapshot) *active.Group {
+func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *common.StudentLocationSnapshot) *active.Group {
 	if snapshot != nil {
-		return snapshot.Groups[visit.ActiveGroupID]
+		return snapshot.Groups[activeGroupID]
 	}
-	group, err := rs.ActiveService.GetActiveGroup(ctx, visit.ActiveGroupID)
+	group, err := rs.ActiveService.GetActiveGroup(ctx, activeGroupID)
 	if err != nil {
 		return nil
 	}
@@ -350,8 +353,8 @@ func (rs *Resource) buildStudentRoomStatus(
 		"reason":        "no_active_visit",
 	}
 
-	visit := rs.getStudentVisit(ctx, student.ID, snapshot)
-	if visit == nil {
+	visitGroupID := rs.getStudentVisitGroupID(ctx, student.ID, snapshot)
+	if visitGroupID == nil {
 		if person, ok := personMap[student.PersonID]; ok {
 			status["first_name"] = person.FirstName
 			status["last_name"] = person.LastName
@@ -359,7 +362,7 @@ func (rs *Resource) buildStudentRoomStatus(
 		return status
 	}
 
-	activeGroup := rs.getVisitActiveGroup(ctx, visit, snapshot)
+	activeGroup := rs.getVisitActiveGroup(ctx, *visitGroupID, snapshot)
 	if activeGroup == nil {
 		if person, ok := personMap[student.PersonID]; ok {
 			status["first_name"] = person.FirstName

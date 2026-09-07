@@ -187,8 +187,10 @@ func TestDateColumnTypes(t *testing.T) {
 								" — use timezone.Date (see .claude/rules/calendar-dates.md)"))
 					}
 				default:
-					violations = append(violations, formatViolation(f.file, f.line,
-						col+" maps to unexpected Go type "+f.goType+" — use timezone.Date"))
+					if !isCanonicalDateAlias(backendRoot, f.file, f.goType) {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" maps to unexpected Go type "+f.goType+" — use timezone.Date"))
+					}
 				}
 			}
 		}

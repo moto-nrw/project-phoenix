@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -35,9 +37,9 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 		20: {Model: base.Model{ID: 20}, RoomID: 12},
 	}}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		RoomRepo:  roomRepo,
-		VisitRepo: visitRepo,
-		GroupRepo: groupRepo,
+		RoomRepo:       roomRepo,
+		SchoolPresence: visitRepo,
+		GroupRepo:      groupRepo,
 	}}
 	targetGroup := &activeModels.Group{Model: base.Model{ID: 21}, RoomID: 12}
 
@@ -45,8 +47,8 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 		context.Background(),
 		targetGroup,
 		[]int64{30},
-		map[int64]*activeModels.Attendance{30: {}},
-		map[int64]*activeModels.Visit{30: {ActiveGroupID: 20}},
+		map[int64]studentpresence.Attendance{30: {}},
+		map[int64]*studentpresence.Visit{30: {ActiveGroupID: 20}},
 	)
 
 	require.NoError(t, err)
@@ -68,7 +70,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 200, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 30)
 
@@ -82,7 +84,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 40, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 3)
 
@@ -95,7 +97,7 @@ func TestEnsureRoomCapacity(t *testing.T) {
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 42, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 2)
 

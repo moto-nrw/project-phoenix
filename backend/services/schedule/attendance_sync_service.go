@@ -9,31 +9,23 @@
 //     populate EventData.Attendance* fields on the student_checkin /
 //     student_checkout SSE events.
 //
-// Contract: every method is graceful-degradation-by-design. Errors are
-// swallowed and nil is returned. The caller (active.service) proceeds as
-// if no instance was attached to the visit — which is always a valid
-// outcome (walk-ins, schulhof/WC sessions, pre-start race windows).
-//
-// Shared-tenant-tx caveat: these methods run inside the IoT handler's
-// TenantTxMiddleware transaction. If the UPDATE in MirrorCheckInForVisit
-// fails with a Postgres-level error (not just sql.ErrNoRows), the tx is
-// tainted and a subsequent commit failure will roll back the visit. That
-// is unavoidable under the shared tx and is the one failure mode this
-// service cannot gracefully degrade. Branch 7 below logs at Error level
-// so the existing "backend error rate" alert surfaces it in ops.
+// Missing timetable assignments are valid no-ops. Read and write failures
+// return errors to the caller, which owns the shared tenant transaction and
+// rolls back presence and timetable writes together.
 package schedule
 
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"log/slog"
 	"runtime/debug"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -73,20 +65,19 @@ func (s *AttendanceSyncService) getLogger() *slog.Logger {
 // Info level per GDPR):
 //
 //	B1 nil or zero ActiveGroupID     → Debug, return nil
-//	B2 instance lookup error         → Warn, return nil
+//	B2 instance lookup error         → return error
 //	B3 no instance bridged           → Debug, return nil (walk-in)
-//	B4 instance_student lookup error → Warn, return nil
+//	B4 instance_student lookup error → return error
 //	B5 no instance_student row       → persist unplanned presence
 //	B6 row is manual/observably open → Debug, return current snapshot
-//	B7 UPDATE error                  → Error (tx likely tainted), return nil
+//	B7 UPDATE error                  → return error
 //	B8 UPDATE rowsAffected=0 (race)  → Debug, return snapshot of row we read
 //	B9 happy path                    → Info, return new snapshot
 func (s *AttendanceSyncService) MirrorCheckInForVisit(
-	ctx context.Context, visit *activeModel.Visit,
-) (snapshot *activeSvc.AttendanceSnapshot) {
-	// Panic belt-and-braces — we promise no error and no panic to the caller.
-	// The stack is captured at Error level so an after-the-fact root cause
-	// is recoverable from Grafana without having to reproduce the panic.
+	ctx context.Context, visit *studentpresence.Visit,
+) (snapshot *activeSvc.AttendanceSnapshot, err error) {
+	// Return unexpected failures to the transaction owner; keep the stack
+	// in logs for diagnosis without publishing it to clients.
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance mirror panic",
@@ -94,12 +85,13 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 				slog.String("stack", string(debug.Stack())),
 			)
 			snapshot = nil
+			err = fmt.Errorf("visit check-in sync panic: %v", r)
 		}
 	}()
 
 	if visit == nil || visit.ActiveGroupID <= 0 {
 		s.getLogger().Debug("attendance mirror: visit has no active_group_id, skipping")
-		return nil
+		return nil, nil
 	}
 
 	instance, err := s.instanceRepo.FindByActiveGroupID(ctx, visit.ActiveGroupID)
@@ -108,13 +100,13 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 			slog.Int64("active_group_id", visit.ActiveGroupID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit check-in sync: find instance: %w", err)
 	}
 	if instance == nil {
 		s.getLogger().Debug("attendance mirror: no instance bridged to active_group, walk-in",
 			slog.Int64("active_group_id", visit.ActiveGroupID),
 		)
-		return nil
+		return nil, nil
 	}
 
 	row, err := s.instanceStudentRepo.FindByInstanceAndStudent(ctx, instance.ID, visit.StudentID)
@@ -124,7 +116,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit check-in sync: find slot: %w", err)
 	}
 	if row == nil {
 		return s.createUnplannedAttendance(ctx, instance.ID, visit)
@@ -154,20 +146,15 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		ctx, instance.ID, visit.StudentID, visit.EntryTime,
 	)
 	if err != nil {
-		// B7: This is the loud one. If the UPDATE fails with a Postgres-level
-		// error (FK violation, aborted-tx, constraint), the tenant tx is now
-		// tainted — the TenantTxMiddleware will 5xx on commit, rolling back
-		// the visit write too. Error level (not Warn) so the Grafana
-		// "backend error rate" alert picks it up and we find out in ops
-		// rather than via a customer-reported ghost-visit incident.
+		// Propagate failures even when PostgreSQL has not aborted the transaction.
 		tenantID := tenant.FromContext(ctx)
-		s.getLogger().Error("attendance mirror UPDATE failed — tenant tx likely tainted, visit write at risk",
+		s.getLogger().Error("attendance mirror UPDATE failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", instance.ID),
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit check-in sync: update slot: %w", err)
 	}
 
 	if !updated {
@@ -181,7 +168,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 			slog.Int64("instance_id", instance.ID),
 			slog.Int64("student_id", visit.StudentID),
 		)
-		return snapshotFromRow(row)
+		return snapshotFromRow(row), nil
 	}
 
 	// B9: happy path. Row flipped to present. Build the snapshot from the
@@ -209,8 +196,8 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 func (s *AttendanceSyncService) createUnplannedAttendance(
 	ctx context.Context,
 	instanceID int64,
-	visit *activeModel.Visit,
-) *activeSvc.AttendanceSnapshot {
+	visit *studentpresence.Visit,
+) (*activeSvc.AttendanceSnapshot, error) {
 	row, err := s.instanceStudentRepo.CreateUnplannedPresentIfAbsent(
 		ctx, instanceID, visit.StudentID, visit.EntryTime,
 	)
@@ -220,7 +207,7 @@ func (s *AttendanceSyncService) createUnplannedAttendance(
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit check-in sync: create unplanned slot: %w", err)
 	}
 	s.getLogger().Info("attendance mirror: persisted unplanned slot attendance",
 		slog.Int64("instance_id", instanceID),
@@ -232,13 +219,13 @@ func (s *AttendanceSyncService) createUnplannedAttendance(
 func (s *AttendanceSyncService) finishVisitInterval(
 	ctx context.Context,
 	instanceID int64,
-	visit *activeModel.Visit,
+	visit *studentpresence.Visit,
 	row *scheduleModel.InstanceStudent,
-) *activeSvc.AttendanceSnapshot {
+) (*activeSvc.AttendanceSnapshot, error) {
 	if visit == nil || visit.ExitTime == nil || row == nil ||
 		row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil ||
 		visit.ExitTime.Before(*row.CheckedInAt) {
-		return snapshotFromRow(row)
+		return snapshotFromRow(row), nil
 	}
 	if err := s.instanceStudentRepo.UpdateAttendanceCheckout(
 		ctx, instanceID, visit.StudentID, *visit.ExitTime,
@@ -248,10 +235,10 @@ func (s *AttendanceSyncService) finishVisitInterval(
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit check-in sync: close completed interval: %w", err)
 	}
 	row.CheckedOutAt = visit.ExitTime
-	return snapshotFromRow(row)
+	return snapshotFromRow(row), nil
 }
 
 // MirrorCheckInAt resolves a roomless check-in only when exactly one booked
@@ -259,7 +246,7 @@ func (s *AttendanceSyncService) finishVisitInterval(
 // unassigned; assigning either would invent business data.
 func (s *AttendanceSyncService) MirrorCheckInAt(
 	ctx context.Context, studentID int64, at time.Time,
-) (snapshot *activeSvc.AttendanceSnapshot) {
+) (snapshot *activeSvc.AttendanceSnapshot, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("roomless attendance mirror panic",
@@ -267,6 +254,7 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 				slog.String("stack", string(debug.Stack())),
 			)
 			snapshot = nil
+			err = fmt.Errorf("roomless check-in sync panic: %v", r)
 		}
 	}()
 
@@ -278,19 +266,19 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("roomless check-in sync: read candidates: %w", err)
 	}
 	if len(rows) != 1 {
 		s.getLogger().Debug("roomless attendance mirror: slot assignment is not unique",
 			slog.Int64("student_id", studentID),
 			slog.Int("candidate_count", len(rows)),
 		)
-		return nil
+		return nil, nil
 	}
 
 	row := rows[0]
 	if shouldPreserveAttendanceOnCheckin(row) {
-		return snapshotFromRow(row)
+		return snapshotFromRow(row), nil
 	}
 	updated, err := s.instanceStudentRepo.UpdateAttendanceFromCheckin(ctx, row.InstanceID, studentID, at)
 	if err != nil {
@@ -299,7 +287,7 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("roomless check-in sync: update slot: %w", err)
 	}
 	if updated {
 		row.Status = scheduleModel.AttendanceStatusPresent
@@ -313,7 +301,7 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 		}
 		row.CheckedOutAt = nil
 	}
-	return snapshotFromRow(row)
+	return snapshotFromRow(row), nil
 }
 
 func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool {
@@ -332,8 +320,8 @@ func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool 
 // MirrorCheckOutForVisit implements activeSvc.AttendanceSyncer. It preserves
 // the slot status while recording the observed checkout for history/export.
 func (s *AttendanceSyncService) MirrorCheckOutForVisit(
-	ctx context.Context, visit *activeModel.Visit,
-) (snapshot *activeSvc.AttendanceSnapshot) {
+	ctx context.Context, visit *studentpresence.Visit,
+) (snapshot *activeSvc.AttendanceSnapshot, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance load panic",
@@ -341,11 +329,12 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 				slog.String("stack", string(debug.Stack())),
 			)
 			snapshot = nil
+			err = fmt.Errorf("visit checkout sync panic: %v", r)
 		}
 	}()
 
 	if visit == nil || visit.ActiveGroupID <= 0 {
-		return nil
+		return nil, nil
 	}
 
 	instance, err := s.instanceRepo.FindByActiveGroupID(ctx, visit.ActiveGroupID)
@@ -354,10 +343,10 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 			slog.Int64("active_group_id", visit.ActiveGroupID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit checkout sync: find instance: %w", err)
 	}
 	if instance == nil {
-		return nil
+		return nil, nil
 	}
 
 	row, err := s.instanceStudentRepo.FindByInstanceAndStudent(ctx, instance.ID, visit.StudentID)
@@ -367,10 +356,10 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, fmt.Errorf("visit checkout sync: find slot: %w", err)
 	}
 	if row == nil {
-		return nil
+		return nil, nil
 	}
 	if visit.ExitTime != nil &&
 		row.Status == scheduleModel.AttendanceStatusPresent &&
@@ -384,12 +373,12 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 				slog.Int64("student_id", visit.StudentID),
 				slog.String("error", err.Error()),
 			)
-			return nil
+			return nil, fmt.Errorf("visit checkout sync: update slot: %w", err)
 		}
 		row.CheckedOutAt = visit.ExitTime
 	}
 
-	return snapshotFromRow(row)
+	return snapshotFromRow(row), nil
 }
 
 // MirrorVisitRevision updates the interval represented by a slot after staff
@@ -397,14 +386,15 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 // so an older visit cannot overwrite a later re-entry in the same slot. It may
 // also repair a missing checkout left by an older completed-visit write.
 func (s *AttendanceSyncService) MirrorVisitRevision(
-	ctx context.Context, previous, updated *activeModel.Visit,
-) {
+	ctx context.Context, previous, updated *studentpresence.Visit,
+) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance visit revision mirror panic",
 				slog.Any("panic", r),
 				slog.String("stack", string(debug.Stack())),
 			)
+			err = fmt.Errorf("attendance visit revision panic: %v", r)
 		}
 	}()
 
@@ -412,7 +402,7 @@ func (s *AttendanceSyncService) MirrorVisitRevision(
 		previous.StudentID != updated.StudentID ||
 		previous.ActiveGroupID <= 0 ||
 		previous.ActiveGroupID != updated.ActiveGroupID {
-		return
+		return nil
 	}
 	instance, err := s.instanceRepo.FindByActiveGroupID(ctx, previous.ActiveGroupID)
 	if err != nil {
@@ -420,10 +410,10 @@ func (s *AttendanceSyncService) MirrorVisitRevision(
 			slog.Int64("active_group_id", previous.ActiveGroupID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("attendance visit revision: find instance: %w", err)
 	}
 	if instance == nil {
-		return
+		return nil
 	}
 	changed, err := s.instanceStudentRepo.ReconcileAttendanceInterval(
 		ctx,
@@ -440,7 +430,7 @@ func (s *AttendanceSyncService) MirrorVisitRevision(
 			slog.Int64("student_id", previous.StudentID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("attendance visit revision: reconcile interval: %w", err)
 	}
 	if changed {
 		s.getLogger().Info("attendance visit revision synced",
@@ -448,17 +438,19 @@ func (s *AttendanceSyncService) MirrorVisitRevision(
 			slog.Int64("student_id", previous.StudentID),
 		)
 	}
+	return nil
 }
 
 // MirrorCheckOutAt closes the latest open slot attendance for roomless binary
 // mode. It never changes another slot's status or history.
-func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) {
+func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("roomless attendance checkout mirror panic",
 				slog.Any("panic", r),
 				slog.String("stack", string(debug.Stack())),
 			)
+			err = fmt.Errorf("MirrorCheckOutAt panic: %v", r)
 		}
 	}()
 
@@ -470,7 +462,7 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("MirrorCheckOutAt: read slot attendance: %w", err)
 	}
 	var latest *scheduleModel.InstanceStudent
 	for _, row := range rows {
@@ -482,7 +474,7 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 		}
 	}
 	if latest == nil {
-		return
+		return nil
 	}
 	if err := s.instanceStudentRepo.UpdateAttendanceCheckout(ctx, latest.InstanceID, studentID, at); err != nil {
 		s.getLogger().Error("roomless attendance checkout mirror UPDATE failed",
@@ -490,7 +482,9 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("MirrorCheckOutAt: write slot checkout: %w", err)
 	}
+	return nil
 }
 
 // MirrorCheckInAtBatch resolves many roomless check-ins at one shared instant
@@ -498,17 +492,18 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 // the same rule as MirrorCheckInAt applies: exactly one currently-running
 // booked slot, ambiguous or unbooked students stay unassigned, and rows in a
 // manual or already-open state are preserved.
-func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studentIDs []int64, at time.Time) {
+func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studentIDs []int64, at time.Time) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("roomless attendance batch mirror panic",
 				slog.Any("panic", r),
 				slog.String("stack", string(debug.Stack())),
 			)
+			err = fmt.Errorf("batch check-in sync panic: %v", r)
 		}
 	}()
 	if len(studentIDs) == 0 {
-		return
+		return nil
 	}
 
 	rows, err := s.instanceStudentRepo.FindCurrentCandidatesByStudentIDs(
@@ -518,7 +513,7 @@ func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studen
 		s.getLogger().Warn("roomless attendance batch mirror: candidate lookup failed",
 			slog.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("batch check-in sync: find candidates: %w", err)
 	}
 
 	byStudent := make(map[int64][]*scheduleModel.InstanceStudent, len(studentIDs))
@@ -544,31 +539,34 @@ func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studen
 		})
 	}
 	if len(keys) == 0 {
-		return
+		return nil
 	}
 	if err := s.instanceStudentRepo.UpdateAttendanceFromCheckinBatch(ctx, keys, at); err != nil {
 		s.getLogger().Error("roomless attendance batch mirror UPDATE failed",
 			slog.Int("row_count", len(keys)),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("batch check-in sync: update slots: %w", err)
 	}
+	return nil
 }
 
 // MirrorCheckOutAtBatch closes many students' latest open slot attendance at
 // one shared instant: one slot query and one guarded UPDATE (review #2372).
 // Per student the same rule as MirrorCheckOutAt applies — only the most
 // recently checked-in open present row of the day closes.
-func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, studentIDs []int64, at time.Time) {
+func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, studentIDs []int64, at time.Time) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("roomless attendance batch checkout mirror panic",
 				slog.Any("panic", r),
 				slog.String("stack", string(debug.Stack())),
 			)
+			err = fmt.Errorf("MirrorCheckOutAtBatch panic: %v", r)
 		}
 	}()
 	if len(studentIDs) == 0 {
-		return
+		return nil
 	}
 
 	day := timezone.DateFromTime(at)
@@ -577,7 +575,7 @@ func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, stude
 		s.getLogger().Warn("roomless attendance batch checkout mirror: slot lookup failed",
 			slog.String("error", err.Error()),
 		)
-		return
+		return fmt.Errorf("MirrorCheckOutAtBatch: read slot attendance: %w", err)
 	}
 
 	latestByStudent := make(map[int64]*scheduleModel.InstanceStudent, len(studentIDs))
@@ -595,14 +593,16 @@ func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, stude
 		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: row.InstanceID, StudentID: studentID})
 	}
 	if len(keys) == 0 {
-		return
+		return nil
 	}
 	if err := s.instanceStudentRepo.UpdateAttendanceCheckoutBatch(ctx, keys, at); err != nil {
 		s.getLogger().Error("roomless attendance batch checkout mirror UPDATE failed",
 			slog.Int("row_count", len(keys)),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("MirrorCheckOutAtBatch: write slot checkout: %w", err)
 	}
+	return nil
 }
 
 // MirrorCheckOutForVisits stamps the slot checkout for many visits ended at
@@ -611,17 +611,18 @@ func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, stude
 // per-visit read of MirrorCheckOutForVisit exists only for its SSE snapshot,
 // which bulk events do not carry (#848), so the batch skips it and relies on
 // the UPDATE's own guards.
-func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, visits []*activeModel.Visit, at time.Time) {
+func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, visits []*studentpresence.Visit, at time.Time) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.getLogger().Error("attendance batch visit checkout mirror panic",
 				slog.Any("panic", r),
 				slog.String("stack", string(debug.Stack())),
 			)
+			err = fmt.Errorf("visit batch checkout sync panic: %v", r)
 		}
 	}()
 	if len(visits) == 0 {
-		return
+		return nil
 	}
 
 	groupIDs := make([]int64, 0, len(visits))
@@ -633,14 +634,14 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 		}
 	}
 	if len(groupIDs) == 0 {
-		return
+		return nil
 	}
 	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instanceRepo, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64FilterArgs(groupIDs)...),
 	})
 	if err != nil {
 		s.getLogger().Warn("attendance batch mirror: find instances by active_group_id failed", slog.String("error", err.Error()))
-		return
+		return fmt.Errorf("visit batch checkout sync: find instances: %w", err)
 	}
 	instanceByGroup := make(map[int64]*scheduleModel.ActivityInstance, len(instances))
 	for _, instance := range instances {
@@ -660,14 +661,16 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, vis
 		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: instance.ID, StudentID: visit.StudentID})
 	}
 	if len(keys) == 0 {
-		return
+		return nil
 	}
 	if err := s.instanceStudentRepo.UpdateAttendanceCheckoutBatch(ctx, keys, at); err != nil {
 		s.getLogger().Error("attendance batch visit checkout mirror UPDATE failed",
 			slog.Int("row_count", len(keys)),
 			slog.String("error", err.Error()),
 		)
+		return fmt.Errorf("visit batch checkout sync: update slots: %w", err)
 	}
+	return nil
 }
 
 // snapshotFromRow is the common projection. Substatus and Note already

@@ -61,7 +61,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
-	cfg := calendarTestConfig(db)
+	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier

@@ -2,8 +2,8 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strconv"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -100,7 +101,20 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // would never commit, and reporting them per-student as OK would lie. Only
 // conditions detected without poisoning the transaction (unknown/foreign id,
 // graduation, both revalidated under the row lock) become OK=false items.
-func (s *service) ProcessSchoolCheckinBatch(
+func (s *service) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error) {
+	var result *SchoolCheckinBatchResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, action)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) processSchoolCheckinBatch(
 	ctx context.Context,
 	studentIDs []int64,
 	staffID int64,
@@ -149,11 +163,11 @@ func (s *service) ProcessSchoolCheckinBatch(
 	// date derives from the same instant, so date and timestamp cannot
 	// disagree, and because all writes below run in single statements the
 	// batch cannot straddle a Berlin midnight item-by-item (review #2372).
-	now := time.Now()
+	now := s.now()
 	day := timezone.DateFromTime(now)
 
 	changed := make(map[int64]bool, len(actionable))
-	var endedVisits []*active.Visit
+	var endedVisits []*studentpresence.Visit
 	stampPresence := false
 	if len(actionable) > 0 {
 		switch action {
@@ -203,26 +217,14 @@ func (s *service) ProcessSchoolCheckinBatch(
 	// date — the same date every write above used, so the refresh can never
 	// look at a different day than the writes (review #2372).
 	if len(actionable) > 0 {
-		rows, refreshErr := s.AttendanceRepo.FindForDateByStudentIDs(ctx, day, actionable)
+		rows, refreshErr := s.SchoolPresence.ListSchoolStatuses(ctx, actionable, day.String())
 		if refreshErr != nil {
 			return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: refreshErr}
 		}
-		// Rows are ordered check_in_time ASC per student — keep the latest.
-		latest := make(map[int64]*active.Attendance, len(actionable))
 		for _, row := range rows {
-			latest[row.StudentID] = row
-		}
-		for _, studentID := range actionable {
-			item := outcomes[studentID]
-			if row := latest[studentID]; row != nil {
-				item.Status = deriveAttendanceStatus(row)
-			} else {
-				// No row on the batch date: an idempotent checkout of a
-				// student who never checked in today. Mirrors the missing-row
-				// semantics of GetStudentsAttendanceStatuses.
-				item.Status = "not_checked_in"
-			}
-			outcomes[studentID] = item
+			item := outcomes[row.StudentID]
+			item.Status = row.Status
+			outcomes[row.StudentID] = item
 		}
 	}
 
@@ -263,22 +265,29 @@ func (s *service) applyBatchCheckIn(
 ) ([]int64, error) {
 	// ONE device resolution for the whole batch — every row is the same
 	// virtual web device (review #2372).
-	deviceID := s.resolveDeviceIDForAttendance(ctx, 0)
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	deviceID, err := s.resolveDeviceIDForAttendance(ctx, 0)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
 
 	tenantID := tenant.FromContext(ctx)
-	rows := make([]*active.Attendance, 0, len(actionable))
+	rows := make([]studentpresence.Attendance, 0, len(actionable))
 	for _, studentID := range actionable {
-		row := &active.Attendance{
+		row := studentpresence.Attendance{
 			StudentID:   studentID,
-			Date:        day,
+			Date:        day.String(),
 			CheckInTime: now,
 			CheckedInBy: staffID,
 			DeviceID:    deviceID,
 		}
-		row.SetTenantID(tenantID)
+		row.TenantID = tenantID
 		rows = append(rows, row)
 	}
-	insertedIDs, err := s.AttendanceRepo.CreateIfNoOpenForTodayBatch(ctx, rows)
+	insertedIDs, err := s.SchoolPresence.EnsureAttendanceBatch(ctx, rows)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
@@ -288,14 +297,18 @@ func (s *service) applyBatchCheckIn(
 	// the live flags come from the already-locked student rows, the planned
 	// rows from one status-day query; only the clears for actually-flagged
 	// students write per child (review #2372).
-	s.autoClearOnBatchCheckin(ctx, actionable, actionableStudents, now, day)
+	if err := s.autoClearOnBatchCheckin(ctx, actionable, actionableStudents, now, day); err != nil {
+		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
 
 	// Binary-mode slot mirror, batched. Only inserted rows mirror: an
 	// absorbed check-in means the attendance was already open, and whoever
 	// opened it ran the mirror at that check-in's own instant — repeating it
 	// with a later timestamp could only mis-stamp a different slot window.
-	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil && len(insertedIDs) > 0 {
-		s.AttendanceSyncer.MirrorCheckInAtBatch(ctx, insertedIDs, now)
+	if mode == PresenceModeBinary && s.AttendanceSyncer != nil && len(insertedIDs) > 0 {
+		if err := s.AttendanceSyncer.MirrorCheckInAtBatch(ctx, insertedIDs, now); err != nil {
+			return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
+		}
 	}
 
 	return insertedIDs, nil
@@ -314,13 +327,17 @@ func (s *service) applyBatchCheckOut(
 	staffID int64,
 	now time.Time,
 	day timezone.Date,
-) ([]*active.Attendance, []*active.Visit, error) {
-	closedRows, err := s.AttendanceRepo.CloseOpenForDateByStudentIDs(ctx, actionable, now, day, staffID)
+) ([]studentpresence.Attendance, []*studentpresence.Visit, error) {
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: actionable, Date: day.String(), At: now, StaffID: staffID})
 	if err != nil {
 		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
 
-	openVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, actionable)
+	openVisits, err := s.currentPresenceVisits(ctx, actionable, false)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
@@ -331,21 +348,34 @@ func (s *service) applyBatchCheckOut(
 		}
 		visitIDs = append(visitIDs, visit.ID)
 	}
-	endedVisits, err := s.VisitRepo.EndVisitsByIDs(ctx, visitIDs, now)
+	closedVisits, err := s.SchoolPresence.CloseVisits(ctx, visitIDs, now)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
 
+	endedVisits := make([]*studentpresence.Visit, 0, len(closedVisits))
+	for _, visit := range closedVisits {
+		endedVisits = append(endedVisits, &visit)
+	}
+
 	if s.AttendanceSyncer != nil {
-		if s.GetPresenceMode(ctx) == "binary" {
+		if mode == PresenceModeBinary {
 			// Heal semantics like the single path: every actionable checkout
 			// closes its latest open slot, even the idempotent ones. The old
 			// same-day guard is structural now — day derives from now, so the
 			// mirror can never target a different day than the checkout.
-			s.AttendanceSyncer.MirrorCheckOutAtBatch(ctx, actionable, now)
+			if err := s.AttendanceSyncer.MirrorCheckOutAtBatch(ctx, actionable, now); err != nil {
+				return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
+			}
 		} else if len(endedVisits) > 0 {
 			// Detailed mode mirrors through the ended visits' provenance.
-			s.AttendanceSyncer.MirrorCheckOutForVisits(ctx, endedVisits, now)
+			visits := make([]*studentpresence.Visit, 0, len(closedVisits))
+			for i := range closedVisits {
+				visits = append(visits, &closedVisits[i])
+			}
+			if err := s.AttendanceSyncer.MirrorCheckOutForVisits(ctx, visits, now); err != nil {
+				return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
+			}
 		}
 	}
 
@@ -366,42 +396,54 @@ func (s *service) autoClearOnBatchCheckin(
 	actionableStudents []*userModels.Student,
 	now time.Time,
 	day timezone.Date,
-) {
-	if s.resolveClearMode(ctx, configModel.KeySickClearMode, configModel.ClearModeNextCheckin) == configModel.ClearModeNextCheckin {
+) error {
+	sickMode, err := s.resolveClearMode(ctx, configModel.KeySickClearMode)
+	if err != nil {
+		return err
+	}
+	if sickMode == configModel.ClearModeNextCheckin {
 		for _, student := range actionableStudents {
-			s.clearSickFlagOnCheckin(ctx, student, now)
+			if err := s.clearSickFlagOnCheckin(ctx, student, now); err != nil {
+				return err
+			}
 		}
 	}
-	if s.resolveClearMode(ctx, configModel.KeyExcusedClearMode, configModel.ClearModeEndOfDay) == configModel.ClearModeNextCheckin {
+	excusedMode, err := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode)
+	if err != nil {
+		return err
+	}
+	if excusedMode == configModel.ClearModeNextCheckin {
 		for _, student := range actionableStudents {
-			s.clearExcusedFlagOnCheckin(ctx, student, now)
+			if err := s.clearExcusedFlagOnCheckin(ctx, student, now); err != nil {
+				return err
+			}
 		}
 	}
 
 	if s.StudentStatusRepo == nil {
-		return
+		return nil
 	}
 	rows, err := s.StudentStatusRepo.FindActiveByStudentIDsAndDate(ctx, actionable, day)
 	if err != nil {
-		s.getLogger().Warn("failed to load planned student status days on batch check-in",
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("load planned student statuses: %w", err)
 	}
 	rowsByStudent := make(map[int64][]*active.StudentStatusDay, len(actionable))
 	for _, row := range rows {
 		rowsByStudent[row.StudentID] = append(rowsByStudent[row.StudentID], row)
 	}
 	if len(rowsByStudent) == 0 {
-		return
+		return nil
 	}
 	for _, student := range actionableStudents {
 		studentRows := rowsByStudent[student.ID]
 		if len(studentRows) == 0 {
 			continue
 		}
-		s.clearPlannedStatusRows(ctx, student.ID, student, studentRows, now)
+		if err := s.clearPlannedStatusRows(ctx, student.ID, student, studentRows, now); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // registerSchoolCheckinBatchBroadcast queues ONE aggregated SSE fan-out for
@@ -422,7 +464,7 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 	action string,
 	students map[int64]*userModels.Student,
 	changed map[int64]bool,
-	endedVisits []*active.Visit,
+	endedVisits []*studentpresence.Visit,
 ) {
 	if s.Broadcaster == nil {
 		return

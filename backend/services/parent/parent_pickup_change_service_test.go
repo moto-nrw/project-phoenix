@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -60,6 +61,8 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
@@ -67,7 +70,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
-		repos.Attendance,
+		presence,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
 			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
@@ -88,7 +91,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
-		AttendanceRepo:      repos.Attendance,
+		Attendance:          parentAttendance(t, db),
 		CareRequests:        careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{

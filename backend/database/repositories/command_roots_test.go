@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,8 +42,11 @@ func TestCleanupCommandRootsRouteAuditWritesThroughCommand(t *testing.T) {
 	t.Run("data deletion", func(t *testing.T) {
 		t.Parallel()
 
+		// Supply the required Presence dependency through the shared fixture;
+		// the zero-value audit event must still route to the supplied command.
+		db := testpkg.SetupTestDB(t)
 		command := &recordingAuditCommand{}
-		repos := NewRetentionCleanupRepositories(nil, command)
+		repos := NewRetentionCleanupRepositories(db, command)
 		requireCreateRoutesThroughCommand(t, repos.Deletion, command)
 	})
 }

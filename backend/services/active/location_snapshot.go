@@ -2,7 +2,11 @@ package active
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 )
@@ -41,7 +45,7 @@ const YardLocationLabel = "Schulhof"
 type StudentLocationSnapshot struct {
 	Mode        string
 	Attendances map[int64]*AttendanceStatus
-	Visits      map[int64]*activeModels.Visit
+	Visits      map[int64]*studentpresence.Visit
 	Groups      map[int64]*activeModels.Group
 
 	// YardRoomColor is the tenant's configured Schulhof room color, used to
@@ -110,7 +114,7 @@ func detailedAttendanceLocation(status *AttendanceStatus, hasFullAccess bool) St
 	return StudentLocationInfo{Location: "Unterwegs"}
 }
 
-func (s *StudentLocationSnapshot) resolveVisitLocation(visit *activeModels.Visit) StudentLocationInfo {
+func (s *StudentLocationSnapshot) resolveVisitLocation(visit *studentpresence.Visit) StudentLocationInfo {
 	if visit.ActiveGroupID <= 0 {
 		return StudentLocationInfo{Location: "Unterwegs"}
 	}
@@ -174,4 +178,29 @@ func withYardRoomColor(info StudentLocationInfo, yardColor *string) StudentLocat
 	}
 	info.RoomColor = yardColor
 	return info
+}
+
+// NewStudentLocationSnapshot initializes the maps used by batched location reads.
+// An empty mode retains the historical detailed-mode default.
+func NewStudentLocationSnapshot(mode string) *StudentLocationSnapshot {
+	if mode == "" {
+		mode = PresenceModeDetailed
+	}
+	return &StudentLocationSnapshot{
+		Mode:        mode,
+		Attendances: make(map[int64]*AttendanceStatus),
+		Visits:      make(map[int64]*studentpresence.Visit),
+		Groups:      make(map[int64]*activeModels.Group),
+	}
+}
+
+// ActiveGroupIDs returns the distinct positive group IDs referenced by visits.
+func (s *StudentLocationSnapshot) ActiveGroupIDs() []int64 {
+	groupIDs := make(map[int64]struct{})
+	for _, visit := range s.Visits {
+		if visit != nil && visit.ActiveGroupID > 0 {
+			groupIDs[visit.ActiveGroupID] = struct{}{}
+		}
+	}
+	return slices.Collect(maps.Keys(groupIDs))
 }

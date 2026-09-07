@@ -232,7 +232,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		arrivalScheduleService,
 		pickupScheduleService,
 		repos.StudentPickupException,
-		repos.Attendance,
+		newStudentPresence(db, logger),
 		pickupAutoExcusal,
 		userContextService,
 		pillEmitter,
@@ -343,6 +343,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		now,
 	)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,

@@ -15,16 +15,21 @@ type AssignmentRecovery interface {
 	LockAttendance(context.Context, int64) error
 	RestoreAttendance(context.Context, int64, []scheduleModel.CompletionAttendanceSnapshot) error
 }
+type VisitRecovery interface {
+	LockOpenVisits(context.Context, int64) error
+	RestoreVisits(context.Context, []int64) error
+}
 type ActivityRecoveryRepository struct {
 	db          *bun.DB
 	assignments AssignmentRecovery
+	visits      VisitRecovery
 }
 
-func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery) *ActivityRecoveryRepository {
-	if assignments == nil {
-		panic("activity recovery: timetable assignments are required")
+func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery, visits VisitRecovery) *ActivityRecoveryRepository {
+	if assignments == nil || visits == nil {
+		panic("activity recovery: timetable assignments and presence are required")
 	}
-	return &ActivityRecoveryRepository{db: db, assignments: assignments}
+	return &ActivityRecoveryRepository{db: db, assignments: assignments, visits: visits}
 }
 
 func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
@@ -64,20 +69,7 @@ func (r *ActivityRecoveryRepository) LockSupervisors(ctx context.Context, superv
 }
 
 func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeGroupID int64) error {
-	db := base.GetDB(ctx, r.db)
-	var visitIDs []int64
-	query := db.NewSelect().
-		TableExpr(`active.visits AS "visit"`).
-		ColumnExpr(`"visit".id`).
-		Where(`"visit".active_group_id = ?`, activeGroupID).
-		Where(`"visit".exit_time IS NULL`).
-		OrderExpr(`"visit".id ASC`).
-		For("UPDATE")
-	query = base.WithTenantFilter(ctx, query, "visit")
-	if err := query.Scan(ctx, &visitIDs); err != nil {
-		return fmt.Errorf("lock open visits: %w", err)
-	}
-	return nil
+	return r.visits.LockOpenVisits(ctx, activeGroupID)
 }
 
 func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
@@ -93,11 +85,8 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 	if err := expectRestoredRows(result, execErr, 1, "active group"); err != nil {
 		return fmt.Errorf("restore active group: %w", err)
 	}
-	if len(snapshot.VisitIDs) > 0 {
-		result, execErr = db.NewUpdate().Table("active.visits").Set("exit_time = NULL").Where("id IN (?) AND exit_time IS NOT NULL", bun.List(snapshot.VisitIDs)).Exec(ctx)
-		if err := expectRestoredRows(result, execErr, int64(len(snapshot.VisitIDs)), "visits"); err != nil {
-			return fmt.Errorf("restore visits: %w", err)
-		}
+	if err := r.visits.RestoreVisits(ctx, snapshot.VisitIDs); err != nil {
+		return err
 	}
 	if len(snapshot.SupervisorIDs) > 0 {
 		result, execErr = db.NewUpdate().Table("active.group_supervisors").Set("end_date = NULL").Where("id IN (?) AND end_date IS NOT NULL", bun.List(snapshot.SupervisorIDs)).Exec(ctx)

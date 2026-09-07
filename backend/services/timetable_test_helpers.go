@@ -59,7 +59,8 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	// Instance completion consumes only the active-session end capability.
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	ender := active.NewService(active.ServiceDependencies{
-		GroupRepo: r.ActiveGroup, VisitRepo: r.ActiveVisit, SupervisorRepo: r.GroupSupervisor,
+		SchoolPresence: newStudentPresence(db, logger),
+		GroupRepo:      r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
 		StudentRepo: r.Student, PersonRepo: r.Person, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		EducationGroupRepo: r.Group, StaffRepo: r.Staff, TeacherRepo: r.Teacher,
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,
@@ -85,9 +86,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	schedule.WireMaterializationCareBounds(materialization, r.Student)
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
 	instance := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		Presence:     newStudentPresence(db, logger),
 		InstanceRepo: r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
-		SupervisorRepo: r.GroupSupervisor, VisitRepo: r.ActiveVisit, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
+		SupervisorRepo: r.GroupSupervisor, RoomRepo: r.Room, ActivityGroupRepo: r.ActivityGroup,
 		StaffRepo: r.Staff, StudentRepo: r.Student, CalendarPeriodRepo: r.CalendarPeriod,
 		ActiveService: ender, Materialization: materialization, CareDayService: careDay, DeviationEventRepo: r.DeviationEvent,
 		Broadcaster: hub, DB: db, Logger: logger, Settings: settings.Settings, RecoveryRepo: recovery, Now: now,
@@ -98,7 +100,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StaffRepo: r.Staff, CalendarPeriodRepo: r.CalendarPeriod, ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,
 		ArrivalScheduleRepo: r.StudentArrivalSchedule, ArrivalBaselines: arrival, ArrivalExceptionRepo: r.StudentArrivalException,
 		PickupScheduleRepo: r.StudentPickupSchedule, PickupBaselines: pickup, PickupExceptionRepo: r.StudentPickupException,
-		VisitRepo: r.ActiveVisit, RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTrackRepo: r.PlanningTrack,
+		Presence: newStudentPresence(db, logger), RoomRepo: r.Room, ActivityCategoryRepo: r.ActivityCategory, PlanningTrackRepo: r.PlanningTrack,
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
 		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
 		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,

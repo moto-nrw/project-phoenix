@@ -6,6 +6,7 @@ package active_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -57,7 +58,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupActiveModule(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default(), testPresenceQueries(t, db))
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
@@ -273,6 +274,7 @@ func TestEndActiveGroup(t *testing.T) {
 			disabledSettings,
 			tc.db,
 			slog.Default(),
+			tc.resource.Presence,
 		)
 		disabledRouter := chi.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
@@ -1365,20 +1367,30 @@ func TestGetActiveGroupVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("GroupVisits Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("GroupVisits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Group", "Visit", "1a")
+		entry := time.Date(2026, 9, 6, 8, 0, 0, 0, time.UTC)
+		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entry, nil)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+		var response struct {
+			Data []activeAPI.VisitResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		require.Len(t, response.Data, 1)
+		// TIMESTAMPTZ preserves the instant, not the input's timezone offset.
+		checkIn := entry.In(response.Data[0].CheckInTime.Location())
+		assert.JSONEq(t, fmt.Sprintf(`{"status":"success","data":[{"id":%d,"student_id":%d,"active_group_id":%d,"check_in_time":%q,"is_active":true,"created_at":%q,"updated_at":%q}],"message":"Active group visits retrieved successfully"}`,
+			visit.ID, student.ID, activeGroup.ID, checkIn.Format(time.RFC3339Nano), visit.CreatedAt.Format(time.RFC3339Nano), visit.UpdatedAt.Format(time.RFC3339Nano)), rr.Body.String())
 	})
 
 	t.Run("not found with invalid group id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/99999/visits", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
-		// May return 200 with empty array or 404
-		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound,
-			"Expected 200 or 404, got %d: %s", rr.Code, rr.Body.String())
+		assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 	})
 
 	t.Run("bad request with invalid group id format", func(t *testing.T) {

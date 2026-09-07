@@ -80,7 +80,8 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.Invitatio
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
 	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
 	service := active.NewService(active.ServiceDependencies{
-		GroupRepo: repos.Group, VisitRepo: repos.Visit, SupervisorRepo: repos.Supervisor,
+		SchoolPresence: newStudentPresence(db, logger),
+		GroupRepo:      repos.Group, SupervisorRepo: repos.Supervisor,
 		DeviceRepo: repos.Device, TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	})
 	service.SetTenantRuntime(runtime)
@@ -91,7 +92,7 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) active.CleanupService {
 	repos := repositories.NewRetentionCleanupRepositories(db, command)
 	return active.NewCleanupService(
-		repos.Visit, repos.Attendance, repos.Supervisor, repos.Consent, repos.Deletion,
+		newStudentPresence(db, logger), repos.Supervisor, repos.Consent, repos.Deletion,
 		users.NewPrivacyConsentService(nil, logger), db,
 	)
 }

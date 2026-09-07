@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
@@ -48,30 +49,6 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 	assert.Equal(t, 0, response.VisitCount)
 	assert.Equal(t, 0, response.SupervisorCount)
 	assert.Nil(t, response.Room)
-}
-
-func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	group := &active.Group{
-		Model:     base.Model{ID: 1},
-		GroupID:   ptrtest.Ptr(int64(100)),
-		RoomID:    200,
-		StartTime: now,
-		EndTime:   nil, // Active group
-		Visits: []*active.Visit{
-			{Model: base.Model{ID: 1}},
-			{Model: base.Model{ID: 2}},
-			{Model: base.Model{ID: 3}},
-		},
-	}
-
-	response := newActiveGroupResponse(group)
-
-	assert.True(t, response.IsActive)
-	assert.Equal(t, 3, response.VisitCount)
 }
 
 func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
@@ -123,21 +100,21 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 	assert.Equal(t, "Test Room", response.Room.Name)
 }
 
-func TestNewVisitResponse_BasicFields(t *testing.T) {
+func TestNewPresenceVisitResponse_BasicFields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 	exitTime := now.Add(time.Hour)
 
-	visit := &active.Visit{
-		Model:         base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+	visit := studentpresence.Visit{
+		ID: 1, CreatedAt: now, UpdatedAt: now,
 		StudentID:     100,
 		ActiveGroupID: 200,
 		EntryTime:     now,
 		ExitTime:      &exitTime,
 	}
 
-	response := newVisitResponse(visit)
+	response := newPresenceVisitResponse(visit)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, int64(100), response.StudentID)
@@ -149,69 +126,23 @@ func TestNewVisitResponse_BasicFields(t *testing.T) {
 	assert.Empty(t, response.ActiveGroupName)
 }
 
-func TestNewVisitResponse_ActiveVisit(t *testing.T) {
+func TestNewPresenceVisitResponse_ActiveVisit(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
 
-	visit := &active.Visit{
-		Model:         base.Model{ID: 1},
+	visit := studentpresence.Visit{
+		ID:            1,
 		StudentID:     100,
 		ActiveGroupID: 200,
 		EntryTime:     now,
 		ExitTime:      nil, // Active visit
 	}
 
-	response := newVisitResponse(visit)
+	response := newPresenceVisitResponse(visit)
 
 	assert.True(t, response.IsActive)
 	assert.Nil(t, response.CheckOutTime)
-}
-
-func TestNewVisitResponse_WithStudent(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	visit := &active.Visit{
-		Model:         base.Model{ID: 1},
-		StudentID:     100,
-		ActiveGroupID: 200,
-		EntryTime:     now,
-		Student: &users.Student{
-			Model: base.Model{ID: 100},
-			Person: &users.Person{
-				Model:     base.Model{ID: 50},
-				FirstName: "John",
-				LastName:  "Doe",
-			},
-		},
-	}
-
-	response := newVisitResponse(visit)
-
-	assert.Equal(t, "John Doe", response.StudentName)
-}
-
-func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	visit := &active.Visit{
-		Model:         base.Model{ID: 1},
-		StudentID:     100,
-		ActiveGroupID: 200,
-		EntryTime:     now,
-		ActiveGroup: &active.Group{
-			Model:   base.Model{ID: 200},
-			GroupID: ptrtest.Ptr(int64(300)),
-		},
-	}
-
-	response := newVisitResponse(visit)
-
-	assert.Equal(t, "Group #300", response.ActiveGroupName)
 }
 
 func TestNewSupervisorResponse_BasicFields(t *testing.T) {

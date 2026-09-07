@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,9 +74,9 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 				Status: scheduleModel.AttendanceStatusAbsent, Substatus: &sick,
 			},
 		},
-	}, []*activeModel.Attendance{
-		{Date: date, CheckInTime: morningCheckIn},
-		{Date: date, CheckInTime: unassignedCheckIn},
+	}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: morningCheckIn},
+		{Date: date.String(), CheckInTime: unassignedCheckIn},
 	})
 
 	require.Len(t, rows, 3)
@@ -112,9 +112,9 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &reentryCheckIn,
 			},
 		},
-	}, []*activeModel.Attendance{
-		{Date: date, CheckInTime: firstCheckIn},
-		{Date: date, CheckInTime: reentryCheckIn},
+	}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: firstCheckIn},
+		{Date: date.String(), CheckInTime: reentryCheckIn},
 	})
 
 	require.Len(t, rows, 1, "both sessions belong to the booked slot — no unassigned rows")
@@ -171,8 +171,8 @@ func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, timezone.Berlin)
 
-	rows := attendanceExportRows(nil, []*activeModel.Attendance{
-		{Date: date, CheckInTime: checkIn, CheckOutTime: &checkOut},
+	rows := attendanceExportRows(nil, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: checkIn, CheckOutTime: &checkOut},
 	})
 
 	require.Len(t, rows, 1)
@@ -207,8 +207,8 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 			},
 			Attendance: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusAbsent},
 		},
-	}, []*activeModel.Attendance{
-		{Date: day1, CheckInTime: day1Unassigned},
+	}, []*studentpresence.Attendance{
+		{Date: day1.String(), CheckInTime: day1Unassigned},
 	})
 
 	require.Len(t, rows, 3)

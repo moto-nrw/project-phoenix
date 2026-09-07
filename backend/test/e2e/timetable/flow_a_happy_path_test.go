@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -236,7 +237,7 @@ func checkInStudent(t *testing.T, s *scenario, studentID, activeGroupID int64, s
 	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, dev)
 	ctx = context.WithValue(ctx, device.CtxStaff, staff)
 
-	visit := &activeModel.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: activeGroupID,
 		EntryTime:     time.Now(),

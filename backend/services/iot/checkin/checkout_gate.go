@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -67,7 +68,7 @@ func (s *CheckinService) studentDailyCheckoutTime(ctx context.Context) (*time.Ti
 // (the child's own group room). PyrePortal builds its destination modal only
 // for action "checked_out", so anything upgraded here shows no buttons at all
 // — see the contract note on ShouldShowDailyCheckoutWithGroup.
-func (s *CheckinService) ShouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *active.Visit) bool {
+func (s *CheckinService) ShouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *activeSvc.VisitWithRoom) bool {
 	if action != "checked_out" {
 		return false
 	}
@@ -83,7 +84,7 @@ func (s *CheckinService) ShouldUpgradeToDailyCheckout(ctx context.Context, actio
 // dailyCheckoutPreconditions reports whether the student/visit pair carries the
 // data both daily-checkout gates need: a group membership and a resolved active
 // group on the visit being closed.
-func dailyCheckoutPreconditions(student *users.Student, currentVisit *active.Visit) bool {
+func dailyCheckoutPreconditions(student *users.Student, currentVisit *activeSvc.VisitWithRoom) bool {
 	if student == nil || student.GroupID == nil {
 		return false
 	}
@@ -173,7 +174,7 @@ func (s *CheckinService) isAfterGlobalCheckoutTime(ctx context.Context) bool {
 // When checkout.daily_checkout_from_all_rooms_enabled is active, every room
 // qualifies. Otherwise the previous own-group-room plus Schulhof policy is
 // preserved for existing tenants.
-func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
+func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *activeSvc.VisitWithRoom) bool {
 	if !dailyCheckoutPreconditions(student, currentVisit) {
 		return false
 	}
@@ -214,7 +215,7 @@ func (s *CheckinService) dailyCheckoutFromAllRoomsEnabled(ctx context.Context) b
 // isFromOwnGroupRoom reports whether the visit being closed happened in the
 // room assigned to the student's education group. A group without a room is
 // unconstrained, so every room counts as its own.
-func (s *CheckinService) isFromOwnGroupRoom(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
+func (s *CheckinService) isFromOwnGroupRoom(ctx context.Context, student *users.Student, currentVisit *activeSvc.VisitWithRoom) bool {
 	educationGroup, err := s.education.GetGroup(ctx, *student.GroupID)
 	if err != nil || educationGroup == nil {
 		return false

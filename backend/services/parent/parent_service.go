@@ -480,12 +480,9 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// AttendanceRepo liefert die schulweite Anwesenheit des Kindes. Sie ist
-	// die einzige Praesenzquelle fuer Eltern; active.visits wird nie gelesen,
-	// damit kein Raumbezug nach aussen gelangt. Gefuellt wird die Tabelle
-	// sowohl vom Kiosk-Scan als auch von der manuellen Erfassung im
-	// Personal-Portal, der Tagesstatus funktioniert also mit und ohne NFC.
-	AttendanceRepo activeModels.AttendanceRepository
+	// Attendance is the only presence source for parents. Visits and room
+	// locations are deliberately excluded from this consumer contract.
+	Attendance AttendanceReader
 
 	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository
