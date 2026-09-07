@@ -106,6 +106,12 @@ type engine interface {
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
 	CountStudentReferences(context.Context, int64) (int, error)
 	ApprovedBookings(context.Context) ([]ApprovedBooking, error)
+	ApprovedBookingOfferingLinks(context.Context) ([]CareOfferingLink, error)
+	CareExitOfferingLinks(context.Context, []int64) ([]CareOfferingLink, error)
+	LockCareExitOfferingLinks(context.Context, []int64, Date) error
+	CareExitOfferingSnapshots(context.Context, []int64, Date, *int64) ([]CareExitOfferingSnapshot, error)
+	EndCareExitOfferingLinks(context.Context, []int64, *int64, Date) (int64, error)
+	RestoreCareExitOfferingLinks(context.Context, []CareExitOfferingSnapshotRestore) (int64, error)
 	OpenPhaseCandidates(context.Context) ([]*Phase, error)
 	AccountRequests(context.Context, int64, string) ([]AccountRequest, error)
 	InsertPhase(ctx context.Context, phase *Phase) error

@@ -42,6 +42,7 @@ type CareOfferingDirectory interface {
 
 type EnrollmentQueries interface {
 	ApprovedBookings(context.Context) ([]enrollment.ApprovedBooking, error)
+	ApprovedBookingOfferingLinks(context.Context) ([]enrollment.CareOfferingLink, error)
 }
 
 func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries) auditModel.BookingConsistencyRepository {
@@ -92,6 +93,14 @@ func (r *bookingConsistencyRepository) Audit(
 	if err != nil {
 		return nil, fmt.Errorf("encode approved booking audit projection: %w", err)
 	}
+	links, err := r.enrollment.ApprovedBookingOfferingLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedLinks, err := json.Marshal(links)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking offering links: %w", err)
+	}
 	alumni, err := r.approvedAlumniStudentIDs(ctx, bookings)
 	if err != nil {
 		return nil, err
@@ -116,6 +125,11 @@ WITH params AS (
   request_child_id bigint, student_id bigint, phase_id bigint, tenant_id bigint,
   service_start_date date, service_end_date date, care_offering_selection_mode text
  )
+), offering_links AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(
+  id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
+  selected_days jsonb, valid_from date, valid_until date
+ )
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
@@ -132,7 +146,7 @@ WITH params AS (
 		audit_dates.date,
 		NULLIF(care_offering.pickup_times ->> day_code.value, '') AS pickup_time
 	FROM approved_students
-	INNER JOIN enrollment.request_child_offerings AS link
+	INNER JOIN offering_links AS link
 		ON link.request_child_id = approved_students.request_child_id
 	INNER JOIN params ON params.tenant_id = link.tenant_id
 	INNER JOIN care_offerings AS care_offering
@@ -199,7 +213,7 @@ WITH params AS (
 						LEAST(COALESCE(required_link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
 					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
-					FROM enrollment.request_child_offerings AS required_link
+					FROM offering_links AS required_link
 					WHERE required_link.tenant_id = booking.tenant_id
 						AND required_link.request_child_id = booking.request_child_id
 						AND required_link.care_offering_id = required_offering.id
@@ -221,7 +235,7 @@ WITH params AS (
 						LEAST(COALESCE(link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
 					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
-					FROM enrollment.request_child_offerings AS link
+					FROM offering_links AS link
 					WHERE link.tenant_id = booking.tenant_id
 						AND link.request_child_id = booking.request_child_id
 						AND link.care_offering_id = care_offering.id
@@ -251,7 +265,7 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings)).Scan(ctx, report)
+`, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
 	if err != nil {
 		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
 	}
