@@ -1,4 +1,4 @@
-package parentmessaging_test
+package messaging_test
 
 import (
 	"context"

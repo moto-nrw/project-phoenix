@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -92,6 +93,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 		MessageThreadRepo:      repos.ParentMessageThread,
 		MessageRepo:            repos.ParentMessage,
 		MessageReadRepo:        repos.ParentMessageRead,
+		Conversations:          communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		DB:                     db,
 		Logger:                 slog.Default(),
 		Now: func() time.Time {

@@ -17,9 +17,9 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -83,15 +83,14 @@ func buildAbsenceService(t *testing.T, today ...func() timezone.Date) (absenceSv
 	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := &countingBroadcaster{}
-	emitter := parentmessaging.NewEmitter(
-		db,
+	emitter := communicationtest.NewParentEventEmitter(
+		db, testpkg.TenantRuntime(t, db),
 		repos.ParentMessageThread,
 		repos.ParentMessage,
 		messagingDisabledSettings{},
 		bc,
 		slog.Default(),
 	)
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,

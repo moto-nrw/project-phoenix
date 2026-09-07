@@ -1,10 +1,12 @@
-package parentmessaging_test
+package messaging_test
 
 import (
 	"log/slog"
 	"testing"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -16,13 +18,10 @@ func newMockEmitter(
 	threadRepo usersModels.ParentMessageThreadRepository,
 	messageRepo usersModels.ParentMessageRepository,
 	settings parentmessaging.TenantSettingsResolver,
-	broadcaster parentmessaging.Broadcaster,
+	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(db, threadRepo, messageRepo, settings, broadcaster, logger)
-	if db != nil {
-		testpkg.SetTenantRuntime(t, emitter, db)
-	}
+	emitter := parentmessaging.NewEmitter(messaging.NewEventEmitter(db, testpkg.TenantRuntime(t, db), threadRepo, messageRepo, settings, broadcaster, logger))
 	return emitter
 }

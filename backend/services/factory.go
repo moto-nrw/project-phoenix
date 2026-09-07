@@ -427,6 +427,7 @@ func NewFactoryWithModules(
 	repos *repositories.Factory,
 	db *bun.DB,
 	logger *slog.Logger,
+	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
@@ -451,7 +452,7 @@ func NewFactoryWithModules(
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
-	return newFactory(repos, db, logger, currentFactoryConfig(), organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -459,6 +460,7 @@ func newFactory(
 	db *bun.DB,
 	logger *slog.Logger,
 	cfg FactoryConfig,
+	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
@@ -2145,14 +2147,15 @@ func newFactory(
 	schedule.WireCareParticipation(careDayService, careLifecycleService)
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
-	pillEmitter := parentmessaging.NewEmitter(
-		db,
-		repos.ParentMessageThread,
-		repos.ParentMessage,
-		settingsService,
-		realtimeHub,
-		logger.With("service", "parent-events"),
-	)
+	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
+		DB:          db,
+		Runtime:     tenantRuntime,
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		Logger:      logger.With("service", "parent-events"),
+	})
 
 	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
 	if waker, ok := activeService.(interface {
@@ -2551,8 +2554,15 @@ func newFactory(
 			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
 		),
 	)
+	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
+		DB:      db,
+		Observe: observeCommunication,
+	})
+	if err != nil {
+		return nil, err
+	}
 	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
+		notificationConsent,
 		settingsService,
 		db,
 		repos.AccountTenant,
@@ -2676,26 +2686,30 @@ func newFactory(
 		MessageThreadRepo:         repos.ParentMessageThread,
 		MessageRepo:               repos.ParentMessage,
 		MessageReadRepo:           repos.ParentMessageRead,
-		ParentMessageNotifier:     staffParentMessageNotifier,
-		ArrivalSchedules:          arrivalScheduleService,
-		PickupSchedules:           pickupScheduleService,
-		CareRequests:              careRequestService,
-		ExcusedRequests:           excusedRequestService,
-		Emitter:                   pillEmitter,
-		AnnouncementRepo:          repos.ParentAnnouncement,
-		GuardianInvites:           guardianInvitationService,
-		GuardianInviteRepo:        repos.GuardianInvitation,
-		StudentGuardianRepo:       repos.StudentGuardian,
-		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
-		GuardianChangeAuditRepo:   repos.GuardianChange,
-		StudentConsents:           studentConsentService,
-		CarePeriods:               repos.Enrollment(),
-		OfferingHistory:           repos.Enrollment(),
-		CareOfferingRepo:          repos.CareOffering,
-		OfferingChanges:           offeringChangeRequestService,
-		DB:                        db,
-		Logger:                    logger.With("service", "parent"),
-		Now:                       now,
+		Conversations: communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+			ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
+			Broadcaster: realtimeHub, Logger: logger.With("service", "parent"),
+		}),
+		ParentMessageNotifier:   staffParentMessageNotifier,
+		ArrivalSchedules:        arrivalScheduleService,
+		PickupSchedules:         pickupScheduleService,
+		CareRequests:            careRequestService,
+		ExcusedRequests:         excusedRequestService,
+		Emitter:                 pillEmitter,
+		AnnouncementRepo:        repos.ParentAnnouncement,
+		GuardianInvites:         guardianInvitationService,
+		GuardianInviteRepo:      repos.GuardianInvitation,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
+		GuardianChangeAuditRepo: repos.GuardianChange,
+		StudentConsents:         studentConsentService,
+		CarePeriods:             repos.Enrollment(),
+		OfferingHistory:         repos.Enrollment(),
+		CareOfferingRepo:        repos.CareOffering,
+		OfferingChanges:         offeringChangeRequestService,
+		DB:                      db,
+		Logger:                  logger.With("service", "parent"),
+		Now:                     now,
 	})
 
 	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
