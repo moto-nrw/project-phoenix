@@ -7,7 +7,6 @@ import (
 
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -88,8 +87,32 @@ type PreferenceService interface {
 	DisableAllForParent(ctx context.Context, accountID int64) error
 }
 
+// ConsentStore is Delivery's port onto Communication's consent rows. It is
+// declared here, in the consumer, so this service depends on the shape it
+// needs rather than on Communication's package: the store answers in plain
+// values and never exposes a row, a model, or an ORM type.
+//
+// Communication's NotificationConsentCapability satisfies it.
+type ConsentStore interface {
+	// StoredConsent returns the account's decisions in the current school,
+	// keyed by notification type. Untouched types are absent, not false.
+	StoredConsent(ctx context.Context, accountID int64) (map[string]bool, error)
+	// RecordConsent stores one decision, replacing the previous one.
+	RecordConsent(ctx context.Context, accountID int64, notificationType string, enabled bool) error
+	// DisableConsent switches the named stored decisions off.
+	DisableConsent(ctx context.Context, accountID int64, notificationTypes []string) error
+	// HasAnyOptedIn is the cheap tenant-wide scheduling gate.
+	HasAnyOptedIn(ctx context.Context, notificationTypes []string) (bool, error)
+	// FilterOptedIn keeps only the candidates who agreed to the type.
+	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+	// FilterOptedInByType answers FilterOptedIn for several types in one read.
+	FilterOptedInByType(ctx context.Context, notificationTypes []string, accountIDs []int64) (map[string][]int64, error)
+	// FilterNotOptedOut removes only the candidates who explicitly declined.
+	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+}
+
 type preferenceService struct {
-	repo           userModel.NotificationPreferenceRepository
+	consent        ConsentStore
 	settings       configService.SettingsService
 	db             *bun.DB
 	accountTenants authModel.AccountTenantRepository
@@ -110,13 +133,13 @@ func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Conte
 // NewPreferenceService builds the consent service. db and accountTenants are
 // needed only for the guardian portal, which is cross-tenant.
 func NewPreferenceService(
-	repo userModel.NotificationPreferenceRepository,
+	consent ConsentStore,
 	settings configService.SettingsService,
 	db *bun.DB,
 	accountTenants authModel.AccountTenantRepository,
 ) PreferenceService {
 	return &preferenceService{
-		repo:           repo,
+		consent:        consent,
 		settings:       settings,
 		db:             db,
 		accountTenants: accountTenants,
@@ -128,13 +151,9 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 		return nil, errors.New("account id is required")
 	}
 
-	stored, err := s.repo.ListByAccount(ctx, accountID)
+	enabledByType, err := s.consent.StoredConsent(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("load notification preferences: %w", err)
-	}
-	enabledByType := make(map[string]bool, len(stored))
-	for _, pref := range stored {
-		enabledByType[pref.NotificationType] = pref.Enabled
 	}
 
 	tenantEnabled, err := s.resolveBool(ctx, configModel.KeyNotificationsDispatchEnabled)
@@ -199,15 +218,7 @@ func (s *preferenceService) SetForPortalAccount(ctx context.Context, accountID i
 		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 	}
 
-	pref := &userModel.NotificationPreference{
-		AccountID:        accountID,
-		NotificationType: notificationType,
-		Enabled:          enabled,
-	}
-	if err := pref.Validate(); err != nil {
-		return err
-	}
-	if err := s.repo.Upsert(ctx, pref); err != nil {
+	if err := s.consent.RecordConsent(ctx, accountID, notificationType, enabled); err != nil {
 		return fmt.Errorf("save notification preference: %w", err)
 	}
 	return nil
@@ -224,7 +235,7 @@ func (s *preferenceService) DisableAllForPortalAccount(ctx context.Context, acco
 	if portal != PortalStaff && portal != PortalSchool {
 		return fmt.Errorf("unsupported preference portal %q", portal)
 	}
-	if err := s.repo.DisableAllForAccount(ctx, accountID, typeKeysForPortal(portal)); err != nil {
+	if err := s.consent.DisableConsent(ctx, accountID, typeKeysForPortal(portal)); err != nil {
 		return fmt.Errorf("disable notification preferences: %w", err)
 	}
 	return nil
@@ -251,7 +262,7 @@ func (s *preferenceService) HasAnyOptedIn(ctx context.Context, notificationTypes
 			return false, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 		}
 	}
-	hasAny, err := s.repo.HasAnyOptedIn(ctx, notificationTypes)
+	hasAny, err := s.consent.HasAnyOptedIn(ctx, notificationTypes)
 	if err != nil {
 		return false, fmt.Errorf("check for opted-in accounts: %w", err)
 	}
@@ -313,7 +324,7 @@ func (s *preferenceService) FilterOptedInByType(
 		return filtered, nil
 	}
 
-	optedInByType, err := s.repo.FilterOptedInByType(ctx, allowedTypes, accountIDs)
+	optedInByType, err := s.consent.FilterOptedInByType(ctx, allowedTypes, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("filter opted-in accounts: %w", err)
 	}
@@ -346,7 +357,7 @@ func (s *preferenceService) FilterNotOptedOut(ctx context.Context, notificationT
 		}
 	}
 
-	remaining, err := s.repo.FilterNotOptedOut(ctx, notificationType, accountIDs)
+	remaining, err := s.consent.FilterNotOptedOut(ctx, notificationType, accountIDs)
 	if err != nil {
 		return nil, fmt.Errorf("filter opted-out accounts: %w", err)
 	}
@@ -373,13 +384,13 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 
 	err := s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, _ int64) error {
 		tenantCount++
-		stored, err := s.repo.ListByAccount(tenantCtx, accountID)
+		stored, err := s.consent.StoredConsent(tenantCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("load notification preferences: %w", err)
 		}
-		for _, pref := range stored {
-			if pref.Enabled {
-				enabledTenantCount[pref.NotificationType]++
+		for notificationType, enabled := range stored {
+			if enabled {
+				enabledTenantCount[notificationType]++
 			}
 		}
 		// Any school allowing dispatch is enough for the card to stop saying
@@ -435,15 +446,9 @@ func (s *preferenceService) SetForParent(ctx context.Context, accountID int64, n
 	}
 
 	return s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, tenantID int64) error {
-		pref := &userModel.NotificationPreference{
-			AccountID:        accountID,
-			NotificationType: notificationType,
-			Enabled:          enabled,
-		}
-		// Set explicitly: the admin transaction carries no tenant in its
-		// context, so the row would otherwise land without one.
-		pref.SetTenantID(tenantID)
-		if err := s.repo.Upsert(tenantCtx, pref); err != nil {
+		// tenantCtx carries the school explicitly: the admin transaction has no
+		// tenant of its own, so the row would otherwise land without one.
+		if err := s.consent.RecordConsent(tenantCtx, accountID, notificationType, enabled); err != nil {
 			return fmt.Errorf("save notification preference for tenant %d: %w", tenantID, err)
 		}
 		return nil
@@ -458,7 +463,7 @@ func (s *preferenceService) DisableAllForParent(ctx context.Context, accountID i
 		return errors.New("account id is required")
 	}
 	return s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, tenantID int64) error {
-		if err := s.repo.DisableAllForAccount(tenantCtx, accountID, typeKeysForPortal(PortalParent)); err != nil {
+		if err := s.consent.DisableConsent(tenantCtx, accountID, typeKeysForPortal(PortalParent)); err != nil {
 			return fmt.Errorf("disable notification preferences for tenant %d: %w", tenantID, err)
 		}
 		return nil

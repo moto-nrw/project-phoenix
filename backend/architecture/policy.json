@@ -2263,6 +2263,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/communication/internal/adapters/parentpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/internal/application",
       "owner": "communication",
       "role": "application",

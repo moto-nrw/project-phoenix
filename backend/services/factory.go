@@ -2556,8 +2556,15 @@ func newFactory(
 			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
 		),
 	)
+	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
+		DB:      db,
+		Observe: observeCommunication,
+	})
+	if err != nil {
+		return nil, err
+	}
 	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
+		notificationConsent,
 		settingsService,
 		db,
 		repos.AccountTenant,

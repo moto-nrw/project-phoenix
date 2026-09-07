@@ -153,8 +153,6 @@ type Factory struct {
 	FileEvent              auditModels.FileEventRepository
 	SubstitutionChange     auditModels.SubstitutionChangeCreator
 
-	NotificationPreference userModels.NotificationPreferenceRepository
-
 	// Facilities domain
 	Room facilityModels.RoomRepository
 
@@ -619,8 +617,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AnnouncementAttachment: filestore.NewAnnouncementAttachmentRepository(db),
 		FileEvent:              audit.NewFileEventRepository(auditRepositoryRuntime),
 		SubstitutionChange:     audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
-
-		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
 		Room: facilitiesRepositoryAdapter.New(),
