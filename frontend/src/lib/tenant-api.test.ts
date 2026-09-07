@@ -149,6 +149,8 @@ describe("tenant-api", () => {
         attendanceWebEnabled: false,
         // Opt-in feature flag (#1456): missing on older backends means off.
         attendanceLogEnabled: false,
+        // CalDAV is opt-in. Older backend responses keep it disabled.
+        caldavEnabled: false,
         groupMode: "fixed_groups",
         // Absent operational_overview_scope collapses to the restrictive
         // "own": an older backend must never widen the UI (#2380).

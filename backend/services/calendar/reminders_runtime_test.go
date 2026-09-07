@@ -31,7 +31,7 @@ func TestReminderRuntimeEvidence(t *testing.T) {
 		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parent.GuardianProfileID}},
 	})
 	require.NoError(t, err)
-	effects := calendar.Calendar.(calendarSvc.FullService).ReminderEffects()
+	effects := calendar.Calendar.ReminderEffects()
 	effects.ParentsURL = "https://parents.test"
 	effects.FilterEmail = func(_ context.Context, ids []int64) ([]int64, error) { return ids, nil }
 	effects.FilterPush = effects.FilterEmail

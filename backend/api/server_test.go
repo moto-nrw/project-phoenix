@@ -69,6 +69,13 @@ func checkRuntimeRejectsMissingDependencies(t *testing.T) {
 			want: "port",
 		},
 		{
+			name: "public API URL",
+			ctx:  context.Background(),
+			deps: ServeConfig{Port: "8080", Logger: slog.Default()},
+			run:  func(*Runtime) error { return nil },
+			want: "public API URL",
+		},
+		{
 			name: "context",
 			deps: ServeConfig{Port: "8080", Logger: slog.Default()},
 			run:  func(*Runtime) error { return nil },

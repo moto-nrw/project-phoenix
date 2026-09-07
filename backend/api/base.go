@@ -190,7 +190,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
 }
 
-func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -344,7 +344,7 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime api
 		return moduleServices{}, err
 	}
 	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger, tenantRuntime,
+		repoFactory, db, logger, publicAPIURL, tenantRuntime,
 		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 		communicationCapability,
 		func(observation communicationCompose.Observation) {
@@ -678,7 +678,7 @@ func (resources *apiBuildResources) close() error {
 }
 
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
+func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -721,7 +721,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	}
 
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, logger, tenantRuntime)
+	modules, err := initializeModuleServices(db, publicAPIURL, logger, tenantRuntime)
 	if err != nil {
 		return nil, err
 	}
@@ -1357,7 +1357,38 @@ func (a *API) currentStaffID(ctx context.Context) (int64, error) {
 
 // ServeHTTP implements the http.Handler interface for the API
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.Router.ServeHTTP(w, r)
+	a.Router.ServeHTTP(w, normalizeCalDAVMethodForRouting(r))
+}
+
+type calDAVOriginalMethodKey struct{}
+
+var calDAVExtensionMethods = map[string]struct{}{
+	"ACL": {}, "COPY": {}, "LOCK": {}, "MKCALENDAR": {}, "MKCOL": {},
+	"MOVE": {}, "PROPFIND": {}, "PROPPATCH": {}, "REPORT": {}, "UNLOCK": {},
+}
+
+func normalizeCalDAVMethodForRouting(r *http.Request) *http.Request {
+	isCalDAVPath := r.URL.Path == "/.well-known/caldav" || r.URL.Path == "/api/caldav" || strings.HasPrefix(r.URL.Path, "/api/caldav/")
+	if _, ok := calDAVExtensionMethods[r.Method]; !ok || !isCalDAVPath {
+		return r
+	}
+	ctx := context.WithValue(r.Context(), calDAVOriginalMethodKey{}, r.Method)
+	routed := r.Clone(ctx)
+	routed.Method = "QUERY"
+	return routed
+}
+
+func restoreCalDAVMethod(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		original, _ := r.Context().Value(calDAVOriginalMethodKey{}).(string)
+		if original == "" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		restored := r.Clone(r.Context())
+		restored.Method = original
+		handler.ServeHTTP(w, restored)
+	})
 }
 
 // authRateLimiters bundles the auth-endpoint rate limiters. Each field is nil
@@ -1448,6 +1479,14 @@ func (a *API) registerPublicRoutes() {
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
 	// the parent's Termine in sync.
 	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
+
+	// Read-only staff CalDAV. Authentication happens inside the protocol
+	// handler with the tenant-bound calendar app password, before a tenant is
+	// known, so these routes intentionally sit outside the JWT tenant group.
+	calDAVHandler := restoreCalDAVMethod(http.HandlerFunc(a.Calendar.ServeCalDAV))
+	a.Router.Handle("/.well-known/caldav", calDAVHandler)
+	a.Router.Handle("/api/caldav", calDAVHandler)
+	a.Router.Handle("/api/caldav/*", calDAVHandler)
 
 	a.Router.With(metricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", metricsHandler())
 }

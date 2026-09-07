@@ -60,9 +60,10 @@ var serveCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		if err := api.WithRuntime(ctx, api.ServeConfig{
-			Port:       config.Port,
-			EnableCORS: config.EnableCORS,
-			Logger:     logger,
+			Port:         config.Port,
+			PublicAPIURL: config.PublicAPIURL,
+			EnableCORS:   config.EnableCORS,
+			Logger:       logger,
 		}, func(runtime *api.Runtime) error {
 			return runtime.Serve(ctx)
 		}); err != nil {
@@ -99,7 +100,7 @@ func scrubSentryEvent(event *sentry.Event) *sentry.Event {
 		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
 		event.Request.Data = ""
 		for key := range event.Request.Headers {
-			for _, sensitive := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Staff-Auth-PIN", "X-Device-Key"} {
+			for _, sensitive := range []string{"Authorization", "X-Staff-PIN", "X-Staff-Id", "X-Staff-Auth-PIN", "X-Device-Key"} {
 				if strings.EqualFold(key, sensitive) {
 					event.Request.Headers[key] = "[filtered]"
 					break
@@ -125,12 +126,12 @@ func init() {
 }
 
 type serveConfig struct {
-	Port, AppEnv, LogTextLoggingRaw              string
-	JWTSecret, JWTExpiry, JWTRefreshExpiry       string
-	FrontendURL, ParentsURL, PhoenixAuthPassword string
-	DatabaseDSN, TestDatabaseDSN                 string
-	SentryDSN, SentryEnvironment, LogLevel       string
-	LogTextLogging, EnableCORS                   bool
+	Port, AppEnv, LogTextLoggingRaw                            string
+	JWTSecret, JWTExpiry, JWTRefreshExpiry                     string
+	FrontendURL, PublicAPIURL, ParentsURL, PhoenixAuthPassword string
+	DatabaseDSN, TestDatabaseDSN                               string
+	SentryDSN, SentryEnvironment, LogLevel                     string
+	LogTextLogging, EnableCORS                                 bool
 }
 
 func currentServeConfig() serveConfig {
@@ -139,7 +140,8 @@ func currentServeConfig() serveConfig {
 		LogTextLoggingRaw: viper.GetString("log_textlogging"), LogTextLogging: viper.GetBool("log_textlogging"),
 		JWTSecret: viper.GetString("auth_jwt_secret"), JWTExpiry: viper.GetString("auth_jwt_expiry"),
 		JWTRefreshExpiry: viper.GetString("auth_jwt_refresh_expiry"), FrontendURL: viper.GetString("frontend_url"),
-		ParentsURL: viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
+		PublicAPIURL: viper.GetString("next_public_api_url"),
+		ParentsURL:   viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
 		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
 		SentryDSN: viper.GetString("sentry_dsn"), SentryEnvironment: viper.GetString("sentry_environment"),
 		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
@@ -151,7 +153,8 @@ func validateServeConfig(config serveConfig) error {
 		"PORT": config.Port, "APP_ENV": config.AppEnv, "LOG_TEXTLOGGING": config.LogTextLoggingRaw,
 		"AUTH_JWT_SECRET": config.JWTSecret, "AUTH_JWT_EXPIRY": config.JWTExpiry,
 		"AUTH_JWT_REFRESH_EXPIRY": config.JWTRefreshExpiry, "FRONTEND_URL": config.FrontendURL,
-		"PARENTS_URL": config.ParentsURL, "PHOENIX_AUTH_PASSWORD": config.PhoenixAuthPassword,
+		"NEXT_PUBLIC_API_URL": config.PublicAPIURL,
+		"PARENTS_URL":         config.ParentsURL, "PHOENIX_AUTH_PASSWORD": config.PhoenixAuthPassword,
 	}
 
 	var missing []string

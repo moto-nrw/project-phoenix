@@ -108,16 +108,16 @@ func (s *service) RotateParentCalendarFeed(ctx context.Context, accountID int64)
 }
 
 func (s *service) StaffCalendarFeedURL(ctx context.Context) (string, string, error) {
-	accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
+	owner, err := s.currentStaffFeedOwner(ctx)
 	if err != nil {
 		return "", "", err
 	}
-	return s.coalesceFeedCreation(fmt.Sprintf("staff:%d:%d", accountID, tenantID), func() (string, string, error) {
+	return s.coalesceFeedCreation(fmt.Sprintf("staff:%d:%d", owner.accountID, owner.tenantID), func() (string, string, error) {
 		token, err := newFeedToken()
 		if err != nil {
 			return "", "", err
 		}
-		persisted, err := s.cfg.StaffFeedRepo.EnsureToken(ctx, accountID, tenantID, feedTokenHash(token))
+		persisted, err := s.cfg.StaffFeedRepo.EnsureToken(ctx, owner.accountID, owner.tenantID, feedTokenHash(token))
 		if err != nil {
 			return "", "", err
 		}
@@ -153,7 +153,7 @@ func (s *service) coalesceFeedCreation(key string, create func() (string, string
 }
 
 func (s *service) RotateStaffCalendarFeed(ctx context.Context) (string, string, error) {
-	accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
+	owner, err := s.currentStaffFeedOwner(ctx)
 	if err != nil {
 		return "", "", err
 	}
@@ -161,7 +161,7 @@ func (s *service) RotateStaffCalendarFeed(ctx context.Context) (string, string, 
 	if err != nil {
 		return "", "", err
 	}
-	updated, err := s.cfg.StaffFeedRepo.RotateToken(ctx, accountID, tenantID, feedTokenHash(token))
+	updated, err := s.cfg.StaffFeedRepo.RotateToken(ctx, owner.accountID, owner.tenantID, feedTokenHash(token))
 	if err != nil {
 		return "", "", err
 	}
@@ -172,19 +172,19 @@ func (s *service) RotateStaffCalendarFeed(ctx context.Context) (string, string, 
 	return httpsURL, webcalURL, nil
 }
 
-func (s *service) currentStaffFeedOwner(ctx context.Context) (int64, int64, error) {
+func (s *service) currentStaffFeedOwner(ctx context.Context) (staffFeedOwner, error) {
 	if s.cfg.StaffFeedRepo == nil || s.cfg.UserContext == nil || strings.TrimSpace(s.cfg.FrontendURL) == "" {
-		return 0, 0, fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
+		return staffFeedOwner{}, fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
 	}
 	account, err := s.cfg.UserContext.GetCurrentUser(ctx)
 	if err != nil {
 		if errors.Is(err, usercontext.ErrUserNotAuthenticated) || errors.Is(err, usercontext.ErrUserNotFound) {
-			return 0, 0, fmt.Errorf("%w: current account required", ErrForbidden)
+			return staffFeedOwner{}, fmt.Errorf("%w: current account required", ErrForbidden)
 		}
-		return 0, 0, err
+		return staffFeedOwner{}, err
 	}
 	if account == nil || !account.IsActive() {
-		return 0, 0, fmt.Errorf("%w: current account required", ErrForbidden)
+		return staffFeedOwner{}, fmt.Errorf("%w: current account required", ErrForbidden)
 	}
 	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
 	if err != nil {
@@ -192,45 +192,43 @@ func (s *service) currentStaffFeedOwner(ctx context.Context) (int64, int64, erro
 			errors.Is(err, usercontext.ErrUserNotFound) ||
 			errors.Is(err, usercontext.ErrUserNotLinkedToPerson) ||
 			errors.Is(err, usercontext.ErrUserNotLinkedToStaff) {
-			return 0, 0, fmt.Errorf("%w: current staff required", ErrForbidden)
+			return staffFeedOwner{}, fmt.Errorf("%w: current staff required", ErrForbidden)
 		}
-		return 0, 0, err
+		return staffFeedOwner{}, err
 	}
 	if staff == nil {
-		return 0, 0, fmt.Errorf("%w: current staff required", ErrForbidden)
+		return staffFeedOwner{}, fmt.Errorf("%w: current staff required", ErrForbidden)
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return 0, 0, fmt.Errorf("%w: tenant is required", ErrForbidden)
+		return staffFeedOwner{}, fmt.Errorf("%w: tenant is required", ErrForbidden)
 	}
-	return account.ID, tenantID, nil
+	return staffFeedOwner{accountID: account.ID, tenantID: tenantID, email: account.Email}, nil
 }
 
 func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (string, string, error) {
-	if s.cfg.StaffFeedRepo == nil || s.cfg.StaffFeedTombstoneRepo == nil || s.cfg.AccountRepo == nil || s.cfg.PersonRepo == nil || s.cfg.StaffRepo == nil {
-		return "", "", fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
-	}
-	if strings.TrimSpace(token) == "" {
-		return "", "", ErrNotFound
-	}
-	owner, err := s.cfg.StaffFeedRepo.FindOwnerByTokenHash(ctx, feedTokenHash(token))
+	owner, err := s.staffCalendarOwnerByToken(ctx, token)
 	if err != nil {
 		return "", "", err
 	}
-	if owner == nil {
-		return "", "", ErrNotFound
-	}
-	account, err := s.cfg.AccountRepo.FindByID(ctx, owner.AccountID)
+	events, err := s.projectStaffCalendarEvents(ctx, owner)
 	if err != nil {
 		return "", "", err
 	}
-	if account == nil || !account.IsActive() {
-		return "", "", ErrNotFound
-	}
+	content, err := s.renderCalendar(ctx, "moto Termine", events)
+	return "moto-kalender.ics", content, err
+}
 
+// projectStaffCalendarEvents is the single privacy and visibility projection
+// shared by iCalendar and CalDAV. Both transports therefore expose the same
+// UIDs, recurrence rules, tombstones, shifts, and timetable assignments.
+func (s *service) projectStaffCalendarEvents(ctx context.Context, owner staffFeedOwner) ([]CalendarEvent, error) {
+	if s.cfg.StaffFeedTombstoneRepo == nil || s.cfg.PersonRepo == nil || s.cfg.StaffRepo == nil || s.cfg.CalendarRenderer == nil {
+		return nil, fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
+	}
 	var events []CalendarEvent
-	err = tenant.WithTenantTx(ctx, s.cfg.DB, owner.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		person, err := s.cfg.PersonRepo.FindByAccountID(txCtx, owner.AccountID)
+	err := tenant.WithTenantTx(ctx, s.cfg.DB, owner.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		person, err := s.cfg.PersonRepo.FindByAccountID(txCtx, owner.accountID)
 		if err != nil {
 			return err
 		}
@@ -333,7 +331,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 		currentStaffEventIDs := make(map[string]struct{}, len(staffEvents))
 		for _, staffEvent := range staffEvents {
 			currentStaffEventIDs[staffEvent.ID] = struct{}{}
-			event, err := staffCalendarICSEvent(owner.TenantID, staffEvent)
+			event, err := staffCalendarICSEvent(owner.tenantID, staffEvent)
 			if err != nil {
 				return err
 			}
@@ -348,7 +346,7 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 			if _, current := currentStaffEventIDs[staffEvent.ID]; current {
 				continue
 			}
-			event, err := staffCalendarICSEvent(owner.TenantID, staffEvent)
+			event, err := staffCalendarICSEvent(owner.tenantID, staffEvent)
 			if err != nil {
 				return err
 			}
@@ -358,12 +356,11 @@ func (s *service) StaffCalendarFeedByToken(ctx context.Context, token string) (s
 	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			return "", "", ErrNotFound
+			return nil, ErrNotFound
 		}
-		return "", "", err
+		return nil, err
 	}
-	content, err := s.renderCalendar(ctx, "moto Termine", events)
-	return "moto-kalender.ics", content, err
+	return events, nil
 }
 
 func staffFeedTombstoneEvent(tombstone *calModels.StaffFeedTombstone) Event {
