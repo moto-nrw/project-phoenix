@@ -160,10 +160,18 @@ func (a StaffAbsence) Validate() error {
 	return nil
 }
 
+// validateAbsenceDate is the strict calendar-day check with the absence
+// error shape; the check itself is shared with the other Workforce values.
 func validateAbsenceDate(value, field string) error {
+	return validateStrictDate(value, field, invalidAbsence)
+}
+
+// validateStrictDate rejects anything that is not a strict calendar day and
+// reports it through the caller's error constructor.
+func validateStrictDate(value, field string, invalid func(string) error) error {
 	parsed, err := time.Parse(DateLayout, value)
 	if err != nil || parsed.Format(DateLayout) != value {
-		return invalidAbsence(field + " must be a " + DateLayout + " date")
+		return invalid(field + " must be a " + DateLayout + " date")
 	}
 	return nil
 }

@@ -65,11 +65,7 @@ func (s GroupSubstitution) Validate() error {
 }
 
 func validateSubstitutionDate(value, field string) error {
-	parsed, err := time.Parse(DateLayout, value)
-	if err != nil || parsed.Format(DateLayout) != value {
-		return invalidSubstitution(field + " must be a " + DateLayout + " date")
-	}
-	return nil
+	return validateStrictDate(value, field, invalidSubstitution)
 }
 
 type GroupSubstitutionFilter struct {

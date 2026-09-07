@@ -169,24 +169,32 @@ func toAbsenceTypeResponses(types []workforce.StaffAbsenceType) []AbsenceTypeRes
 	return out
 }
 
-// classify maps a capability error to the failure kind the envelope renders:
-// duplicates, reserved names, used names and exhausted allowances conflict,
-// an unknown art is not found, malformed input is invalid.
+// failureRule pairs a capability error with the failure kind the envelope
+// renders for it. The table is the declarative form of the error
+// classification; anything not listed is an internal failure.
+type failureRule struct {
+	Target error
+	Kind   FailureKind
+}
+
+var failureRules = []failureRule{
+	{Target: workforce.ErrAbsenceTypeNameTaken, Kind: FailureConflict},
+	{Target: workforce.ErrAbsenceTypeNameReserved, Kind: FailureConflict},
+	{Target: workforce.ErrAbsenceTypeInUse, Kind: FailureConflict},
+	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Kind: FailureConflict},
+	{Target: workforce.ErrAbsenceTypeNotFound, Kind: FailureNotFound},
+	{Target: workforce.ErrAbsenceTypeInvalid, Kind: FailureInvalid},
+	{Target: workforce.ErrAbsenceTypeAllowanceInvalid, Kind: FailureInvalid},
+}
+
+// classify maps a capability error to its failure kind through failureRules.
 func classify(err error) FailureKind {
-	switch {
-	case errors.Is(err, workforce.ErrAbsenceTypeNameTaken),
-		errors.Is(err, workforce.ErrAbsenceTypeNameReserved),
-		errors.Is(err, workforce.ErrAbsenceTypeInUse),
-		errors.Is(err, workforce.ErrAbsenceTypeAllowanceExceeded):
-		return FailureConflict
-	case errors.Is(err, workforce.ErrAbsenceTypeNotFound):
-		return FailureNotFound
-	case errors.Is(err, workforce.ErrAbsenceTypeInvalid),
-		errors.Is(err, workforce.ErrAbsenceTypeAllowanceInvalid):
-		return FailureInvalid
-	default:
-		return FailureInternal
+	for _, rule := range failureRules {
+		if errors.Is(err, rule.Target) {
+			return rule.Kind
+		}
 	}
+	return FailureInternal
 }
 
 func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err error) {

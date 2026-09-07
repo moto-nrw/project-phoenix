@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -138,16 +137,16 @@ type renderedError struct {
 	}
 }
 
-// renderErrorResponse drives the classification the composition root renders
+// renderErrorResponse asserts the classification the composition root renders
 // with the shared envelope: status, message and code are the stable contract,
-// the underlying cause never reaches the body.
+// the underlying cause never reaches the body. The envelope rendering itself
+// is covered where it is composed (modules/workforce/inbound).
 func renderErrorResponse(t *testing.T, err error) renderedError {
 	t.Helper()
 	failure := classify(err)
-	recorder := httptest.NewRecorder()
-	recorder.WriteHeader(failure.Status)
-	require.NoError(t, json.NewEncoder(recorder).Encode(map[string]string{"status": "error", "error": failure.Message, "code": failure.Code}))
-	response := renderedError{status: recorder.Code, rawBody: recorder.Body.String()}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response.body))
+	response := renderedError{status: failure.Status, rawBody: failure.Message + " " + failure.Code}
+	response.body.Status = "error"
+	response.body.Error = failure.Message
+	response.body.Code = failure.Code
 	return response
 }
