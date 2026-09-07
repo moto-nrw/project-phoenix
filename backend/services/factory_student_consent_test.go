@@ -33,6 +33,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 			TenantDomain:     "localhost",
 			OperatorHostname: "operator.localhost:3000",
 		},
+		TenantRuntime{},
 		owners.organizations,
 		owners.persons,
 		owners.groups,
@@ -49,6 +50,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(_ string, _ time.Duration, _ int, _ error) { observedAppends++ },
 		func(string, string, string, time.Duration, error) {},
 		func(string, string, string, time.Duration, int, error) {},
+		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		true,
 	)
 	require.NoError(t, err)

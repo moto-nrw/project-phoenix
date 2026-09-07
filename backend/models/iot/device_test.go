@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDevice_Validate(t *testing.T) {
@@ -299,52 +298,5 @@ func TestDevice_IsOffline(t *testing.T) {
 				t.Errorf("IsOffline() = %v, expected %v", got, tt.expected)
 			}
 		})
-	}
-}
-
-func TestDevice_GetID(t *testing.T) {
-	t.Parallel()
-
-	device := &Device{
-		Model:      base.Model{ID: 42},
-		DeviceID:   "dev-001",
-		DeviceType: "terminal",
-		Status:     DeviceStatusActive,
-	}
-
-	if got, ok := device.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", device.GetID())
-	}
-}
-
-func TestDevice_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	device := &Device{
-		Model:      base.Model{CreatedAt: now},
-		DeviceID:   "dev-001",
-		DeviceType: "terminal",
-		Status:     DeviceStatusActive,
-	}
-
-	if got := device.GetCreatedAt(); !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestDevice_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	device := &Device{
-		Model:      base.Model{UpdatedAt: now},
-		DeviceID:   "dev-001",
-		DeviceType: "terminal",
-		Status:     DeviceStatusActive,
-	}
-
-	if got := device.GetUpdatedAt(); !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

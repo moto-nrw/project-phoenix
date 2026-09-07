@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -117,7 +119,7 @@ type CheckinResultInput struct {
 	CheckoutVisitID  *int64
 	RoomName         string
 	PreviousRoomName string
-	CurrentVisit     *active.Visit
+	CurrentVisit     *activeSvc.VisitWithRoom
 }
 
 // CheckinProcessingInput holds the inputs for ProcessStudentCheckin.
@@ -126,7 +128,7 @@ type CheckinProcessingInput struct {
 	DeviceID     int64
 	SkipCheckin  bool
 	CheckedOut   bool
-	CurrentVisit *active.Visit
+	CurrentVisit *activeSvc.VisitWithRoom
 }
 
 // CheckinProcessingResult holds the result of check-in processing.
@@ -198,31 +200,31 @@ func (s *CheckinService) ResolveStaffFromPerson(ctx context.Context, personID in
 	return staff, nil
 }
 
-// LoadCurrentVisitWithRoom loads the current active visit and its room. Returns
-// nil when there is no active visit or the lookup fails (logged at Debug).
-func (s *CheckinService) LoadCurrentVisitWithRoom(ctx context.Context, studentID int64) *active.Visit {
+// LoadCurrentVisitWithRoom returns nil only when no open visit exists.
+// Lookup failures stop the scan instead of being interpreted as a new arrival.
+func (s *CheckinService) LoadCurrentVisitWithRoom(ctx context.Context, studentID int64) (*activeSvc.VisitWithRoom, error) {
 	currentVisit, err := s.active.GetStudentCurrentVisitWithRoom(ctx, studentID)
 	if err != nil {
-		s.getLogger().DebugContext(ctx, "error checking current visit",
-			slog.Int64("student_id", studentID),
-			slog.String("error", err.Error()),
-		)
-		return nil
+		if errors.Is(err, activeSvc.ErrVisitNotFound) {
+			return nil, nil
+		}
+		return nil, newInternalWrapError("Internal server error", err)
 	}
 
 	if currentVisit == nil || currentVisit.ExitTime != nil {
-		return nil
+		return nil, nil
 	}
 
-	return currentVisit
+	return currentVisit, nil
 }
 
-// buildStudentAlreadyActiveConflict best-effort-loads the existing visit so the
-// kiosk can show "Bereits angemeldet in Raum X". The lookup is deliberately
-// tolerant: if it fails, only StudentID is populated and the kiosk degrades to
-// a generic message rather than upgrading the 409 to a 500.
-func (s *CheckinService) buildStudentAlreadyActiveConflict(ctx context.Context, studentID int64) *StudentAlreadyActiveConflict {
-	existing := s.LoadCurrentVisitWithRoom(ctx, studentID)
+// buildStudentAlreadyActiveConflict loads details for a rejected duplicate scan.
+// A concurrently closed visit needs no details; a failed lookup remains an error.
+func (s *CheckinService) buildStudentAlreadyActiveConflict(ctx context.Context, studentID int64) error {
+	existing, err := s.LoadCurrentVisitWithRoom(ctx, studentID)
+	if err != nil {
+		return err
+	}
 	if existing == nil {
 		return &StudentAlreadyActiveConflict{StudentID: studentID}
 	}
@@ -246,10 +248,31 @@ func (s *CheckinService) buildStudentAlreadyActiveConflict(ctx context.Context, 
 	}
 }
 
+type CurrentVisitCheckout struct {
+	Visit            *activeSvc.VisitWithRoom
+	VisitID          *int64
+	PreviousRoomName string
+	CheckedOut       bool
+}
+
+// CheckoutCurrentVisit resolves and closes the room stay before a new check-in.
+// A failed lookup or checkout prevents the scan from proceeding.
+func (s *CheckinService) CheckoutCurrentVisit(ctx context.Context, student *users.Student, person *users.Person) (CurrentVisitCheckout, error) {
+	visit, err := s.LoadCurrentVisitWithRoom(ctx, student.ID)
+	if err != nil || visit == nil {
+		return CurrentVisitCheckout{}, err
+	}
+	id, roomName, err := s.ProcessCheckout(ctx, student, person, visit)
+	if err != nil {
+		return CurrentVisitCheckout{}, err
+	}
+	return CurrentVisitCheckout{Visit: visit, VisitID: id, PreviousRoomName: roomName, CheckedOut: true}, nil
+}
+
 // ProcessCheckout ends the student's current room visit WITHOUT attendance sync
 // (leaving a room means "unterwegs", not "zuhause"). Returns the ended visit ID
 // and the previous room name.
-func (s *CheckinService) ProcessCheckout(ctx context.Context, student *users.Student, person *users.Person, currentVisit *active.Visit) (*int64, string, error) {
+func (s *CheckinService) ProcessCheckout(ctx context.Context, student *users.Student, person *users.Person, currentVisit *activeSvc.VisitWithRoom) (*int64, string, error) {
 	s.getLogger().DebugContext(ctx, "student has active visit, performing checkout",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
@@ -292,7 +315,7 @@ func (s *CheckinService) ProcessCheckout(ctx context.Context, student *users.Stu
 // the same room they are already in). A visit from a previous day's session is
 // a rollover recovery, not a same-session toggle: after checkout the scan must
 // continue into today's group.
-func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *active.Visit, now time.Time) bool {
+func ShouldSkipCheckin(roomID *int64, checkedOut bool, currentVisit *activeSvc.VisitWithRoom, now time.Time) bool {
 	if roomID == nil || !checkedOut || currentVisit == nil || currentVisit.ActiveGroup == nil {
 		return false
 	}
@@ -333,7 +356,7 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		return nil, nil, capacityErr
 	}
 
-	newVisit := &active.Visit{
+	newVisit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: selection.Group.ID,
 		EntryTime:     time.Now(),
@@ -702,7 +725,7 @@ func (s *CheckinService) roomNameByID(ctx context.Context, room *facilities.Room
 }
 
 // roomNameForResponse resolves the room name for a check-in response.
-func (s *CheckinService) roomNameForResponse(ctx context.Context, currentVisit *active.Visit, roomID *int64) string {
+func (s *CheckinService) roomNameForResponse(ctx context.Context, currentVisit *activeSvc.VisitWithRoom, roomID *int64) string {
 	if currentVisit != nil && currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
 		return currentVisit.ActiveGroup.Room.Name
 	}

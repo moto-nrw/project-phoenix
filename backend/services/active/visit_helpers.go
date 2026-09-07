@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,8 +12,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -23,7 +24,9 @@ const WebManualDeviceCode = iotModels.WebManualDeviceID
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
 func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID int64) error {
-	visits, err := s.VisitRepo.FindActiveByStudentID(ctx, studentID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{
+		StudentIDs: []int64{studentID}, OpenOnly: true, Limit: 1,
+	})
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
@@ -34,22 +37,27 @@ func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID i
 }
 
 // resolveStaffIDForAttendance resolves the staff ID for attendance tracking
-func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, deviceID int64) int64 {
+func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, deviceID int64) (int64, error) {
 	if staffID > 0 {
-		return staffID
+		return staffID, nil
 	}
 	if deviceID > 0 {
-		if supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID); err == nil {
-			return supervisorID
+		supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		if err == nil {
+			return supervisorID, nil
+		}
+		var unavailable *deviceSupervisorUnavailableError
+		if !errors.As(err, &unavailable) {
+			return 0, fmt.Errorf("resolve check-in staff attribution: %w", err)
 		}
 	}
-	return 0
+	return 0, nil
 }
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
-func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
+func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64) error {
 	visitDate := timezone.DateFromTime(visit.EntryTime)
-	attendanceRecords, err := s.AttendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
+	attendanceRecords, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{visit.StudentID}, FromDate: visitDate.String(), UntilDate: visitDate.String()})
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
@@ -71,13 +79,19 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 // the same instant, and history/export session-to-slot matching relies on the
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().
-func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
-	resolvedStaffID := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
-	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
+func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
+	resolvedStaffID, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
+	if err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
+	if err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
 
-	attendance := &active.Attendance{
+	attendance := studentpresence.Attendance{
 		StudentID:   visit.StudentID,
-		Date:        visitDate,
+		Date:        visitDate.String(),
 		CheckInTime: visit.EntryTime,
 		CheckedInBy: resolvedStaffID,
 		DeviceID:    resolvedDeviceID,
@@ -87,8 +101,8 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 		attendance.CheckedOutBy = &resolvedStaffID
 	}
 
-	attendance.SetTenantID(tenant.FromContext(ctx))
-	if _, err := s.AttendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
+	attendance.TenantID = tenant.FromContext(ctx)
+	if _, _, err := s.SchoolPresence.EnsureAttendance(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil
@@ -98,25 +112,24 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 // aligned with a visit edit. Entry times are stamped from the same source when
 // visits are created, so the previous entry time is the session identity.
 func (s *service) syncAttendanceForVisitRevision(
-	ctx context.Context, previous, updated *active.Visit,
+	ctx context.Context, previous, updated *studentpresence.Visit,
 ) error {
-	if s.AttendanceRepo == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
+	if s.SchoolPresence == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
 		return nil
 	}
-	if err := s.AttendanceRepo.LockStudentAttendance(ctx, previous.StudentID); err != nil {
+	if err := s.SchoolPresence.LockStudentAttendance(ctx, previous.StudentID); err != nil {
 		return err
 	}
-	rows, err := s.AttendanceRepo.FindByStudentAndDate(
-		ctx, previous.StudentID, timezone.DateFromTime(previous.EntryTime),
-	)
+	day := timezone.DateFromTime(previous.EntryTime).String()
+	rows, err := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{previous.StudentID}, FromDate: day, UntilDate: day})
 	if err != nil {
 		return err
 	}
 	for _, row := range rows {
-		if row == nil || !row.CheckInTime.Equal(previous.EntryTime) {
+		if !row.CheckInTime.Equal(previous.EntryTime) {
 			continue
 		}
-		row.Date = timezone.DateFromTime(updated.EntryTime)
+		row.Date = timezone.DateFromTime(updated.EntryTime).String()
 		row.CheckInTime = updated.EntryTime
 		row.CheckOutTime = updated.ExitTime
 		if updated.ExitTime == nil {
@@ -127,128 +140,140 @@ func (s *service) syncAttendanceForVisitRevision(
 				row.CheckedOutBy = &staffID
 			}
 		}
-		return s.AttendanceRepo.Update(ctx, row)
+		_, err := s.SchoolPresence.ReviseAttendance(ctx, row)
+		return err
 	}
 	return nil
 }
 
 // resolveDeviceIDForAttendance resolves the device ID for attendance tracking.
 // For manual web check-ins (deviceID == 0), it looks up the virtual web device.
-func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int64) int64 {
+func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int64) (int64, error) {
 	if deviceID > 0 {
-		return deviceID
+		return deviceID, nil
 	}
 
 	// Look up the web manual device for manual check-ins
 	webDevice, err := s.DeviceRepo.FindByDeviceID(ctx, WebManualDeviceCode)
-	if err == nil && webDevice != nil {
-		return webDevice.ID
+	if err != nil {
+		return 0, fmt.Errorf("resolve web manual device: %w", err)
 	}
-
-	// Log warning if web device not found - this indicates a seeding issue
-	s.getLogger().Warn("web manual device not found - manual check-ins may fail",
-		slog.String("device_code", WebManualDeviceCode),
-		slog.Any("error", err),
-	)
-
-	return 0
+	if webDevice == nil {
+		return 0, fmt.Errorf("resolve web manual device: %s is not configured", WebManualDeviceCode)
+	}
+	return webDevice.ID, nil
 }
 
-// resolveClearMode resolves the configured clear mode for a status flag,
-// falling back to the provided default when the settings resolver is unavailable
-// or has no tenant override.
-func (s *service) resolveClearMode(ctx context.Context, key, fallback string) string {
-	return config.ResolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
+// resolveClearMode uses the tenant value or registry default supplied by settings.
+func (s *service) resolveClearMode(ctx context.Context, key string) (string, error) {
+	if s.settings == nil {
+		return "", fmt.Errorf("resolve %s: settings service is not configured", key)
+	}
+	value, err := s.settings.ResolveString(ctx, key)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", key, err)
+	}
+	return value, nil
 }
 
 // autoClearStudentSickness clears the sickness flag on student check-in when
 // the tenant's operations.sick_clear_mode setting is "next_checkin" (default).
-func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) {
-	mode := s.resolveClearMode(ctx, configModel.KeySickClearMode, configModel.ClearModeNextCheckin)
+func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64) error {
+	mode, err := s.resolveClearMode(ctx, configModel.KeySickClearMode)
+	if err != nil {
+		return err
+	}
 	if mode != configModel.ClearModeNextCheckin {
-		return
+		return nil
 	}
 
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return
+	if err != nil {
+		return fmt.Errorf("load student for status clear: %w", err)
+	}
+	if student == nil {
+		return ErrStudentNotFound
 	}
 
-	s.clearSickFlagOnCheckin(ctx, student, time.Now())
+	return s.clearSickFlagOnCheckin(ctx, student, time.Now())
 }
 
 // clearSickFlagOnCheckin is the write core of autoClearStudentSickness,
 // operating on an already-loaded student so batch callers holding the row
 // lock don't re-read per child (review #2372). No-op when the flag is unset.
-func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
+func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) error {
 	if student.Sick == nil || !*student.Sick {
-		return
+		return nil
 	}
 
-	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
+	if err := s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin); err != nil {
+		return err
+	}
 
 	falseVal := false
 	student.Sick = &falseVal
 	student.SickSince = nil
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
-		s.getLogger().Warn("failed to auto-clear sickness on check-in",
-			slog.Int64("student_id", student.ID),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("clear student status: %w", err)
 	}
 
 	s.getLogger().Info("auto-cleared sickness on student check-in",
 		slog.Int64("student_id", student.ID),
 	)
+	return nil
 }
 
 // autoClearStudentExcused clears the excused flag on student check-in when
 // the tenant's operations.excused_clear_mode setting is "next_checkin".
-func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) {
-	mode := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode, configModel.ClearModeEndOfDay)
+func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) error {
+	mode, err := s.resolveClearMode(ctx, configModel.KeyExcusedClearMode)
+	if err != nil {
+		return err
+	}
 	if mode != configModel.ClearModeNextCheckin {
-		return
+		return nil
 	}
 
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return
+	if err != nil {
+		return fmt.Errorf("load student for status clear: %w", err)
+	}
+	if student == nil {
+		return ErrStudentNotFound
 	}
 
-	s.clearExcusedFlagOnCheckin(ctx, student, time.Now())
+	return s.clearExcusedFlagOnCheckin(ctx, student, time.Now())
 }
 
 // clearExcusedFlagOnCheckin is the write core of autoClearStudentExcused —
 // same already-loaded-student contract as clearSickFlagOnCheckin.
-func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
+func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) error {
 	if student.Excused == nil || !*student.Excused {
-		return
+		return nil
 	}
 
-	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
+	if err := s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin); err != nil {
+		return err
+	}
 
 	falseVal := false
 	student.Excused = &falseVal
 	student.ExcusedSince = nil
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
-		s.getLogger().Warn("failed to auto-clear excused on check-in",
-			slog.Int64("student_id", student.ID),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("clear student status: %w", err)
 	}
 
 	s.getLogger().Info("auto-cleared excused on student check-in",
 		slog.Int64("student_id", student.ID),
 	)
+	return nil
 }
 
-func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int64, status string, since *time.Time, now time.Time, source string) {
+func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int64, status string, since *time.Time, now time.Time, source string) error {
 	if s.StudentStatusRepo == nil {
-		return
+		return nil
 	}
 	reportedAt := now
 	if since != nil {
@@ -262,39 +287,27 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 		ReportedAt: reportedAt,
 		Source:     source,
 	}); err != nil {
-		s.getLogger().Warn("failed to record student status before auto-clear",
-			slog.Int64("student_id", studentID),
-			slog.String("status", status),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("clear student status: %w", err)
 	}
 	if err := s.StudentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
-		s.getLogger().Warn("failed to close student status history on auto-clear",
-			slog.Int64("student_id", studentID),
-			slog.String("status", status),
-			slog.String("error", err.Error()),
-		)
+		return fmt.Errorf("clear student status history: %w", err)
 	}
+	return nil
 }
 
-func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID int64) {
+func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID int64) error {
 	if s.StudentStatusRepo == nil {
-		return
+		return nil
 	}
 
 	now := s.now()
 	today := timezone.DateFromTime(now)
 	rows, err := s.StudentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
-		s.getLogger().Warn("failed to load planned student status days on check-in",
-			slog.Int64("student_id", studentID),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("load planned student statuses: %w", err)
 	}
 
-	s.clearPlannedStatusRows(ctx, studentID, nil, rows, now)
+	return s.clearPlannedStatusRows(ctx, studentID, nil, rows, now)
 }
 
 // clearPlannedStatusRows is the write core of autoClearPlannedStudentStatuses,
@@ -308,7 +321,7 @@ func (s *service) clearPlannedStatusRows(
 	student *userModels.Student,
 	rows []*active.StudentStatusDay,
 	now time.Time,
-) {
+) error {
 	hasPlannedSick := false
 	hasPlannedExcused := false
 	for _, row := range rows {
@@ -321,12 +334,7 @@ func (s *service) clearPlannedStatusRows(
 			continue
 		}
 		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {
-			s.getLogger().Warn("failed to clear planned student status day on check-in",
-				slog.Int64("student_id", studentID),
-				slog.String("status", row.Status),
-				slog.String("error", err.Error()),
-			)
-			continue
+			return fmt.Errorf("clear planned student status: %w", err)
 		}
 		if row.Status == active.StudentStatusDaySick {
 			hasPlannedSick = true
@@ -337,13 +345,16 @@ func (s *service) clearPlannedStatusRows(
 	}
 
 	if !hasPlannedSick && !hasPlannedExcused {
-		return
+		return nil
 	}
 
 	if student == nil {
 		loaded, err := s.StudentRepo.FindByID(ctx, studentID)
-		if err != nil || loaded == nil {
-			return
+		if err != nil {
+			return fmt.Errorf("load student for planned status clear: %w", err)
+		}
+		if loaded == nil {
+			return ErrStudentNotFound
 		}
 		student = loaded
 	}
@@ -358,18 +369,16 @@ func (s *service) clearPlannedStatusRows(
 		student.ExcusedSince = nil
 	}
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
-		s.getLogger().Warn("failed to clear planned student flags on check-in",
-			slog.Int64("student_id", studentID),
-			slog.String("error", err.Error()),
-		)
+		return fmt.Errorf("clear planned student flags: %w", err)
 	}
+	return nil
 }
 
 // broadcastVisitCreated sends SSE event for visit creation.
 // snapshot (WP-B10) may be nil — when present, it enriches the event with
 // attendance_status/substatus/note so subscribers see the flipped attendance
 // state alongside the check-in line.
-func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
+func (s *service) broadcastVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot) {
 	// Der Raum-Check-in der detaillierten Betriebsart schreibt seine eigene
 	// Anwesenheitszeile und laeuft NICHT ueber registerCheckinBroadcast, also
 	// weckt er die Sorgeberechtigten hier selbst.
@@ -388,7 +397,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 // emitVisitCreated publishes a visit using routing data already resolved in
 // the request transaction. Move events reuse the same student record for their
 // checkout and check-in halves.
-func (s *service) emitVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot, studentRec *userModels.Student) {
+func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.Visit, snapshot *AttendanceSnapshot, studentRec *userModels.Student) {
 	if s.Broadcaster == nil || visit == nil {
 		return
 	}

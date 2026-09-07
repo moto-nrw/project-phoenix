@@ -11,6 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,7 +46,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
@@ -83,7 +85,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: activeGroup.ID,
 		EntryTime: entryTime, ExitTime: &exitTime,
 	}
@@ -114,7 +116,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
-	visit := &activeModels.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
+	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
 
 	exitTime := entryTime.Add(time.Hour)
@@ -152,7 +154,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
@@ -198,7 +200,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
@@ -219,8 +221,11 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 
 		// The earlier session stays immutable so history does not lose its
 		// checkout or count the school-time gap as attendance.
-		var completed activeModels.Attendance
-		require.NoError(t, db.NewSelect().Model(&completed).ModelTableExpr(`active.attendance`).Where("id = ?", existingAttendance.ID).Scan(context.Background()))
+		presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+		require.NoError(t, err)
+		completed, err := presence.FindAttendance(testpkg.Ctx(t), existingAttendance.ID)
+		require.NoError(t, err)
+		require.NotNil(t, completed)
 		require.NotNil(t, completed.CheckOutTime)
 		assert.WithinDuration(t, checkoutTime, *completed.CheckOutTime, time.Second)
 	})
@@ -258,7 +263,7 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -323,7 +328,7 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -371,7 +376,7 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -435,7 +440,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     now,
@@ -499,7 +504,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     now,
@@ -533,45 +538,30 @@ func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Tim
 	return serviceFactory.Active
 }
 
-func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date timezone.Date) *activeModels.Attendance {
+func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
 	t.Helper()
-
-	var attendance activeModels.Attendance
-	err := db.NewSelect().
-		Model(&attendance).
-		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
-		Where("student_id = ?", studentID).
-		Where("date = ?", date).
-		Order("check_in_time DESC").
-		Limit(1).
-		Scan(context.Background())
-
-	if err != nil {
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	rows, err := presence.ListAttendance(testpkg.Ctx(t), studentpresence.AttendanceFilter{
+		StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String(),
+		NewestFirst: true, Limit: 1,
+	})
+	require.NoError(t, err)
+	if len(rows) == 0 {
 		return nil
 	}
-	return &attendance
+	return &rows[0]
 }
 
-func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *activeModels.Attendance {
+func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *studentpresence.Attendance {
 	t.Helper()
-
-	checkedOutBy := staffID
-	attendance := &activeModels.Attendance{
-		StudentID:    studentID,
-		Date:         timezone.DateFromTime(checkoutTime),
-		CheckInTime:  checkoutTime.Add(-4 * time.Hour),
-		CheckOutTime: &checkoutTime,
-		CheckedInBy:  staffID,
-		CheckedOutBy: &checkedOutBy,
-		DeviceID:     deviceID,
-	}
-	attendance.SetTenantID(testpkg.Tenant(t))
-
-	_, err := db.NewInsert().
-		Model(attendance).
-		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
-		Exec(context.Background())
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	attendance, err := presence.RecordAttendance(testpkg.Ctx(t), studentpresence.Attendance{
+		StudentID: studentID, Date: timezone.DateFromTime(checkoutTime).String(),
+		CheckInTime: checkoutTime.Add(-4 * time.Hour), CheckOutTime: &checkoutTime,
+		CheckedInBy: staffID, CheckedOutBy: &staffID, DeviceID: deviceID,
+	})
 	require.NoError(t, err, "Failed to create attendance with checkout")
-
-	return attendance
+	return &attendance
 }

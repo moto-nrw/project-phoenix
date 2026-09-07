@@ -236,7 +236,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 
 	for name, breakStep := range cases {
 		t.Run(name+" fails the tick", func(t *testing.T) {
-			cfg := calendarTestConfig(db)
+			cfg := calendarTestConfig(t, db)
 			cfg.Outbox = &recordingOutbox{}
 			cfg.ParentsURL = "https://parents.test"
 			cfg.Logger = slog.Default()

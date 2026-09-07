@@ -43,6 +43,14 @@
       "kind": "domain"
     },
     {
+      "id": "parent-message-inbox",
+      "kind": "projection"
+    },
+    {
+      "id": "parent-announcement-audience",
+      "kind": "projection"
+    },
+    {
       "id": "staff-announcement-audience",
       "kind": "projection"
     },
@@ -425,6 +433,41 @@
     "workflow-integration-test"
   ],
   "packages": [
+    {
+      "path": "modules/studentpresence",
+      "owner": "student-presence",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/compose",
+      "owner": "student-presence",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/ports",
+      "owner": "student-presence",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/adapters/postgres",
+      "owner": "student-presence",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
     {
       "path": "modules/enrollment/enrollmenttest",
       "owner": "enrollment",
@@ -930,13 +973,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/display",
-      "owner": "device-fleet",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/documents",
       "owner": "document-rendering",
       "role": "postgres",
@@ -981,13 +1017,6 @@
     {
       "path": "database/repositories/filestore",
       "owner": "file-storage",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/iot",
-      "owner": "device-fleet",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1301,13 +1330,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/display",
-      "owner": "device-fleet",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/documents",
       "owner": "document-rendering",
       "role": "domain",
@@ -1569,13 +1591,6 @@
     {
       "path": "services/database",
       "owner": "transaction-runtime",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/display",
-      "owner": "device-fleet",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1994,6 +2009,76 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce",
+      "owner": "workforce",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose/httpadapter",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose/repositoryadapter",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/adapters/postgres",
+      "owner": "workforce",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/application",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/domain",
+      "owner": "workforce",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/ports",
+      "owner": "workforce",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/legacy",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/inbound",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -2323,6 +2408,41 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/communication/internal/adapters/parentpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/parentinbox",
+      "owner": "parent-message-inbox",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/parentaudience",
+      "owner": "parent-announcement-audience",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/parentstore",
+      "owner": "communication",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/communication/communicationtest",
+      "owner": "communication",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/internal/application",
       "owner": "communication",
       "role": "application",
@@ -2445,6 +2565,76 @@
       "path": "modules/careplan/careplantest",
       "owner": "care-plan",
       "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/pwausage",
+      "owner": "observability",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet",
+      "owner": "device-fleet",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/compose",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/httpadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/legacy",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/postgres",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/application",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/domain",
+      "owner": "device-fleet",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/ports",
+      "owner": "device-fleet",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -3261,6 +3451,39 @@
   ],
   "read_projections": [
     {
+      "id": "parent-message-inbox",
+      "package": "modules/communication/internal/adapters/parentinbox",
+      "data_objects": [
+        "users.guardian_profiles",
+        "users.parent_message_reads",
+        "users.parent_message_threads",
+        "users.parent_messages",
+        "users.persons",
+        "users.students",
+        "users.students_guardians"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "parent-announcement-audience",
+      "package": "modules/communication/internal/adapters/parentaudience",
+      "data_objects": [
+        "activities.student_enrollments",
+        "auth.account_tenants",
+        "auth.accounts",
+        "users.guardian_profiles",
+        "users.parent_announcement_options",
+        "users.parent_announcement_reads",
+        "users.parent_announcement_responses",
+        "users.parent_announcement_targets",
+        "users.parent_announcements",
+        "users.persons",
+        "users.students",
+        "users.students_guardians"
+      ],
+      "tenant_safe": true
+    },
+    {
       "id": "staff-announcement-audience",
       "package": "modules/communication/internal/adapters/audience",
       "data_objects": [
@@ -3850,6 +4073,476 @@
     }
   ],
   "rules": [
+    {
+      "id": "inbound-students.http.student-presence-public",
+      "description": "Student history, exports and day logs consume the owner attendance DTOs.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.adapter-test.student-presence-compose",
+      "description": "Student HTTP fixtures construct the production presence provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.internal-test.student-presence-public",
+      "description": "CLI cleanup contract tests verify the public presence DTOs and commands.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.internal-test.student-presence-compose",
+      "description": "CLI cleanup fixtures construct the tenant-scoped presence provider.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.application.public",
+      "description": "Presence workflows consume the owner facade for attendance and visit persistence.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.behavior-test.student-presence-compose",
+      "description": "Care-lifecycle fixtures construct the presence facade used by check-in commands.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.compose.student-presence-public",
+      "description": "The API composition root supplies the owner query facade to migrated active handlers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.compose.student-presence-compose",
+      "description": "The API composition root constructs the owner provider without adding a broad factory dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-iot-checkin.adapter-test.student-presence-compose",
+      "description": "Kiosk checkout contract tests verify attendance and visit state through the production presence facade.",
+      "scopes": ["external_test"],
+      "source_owner": "inbound-iot-checkin",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-active.adapter-test.student-presence-compose",
+      "description": "Active HTTP contract tests use the production presence facade.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-active",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.module-behavior-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.adapter-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "emergency-snapshot.module-internal-test.presence-compose",
+      "description": "Existing integration fixtures construct the owner facade for migrated visit records.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.behavior-test.presence-compose",
+      "description": "Behavior tests construct the migrated Presence adapter without the removed SQL provider.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.port.calendar-date",
+      "description": "Presence records retain the canonical calendar-date value without legacy ORM models.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "port",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.compose.calendar-dates",
+      "description": "Presence composition maps public calendar strings through the canonical Date parser.",
+      "scopes": ["production"],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "class-day-view.module-behavior-test.student-presence-public",
+      "description": "Slot-list fixtures use public Student Presence facts and commands (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "class-day-view",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.module-internal-test.student-presence-public",
+      "description": "Emergency snapshot tests verify public visit-location selection and read failures (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "emergency-snapshot",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.module-internal-test.student-presence-public",
+      "description": "Reminder composition tests preserve room grouping and failed-read behavior from public presence facts (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "legacy-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.presence-cutover.student-presence.public",
+      "description": "Composition shares the Student Presence facade across legacy consumers.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.public",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.application",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.port",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "port"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.student-presence.postgres",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.postgres.presence-cutover.student-presence.port",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "postgres",
+      "target_owner": "student-presence",
+      "target_role": "port"
+    },
+    {
+      "id": "legacy-composition.compose.presence-cutover.student-presence.compose",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.http.student-presence-public",
+      "description": "Timetable day/week responses map plain Student Presence visits (#2691).",
+      "scopes": ["production"],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.application.student-presence-public",
+      "description": "Grade-transition guards consume Student Presence facts before graduating students (#2691).",
+      "scopes": ["production"],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.module-internal-test.student-presence-public",
+      "description": "Grade-transition guard tests verify presence read failures and latest attendance semantics (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "school-structure",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.student-presence-public",
+      "description": "Display occupancy aggregates plain Student Presence facts (#2691).",
+      "scopes": ["production"],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-display.adapter-test.student-presence-compose",
+      "description": "Display API fixtures construct Student Presence for tenant-isolated aggregates (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "inbound-display",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "identity-access.application.student-presence-public",
+      "description": "Authorized user-context group queries consume plain Student Presence visits (#2691).",
+      "scopes": ["production"],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-usercontext.http.student-presence-public",
+      "description": "User-context HTTP maps plain visits into its existing response contract (#2691).",
+      "scopes": ["production"],
+      "source_owner": "inbound-usercontext",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.module-behavior-test.student-presence-compose",
+      "description": "User-context behavior fixtures construct the Student Presence owner (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-calendar.module-behavior-test.student-presence-compose",
+      "description": "Calendar fixtures wire user-context queries to Student Presence (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "school-calendar",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.application.student-presence-public",
+      "description": "Parent status and pickup guards consume attendance-only Student Presence facts (#2691).",
+      "scopes": ["production"],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.module-internal-test.student-presence-public",
+      "description": "Parent status projection tests use plain Student Presence attendance (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-behavior-test.student-presence-public",
+      "description": "Attendance-sync behavior tests pass plain Student Presence visits (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.student-presence-public",
+      "description": "Lifecycle test doubles exercise the plain Student Presence contract (#2691).",
+      "scopes": ["internal_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.student-presence-public",
+      "description": "Schedule workflows read and lock attendance through the Student Presence facade (#2691).",
+      "scopes": ["production"],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.behavior-test.student-presence-compose",
+      "description": "Schedule behavior tests inject the production Student Presence facade (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "care-plan.behavior-test.student-presence-compose",
+      "description": "Parent pickup-change tests inject the production attendance guard (#2691).",
+      "scopes": ["external_test"],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.compose.orm-sql",
+      "description": "Presence composition binds the ambient Bun transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "student-presence.integration-test.student-presence.compose",
+      "description": "Presence tests use production composition and hermetic tenant fixtures.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
     {
       "id": "people-directory.behavior-test.enrollment-support",
       "description": "Announcement adapter tests compose Enrollment audience queries through owner test support.",
@@ -5161,6 +5854,51 @@
         "external_test"
       ],
       "target_class": "utility"
+    },
+    {
+      "id": "process-device-scan.decision-test.student-presence",
+      "description": "Device scan decision tests inject failures through public visit command DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e.student-presence",
+      "description": "End-to-end timetable scenarios create visits through the public presence DTO contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.internal-test.student-presence",
+      "description": "Scheduler service doubles use public visit DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.internal-test.student-presence",
+      "description": "User-context service doubles use public visit DTOs.",
+      "scopes": ["internal_test"],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.internal-test.student-presence",
+      "description": "Group live-view fixtures use public visit DTOs in location snapshots.",
+      "scopes": ["internal_test"],
+      "source_owner": "group-live-view",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
     },
     {
       "id": "group-live-view.from.school-structure",
@@ -6568,6 +7306,24 @@
       "source_role": "http",
       "target_owner": "feedback",
       "target_role": "public"
+    },
+    {
+      "id": "test-support.to.student-presence-public",
+      "description": "Shared presence fixtures return public attendance and visit DTOs.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.student-presence-compose",
+      "description": "Shared presence fixtures create records through the real owner module.",
+      "scopes": ["production"],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "compose"
     },
     {
       "id": "test-support.to.feedback-public",
@@ -8379,6 +9135,299 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.port-domain",
+      "description": "Workforce ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "workforce.compose.application",
+      "description": "Workforce composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.compose.domain",
+      "description": "Workforce composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.port",
+      "description": "Workforce composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "port"
+    },
+    {
+      "id": "workforce.compose.postgres",
+      "description": "Workforce composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "postgres"
+    },
+    {
+      "id": "workforce.compose.public",
+      "description": "Workforce composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.orm-sql",
+      "description": "Workforce composition supplies the concrete Bun database dependency and preserves the legacy no-rows error value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.compose.tenant-runtime",
+      "description": "Workforce composition resolves the ambient tenant transaction and the staff balance lock through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.legacy-shared-domain",
+      "description": "Workforce composition resolves today's calendar day and wall-clock values with the shared helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.settings-domain",
+      "description": "The Workforce repository adapter serves the retained work-time model contracts while their consumers migrate.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.compose.http-router",
+      "description": "Workforce HTTP composition binds the established Chi transport.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.compose.inbound-common",
+      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.compose.security-contract",
+      "description": "Workforce HTTP composition supplies the established time-tracking permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.compose.work-time-models-http",
+      "description": "Workforce composition constructs its work-time-model HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "inbound-work-time-models",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.integration-test.public",
+      "description": "Workforce integration tests exercise the public facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.integration-test.compose",
+      "description": "Workforce integration tests construct the real owner provider and its compatibility adapters.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.integration-test.support",
+      "description": "Workforce integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "workforce.integration-test.orm-sql",
+      "description": "Workforce integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.integration-test.http-router",
+      "description": "Workforce HTTP integration tests exercise the real router.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.integration-test.identity-adapter",
+      "description": "Workforce HTTP integration tests mint authenticated tenant requests.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.integration-test.work-time-models-http",
+      "description": "Workforce HTTP integration tests drive the work-time-model adapter directly.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-work-time-models",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.integration-test.settings-domain",
+      "description": "Workforce compatibility tests verify the retained work-time model contracts.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.integration-test.legacy-shared-domain",
+      "description": "Workforce integration tests pin calendar-day expectations with the shared helpers.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.to.workforce-compose",
+      "description": "The production root constructs the Workforce module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.workforce-public",
+      "description": "The production root records stable Workforce capability outcomes and shares the one facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.workforce-compose",
+      "description": "Legacy composition constructs the default Workforce capability and its repository adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.workforce-public",
+      "description": "Legacy composition passes the Workforce facade to the retained work-time repositories.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
       "target_role": "public"
     },
     {
@@ -10861,6 +11910,171 @@
       "target_role": "domain"
     },
     {
+      "id": "parent-message-inbox.domain",
+      "description": "The parent conversation projection returns Communication domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-message-inbox",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.parent-inbox",
+      "description": "Communication composition constructs the tenant-safe parent conversation projection.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "parent-message-inbox",
+      "target_role": "postgres"
+    },
+    {
+      "id": "parent-announcement-audience.domain",
+      "description": "The parent announcement audience projection returns Communication domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-announcement-audience.calendar-date",
+      "description": "The parent announcement audience projection evaluates activity-group targets on the shared calendar day.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.parent-audience",
+      "description": "Communication composition constructs the tenant-safe parent announcement audience projection.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "postgres"
+    },
+    {
+      "id": "communication.test-support.compose",
+      "description": "Communication test support constructs the real parent-event emitter and conversation core through the owner composition.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "communication",
+      "target_role": "compose"
+    },
+    {
+      "id": "communication.test-support.application",
+      "description": "Communication test support returns the consumer-facing emitter shell.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.test-support.people-domain",
+      "description": "Communication test support accepts the retained conversation repositories pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.test-support.delivery-public",
+      "description": "Communication test support accepts the realtime broadcaster under test.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.test-support.tenant-runtime",
+      "description": "Communication test support accepts the unit of work the detached parent-event paths run under.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.behavior-test.communication-support",
+      "description": "Absence request behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "timetable-activities.behavior-test.communication-support",
+      "description": "Care request behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.behavior-test.communication-support",
+      "description": "Parent portal behavior tests compose the real parent-event emitter and conversation core through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.behavior-test.communication-support",
+      "description": "Master-data review behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-students.adapter-test.communication-support",
+      "description": "Student handler tests compose the real guardian wake through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
       "id": "communication.integration-test.public",
       "description": "Communication integration tests exercise the public facade.",
       "scopes": [
@@ -11757,6 +12971,749 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.public",
+      "description": "Workforce compatibility and inbound adapters call the public Workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.adapter.student-presence-domain",
+      "description": "The Workforce compatibility adapter serves the retained models/active staff absence contracts while their consumers migrate (#2688).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.school-structure-domain",
+      "description": "The Workforce compatibility adapter serves the retained models/education group substitution contract while its consumers migrate (#2688).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.people-domain",
+      "description": "The Workforce compatibility adapter attaches the retained staff relation and caregiver blocker views.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.transaction-domain",
+      "description": "The Workforce compatibility adapter preserves the shared repository error and query-option contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.legacy-shared-domain",
+      "description": "The Workforce compatibility adapter translates the retained calendar-date signatures.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter.orm-sql",
+      "description": "Workforce adapters preserve the legacy no-rows error value and pass the concrete Bun database to the shared tenant middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.adapter.inbound-common",
+      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter.security-contract",
+      "description": "Workforce HTTP composition supplies the established time-tracking permissions and resolves the request principal.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.adapter.tenant-runtime",
+      "description": "Workforce HTTP composition checks the request principal against the ambient tenant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.adapter.absence-types-http",
+      "description": "Workforce HTTP composition constructs the absence-type administration adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-absence-types",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter.substitutions-http",
+      "description": "Workforce HTTP composition constructs the substitutions adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "inbound-substitutions",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter-test.legacy-composition",
+      "description": "Workforce HTTP composition tests build the retained service graph the routes serve.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.adapter-test.http-router",
+      "description": "Workforce HTTP composition tests exercise the real router.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "workforce.adapter-test.orm-sql",
+      "description": "Workforce HTTP composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.adapter-test.substitutions-http",
+      "description": "Workforce HTTP composition tests render the substitutions failure contract.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-substitutions",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.workforce-adapter",
+      "description": "The production root constructs the Workforce HTTP composition for the absence-type and substitution routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.to.workforce-adapter",
+      "description": "Legacy composition constructs the Workforce compatibility adapters for the retained absence and substitution repository contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.port-domain",
+      "description": "Device Fleet ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "device-fleet.compose.public",
+      "description": "Device Fleet composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.application",
+      "description": "Device Fleet composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.domain",
+      "description": "Device Fleet composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.port",
+      "description": "Device Fleet composition exposes observations from its consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "port"
+    },
+    {
+      "id": "device-fleet.compose.postgres",
+      "description": "Device Fleet composition constructs its Postgres adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "postgres"
+    },
+    {
+      "id": "device-fleet.compose.orm-sql",
+      "description": "Device Fleet composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.compose.tenant-runtime",
+      "description": "Device Fleet composition resolves tenant, admin, and ambient transactions through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.facilities-public",
+      "description": "Device Fleet composition resolves room names and occupancy rows through the public Facilities query.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.student-presence-public",
+      "description": "Device Fleet composition reads live presence facts through the public Student Presence capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.inbound-display",
+      "description": "Device Fleet HTTP composition constructs the established display adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "inbound-display",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.compose.inbound-common",
+      "description": "Device Fleet HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.compose.security-contract",
+      "description": "Device Fleet HTTP composition supplies the established display permissions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "device-fleet.compose.identity-adapter",
+      "description": "Device Fleet HTTP composition reads authenticated permission claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.compose.http-router",
+      "description": "Device Fleet HTTP composition binds the established Chi transport.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "device-fleet.integration-test.public",
+      "description": "Device Fleet integration tests exercise the public facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.integration-test.compose",
+      "description": "Device Fleet integration tests construct the real owner provider.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.integration-test.legacy-composition",
+      "description": "Device Fleet integration tests supply the legacy repository graph at the composition boundary.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.integration-test.support",
+      "description": "Device Fleet integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "device-fleet.integration-test.orm-sql",
+      "description": "Device Fleet integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.integration-test.http-router",
+      "description": "Device Fleet HTTP integration tests exercise the real router.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "device-fleet.integration-test.identity-adapter",
+      "description": "Device Fleet HTTP integration tests mint authenticated tenant requests.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.integration-test.inbound-display",
+      "description": "Device Fleet HTTP integration tests decode the established display wire shapes.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-display",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.integration-test.student-presence-compose",
+      "description": "Device Fleet HTTP integration tests construct Student Presence for tenant-isolated aggregates.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "observability.postgres.tenant-runtime",
+      "description": "The PWA usage adapter resolves the ambient transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "observability",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.student-presence-domain",
+      "description": "Device Fleet compatibility composition maps live-session facts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.activities-domain",
+      "description": "Device Fleet compatibility composition maps activity and instance values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.activities-application",
+      "description": "Device Fleet compatibility composition reads today's effective pickup times.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.settings-domain",
+      "description": "Device Fleet compatibility composition names the established tenant settings.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.settings-application",
+      "description": "Device Fleet compatibility composition resolves tenant settings.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.organization-domain",
+      "description": "Device Fleet compatibility composition reads the display's school row.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.legacy-shared-domain",
+      "description": "Device Fleet compatibility composition uses calendar and wall-clock value helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.security-domain",
+      "description": "Device Fleet compatibility composition mints device API keys.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.device-fleet-domain",
+      "description": "Device Fleet integration tests build the retained device row.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.device-fleet-application",
+      "description": "Device Fleet integration tests assert the retained IoT service contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.settings-domain",
+      "description": "Device Fleet integration tests configure the display feature toggle.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.settings-application",
+      "description": "Device Fleet integration tests write the tenant settings they configure.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.activities-domain",
+      "description": "Device Fleet integration tests seed activity instances.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.activities-application",
+      "description": "Device Fleet integration tests compose the pickup schedule service.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.legacy-shared-domain",
+      "description": "Device Fleet integration tests build fixed Berlin clocks and calendar dates.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.tenant-runtime",
+      "description": "Device Fleet integration tests verify transaction and RLS behaviour through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.self",
+      "description": "Device Fleet compatibility composition reuses its own composition types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.compatibility-application.public",
+      "description": "The retained IoT service delegates every device operation to the public owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.device-fleet-compose",
+      "description": "The serving root constructs the Device Fleet display adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.device-fleet-public",
+      "description": "The legacy composition seam reads and writes devices through the public owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.device-fleet-compose",
+      "description": "The legacy composition seam constructs the Device Fleet owner and its retained repository shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.observability-postgres",
+      "description": "The legacy composition seam constructs the PWA usage adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "observability",
+      "target_role": "postgres"
+    },
+    {
+      "id": "observability.integration-test.postgres",
+      "description": "PWA usage integration tests exercise their own adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "observability",
+      "source_role": "workflow-integration-test",
+      "target_owner": "observability",
+      "target_role": "postgres"
+    },
+    {
+      "id": "observability.integration-test.orm-sql",
+      "description": "PWA usage integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "observability",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
     }
   ]
 }

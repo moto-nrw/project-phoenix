@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -95,11 +96,9 @@ func NewDeviceTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeviceTestModule, 
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	repo, err := repositories.NewDeviceTestRepository(db)
+	fleet, err := repositories.NewDeviceFleet(db, devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	service := iot.NewService(repo)
-	service.SetSettingsService(settings.Settings)
-	return DeviceTestModule{IoT: service}, nil
+	return DeviceTestModule{IoT: iot.NewService(fleet)}, nil
 }

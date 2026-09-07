@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -147,69 +146,6 @@ func TestUpdateSupervisorsResponse_EmptySupervisorSliceSerializesAsJSONArray(t *
 
 	require.NoError(t, err)
 	assert.Contains(t, string(payload), `"supervisors":[]`)
-}
-
-// =============================================================================
-// countActiveStudents TESTS
-// =============================================================================
-
-func TestCountActiveStudents_AllActive(t *testing.T) {
-	t.Parallel()
-
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: nil},
-		{Model: base.Model{ID: 3}, StudentID: 3, ExitTime: nil},
-	}
-
-	count := countActiveStudents(visits)
-
-	assert.Equal(t, 3, count)
-}
-
-func TestCountActiveStudents_SomeExited(t *testing.T) {
-	t.Parallel()
-
-	exitTime := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: &exitTime}, // Exited
-		{Model: base.Model{ID: 3}, StudentID: 3, ExitTime: nil},
-	}
-
-	count := countActiveStudents(visits)
-
-	assert.Equal(t, 2, count)
-}
-
-func TestCountActiveStudents_AllExited(t *testing.T) {
-	t.Parallel()
-
-	exitTime := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: &exitTime},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: &exitTime},
-	}
-
-	count := countActiveStudents(visits)
-
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudents_Empty(t *testing.T) {
-	t.Parallel()
-
-	count := countActiveStudents([]*active.Visit{})
-
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudents_Nil(t *testing.T) {
-	t.Parallel()
-
-	count := countActiveStudents(nil)
-
-	assert.Equal(t, 0, count)
 }
 
 // =============================================================================

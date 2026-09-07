@@ -20,8 +20,9 @@ func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
 
 	adjustments := NewStaffBalanceAdjustmentRepository(db)
 	workSessions := NewWorkSessionRepository(db)
-	absences := NewStaffAbsenceRepository(db)
 
+	// The absence writer moved to the Workforce module with #2688; its share
+	// of this lock is asserted in modules/workforce/compose.
 	tests := []struct {
 		name string
 		lock func(context.Context) error
@@ -30,12 +31,6 @@ func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
 			name: "work session writer",
 			lock: func(ctx context.Context) error {
 				return workSessions.LockStaffBalanceWrites(ctx, staff.ID)
-			},
-		},
-		{
-			name: "absence writer",
-			lock: func(ctx context.Context) error {
-				return absences.LockStaffAbsenceWrites(ctx, staff.ID)
 			},
 		},
 	}

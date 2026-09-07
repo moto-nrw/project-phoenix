@@ -28,7 +28,6 @@ import (
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -307,7 +306,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 
 	allMessages, err := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessage.ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	parentmessaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
+	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")

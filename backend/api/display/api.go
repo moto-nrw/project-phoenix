@@ -1,76 +1,118 @@
-// Package display holds the info-point display HTTP layer (issue #1325):
-// a public, token-authenticated dashboard endpoint plus JWT-gated admin CRUD
-// for managing the displays themselves.
+// Package display serves the established /api/display contract through the
+// Device Fleet capability (issue #1325): a public, token-authenticated
+// dashboard endpoint plus JWT-gated admin CRUD for the screens themselves.
+// Authentication, tenant transactions, rendering, and the display.enabled
+// toggle are supplied by the composition root.
 package display
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	displayModels "github.com/moto-nrw/project-phoenix/models/display"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	displayService "github.com/moto-nrw/project-phoenix/services/display"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
+
+// Middleware is the chi middleware shape the composition root supplies.
+type Middleware = func(http.Handler) http.Handler
+
+// FailureKind classifies a handler failure for the composition root's
+// renderer, so this package never builds an HTTP error body itself.
+type FailureKind string
+
+// The failure kinds the display contract can produce.
+const (
+	FailureInvalid   FailureKind = "invalid"
+	FailureForbidden FailureKind = "forbidden"
+	FailureNotFound  FailureKind = "not_found"
+	FailureInternal  FailureKind = "internal"
+)
+
+// Runtime carries everything outside this owner that the routes need.
+type Runtime struct {
+	// Protected wraps the JWT-authenticated admin group and hands back the
+	// tenant-transaction middleware those routes run inside.
+	Protected func(chi.Router, func(chi.Router, Middleware))
+	// AnyPermission and Permission build the permission middleware.
+	AnyPermission func(...string) Middleware
+	Permission    func(string) Middleware
+	ParseID       func(http.ResponseWriter, *http.Request, string, string) (int64, bool)
+	Failure       func(http.ResponseWriter, *http.Request, FailureKind, error, string)
+	// FeatureEnabled resolves the opt-in display.enabled toggle for the
+	// current tenant. It fails closed: a resolution error must not open the
+	// admin routes for a tenant that never enabled the feature.
+	FeatureEnabled func(context.Context) (bool, error)
+	Read           string
+	Manage         string
+}
 
 // Resource bundles the display handlers and their dependencies.
 type Resource struct {
-	Service         displayService.Service
-	SettingsService configService.SettingsService
-	db              *bun.DB
+	displays devicefleet.Capability
+	runtime  Runtime
 }
 
 // NewResource constructs the display API resource.
-func NewResource(svc displayService.Service, settingsService configService.SettingsService, db *bun.DB) *Resource {
-	return &Resource{Service: svc, SettingsService: settingsService, db: db}
+func NewResource(displays devicefleet.Capability, runtime Runtime) *Resource {
+	if displays == nil || runtime.Protected == nil || runtime.AnyPermission == nil ||
+		runtime.Permission == nil || runtime.ParseID == nil || runtime.Failure == nil ||
+		runtime.FeatureEnabled == nil || runtime.Read == "" || runtime.Manage == "" {
+		panic("display HTTP: all dependencies are required")
+	}
+	return &Resource{displays: displays, runtime: runtime}
 }
 
 // Router returns a chi router scoped to /display. The dashboard route is
 // public (token-only auth via the X-Display-Token header); everything else
-// requires a staff JWT + display permissions.
+// requires a staff JWT plus display permissions.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Public route: the token is the only auth signal, carried in the
 	// X-Display-Token header — never in the URL, so it cannot leak into
-	// request-path logs (backend, Next.js proxy, reverse proxy). Sits outside
-	// the auth group below so the JWT middleware doesn't reject the TV
-	// browser. Tenant scoping happens inside the service (WithAdminTx token
-	// lookup → WithTenantTx aggregation) — no tenant tx middleware here.
+	// request-path logs (backend, Next.js proxy, reverse proxy). It sits
+	// outside the auth group so the JWT middleware does not reject the TV
+	// browser. Tenant scoping happens inside the owner (admin token lookup →
+	// tenant-scoped aggregation), so no tenant middleware here.
 	r.Get("/dashboard", rs.getDashboard)
 
-	// Authenticated admin endpoints.
-	tokenAuth := jwt.MustNewTokenAuth()
-	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
-		r.Use(jwt.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(jwt.TenantMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
-		withTx := common.TenantTxMiddleware
-
+	rs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {
 		// Listing is readable with either permission: display:read enables
-		// view-only roles, display:manage must not lock its holders out of
-		// the very list their mutations operate on.
-		r.With(common.RequiresAnyPermission(permissions.DisplayRead, permissions.DisplayManage), withTx).Get("/", rs.listDisplays)
-		r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Post("/", rs.createDisplay)
+		// view-only roles, and display:manage must not lock its holders out
+		// of the very list their mutations operate on.
+		r.With(rs.runtime.AnyPermission(rs.runtime.Read, rs.runtime.Manage), withTx).Get("/", rs.listDisplays)
+		r.With(rs.runtime.Permission(rs.runtime.Manage), withTx).Post("/", rs.createDisplay)
 		r.Route("/{id}", func(r chi.Router) {
-			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Patch("/", rs.updateDisplay)
-			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Post("/regenerate", rs.regenerateToken)
-			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Delete("/", rs.deleteDisplay)
+			manage := rs.runtime.Permission(rs.runtime.Manage)
+			r.With(manage, withTx).Patch("/", rs.updateDisplay)
+			r.With(manage, withTx).Post("/regenerate", rs.regenerateToken)
+			r.With(manage, withTx).Delete("/", rs.deleteDisplay)
 		})
 	})
 
 	return r
+}
+
+// displayView is the wire shape of one screen. It is spelled out here so the
+// owner's value can change without moving the public contract.
+type displayView struct {
+	ID        int64     `json:"id"`
+	TenantID  int64     `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	IsActive  bool      `json:"is_active"`
+}
+
+func newDisplayView(value devicefleet.Display) displayView {
+	return displayView{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt,
+		UpdatedAt: value.UpdatedAt, Name: value.Name, IsActive: value.IsActive,
+	}
 }
 
 // getDashboard serves the public dashboard aggregate for a display token,
@@ -78,51 +120,49 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) getDashboard(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("X-Display-Token")
 	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("missing display token")))
+		rs.runtime.Failure(w, r, FailureInvalid, errors.New("missing display token"), "")
 		return
 	}
 
-	payload, err := rs.Service.Dashboard(r.Context(), token)
+	payload, err := rs.displays.Dashboard(r.Context(), token)
 	if err != nil {
 		switch {
-		case errors.Is(err, displayModels.ErrInactive):
-			// A known-but-deactivated display is a valid screen state, not
-			// an error: the TV renders "Display deaktiviert" from this.
+		case errors.Is(err, devicefleet.ErrDisplayInactive):
+			// A known-but-deactivated display is a valid screen state, not an
+			// error: the TV renders "Display deaktiviert" from this.
 			render.JSON(w, r, map[string]string{"status": "inactive"})
-		case errors.Is(err, displayModels.ErrNotFound):
+		case errors.Is(err, devicefleet.ErrDisplayNotFound):
 			// Only a genuinely unknown/revoked token 404s — the TV replaces
 			// its dashboard with the deactivated-link screen on 404.
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("display not found")))
+			rs.runtime.Failure(w, r, FailureNotFound, errors.New("display not found"), "")
 		default:
-			// Infrastructure failures surface as 500 so the TV keeps its
-			// last good data and retries instead of going dark.
-			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load display dashboard", err))
+			// Infrastructure failures surface as 500 so the TV keeps its last
+			// good data and retries instead of going dark.
+			rs.runtime.Failure(w, r, FailureInternal, err, "failed to load display dashboard")
 		}
 		return
 	}
 
-	render.JSON(w, r, payload)
+	render.JSON(w, r, NewDashboardResponse(payload))
 }
 
 // featureEnabled reports whether the info-point dashboard is enabled for the
-// current tenant, rendering a 403 and returning false when it is not. The
-// feature is opt-in (defaults off), unlike the meal plan's opt-out pattern.
+// current tenant, rendering the failure and returning false when it is not.
+// The feature is opt-in (defaults off), unlike the meal plan's opt-out.
 //
-// Fails CLOSED on a settings lookup error: a transient/RLS/config-table
-// failure while reading the override must NOT silently open admin routes for
-// a tenant that never enabled the feature, so the error is rendered (500)
-// rather than defaulted to disabled-but-passthrough. Routes run inside
-// TenantTxMiddleware, so ResolveBool resolves against the current tenant.
+// Fails CLOSED on a resolution error: a transient/RLS/config-table failure
+// while reading the override must NOT silently open admin routes for a tenant
+// that never enabled the feature.
 func (rs *Resource) featureEnabled(w http.ResponseWriter, r *http.Request) bool {
-	enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyDisplayEnabled)
+	enabled, err := rs.runtime.FeatureEnabled(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve display setting", err))
+		rs.runtime.Failure(w, r, FailureInternal, err, "failed to resolve display setting")
 		return false
 	}
 	if enabled {
 		return true
 	}
-	common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+	rs.runtime.Failure(w, r, FailureForbidden, errors.New("feature_disabled"), "")
 	return false
 }
 
@@ -130,12 +170,16 @@ func (rs *Resource) listDisplays(w http.ResponseWriter, r *http.Request) {
 	if !rs.featureEnabled(w, r) {
 		return
 	}
-	displays, err := rs.Service.List(r.Context())
+	displays, err := rs.displays.ListDisplays(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to list displays", err))
+		rs.runtime.Failure(w, r, FailureInternal, err, "failed to list displays")
 		return
 	}
-	render.JSON(w, r, map[string]any{"displays": displays})
+	views := make([]displayView, 0, len(displays))
+	for _, value := range displays {
+		views = append(views, newDisplayView(value))
+	}
+	render.JSON(w, r, map[string]any{"displays": views})
 }
 
 type displayWriteRequest struct {
@@ -149,65 +193,65 @@ func (rs *Resource) createDisplay(w http.ResponseWriter, r *http.Request) {
 	}
 	var req displayWriteRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err, "")
 		return
 	}
 	if req.Name == nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("name is required")))
+		rs.runtime.Failure(w, r, FailureInvalid, errors.New("name is required"), "")
 		return
 	}
 
-	d, rawToken, err := rs.Service.Create(r.Context(), *req.Name)
+	created, rawToken, err := rs.displays.CreateDisplay(r.Context(), *req.Name)
 	if err != nil {
-		renderDisplayError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
 
 	render.Status(r, http.StatusCreated)
 	// The raw token appears exactly once, in this response. It is never
 	// persisted or logged; the admin UI shows it in a one-time modal.
-	render.JSON(w, r, map[string]any{"display": d, "token": rawToken})
+	render.JSON(w, r, map[string]any{"display": newDisplayView(created), "token": rawToken})
 }
 
 func (rs *Resource) updateDisplay(w http.ResponseWriter, r *http.Request) {
 	if !rs.featureEnabled(w, r) {
 		return
 	}
-	id, ok := parseDisplayID(w, r)
+	id, ok := rs.parseDisplayID(w, r)
 	if !ok {
 		return
 	}
 
 	var req displayWriteRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.runtime.Failure(w, r, FailureInvalid, err, "")
 		return
 	}
 	if req.Name == nil && req.IsActive == nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("nothing to update")))
+		rs.runtime.Failure(w, r, FailureInvalid, errors.New("nothing to update"), "")
 		return
 	}
 
-	d, err := rs.Service.Update(r.Context(), id, req.Name, req.IsActive)
+	updated, err := rs.displays.UpdateDisplay(r.Context(), id, req.Name, req.IsActive)
 	if err != nil {
-		renderDisplayError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
-	render.JSON(w, r, map[string]any{"display": d})
+	render.JSON(w, r, map[string]any{"display": newDisplayView(updated)})
 }
 
 func (rs *Resource) regenerateToken(w http.ResponseWriter, r *http.Request) {
 	if !rs.featureEnabled(w, r) {
 		return
 	}
-	id, ok := parseDisplayID(w, r)
+	id, ok := rs.parseDisplayID(w, r)
 	if !ok {
 		return
 	}
 
-	rawToken, err := rs.Service.Regenerate(r.Context(), id)
+	rawToken, err := rs.displays.RegenerateDisplayToken(r.Context(), id)
 	if err != nil {
-		renderDisplayError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
 	// Same one-time contract as createDisplay.
@@ -218,29 +262,29 @@ func (rs *Resource) deleteDisplay(w http.ResponseWriter, r *http.Request) {
 	if !rs.featureEnabled(w, r) {
 		return
 	}
-	id, ok := parseDisplayID(w, r)
+	id, ok := rs.parseDisplayID(w, r)
 	if !ok {
 		return
 	}
 
-	if err := rs.Service.Delete(r.Context(), id); err != nil {
-		renderDisplayError(w, r, err)
+	if err := rs.displays.DeleteDisplay(r.Context(), id); err != nil {
+		rs.renderError(w, r, err)
 		return
 	}
 	render.NoContent(w, r)
 }
 
-func parseDisplayID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	return common.ParseInt64IDWithError(w, r, "id", "invalid display ID")
+func (rs *Resource) parseDisplayID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	return rs.runtime.ParseID(w, r, "id", "invalid display ID")
 }
 
-func renderDisplayError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, displayModels.ErrNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, displayModels.ErrInvalidInput):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, devicefleet.ErrDisplayNotFound):
+		rs.runtime.Failure(w, r, FailureNotFound, err, "")
+	case errors.Is(err, devicefleet.ErrInvalidDisplayInput):
+		rs.runtime.Failure(w, r, FailureInvalid, err, "")
 	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap("display operation failed", err))
+		rs.runtime.Failure(w, r, FailureInternal, err, "display operation failed")
 	}
 }

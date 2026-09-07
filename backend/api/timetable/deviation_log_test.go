@@ -143,7 +143,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
-	activeGroupRepo := activeRepo.NewGroupRepository(s.db)
+	activeGroupRepo := activeRepo.NewGroupRepository(s.db, nil)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &activeModel.Group{
 		StartTime:      now,

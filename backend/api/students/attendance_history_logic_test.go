@@ -16,8 +16,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,7 +96,7 @@ func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
 func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
 	t.Parallel()
 
-	days := buildAttendanceHistoryDays(nil, nil, nil, time.Now(), false)
+	days := buildAttendanceHistoryDays(nil, nil, nil, time.Now())
 	assert.Empty(t, days)
 }
 
@@ -107,33 +108,29 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	checkIn := date.Add(8 * time.Hour)
 	checkOut := checkIn.Add(5*time.Hour + 30*time.Minute)
 
-	row := &active.Attendance{
-		TenantModel:  base.TenantModel{TenantID: testpkg.Tenant(t)},
+	row := &studentpresence.Attendance{
+		TenantID:     testpkg.Tenant(t),
 		StudentID:    10,
-		Date:         timezone.DateFromTime(date),
+		Date:         timezone.DateFromTime(date).String(),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
 		DeviceID:     7,
 	}
 	exit := checkIn.Add(90 * time.Minute)
-	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
-		StudentID:   10,
-		EntryTime:   checkIn,
-		ExitTime:    &exit,
-		ActiveGroup: &active.Group{
-			RoomID: 5,
-			Room:   &facilities.Room{Name: "Gruppenraum A"},
-		},
+	room := testpkg.CreateTestRoom(t, testpkg.SetupTestDB(t), "History Room")
+	roomID := room.ID
+	visit := &activeService.VisitHistoryEntry{
+		EntryTime: checkIn,
+		ExitTime:  &exit,
+		RoomID:    &roomID, RoomName: "Gruppenraum A",
 	}
 	key := timezone.DateOf(date).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
-		[]*active.Attendance{row},
+		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*active.Visit{key: {visit}},
+		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
-		false,
 	)
 
 	require.Len(t, days, 1)
@@ -158,33 +155,29 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	checkIn := roomCutoff.Add(8 * time.Hour)
 	checkOut := roomCutoff.Add(15 * time.Hour)
 
-	row := &active.Attendance{
-		TenantModel:  base.TenantModel{TenantID: testpkg.Tenant(t)},
+	row := &studentpresence.Attendance{
+		TenantID:     testpkg.Tenant(t),
 		StudentID:    10,
-		Date:         timezone.DateFromTime(roomCutoff),
+		Date:         timezone.DateFromTime(roomCutoff).String(),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
 		DeviceID:     7,
 	}
 	exit := checkIn.Add(time.Hour)
-	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
-		StudentID:   10,
-		EntryTime:   checkIn,
-		ExitTime:    &exit,
-		ActiveGroup: &active.Group{
-			RoomID: 5,
-			Room:   &facilities.Room{Name: "Boundary Room"},
-		},
+	room := testpkg.CreateTestRoom(t, testpkg.SetupTestDB(t), "History Room")
+	roomID := room.ID
+	visit := &activeService.VisitHistoryEntry{
+		EntryTime: checkIn,
+		ExitTime:  &exit,
+		RoomID:    &roomID, RoomName: "Boundary Room",
 	}
 	key := timezone.DateOf(roomCutoff).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
-		[]*active.Attendance{row},
+		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*active.Visit{key: {visit}},
+		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
-		false,
 	)
 	require.Len(t, days, 1)
 	assert.True(t, days[0].RoomDetailAvailable, "date ON cutoff should have room detail available")
@@ -198,29 +191,26 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := today.Add(8 * time.Hour)
 
-	row := &active.Attendance{
-		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
+	row := &studentpresence.Attendance{
+		TenantID:    testpkg.Tenant(t),
 		StudentID:   10,
-		Date:        timezone.DateFromTime(today),
+		Date:        timezone.DateFromTime(today).String(),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
 	}
 	exit := checkIn.Add(time.Hour)
-	visit := &active.Visit{
-		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
-		StudentID:   10,
-		EntryTime:   checkIn,
-		ExitTime:    &exit,
-		ActiveGroup: nil, // No group info
+	visit := &activeService.VisitHistoryEntry{
+		EntryTime: checkIn,
+		ExitTime:  &exit,
+		RoomID:    nil, // No group info
 	}
 	key := timezone.DateOf(today).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
-		[]*active.Attendance{row},
+		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*active.Visit{key: {visit}},
+		map[string][]*activeService.VisitHistoryEntry{key: {visit}},
 		roomCutoff,
-		false,
 	)
 	require.Len(t, days, 1)
 	require.Len(t, days[0].Visits, 1)
@@ -235,11 +225,11 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 	yesterday := today.AddDate(0, 0, -1)
 	roomCutoff := today.AddDate(0, 0, -6)
 
-	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(yesterday), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+	rows := []*studentpresence.Attendance{
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(yesterday).String(), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
 	assert.Len(t, days, 2, "should return one day entry per unique date")
 }
 
@@ -263,7 +253,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 		},
 	}
 
-	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*active.Visit{}, roomCutoff, false)
+	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1)
 	assert.Equal(t, timezone.DateFromTime(today).String(), days[0].Date)
@@ -287,11 +277,11 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	afternoonIn := today.Add(13 * time.Hour)
 	afternoonOut := today.Add(16 * time.Hour)
 
-	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
+	rows := []*studentpresence.Attendance{
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1, "two rows on same day must consolidate into one entry")
 	day := days[0]
@@ -315,11 +305,11 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 	afternoonIn := today.Add(13 * time.Hour)
 	// Second session still open (no check-out).
 
-	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
+	rows := []*studentpresence.Attendance{
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
 	}
-	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
+	days := buildAttendanceHistoryDays(rows, nil, map[string][]*activeService.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1)
 	assert.Nil(t, days[0].Attendance.CheckOutTime, "nil check-out (still present) takes precedence")
@@ -335,20 +325,19 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := oldDate.Add(8 * time.Hour)
 
-	row := &active.Attendance{
-		TenantModel: base.TenantModel{TenantID: testpkg.Tenant(t)},
+	row := &studentpresence.Attendance{
+		TenantID:    testpkg.Tenant(t),
 		StudentID:   10,
-		Date:        timezone.DateFromTime(oldDate),
+		Date:        timezone.DateFromTime(oldDate).String(),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
 	}
 	days := buildAttendanceHistoryDays(
-		[]*active.Attendance{row},
+		[]*studentpresence.Attendance{row},
 		nil,
-		map[string][]*active.Visit{},
+		map[string][]*activeService.VisitHistoryEntry{},
 		roomCutoff,
-		false,
 	)
 	require.Len(t, days, 1)
 	assert.False(t, days[0].RoomDetailAvailable, "older-than-room-cap day must hide visits")
@@ -377,7 +366,7 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
 		{Instance: morning, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
 		{Instance: afternoon, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
-	}, nil, date.BerlinMidnight(), false)
+	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
 	assert.True(t, days[0].RoomDetailAvailable, "slot-only day within the retention window must expose room details")
@@ -406,23 +395,17 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 
 	t.Run("outside window stays unavailable", func(t *testing.T) {
 		cutoff := date.AddDays(2).BerlinMidnight()
-		days := attachSlotAttendance(nil, rows, nil, cutoff, false)
-		require.Len(t, days, 1)
-		assert.False(t, days[0].RoomDetailAvailable)
-	})
-
-	t.Run("failed visit query stays unavailable", func(t *testing.T) {
-		days := attachSlotAttendance(nil, rows, nil, date.BerlinMidnight(), true)
+		days := attachSlotAttendance(nil, rows, nil, cutoff)
 		require.Len(t, days, 1)
 		assert.False(t, days[0].RoomDetailAvailable)
 	})
 
 	t.Run("within window attaches visits for the date", func(t *testing.T) {
 		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, timezone.Berlin)
-		visits := map[string][]*active.Visit{
-			date.String(): {{StudentID: 1, EntryTime: entry}},
+		visits := map[string][]*activeService.VisitHistoryEntry{
+			date.String(): {{EntryTime: entry}},
 		}
-		days := attachSlotAttendance(nil, rows, visits, date.BerlinMidnight(), false)
+		days := attachSlotAttendance(nil, rows, visits, date.BerlinMidnight())
 		require.Len(t, days, 1)
 		assert.True(t, days[0].RoomDetailAvailable)
 		require.Len(t, days[0].Visits, 1)
@@ -667,7 +650,7 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
 		Instance:   instance,
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
-	}}, nil, date.BerlinMidnight(), false)
+	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
 	payload, err := json.Marshal(days[0].Slots[0])
@@ -687,7 +670,7 @@ func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
 		Instance:   instance,
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
-	}}, nil, date.BerlinMidnight(), false)
+	}}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
 	require.Len(t, days[0].Slots, 1)
@@ -717,7 +700,7 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 			Substatus: &late,
 			Note:      &note,
 		}},
-	}, nil, date.BerlinMidnight(), false)
+	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
 	require.Len(t, days[0].Slots, 1)
@@ -740,7 +723,7 @@ func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
 
 	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
 		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
-	}, nil, date.BerlinMidnight(), false)
+	}, nil, date.BerlinMidnight())
 
 	require.Len(t, days, 1)
 	require.Len(t, days[0].Slots, 1)

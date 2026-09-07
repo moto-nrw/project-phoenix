@@ -3,7 +3,6 @@ package repositories_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -36,7 +35,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// The active group, visit, education group and device reads used to join
+// The active group, education group and device reads used to join
 // facilities.rooms themselves. After the cutover (#2665) the factory binds
 // the room owner into every one of them, so a bare NewFactory graph resolves
 // rooms exactly like the observed production graph.
@@ -49,8 +48,6 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	student := testpkg.CreateTestStudent(t, db, "Room", "Student", "1a")
-	testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-time.Minute), nil)
 	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Igel")
 	device := testpkg.CreateTestDevice(t, db, "room-device")
 	ctx := testpkg.Ctx(t)
@@ -66,16 +63,6 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 		assert.Equal(t, room.Name, groups[activeGroup.ID].Room.Name)
 		assert.Equal(t, room.Building, groups[activeGroup.ID].Room.Building, "the full row, colour and capacity included")
 		assert.Equal(t, room.Capacity, groups[activeGroup.ID].Room.Capacity)
-
-		locations, err := factory.ActiveVisit.GetCurrentRoomNamesForStudents(ctx, []int64{student.ID})
-		require.NoError(t, err)
-		assert.Equal(t, map[int64]string{student.ID: room.Name}, locations)
-
-		current, err := factory.ActiveVisit.GetCurrentByStudentIDWithRoom(ctx, student.ID)
-		require.NoError(t, err)
-		require.NotNil(t, current.ActiveGroup)
-		require.NotNil(t, current.ActiveGroup.Room)
-		assert.Equal(t, room.ID, current.ActiveGroup.Room.ID)
 
 		withRoom, err := factory.Group.FindWithRoom(ctx, educationGroup.ID)
 		require.NoError(t, err)

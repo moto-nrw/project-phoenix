@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
 	"log/slog"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,16 +35,21 @@ func render(fn func(io.Writer)) string {
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	cleanupSvc := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.Attendance,
+		presence,
 		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
 		db,
 	)
+	schools, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
 	return &cleanupContext{
+		Schools:        schools,
+		TenantRuntime:  testpkg.TenantRuntime(t, db),
 		DB:             db,
 		CleanupService: cleanupSvc,
 		Output:         io.Discard,
@@ -53,25 +61,33 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	sessionService := active.NewService(active.ServiceDependencies{
+		SchoolPresence:           presence,
 		GroupRepo:                repoFactory.ActiveGroup,
-		VisitRepo:                repoFactory.ActiveVisit,
 		SupervisorRepo:           repoFactory.GroupSupervisor,
 		DeviceRepo:               repoFactory.Device,
 		TimetableBridgeCompleter: repoFactory.ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
 	})
+	sessionService.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+		return active.PresenceModeDetailed, nil
+	}})
 	cleanupSvc := active.NewCleanupService(
-		repoFactory.ActiveVisit,
-		repoFactory.Attendance,
+		presence,
 		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
 		db,
 	)
+	schools, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
 	return &cleanupContext{
+		Schools:               schools,
+		TenantRuntime:         testpkg.TenantRuntime(t, db),
 		DB:                    db,
 		SessionCleanupService: sessionService,
 		CleanupService:        cleanupSvc,

@@ -15,7 +15,7 @@ func (s *service) ensureRoomCapacity(ctx context.Context, roomID int64, incoming
 		return nil
 	}
 
-	currentOccupancy, err := s.VisitRepo.CountActiveByRoomID(ctx, roomID)
+	currentOccupancy, err := s.SchoolPresence.CountOpenVisitsInRoom(ctx, roomID)
 	if err != nil {
 		return &ActiveError{Op: "EnsureRoomCapacity", Err: ErrDatabaseOperation}
 	}

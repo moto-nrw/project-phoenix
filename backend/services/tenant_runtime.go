@@ -61,6 +61,11 @@ func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
 	tenant.ObserveLockWait(ctx, duration)
 }
 
+// TenantRuntime is the unit of work composed services run tenant work under.
+// Package-local callers name it through this alias so composition tests stay
+// free of the runtime package.
+type TenantRuntime = tenant.UnitOfWork
+
 type tenantRuntimeSetter interface {
 	SetTenantRuntime(tenant.UnitOfWork)
 }

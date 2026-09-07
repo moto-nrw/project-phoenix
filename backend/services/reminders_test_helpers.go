@@ -48,10 +48,10 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	service := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 		Clock:        reminderClock(clocks...),
 		CurrentStaff: reminderStaffIdentity(groups.UserContext),
-		Settings:     reminderSettings{settings.Settings}, Attendance: reminderAttendanceReader{source: repositories.NewAttendanceTestRepository(db)}, Pickup: reminderPickupReader{source: pickup},
+		Settings:     reminderSettings{settings.Settings}, Attendance: newStudentPresence(db, slog.Default()), Pickup: reminderPickupReader{source: pickup},
 		Instance: reminderTimetableReader{source: r.Timetable}, Room: reminderRoomReader{source: rooms},
 		Student: reminderStudentReader{source: r.Student}, Person: reminderPersonReader{source: r.Person}, Supervision: reminderSupervisionReader{source: groups.Active},
-		Visits: r.ActiveVisit, Logger: slog.Default(), BulkSupervision: reminderBulkSupervisionReader{source: r.GroupSupervisor}, BulkInstanceStaff: reminderTimetableReader{source: r.Timetable},
+		Visits: reminderVisitReader{source: newStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: reminderBulkSupervisionReader{source: r.GroupSupervisor}, BulkInstanceStaff: reminderTimetableReader{source: r.Timetable},
 	})
 	return RemindersTestModule{Reminders: service, Settings: settings.Settings, UserContext: groups.UserContext}, nil
 }

@@ -179,7 +179,7 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	// Confirm the visit is now closed (ExitTime set).
-	updatedVisit, err := tc.resource.ActiveService.GetVisit(t.Context(), visit.ID)
+	updatedVisit, err := tc.resource.ActiveService.GetVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, updatedVisit)
 	assert.NotNil(t, updatedVisit.ExitTime, "open visit must be closed after web checkout")

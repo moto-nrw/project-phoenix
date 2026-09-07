@@ -11,6 +11,7 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,9 +66,8 @@ func TestMasterDataDecisionTellsTheOtherGuardian(t *testing.T) {
 			other := testpkg.CreateTestCoGuardianForStudent(t, db, chain.StudentID, "Klaus", "Zweitelternteil")
 
 			broadcaster := testpkg.NewRecordingBroadcaster()
-			emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+			emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 				reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
-			testpkg.SetTenantRuntime(t, emitter, db)
 			svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(
 				repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil,
 				testpkg.RequestReviewPolicy{}, nil, slog.Default(), broadcaster)

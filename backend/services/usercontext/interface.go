@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // UserContextService defines operations available in the user context service layer.
@@ -75,7 +76,7 @@ type UserContextService interface {
 	GetGroupStudents(ctx context.Context, groupID int64) ([]*users.Student, error)
 
 	// GetGroupVisits retrieves active visits for a specific group where the current user has access
-	GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error)
+	GetGroupVisits(ctx context.Context, groupID int64) ([]studentpresence.Visit, error)
 
 	// GetCurrentProfile retrieves the full profile for the current user including person, account, and profile data
 	GetCurrentProfile(ctx context.Context) (map[string]interface{}, error)

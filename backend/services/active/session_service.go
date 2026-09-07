@@ -17,6 +17,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -280,7 +281,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 
-	transferredCount, err := s.VisitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -290,7 +291,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		}
 	}
 
-	return newGroup, transferredCount, nil
+	return newGroup, int(transferredCount), nil
 }
 
 // updateDeviceLocation updates the device's room_id to track its last-used location.
@@ -534,7 +535,8 @@ func (s *service) transferForceStartedActivityState(ctx context.Context, oldGrou
 
 func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
 	if s.GroupRepo == nil {
-		return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+		count, err := s.SchoolPresence.TransferOpenVisits(ctx, oldGroupID, newGroupID)
+		return int(count), err
 	}
 	oldGroup, err := s.GroupRepo.FindByID(ctx, oldGroupID)
 	if err != nil {
@@ -545,7 +547,7 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 		return 0, err
 	}
 	if oldGroup != nil && newGroup != nil && oldGroup.RoomID != newGroup.RoomID {
-		incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, oldGroupID)
+		incoming, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, oldGroupID)
 		if err != nil {
 			return 0, err
 		}
@@ -555,7 +557,8 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 			}
 		}
 	}
-	return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+	count, err := s.SchoolPresence.TransferOpenVisits(ctx, oldGroupID, newGroupID)
+	return int(count), err
 }
 
 func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64, newGroupStartTime time.Time) (int, error) {
@@ -1094,14 +1097,14 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 
 // checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
 func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{sessionID}})
 	if err != nil {
 		return 0, err
 	}
 
 	studentsCheckedOut := 0
 	for _, visit := range visits {
-		if !visit.IsActive() {
+		if visit.ExitTime != nil {
 			continue
 		}
 		if _, _, err := s.endVisitWithAttendanceSync(ctx, visit.ID); err != nil {
@@ -1115,16 +1118,16 @@ func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (in
 
 // collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
 func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64) ([]visitSSEData, error) {
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{sessionID}})
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter active visits and collect unique student IDs
-	var activeVisits []*active.Visit
+	var activeVisits []studentpresence.Visit
 	studentIDSet := make(map[int64]struct{})
 	for _, visit := range visits {
-		if !visit.IsActive() {
+		if visit.ExitTime != nil {
 			continue
 		}
 		activeVisits = append(activeVisits, visit)
@@ -1334,14 +1337,14 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	}
 
 	// Count active students in the session
-	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, session.ID)
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{session.ID}})
 	if err != nil {
 		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
 	}
 
 	activeStudentCount := 0
 	for _, visit := range visits {
-		if visit.IsActive() {
+		if visit.ExitTime == nil {
 			activeStudentCount++
 		}
 	}
@@ -1440,7 +1443,13 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	// CreateVisit/EndVisit to no-ops), so this job has nothing to close for
 	// them. Returning early saves a handful of per-tenant queries on every
 	// scheduler tick and keeps the result shape unchanged for callers.
-	if s.GetPresenceMode(ctx) == "binary" {
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		result := newDailySessionCleanupResult()
+		result.Success = false
+		return result, &ActiveError{Op: "EndDailySessions", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if mode == PresenceModeBinary {
 		return &DailySessionCleanupResult{
 			ExecutedAt: time.Now(),
 			Success:    true,
@@ -1518,7 +1527,7 @@ func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64,
 
 	// 2. Bulk end visits — abort remaining steps on failure to prevent
 	// sessions/supervisors being closed while visits remain active.
-	visitsEnded, err := s.VisitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
+	visitsEnded, err := s.SchoolPresence.CloseGroupVisits(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false

@@ -35,7 +35,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 		return CareLifecycleTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: tt.Timetable}),
+		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
 		CareWithdrawal: usersRepo.NewCareWithdrawalCompletionRepository(db), GradeTransition: educationRepo.NewGradeTransitionRepository(db),
 	}
 	r.BindPeopleDirectory(people)

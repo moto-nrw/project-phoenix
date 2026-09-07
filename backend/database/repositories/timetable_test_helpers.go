@@ -57,7 +57,6 @@ type TimetableTestRepositories struct {
 	Student                   usersModels.StudentRepository
 	Group                     educationModels.GroupRepository
 	ActiveGroup               activeModels.GroupRepository
-	ActiveVisit               activeModels.VisitRepository
 	GroupSupervisor           activeModels.GroupSupervisorRepository
 	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
@@ -103,19 +102,19 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}),
+		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}, newStudentPresence(db)),
 		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
 		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               activeRepo.NewGroupRepository(db), ActiveVisit: activeRepo.NewVisitRepository(db),
-		GroupSupervisor:       activeRepo.NewGroupSupervisorRepository(db, now),
-		Room:                  facilitiesAdapter.New(),
-		DeviationEvent:        auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
-		ClassArrivalTime:      educationRepo.NewClassArrivalTimeRepository(db),
-		ClassArrivalException: scheduleRepo.NewClassArrivalExceptionRepository(db),
-		SubmissionRateLimit:   enrollmentCompose.New(),
+		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
+		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
+		Room:                      facilitiesAdapter.New(),
+		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
+		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
+		ClassArrivalException:     scheduleRepo.NewClassArrivalExceptionRepository(db),
+		SubmissionRateLimit:       enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
 	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), bookings.CountPlannedSupervisorsByCalendarPeriod))
@@ -126,7 +125,11 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	}
 	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
+	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)
 	rooms, err := NewFacilities(db)
@@ -158,7 +161,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		ClosingDay: r.ClosingDay, Dateframe: r.Dateframe,
 		Staff: r.Staff, Teacher: r.Teacher, ClassTeacher: r.ClassTeacher, GroupTeacher: r.GroupTeacher,
 		Person: r.Person, Student: r.Student, Group: r.Group,
-		ActiveGroup: r.ActiveGroup, ActiveVisit: r.ActiveVisit, GroupSupervisor: r.GroupSupervisor,
+		ActiveGroup: r.ActiveGroup, GroupSupervisor: r.GroupSupervisor,
 		StudentArrivalSchedule: r.StudentArrivalSchedule, StudentArrivalException: r.StudentArrivalException,
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,

@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -374,7 +375,7 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 	s := &CheckinService{}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{}
+	visit := &activeSvc.VisitWithRoom{}
 	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
 	assert.False(t, result)
 }
@@ -388,7 +389,7 @@ func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
 	assert.True(t, result, "Should upgrade when no time gate and group has no room")
 }
@@ -402,7 +403,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilGroupID(t *testing.T) {
 
 	s := &CheckinService{}
 	student := &users.Student{Model: base.Model{ID: 1}} // GroupID is nil
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result)
 }
@@ -423,7 +424,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilActiveGroup(t *testing.T) {
 	s := &CheckinService{}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{} // ActiveGroup is nil
+	visit := &activeSvc.VisitWithRoom{} // ActiveGroup is nil
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result)
 }
@@ -438,7 +439,7 @@ func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false before daily checkout time")
 }
@@ -453,7 +454,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *tes
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.True(t, result, "Should return true when no checkout time is configured and group has no room")
 }
@@ -467,7 +468,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testin
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 42}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 42}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.True(t, result, "Should return true when rooms match and no time gate")
 }
@@ -481,7 +482,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testi
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 99}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false when student is in wrong room")
 }
@@ -493,7 +494,7 @@ func TestShouldShowDailyCheckoutWithGroup_GetCheckoutTimeError(t *testing.T) {
 	s := &CheckinService{dailyCheckoutFallback: "not-a-time"}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false when checkout time parse fails")
 }
@@ -506,7 +507,7 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 1}}
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "Should return false when education service errors")
 }
@@ -522,7 +523,7 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 
 // newSchulhofScenario builds the GS-Barnstorf shape: the student's group owns a
 // room, and the visit being closed happened in the Schulhof room instead.
-func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *active.Visit) {
+func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *activeSvc.VisitWithRoom) {
 	t.Helper()
 
 	const groupRoomID, schulhofRoomID = int64(42), int64(7)
@@ -535,7 +536,7 @@ func newSchulhofScenario(t *testing.T) (*CheckinService, *users.Student, *active
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: schulhofRoomID}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: schulhofRoomID}}
 	return s, student, visit
 }
 
@@ -575,7 +576,7 @@ func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_NotOffered(t *testing.T) 
 	s, student, _ := newSchulhofScenario(t)
 	// Same school, but the child left an ordinary room that is neither their
 	// group room nor the yard.
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 99}}
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "an ordinary room must not offer nach Hause")
@@ -598,7 +599,7 @@ func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_OfferedWhenEnabled(t *tes
 	}
 	groupID := int64(1)
 	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 99}}
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.True(t, result, "an ordinary room must offer nach Hause when the tenant setting is enabled")
@@ -648,7 +649,7 @@ func TestShouldUpgradeToDailyCheckout_OwnGroupRoom_StillUpgrades(t *testing.T) {
 	s, student, _ := newSchulhofScenario(t)
 	// Leaving the child's OWN group room keeps the pre-existing automatic
 	// daily checkout — this fix must not change that path.
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 42}}
+	visit := &activeSvc.VisitWithRoom{ActiveGroup: &activeSvc.VisitRoomGroup{RoomID: 42}}
 
 	result := s.ShouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
 	assert.True(t, result, "the own-group-room auto-upgrade is unchanged")

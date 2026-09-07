@@ -321,6 +321,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	deviceFleetOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_operations_total", Help: "Device Fleet operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	deviceFleetDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_operation_duration_seconds", Help: "Device Fleet operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	deviceFleetQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_queries_total", Help: "Persistence queries issued by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_rows_total", Help: "Rows returned or changed by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_statement_duration_seconds", Help: "Cumulative Device Fleet database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	timetableActivitiesOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_timetable_activities_operations_total", Help: "Timetable & Activities operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -363,6 +383,26 @@ var (
 	)
 	schoolCalendarStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_school_calendar_statement_duration_seconds", Help: "Cumulative School Calendar database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	workforceOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_operations_total", Help: "Workforce work-time operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	workforceDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_workforce_operation_duration_seconds", Help: "Workforce work-time operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	workforceQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_queries_total", Help: "Persistence queries issued by Workforce work-time operations."},
+		[]string{"operation"},
+	)
+	workforceRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_rows_total", Help: "Rows returned or changed by Workforce work-time operations."},
+		[]string{"operation"},
+	)
+	workforceStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_workforce_statement_duration_seconds", Help: "Cumulative Workforce work-time database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
 	appointmentsOperations = prometheus.NewCounterVec(
@@ -701,6 +741,11 @@ func init() {
 		facilitiesQueries,
 		facilitiesRows,
 		facilitiesStatementDuration,
+		deviceFleetOperations,
+		deviceFleetDuration,
+		deviceFleetQueries,
+		deviceFleetRows,
+		deviceFleetStatementDuration,
 		timetableActivitiesOperations,
 		timetableActivitiesDuration,
 		timetableActivitiesQueries,
@@ -712,6 +757,11 @@ func init() {
 		schoolCalendarQueries,
 		schoolCalendarRows,
 		schoolCalendarStatementDuration,
+		workforceOperations,
+		workforceDuration,
+		workforceQueries,
+		workforceRows,
+		workforceStatementDuration,
 		appointmentsOperations,
 		appointmentsDuration,
 		appointmentsQueries,
@@ -986,6 +1036,29 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 	}
 }
 
+// ObserveDeviceFleetOperation records one Device Fleet operation: its
+// outcome, duration, statement count, affected rows, and statement duration.
+func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	deviceFleetOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	deviceFleetDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		deviceFleetQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		deviceFleetRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		deviceFleetStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 func ObserveTimetableActivitiesOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
 	outcome := "success"
 	if err == nil {
@@ -1028,6 +1101,30 @@ func ObserveSchoolCalendarOperation(operation string, duration time.Duration, qu
 	}
 	if statementDuration > 0 {
 		schoolCalendarStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveWorkforceOperation records the runtime evidence of one Workforce
+// work-time capability call: outcome and stable code, duration, query count,
+// rows, and cumulative statement duration.
+func ObserveWorkforceOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	workforceOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	workforceDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		workforceQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		workforceRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		workforceStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

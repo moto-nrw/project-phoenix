@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	repo := newPresence(t, db)
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 
@@ -29,13 +30,13 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 	}()
 
 	t.Run("empty id slice short-circuits", func(t *testing.T) {
-		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, nil)
+		results, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, ActiveGroupIDs: []int64{}})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("returns only matching student's visits", func(t *testing.T) {
-		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, []int64{data.ActiveGroup.ID})
+		results, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, ActiveGroupIDs: []int64{data.ActiveGroup.ID}})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, v1.ID, results[0].ID,
@@ -43,14 +44,14 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 	})
 
 	t.Run("non-matching active group id returns empty", func(t *testing.T) {
-		results, err := repo.FindByStudentAndActiveGroupIDs(ctx, data.Student1.ID, []int64{data.ActiveGroup.ID + 9999})
+		results, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, ActiveGroupIDs: []int64{data.ActiveGroup.ID + 9999}})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("different tenant context returns empty", func(t *testing.T) {
 		ctxT2 := testpkg.TenantContext(2)
-		results, err := repo.FindByStudentAndActiveGroupIDs(ctxT2, data.Student1.ID, []int64{data.ActiveGroup.ID})
+		results, err := repo.ListVisits(ctxT2, studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, ActiveGroupIDs: []int64{data.ActiveGroup.ID}})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
@@ -61,7 +62,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveVisit
+	repo := newPresence(t, db)
 	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
 
@@ -90,7 +91,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		start := twoDaysAgo.Add(-1 * time.Hour)
 		end := now.Add(1 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		assert.Len(t, results, 3, "should return all 3 visits for student1")
 	})
@@ -99,7 +100,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		start := twoDaysAgo.Add(-1 * time.Hour)
 		end := now.Add(1 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student2.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student2.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		assert.Len(t, results, 1, "should only return student2's visit")
 	})
@@ -109,7 +110,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		start := yesterday.Add(-1 * time.Hour)
 		end := now.Add(1 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
@@ -118,7 +119,7 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		start := now.Add(24 * time.Hour)
 		end := now.Add(48 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
@@ -127,26 +128,30 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 		start := now.Add(-3 * time.Hour)
 		end := now.Add(1 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 
 		visit := results[0]
-		require.NotNil(t, visit.ActiveGroup, "ActiveGroup should be populated via explicit JOIN")
-		assert.Equal(t, data.Room, visit.ActiveGroup.RoomID, "RoomID should match the active group's room")
-		require.NotNil(t, visit.ActiveGroup.Room, "Room should be populated via explicit JOIN")
-		assert.NotEmpty(t, visit.ActiveGroup.Room.Name, "Room name should be loaded")
+		require.NotNil(t, visit.Group, "ActiveGroup should be populated via explicit JOIN")
+		assert.Equal(t, data.Room, visit.Group.RoomID, "RoomID should match the active group's room")
+		rooms, err := repositories.NewFacilities(db)
+		require.NoError(t, err)
+		resolved, err := rooms.ListRoomsByID(ctx, []int64{visit.Group.RoomID})
+		require.NoError(t, err)
+		require.Len(t, resolved, 1, "the visit room must resolve through Facilities")
+		assert.NotEmpty(t, resolved[0].Name, "Room name should be loaded")
 	})
 
 	t.Run("ordered_entry_time_asc", func(t *testing.T) {
 		start := twoDaysAgo.Add(-1 * time.Hour)
 		end := now.Add(1 * time.Hour)
 
-		results, err := repo.FindByStudentAndTimeRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{StudentIDs: []int64{data.Student1.ID}, EnteredFrom: &start, EnteredUntil: &end}})
 		require.NoError(t, err)
 		require.Len(t, results, 3)
 		// Ascending order: oldest first
-		assert.True(t, results[0].EntryTime.Before(results[1].EntryTime), "results should be ordered entry_time ASC")
-		assert.True(t, results[1].EntryTime.Before(results[2].EntryTime), "results should be ordered entry_time ASC")
+		assert.True(t, results[0].Visit.EntryTime.Before(results[1].Visit.EntryTime), "results should be ordered entry_time ASC")
+		assert.True(t, results[1].Visit.EntryTime.Before(results[2].Visit.EntryTime), "results should be ordered entry_time ASC")
 	})
 }

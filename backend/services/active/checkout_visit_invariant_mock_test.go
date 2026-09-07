@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +22,8 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	lookupErr := errors.New("connection reset")
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return nil, lookupErr
 		},
 	}},
@@ -42,8 +41,8 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	// GetCurrentByStudentID still reports the visit as open, but by the time
 	// EndVisit re-reads it the exit time is set — the concurrent-caller race.
 	exitTime := time.Now()
-	endedVisit := &activeModels.Visit{
-		Model:     base.Model{ID: 4712},
+	endedVisit := &studentpresence.Visit{
+		ID:        4712,
 		StudentID: 4711,
 		EntryTime: time.Now().Add(-1 * time.Hour),
 		ExitTime:  &exitTime,
@@ -51,11 +50,11 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	openView := *endedVisit
 	openView.ExitTime = nil
 
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return &openView, nil
 		},
-		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 			return endedVisit, nil
 		},
 	}},
@@ -64,21 +63,22 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	result, err := svc.endOpenVisitForStudent(context.Background(), 4711, timezone.TodayDate())
 
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
-	assert.Same(t, endedVisit, result)
+	require.NotNil(t, result)
+	assert.Equal(t, *endedVisit, *result)
 }
 
 func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 	t.Parallel()
 
-	openVisit := &activeModels.Visit{
-		Model:     base.Model{ID: 4714},
+	openVisit := &studentpresence.Visit{
+		ID:        4714,
 		StudentID: 4711,
 		EntryTime: time.Now().Add(-1 * time.Hour),
 	}
 	endCalled := false
 
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return openVisit, nil
 		},
 		endVisitFunc: func(_ context.Context, id int64) error {
@@ -86,7 +86,7 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 			endCalled = true
 			return nil
 		},
-		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 			ended := *openVisit
 			exitTime := time.Now()
 			ended.ExitTime = &exitTime
@@ -106,17 +106,17 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 	t.Parallel()
 
-	openVisit := &activeModels.Visit{
-		Model:     base.Model{ID: 4713},
+	openVisit := &studentpresence.Visit{
+		ID:        4713,
 		StudentID: 4711,
 		EntryTime: time.Now().Add(-1 * time.Hour),
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return openVisit, nil
 		},
-		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+		findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
 			return openVisit, nil
 		},
 		endVisitFunc: func(context.Context, int64) error {
@@ -138,10 +138,10 @@ func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
 	// attendance; a room visit the student started AFTER that day belongs to
 	// the new day's session and must stay open (review #2372).
 	endCalled := false
-	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
-		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
-			return &activeModels.Visit{
-				Model:     base.Model{ID: 4715},
+	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
+			return &studentpresence.Visit{
+				ID:        4715,
 				StudentID: 4711,
 				EntryTime: time.Now(),
 			}, nil

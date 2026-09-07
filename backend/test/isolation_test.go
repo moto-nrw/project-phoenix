@@ -20,7 +20,6 @@ import (
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
@@ -48,20 +47,6 @@ func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.R
 	repository := facilitiesRepositoryAdapter.New()
 	repository.Bind(rooms)
 	return repository
-}
-
-// deviceRoomRows is the test double for the Facilities directory: it reads
-// the room rows the fixtures inserted, exactly what the bound owner returns.
-type deviceRoomRows struct{ db *bun.DB }
-
-func (d deviceRoomRows) ListRoomsByID(ctx context.Context, ids []int64) ([]repoIot.DirectoryRoom, error) {
-	var rooms []repoIot.DirectoryRoom
-	err := d.db.NewSelect().
-		TableExpr(`facilities.rooms AS "room"`).
-		ColumnExpr(`"room".id, "room".tenant_id, "room".name`).
-		Where(`"room".id IN (?)`, bun.List(ids)).
-		Scan(ctx, &rooms)
-	return rooms, err
 }
 
 // ctxForTenant returns a background context with the given tenant ID set.
@@ -269,10 +254,10 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	dA := CreateTestDeviceForTenant(t, db, tenantA, "DEV-A")
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
 
-	repo := repoIot.NewDeviceRepository(db)
-	// Device reads resolve room names through the Facilities owner (#2665);
-	// the composition root binds it, a bare repository needs it bound here.
-	repo.(*repoIot.DeviceRepository).BindRoomDirectory(deviceRoomRows{db: db})
+	// Device reads go through the Device Fleet owner (#2676), which resolves
+	// room names through the Facilities owner.
+	repo, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -303,6 +288,66 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, dA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A device %d", dA.ID)
+}
+
+// TestTenantIsolation_DisplayVisibility covers display.displays, the Device
+// Fleet owner's second table (#2676). Every id-addressed display read and
+// write carries a tenant predicate; only the dashboard token lookup runs
+// without one, and only inside the admin scope.
+func TestTenantIsolation_DisplayVisibility(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+	tenantA, tenantB := isolationTenants(t, db)
+
+	fleet, err := repositories.NewDeviceFleet(db)
+	require.NoError(t, err)
+
+	ctxA := ctxForTenant(tenantA)
+	ctxB := ctxForTenant(tenantB)
+
+	displayA, _, err := fleet.CreateDisplay(ctxA, "Eingang A")
+	require.NoError(t, err)
+	displayB, _, err := fleet.CreateDisplay(ctxB, "Eingang B")
+	require.NoError(t, err)
+
+	// --- Tenant A ---
+	listed, err := fleet.ListDisplays(ctxA)
+	require.NoError(t, err)
+	for _, display := range listed {
+		assert.Equal(t, tenantA, display.TenantID,
+			"cross-tenant leak: tenant B display visible to tenant A (ListDisplays)")
+	}
+
+	name := "Umbenannt"
+	_, err = fleet.UpdateDisplay(ctxA, displayB.ID, &name, nil)
+	assert.Error(t, err,
+		"cross-tenant UpdateDisplay should fail: tenant A must not write tenant B display %d", displayB.ID)
+
+	_, err = fleet.RegenerateDisplayToken(ctxA, displayB.ID)
+	assert.Error(t, err,
+		"cross-tenant RegenerateDisplayToken should fail for display %d", displayB.ID)
+
+	err = fleet.DeleteDisplay(ctxA, displayB.ID)
+	assert.Error(t, err,
+		"cross-tenant DeleteDisplay should fail for display %d", displayB.ID)
+
+	// --- Tenant B ---
+	listed, err = fleet.ListDisplays(ctxB)
+	require.NoError(t, err)
+	for _, display := range listed {
+		assert.Equal(t, tenantB, display.TenantID,
+			"cross-tenant leak: tenant A display visible to tenant B (ListDisplays)")
+	}
+
+	err = fleet.DeleteDisplay(ctxB, displayA.ID)
+	assert.Error(t, err,
+		"cross-tenant DeleteDisplay should fail for display %d", displayA.ID)
+
+	// The owner's own rows stay reachable, so the assertions above prove
+	// isolation rather than a broken composition.
+	_, err = fleet.UpdateDisplay(ctxA, displayA.ID, &name, nil)
+	require.NoError(t, err, "a display of the caller's own tenant must stay writable")
 }
 
 // ============================================================================
@@ -368,7 +413,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repoActive.NewGroupRepository(db)
+	repo := repoActive.NewGroupRepository(db, nil)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
