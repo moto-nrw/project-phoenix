@@ -145,14 +145,14 @@ func (s *Service) feedURL(token, subdomain string) string {
 	return base.String()
 }
 
-func (s *Service) requestURL(subdomain string) string {
+func (s *Service) requestURL(subdomain string) url.URL {
 	base := *s.frontendURL
 	feed := s.feedURL("placeholder", subdomain)
 	parsed, _ := url.Parse(feed)
 	base.Host = parsed.Host
 	base.Path = "/anfragen"
 	base.RawQuery = "tab=eltern"
-	return base.String()
+	return base
 }
 
 type rss struct {
@@ -183,13 +183,18 @@ type rssGUID struct {
 }
 
 func (s *Service) render(subscription domain.Subscription, items []domain.Item) (string, error) {
-	link := s.requestURL(subscription.Subdomain)
+	requestURL := s.requestURL(subscription.Subdomain)
+	link := requestURL.String()
 	values := make([]rssItem, 0, len(items))
 	for _, item := range items {
 		label := kindLabel(item.Kind)
+		itemURL := requestURL
+		query := itemURL.Query()
+		query.Set("request", fmt.Sprintf("%s:%d", item.Kind, item.ID))
+		itemURL.RawQuery = query.Encode()
 		values = append(values, rssItem{
 			Title:       "Neue Anfrage: " + label,
-			Link:        link,
+			Link:        itemURL.String(),
 			Description: fmt.Sprintf("Für %s ist eine neue Elternanfrage eingegangen. Öffnen Sie moto, um sie zu prüfen.", subscription.SchoolName),
 			GUID:        rssGUID{IsPermaLink: false, Value: fmt.Sprintf("urn:moto:parent-request:%d:%s:%d", subscription.TenantID, item.Kind, item.ID)},
 			PubDate:     item.CreatedAt.UTC().Format(time.RFC1123Z),

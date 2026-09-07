@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"encoding/xml"
+	"net/url"
 	"testing"
 	"time"
 
@@ -108,6 +110,40 @@ func TestFeedContainsOnlyGenericRequestMetadata(t *testing.T) {
 	assert.NotContains(t, feed.XML, "raw-token")
 	assert.Equal(t, now.Add(-30*24*time.Hour), store.since)
 	assert.Equal(t, access, store.listAccess)
+}
+
+func TestFeedItemsHaveStableDistinctLinks(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	store := &fakeStore{
+		active:       true,
+		createdHash:  fakeTokens{}.Hash("raw-token"),
+		subscription: domain.Subscription{TenantID: 7, AccountID: 9},
+		items: []domain.Item{
+			{Kind: "master_data", ID: 41, CreatedAt: now.Add(-2 * time.Hour)},
+			{Kind: "master_data", ID: 42, CreatedAt: now.Add(-time.Hour)},
+		},
+	}
+	service := newTestService(t, store, domain.Access{
+		Active: true, GeneralRequests: true, SchoolName: "Sonnenschule", Subdomain: "sonnenschule",
+	}, now)
+
+	feed, err := service.ByToken(context.Background(), "raw-token")
+	require.NoError(t, err)
+	var document rss
+	require.NoError(t, xml.Unmarshal([]byte(feed.XML), &document))
+	require.Len(t, document.Channel.Items, 2)
+
+	expectedRequestIDs := []string{"master_data:41", "master_data:42"}
+	links := make([]string, 0, len(document.Channel.Items))
+	for index, item := range document.Channel.Items {
+		parsed, parseErr := url.Parse(item.Link)
+		require.NoError(t, parseErr)
+		assert.Equal(t, "eltern", parsed.Query().Get("tab"))
+		assert.Equal(t, expectedRequestIDs[index], parsed.Query().Get("request"))
+		links = append(links, item.Link)
+	}
+	assert.NotEqual(t, links[0], links[1])
 }
 
 func TestFeedRechecksCurrentAccess(t *testing.T) {
