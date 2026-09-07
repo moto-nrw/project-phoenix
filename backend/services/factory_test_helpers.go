@@ -35,7 +35,7 @@ func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Lo
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, currentFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, currentFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, true, clocks...)
 }
 
 func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -43,7 +43,7 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	if err != nil {
 		return nil, err
 	}
-	return newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, true, clocks...)
+	return newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, true, clocks...)
 }
 
 func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {

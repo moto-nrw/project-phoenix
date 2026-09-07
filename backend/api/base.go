@@ -32,7 +32,6 @@ import (
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
@@ -75,6 +74,7 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -364,6 +364,7 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime api
 		observability.ObserveAuditAppend,
 		observability.ObserveSynchronousDelivery,
 		observability.ObserveDurableDelivery,
+		observability.ObserveDeviceFleetOperation,
 	)
 	if err != nil {
 		return moduleServices{}, err
@@ -627,7 +628,7 @@ type API struct {
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
-	Display          *displayAPI.Resource
+	Display          *displayHTTPAdapter.Resource
 	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -1206,7 +1207,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
-	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
+	// One Device Fleet owner serves every entry point: the services factory
+	// composes it and the IoT service hands it back here (#2676).
+	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)

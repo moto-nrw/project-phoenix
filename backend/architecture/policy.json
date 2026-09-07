@@ -969,13 +969,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/display",
-      "owner": "device-fleet",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/documents",
       "owner": "document-rendering",
       "role": "postgres",
@@ -1020,13 +1013,6 @@
     {
       "path": "database/repositories/filestore",
       "owner": "file-storage",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/iot",
-      "owner": "device-fleet",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1279,13 +1265,6 @@
     {
       "path": "models/delivery",
       "owner": "delivery-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/display",
-      "owner": "device-fleet",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1552,13 +1531,6 @@
     {
       "path": "services/database",
       "owner": "transaction-runtime",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/display",
-      "owner": "device-fleet",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -2533,6 +2505,76 @@
       "path": "modules/careplan/careplantest",
       "owner": "care-plan",
       "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/pwausage",
+      "owner": "observability",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet",
+      "owner": "device-fleet",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/compose",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/httpadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/legacy",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/postgres",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/application",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/domain",
+      "owner": "device-fleet",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/ports",
+      "owner": "device-fleet",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     }
@@ -12806,6 +12848,554 @@
       "source_role": "compose",
       "target_owner": "workforce",
       "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.port-domain",
+      "description": "Device Fleet ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "device-fleet.compose.public",
+      "description": "Device Fleet composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.application",
+      "description": "Device Fleet composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.domain",
+      "description": "Device Fleet composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.port",
+      "description": "Device Fleet composition exposes observations from its consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "port"
+    },
+    {
+      "id": "device-fleet.compose.postgres",
+      "description": "Device Fleet composition constructs its Postgres adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "postgres"
+    },
+    {
+      "id": "device-fleet.compose.orm-sql",
+      "description": "Device Fleet composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.compose.tenant-runtime",
+      "description": "Device Fleet composition resolves tenant, admin, and ambient transactions through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.facilities-public",
+      "description": "Device Fleet composition resolves room names and occupancy rows through the public Facilities query.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.student-presence-public",
+      "description": "Device Fleet composition reads live presence facts through the public Student Presence capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.inbound-display",
+      "description": "Device Fleet HTTP composition constructs the established display adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "inbound-display",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.compose.inbound-common",
+      "description": "Device Fleet HTTP composition binds shared tenant middleware and response rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.compose.security-contract",
+      "description": "Device Fleet HTTP composition supplies the established display permissions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "device-fleet.compose.identity-adapter",
+      "description": "Device Fleet HTTP composition reads authenticated permission claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.compose.http-router",
+      "description": "Device Fleet HTTP composition binds the established Chi transport.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "device-fleet.integration-test.public",
+      "description": "Device Fleet integration tests exercise the public facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.integration-test.compose",
+      "description": "Device Fleet integration tests construct the real owner provider.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.integration-test.legacy-composition",
+      "description": "Device Fleet integration tests supply the legacy repository graph at the composition boundary.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.integration-test.support",
+      "description": "Device Fleet integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "device-fleet.integration-test.orm-sql",
+      "description": "Device Fleet integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.integration-test.http-router",
+      "description": "Device Fleet HTTP integration tests exercise the real router.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "device-fleet.integration-test.identity-adapter",
+      "description": "Device Fleet HTTP integration tests mint authenticated tenant requests.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.integration-test.inbound-display",
+      "description": "Device Fleet HTTP integration tests decode the established display wire shapes.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-display",
+      "target_role": "http"
+    },
+    {
+      "id": "device-fleet.integration-test.student-presence-compose",
+      "description": "Device Fleet HTTP integration tests construct Student Presence for tenant-isolated aggregates.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "observability.postgres.tenant-runtime",
+      "description": "The PWA usage adapter resolves the ambient transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "observability",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.student-presence-domain",
+      "description": "Device Fleet compatibility composition maps live-session facts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.activities-domain",
+      "description": "Device Fleet compatibility composition maps activity and instance values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.activities-application",
+      "description": "Device Fleet compatibility composition reads today's effective pickup times.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.settings-domain",
+      "description": "Device Fleet compatibility composition names the established tenant settings.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.settings-application",
+      "description": "Device Fleet compatibility composition resolves tenant settings.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.compose.organization-domain",
+      "description": "Device Fleet compatibility composition reads the display's school row.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.legacy-shared-domain",
+      "description": "Device Fleet compatibility composition uses calendar and wall-clock value helpers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.compose.security-domain",
+      "description": "Device Fleet compatibility composition mints device API keys.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.device-fleet-domain",
+      "description": "Device Fleet integration tests build the retained device row.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.device-fleet-application",
+      "description": "Device Fleet integration tests assert the retained IoT service contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.settings-domain",
+      "description": "Device Fleet integration tests configure the display feature toggle.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.settings-application",
+      "description": "Device Fleet integration tests write the tenant settings they configure.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.activities-domain",
+      "description": "Device Fleet integration tests seed activity instances.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.activities-application",
+      "description": "Device Fleet integration tests compose the pickup schedule service.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.integration-test.legacy-shared-domain",
+      "description": "Device Fleet integration tests build fixed Berlin clocks and calendar dates.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.integration-test.tenant-runtime",
+      "description": "Device Fleet integration tests verify transaction and RLS behaviour through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.self",
+      "description": "Device Fleet compatibility composition reuses its own composition types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "device-fleet.compatibility-application.public",
+      "description": "The retained IoT service delegates every device operation to the public owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.device-fleet-compose",
+      "description": "The serving root constructs the Device Fleet display adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.device-fleet-public",
+      "description": "The legacy composition seam reads and writes devices through the public owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.device-fleet-compose",
+      "description": "The legacy composition seam constructs the Device Fleet owner and its retained repository shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.observability-postgres",
+      "description": "The legacy composition seam constructs the PWA usage adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "observability",
+      "target_role": "postgres"
+    },
+    {
+      "id": "observability.integration-test.postgres",
+      "description": "PWA usage integration tests exercise their own adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "observability",
+      "source_role": "workflow-integration-test",
+      "target_owner": "observability",
+      "target_role": "postgres"
+    },
+    {
+      "id": "observability.integration-test.orm-sql",
+      "description": "PWA usage integration tests supply the concrete Bun test database.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "observability",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
     }
   ]
 }

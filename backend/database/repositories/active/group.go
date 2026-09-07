@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -30,9 +29,10 @@ const (
 // GroupRepository implements active.GroupRepository interface
 type GroupRepository struct {
 	*base.Repository[*active.Group]
-	db    *bun.DB
-	rooms RoomDirectory
-	today func() timezone.Date
+	db      *bun.DB
+	rooms   RoomDirectory
+	devices DeviceDirectory
+	today   func() timezone.Date
 }
 
 // BindRoomDirectory installs the Facilities directory the group reads
@@ -42,12 +42,17 @@ func (r *GroupRepository) BindRoomDirectory(rooms RoomDirectory) {
 }
 
 // NewGroupRepository creates a new GroupRepository
-func NewGroupRepository(db *bun.DB, clocks ...func() time.Time) active.GroupRepository {
+// NewGroupRepository builds the session repository. devices is the Device
+// Fleet directory session reads resolve their device through (#2676); a nil
+// directory makes every device-bearing read fail loudly instead of falling
+// back to a join this package no longer owns.
+func NewGroupRepository(db *bun.DB, devices DeviceDirectory, clocks ...func() time.Time) active.GroupRepository {
 	repo := base.NewRepository[*active.Group](db, "active.groups", "Group")
 	repo.TenantScoped = true
 	return &GroupRepository{
 		Repository: repo,
 		db:         db,
+		devices:    devices,
 		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
@@ -470,11 +475,11 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 	return nil
 }
 
-// FindActiveSessionsOlderThan finds active sessions that haven't had activity since the cutoff time
-// Also loads the Device relation to check device online status
+// FindActiveSessionsOlderThan finds active sessions that haven't had activity since the cutoff time.
+// Devices are resolved through the Device Fleet owner so the session check can
+// see their online status.
 func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
-	// Query result struct to hold joined data
-	type sessionWithDevice struct {
+	type staleSession struct {
 		ID             int64      `bun:"id"`
 		CreatedAt      time.Time  `bun:"created_at"`
 		UpdatedAt      time.Time  `bun:"updated_at"`
@@ -486,28 +491,14 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		GroupID        *int64     `bun:"group_id"`
 		DeviceID       *int64     `bun:"device_id"`
 		RoomID         int64      `bun:"room_id"`
-		// Device fields
-		DeviceDbID       *int64     `bun:"device__id"`
-		DeviceCreatedAt  *time.Time `bun:"device__created_at"`
-		DeviceUpdatedAt  *time.Time `bun:"device__updated_at"`
-		DeviceDeviceID   *string    `bun:"device__device_id"`
-		DeviceDeviceType *string    `bun:"device__device_type"`
-		DeviceName       *string    `bun:"device__name"`
-		DeviceStatus     *string    `bun:"device__status"`
-		DeviceLastSeen   *time.Time `bun:"device__last_seen"`
 	}
 
-	var results []sessionWithDevice
+	var results []staleSession
 
-	// Use explicit JOIN with schema-qualified table name (BUN Relation() doesn't work with multi-schema)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.tenant_id, ag.start_time, ag.end_time").
 		ColumnExpr("ag.last_activity, ag.timeout_minutes, ag.group_id, ag.device_id, ag.room_id").
-		ColumnExpr(`d.id AS "device__id", d.created_at AS "device__created_at", d.updated_at AS "device__updated_at"`).
-		ColumnExpr(`d.device_id AS "device__device_id", d.device_type AS "device__device_type"`).
-		ColumnExpr(`d.name AS "device__name", d.status AS "device__status", d.last_seen AS "device__last_seen"`).
-		Join("LEFT JOIN iot.devices AS d ON d.id = ag.device_id").
 		Where(whereEndTimeIsNull).                 // Only active sessions
 		Where("ag.last_activity < ?", cutoffTime). // Haven't had activity since cutoff
 		Where("ag.device_id IS NOT NULL").         // Only device-managed sessions
@@ -526,10 +517,9 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		}
 	}
 
-	// Convert results to active.Group with Device populated
 	groups := make([]*active.Group, len(results))
 	for i, r := range results {
-		group := &active.Group{
+		groups[i] = &active.Group{
 			Model: modelBase.Model{
 				ID:        r.ID,
 				CreatedAt: r.CreatedAt,
@@ -544,24 +534,10 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 			DeviceID:       r.DeviceID,
 			RoomID:         r.RoomID,
 		}
+	}
 
-		// Populate Device if present
-		if r.DeviceDbID != nil {
-			group.Device = &iot.Device{
-				Model: modelBase.Model{
-					ID:        *r.DeviceDbID,
-					CreatedAt: *r.DeviceCreatedAt,
-					UpdatedAt: *r.DeviceUpdatedAt,
-				},
-				DeviceID:   *r.DeviceDeviceID,
-				DeviceType: *r.DeviceDeviceType,
-				Name:       r.DeviceName,
-				Status:     iot.DeviceStatus(*r.DeviceStatus),
-				LastSeen:   r.DeviceLastSeen,
-			}
-		}
-
-		groups[i] = group
+	if err := attachDevices(ctx, r.devices, groups); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active sessions older than", Err: err}
 	}
 
 	return groups, nil

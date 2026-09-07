@@ -111,7 +111,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	ctx := testpkg.Ctx(t)
 	repos, err := repositories.NewActiveTestRepositories(db)
 	require.NoError(t, err)
-	devices, err := repositories.NewDeviceTestRepository(db)
+	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)
 	deviceFault := activeService.NewCheckinDeviceFault(devices)
 	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}

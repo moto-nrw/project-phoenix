@@ -10,12 +10,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
-	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
-	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
@@ -25,6 +24,7 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -44,7 +44,6 @@ import (
 	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -231,7 +230,7 @@ type Factory struct {
 	// IoT domain
 	Device             iotModels.DeviceRepository
 	PushSubscription   deliveryModels.PushSubscriptionRepository
-	PWAStandaloneUsage *iot.PWAStandaloneUsageRepository
+	PWAStandaloneUsage *pwausage.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -284,9 +283,6 @@ type Factory struct {
 	// from the parents portal (#1665).
 	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
 	SubmissionRateLimit   *enrollmentCapability.Module
-
-	// Display domain (info-point dashboards, issue #1325)
-	Display displayModels.Repository
 
 	// Parent domain (cross-tenant guardian portal — PR 9+)
 	ParentChild             parentModels.ChildRepository
@@ -351,7 +347,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.DataImport = audit.NewDataImportRepository(runtime)
 	f.WorkSessionEdit = audit.NewWorkSessionEditRepository(runtime)
 	f.StudentFieldEdit = audit.NewStudentFieldEditRepository(runtime)
-	f.UnregisteredTagScan = audit.NewUnregisteredTagScanRepository(runtime)
+	f.UnregisteredTagScan = audit.NewUnregisteredTagScanRepository(runtime, auditDeviceDirectory{devices: mustNewDeviceFleet(f.db)})
 	f.TimeTrackingDeletion = audit.NewTimeTrackingDeletionRepository(runtime)
 	f.PersonnelNumberChange = audit.NewPersonnelNumberChangeRepository(runtime)
 	f.StaffMasterDataChange = audit.NewStaffMasterDataChangeRepository(runtime)
@@ -524,6 +520,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
+	deviceFleet := mustNewDeviceFleet(db)
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
@@ -663,7 +660,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:                     active.NewGroupRepository(db),
+		ActiveGroup:                     active.NewGroupRepository(db, activeDeviceDirectory{devices: deviceFleet}),
 		GroupSupervisor:                 groupSupervisor,
 		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
@@ -687,9 +684,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		SessionStartLock: active.NewSessionStartLocker(db),
 
 		// IoT repositories
-		Device:             iot.NewDeviceRepository(db),
+		Device:             devicefleetRepositoryAdapter.NewDeviceRepository(deviceFleet),
 		PushSubscription:   deliveryCompose.NewPushSubscriptionRepository(db),
-		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
+		PWAStandaloneUsage: pwausage.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
@@ -711,7 +708,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(auditRepositoryRuntime),
 		StudentFieldEdit:             audit.NewStudentFieldEditRepository(auditRepositoryRuntime),
-		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(auditRepositoryRuntime),
+		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(auditRepositoryRuntime, auditDeviceDirectory{devices: deviceFleet}),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(auditRepositoryRuntime),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(auditRepositoryRuntime),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(auditRepositoryRuntime),
@@ -738,9 +735,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,
 
-		// Display (info-point dashboards, issue #1325)
-		Display: displayRepo.NewDisplayRepository(db),
-
 		// Parent (cross-tenant guardian portal — PR 9+)
 		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
@@ -764,6 +758,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}
 	factory.appointments = appointmentsModule
+	// iot.devices belongs to the Device Fleet owner (#2676): the operator
+	// dashboard reads its counts and device rows through that capability
+	// instead of joining the table from platform SQL.
+	factory.OperatorSummaries = deviceOperatorSummariesRepository{
+		OperatorSummariesRepository: factory.OperatorSummaries, devices: deviceFleet,
+	}
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {

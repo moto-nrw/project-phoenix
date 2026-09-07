@@ -24,8 +24,10 @@ type Group struct {
 	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations
-	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
-	Device      *iot.Device        `bun:"rel:belongs-to,join:device_id=id" json:"device,omitempty"`
+	ActualGroup *activities.Group `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
+	// Device is resolved through the Device Fleet owner (#2676), never by a
+	// join this package owns.
+	Device      *iot.Device        `bun:"-" json:"device,omitempty"`
 	Room        *facilities.Room   `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
