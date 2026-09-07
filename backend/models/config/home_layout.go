@@ -48,6 +48,43 @@ var homeBlockKeyPattern = regexp.MustCompile(`^(tile|section)\.[a-z0-9_]{1,48}$`
 // blocks; the cap exists so a client cannot grow the row without bound.
 const MaxHomeBlockEntries = 100
 
+// HomeBlockPlacement is one block on one person's start page: which block,
+// and how wide it sits in the grid.
+//
+// Span counts columns of the four-column grid the start page draws. The
+// catalogue decides which spans a block allows (a figure is always narrow, a
+// list can be narrow, wide or full width); this layer only rejects a number
+// that is not a column count at all.
+type HomeBlockPlacement struct {
+	Key  string `json:"key"`
+	Span int    `json:"span"`
+}
+
+// ValidateHomeBlockPlacements rejects a malformed arrangement: unknown key
+// shapes, spans that are not column counts, duplicates, and unbounded growth.
+//
+// A duplicate is refused rather than deduplicated: the same block twice on one
+// start page is a client bug, and silently dropping one of them would hide it.
+func ValidateHomeBlockPlacements(blocks []HomeBlockPlacement) error {
+	if len(blocks) > MaxHomeBlockEntries {
+		return fmt.Errorf("at most %d start page blocks can be stored", MaxHomeBlockEntries)
+	}
+	seen := make(map[string]struct{}, len(blocks))
+	for _, block := range blocks {
+		if err := ValidateHomeBlockKey(block.Key); err != nil {
+			return err
+		}
+		if block.Span != 1 && block.Span != 2 && block.Span != 4 {
+			return fmt.Errorf("start page block %q has an invalid width %d", block.Key, block.Span)
+		}
+		if _, duplicate := seen[block.Key]; duplicate {
+			return fmt.Errorf("start page block %q is placed twice", block.Key)
+		}
+		seen[block.Key] = struct{}{}
+	}
+	return nil
+}
+
 // ValidateHomeBlockKey rejects anything that is not a well-formed block key.
 func ValidateHomeBlockKey(key string) error {
 	if !homeBlockKeyPattern.MatchString(key) {
@@ -69,8 +106,12 @@ type HomeLayout struct {
 	TenantID  int64           `bun:"tenant_id,notnull" json:"tenant_id"`
 	AccountID int64           `bun:"account_id,notnull" json:"account_id"`
 	Overrides map[string]bool `bun:"overrides,type:jsonb,notnull" json:"overrides"`
-	CreatedAt time.Time       `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt time.Time       `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	// Blocks is the arrangement the person built: which blocks, in display
+	// order, and how wide each one sits (#2180). Empty means "never arranged
+	// anything", which yields the recommended start page of their role.
+	Blocks    []HomeBlockPlacement `bun:"blocks,type:jsonb,notnull" json:"blocks"`
+	CreatedAt time.Time            `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt time.Time            `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (l *HomeLayout) GetTenantID() int64   { return l.TenantID }
@@ -89,7 +130,7 @@ func (l *HomeLayout) Validate() error {
 			return err
 		}
 	}
-	return nil
+	return ValidateHomeBlockPlacements(l.Blocks)
 }
 
 // HomeBlockPolicySet is what one school prescribes for its start page.

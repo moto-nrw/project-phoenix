@@ -127,7 +127,7 @@ func TestHomeLayoutService_NotifiesAffectedStartPagesAfterWrites(t *testing.T) {
 		notifications = append(notifications, fmt.Sprintf("%d:%s", tenantID, key))
 	})
 
-	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}, nil))
 	require.NoError(t, service.ResetOverrides(context.Background(), 7, 42))
 	require.NoError(t, service.SetPolicies(context.Background(), 7, 42, []string{adminPermissions}, map[string]configModel.BlockPolicy{
 		"tile.students_sick": configModel.BlockRequired,
@@ -144,7 +144,7 @@ func TestHomeLayoutService_PersonalWritesLockTheAccountAndPolicyRead(t *testing.
 	t.Parallel()
 	service, _, runtime := newHomeLayoutTestService(t)
 
-	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}, nil))
 	require.NoError(t, service.ResetOverrides(context.Background(), 7, 42))
 
 	assert.Equal(t, []homeLayoutLock{
@@ -159,7 +159,7 @@ func TestHomeLayoutService_PersonalWritesStopWhenTheAccountLockFails(t *testing.
 	service, repo, runtime := newHomeLayoutTestService(t)
 	runtime.lockErr = errors.New("lock failed")
 
-	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false})
+	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}, nil)
 
 	require.Error(t, err)
 	assert.Empty(t, repo.layouts)
@@ -216,7 +216,7 @@ func TestHomeLayoutService_SetOverrides_DropsBlocksTheSchoolHasSettled(t *testin
 	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{
 		"tile.students_sick": true,
 		"section.birthdays":  false,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	stored := repo.layouts[42]
@@ -246,7 +246,7 @@ func TestHomeLayoutService_SetOverrides_PreservesChoiceForSettledBlock(t *testin
 	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{
 		"section.birthdays":  true,
 		"tile.students_home": false,
-	}))
+	}, nil))
 
 	assert.Equal(t, map[string]bool{
 		"section.birthdays":  false,
@@ -258,7 +258,7 @@ func TestHomeLayoutService_SetOverrides_RejectsMalformedKey(t *testing.T) {
 	t.Parallel()
 	service, repo, _ := newHomeLayoutTestService(t)
 
-	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{"../../etc": true})
+	err := service.SetOverrides(context.Background(), 7, 42, map[string]bool{"../../etc": true}, nil)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrInvalidValue), "a malformed payload is a client error, not a 500")
 	assert.Empty(t, repo.layouts, "nothing is stored when the payload is rejected")
@@ -268,7 +268,7 @@ func TestHomeLayoutService_SetOverrides_RequiresAccount(t *testing.T) {
 	t.Parallel()
 	service, _, _ := newHomeLayoutTestService(t)
 
-	require.Error(t, service.SetOverrides(context.Background(), 7, 0, map[string]bool{}))
+	require.Error(t, service.SetOverrides(context.Background(), 7, 0, map[string]bool{}, nil))
 }
 
 func TestHomeLayoutService_ResetOverrides_RestoresRecommendation(t *testing.T) {
@@ -357,8 +357,8 @@ func TestHomeLayoutService_WritesRunInTheCallersTenant(t *testing.T) {
 	t.Parallel()
 	service, _, runtime := newHomeLayoutTestService(t)
 
-	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}))
-	require.NoError(t, service.SetOverrides(context.Background(), 9, 42, map[string]bool{"section.birthdays": true}))
+	require.NoError(t, service.SetOverrides(context.Background(), 7, 42, map[string]bool{"section.birthdays": false}, nil))
+	require.NoError(t, service.SetOverrides(context.Background(), 9, 42, map[string]bool{"section.birthdays": true}, nil))
 
 	// The same person at two schools is two separate start pages, and each
 	// write must reach the tenant it was made in.
@@ -371,6 +371,6 @@ func TestHomeLayoutService_NotConfigured(t *testing.T) {
 
 	_, err := service.View(context.Background(), 7, 42, nil)
 	assert.True(t, errors.Is(err, ErrHomeLayoutUnavailable))
-	assert.True(t, errors.Is(service.SetOverrides(context.Background(), 7, 42, nil), ErrHomeLayoutUnavailable))
+	assert.True(t, errors.Is(service.SetOverrides(context.Background(), 7, 42, nil, nil), ErrHomeLayoutUnavailable))
 	assert.True(t, errors.Is(service.ResetOverrides(context.Background(), 7, 42), ErrHomeLayoutUnavailable))
 }

@@ -16,6 +16,7 @@ describe("fetchHomeLayout", () => {
       json: () =>
         Promise.resolve({
           data: {
+            blocks: [{ key: "section.staff_notices", span: 4 }],
             overrides: { "section.birthdays": false },
             policies: { "tile.students_present": "required" },
             can_manage_policies: true,
@@ -24,6 +25,7 @@ describe("fetchHomeLayout", () => {
     } as Response);
 
     await expect(fetchHomeLayout()).resolves.toEqual({
+      blocks: [{ key: "section.staff_notices", span: 4 }],
       overrides: { "section.birthdays": false },
       policies: { "tile.students_present": "required" },
       canManagePolicies: true,
@@ -37,6 +39,7 @@ describe("fetchHomeLayout", () => {
     } as Response);
 
     await expect(fetchHomeLayout()).resolves.toEqual({
+      blocks: [],
       overrides: {},
       policies: {},
       canManagePolicies: false,

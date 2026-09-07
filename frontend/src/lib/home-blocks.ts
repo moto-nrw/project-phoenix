@@ -1,35 +1,38 @@
 /**
- * Baustein-Register der Startseite (#2875).
+ * Baustein-Register der Startseite (#2875, modular seit #2180).
  *
- * Die Startseite ist keine feste Bildschirmfläche, sondern eine Auswahl aus
- * Bausteinen. Jeder Baustein sagt hier, in welchem Betriebsmodus er überhaupt
- * Sinn ergibt (Anwesenheitsmodus, offene Betreuung, NFC, Geburtstage) und ob er
- * ohne eigene Entscheidung sichtbar ist.
+ * Die Startseite ist keine feste Bildschirmfläche, sondern ein Brett aus
+ * Bausteinen, das jede Person selbst zusammenstellt: welche Bausteine, in
+ * welcher Reihenfolge, wie breit. Wer nichts anfasst, sieht die
+ * Standardansicht ihrer Rolle.
  *
  * Vier Ebenen entscheiden, in dieser Reihenfolge:
  *
  *   1. Berechtigung   — was die Person abrufen darf. Jede Regel spiegelt das
- *                       Gate des Endpunkts hinter dem Baustein (#2180), damit
- *                       eine frei angelegte Rolle ohne Codeänderung eine
- *                       brauchbare Startseite bekommt.
+ *                       Gate des Endpunkts hinter dem Baustein, damit eine
+ *                       frei angelegte Rolle ohne Codeänderung eine brauchbare
+ *                       Startseite bekommt.
  *   2. Verfügbarkeit  — Betriebsmodus der Schule. Was hier wegfällt, gibt es
  *                       für diese Schule schlicht nicht.
  *   3. Vorgabe        — die Einrichtung kann einen Baustein verpflichtend
  *                       machen oder ganz abschalten.
- *   4. Eigene Auswahl — alles, was danach noch offen ist.
+ *   4. Eigene Anordnung — alles, was danach noch offen ist.
  *
  * Der Katalog lebt bewusst hier und nicht im Backend: nur das Frontend kennt
- * Beschriftung, Betriebsmodus und die Datenquelle eines Bausteins. Der Server
- * prüft die Schlüssel nur auf ihre Form. Beide Speicher halten ausschliesslich
- * ABWEICHUNGEN, damit eine später ergänzte Kachel bestehende Konten in ihrem
- * gedachten Standardzustand erreicht, statt für jeden zu verschwinden, der den
- * Dialog je geöffnet hat.
+ * Beschriftung, Betriebsmodus, Datenquelle und Größe eines Bausteins. Der
+ * Server prüft Schlüssel und Breite nur auf ihre Form.
+ *
+ * Gespeichert werden ZWEI Dinge, beide als Abweichung vom Standard: die
+ * ANORDNUNG (Reihenfolge und Breite dessen, was die Person platziert hat) und
+ * die ENTFERNTEN Bausteine. Ein später ergänzter Baustein steht in keinem von
+ * beiden — er erscheint deshalb bei bestehenden Konten am Ende der Fläche,
+ * statt für alle zu verschwinden, die den Dialog je geöffnet haben.
  */
 
 /** Was die Einrichtung für einen Baustein vorgibt. */
 export type HomeBlockPolicy = "optional" | "required" | "disabled";
 
-/** Abweichungen der Person: true = eingeblendet, false = ausgeblendet. */
+/** Abweichungen der Person: false = entfernt. */
 export type HomeLayoutOverrides = Record<string, boolean>;
 
 /** Vorgaben der Schule. Ein fehlender Eintrag heisst "frei wählbar". */
@@ -38,17 +41,21 @@ export type HomeBlockPolicies = Record<string, HomeBlockPolicy>;
 type HomeBlockKind = "tile" | "section";
 
 /**
- * Die drei Zonen der Startseite, in der Reihenfolge, in der sie stehen.
+ * Breite eines Bausteins in Spalten des vierspaltigen Rasters.
  *
- * Die Zone ist Ordnung, keine Berechtigung: wer von einer Zone nichts sehen
- * darf, bekommt sie gar nicht erst zu sehen, statt einer leeren Überschrift.
+ * Drei Stufen statt freier Größe: eine Kennzahl ist immer schmal, eine Liste
+ * schmal, breit oder über die volle Breite. So kann sich jede Person die
+ * Fläche bauen, ohne dass sie zerfällt.
  */
-type HomeBlockZone = "today" | "operations" | "todo";
+export type HomeBlockSpan = 1 | 2 | 4;
+
+/** Standardansicht, aus der jemand startet. Leitet sich aus Rechten ab. */
+export type HomeProfile = "care" | "lead";
 
 /**
  * Was die Person darf — genau so viel, wie der Katalog zum Entscheiden
  * braucht. `has` prüft ein einzelnes Tenant-Recht, `isAdminScope` steht für
- * den Adminzuschnitt, den einzelne Bausteine zusätzlich brauchen.
+ * den Adminzuschnitt.
  */
 export interface HomeBlockAccess {
   readonly isAdminScope: boolean;
@@ -82,12 +89,12 @@ export interface HomeBlockContext extends HomeBlockModeContext {
 export interface HomeBlockDefinition {
   readonly key: HomeBlockKey;
   readonly kind: HomeBlockKind;
-  /** Name im Dialog "Startseite anpassen". */
+  /** Name auf der Karte und im Hinzufügen-Menü. */
   readonly label: string;
   /** Ein Satz, was der Baustein zeigt. */
   readonly description: string;
-  /** In welcher Zone der Startseite der Baustein steht. */
-  readonly zone: HomeBlockZone;
+  /** Erlaubte Breiten, von schmal nach breit. */
+  readonly spans: readonly HomeBlockSpan[];
   /**
    * Darf die Person die Daten des Bausteins abrufen? Spiegelt das Gate des
    * Endpunkts dahinter; ohne das Recht liefert der Server ohnehin nichts.
@@ -95,8 +102,6 @@ export interface HomeBlockDefinition {
   readonly permitted: (access: HomeBlockAccess) => boolean;
   /** Gibt es den Baustein in dieser Schule? Reiner Betriebsmodus. */
   readonly available: (ctx: HomeBlockModeContext) => boolean;
-  /** Sichtbar, solange niemand etwas anderes entschieden hat. */
-  readonly defaultVisible: boolean;
 }
 
 export type HomeBlockKey =
@@ -140,271 +145,317 @@ const operationalNumbers = (access: HomeBlockAccess) =>
   access.has(PERMISSION.analytics);
 const anyRequestQueue = (access: HomeBlockAccess) => access.canOpenRequestsPage;
 
+/** Eine Kennzahl ist immer schmal, eine Liste hat drei Stufen. */
+const TILE_SPANS: readonly HomeBlockSpan[] = [1];
+const SECTION_SPANS: readonly HomeBlockSpan[] = [1, 2, 4];
+
+function tile(
+  key: HomeBlockKey,
+  label: string,
+  description: string,
+  available: (ctx: HomeBlockModeContext) => boolean,
+): HomeBlockDefinition {
+  return {
+    key,
+    kind: "tile",
+    label,
+    description,
+    spans: TILE_SPANS,
+    permitted: operationalNumbers,
+    available,
+  };
+}
+
 export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
   // ---- Kennzahlen ---------------------------------------------------------
-  {
-    key: "tile.students_present",
-    kind: "tile",
-    label: "Kinder anwesend",
-    description: "Wie viele Kinder gerade eingecheckt sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: always,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_in_rooms",
-    kind: "tile",
-    label: "In Räumen",
-    description: "Anwesende Kinder, die gerade in einem Raum sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: roomSurfaces,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_in_transit",
-    kind: "tile",
-    label: "Unterwegs",
-    description: "Anwesende Kinder ohne Raum, zum Beispiel auf dem Weg.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: roomSurfaces,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_on_playground",
-    kind: "tile",
-    label: "Schulhof",
-    description: "Kinder, die gerade auf dem Schulhof sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: always,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_sick",
-    kind: "tile",
-    label: "Krank",
-    description: "Kinder, die heute krank gemeldet sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: always,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_excused",
-    kind: "tile",
-    label: "Entschuldigt",
-    description: "Kinder, die heute entschuldigt fehlen.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: always,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.students_home",
-    kind: "tile",
-    label: "Zuhause",
-    description: "Kinder, die heute nicht in der Betreuung sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: always,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.active_activities",
-    kind: "tile",
-    label: "Aktive Aktivitäten",
-    description: "Wie viele Aktivitäten gerade laufen.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: activitySurfaces,
-    defaultVisible: true,
-  },
-  {
-    key: "tile.capacity_utilization",
-    kind: "tile",
-    label: "Auslastung",
-    description: "Belegte Plätze in den Räumen in Prozent.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: roomSurfaces,
-    defaultVisible: true,
-  },
+  tile(
+    "tile.students_present",
+    "Kinder anwesend",
+    "Wie viele Kinder gerade eingecheckt sind.",
+    always,
+  ),
+  tile(
+    "tile.students_in_rooms",
+    "In Räumen",
+    "Anwesende Kinder, die gerade in einem Raum sind.",
+    roomSurfaces,
+  ),
+  tile(
+    "tile.students_in_transit",
+    "Unterwegs",
+    "Anwesende Kinder ohne Raum, zum Beispiel auf dem Weg.",
+    roomSurfaces,
+  ),
+  tile(
+    "tile.students_on_playground",
+    "Schulhof",
+    "Kinder, die gerade auf dem Schulhof sind.",
+    always,
+  ),
+  tile(
+    "tile.students_sick",
+    "Krank",
+    "Kinder, die heute krank gemeldet sind.",
+    always,
+  ),
+  tile(
+    "tile.students_excused",
+    "Entschuldigt",
+    "Kinder, die heute entschuldigt fehlen.",
+    always,
+  ),
+  tile(
+    "tile.students_home",
+    "Zuhause",
+    "Kinder, die heute nicht in der Betreuung sind.",
+    always,
+  ),
+  tile(
+    "tile.active_activities",
+    "Aktive Aktivitäten",
+    "Wie viele Aktivitäten gerade laufen.",
+    activitySurfaces,
+  ),
+  tile(
+    "tile.capacity_utilization",
+    "Auslastung",
+    "Belegte Plätze in den Räumen in Prozent.",
+    roomSurfaces,
+  ),
 
-  // ---- Bereiche -----------------------------------------------------------
-  {
-    key: "section.birthdays",
-    kind: "section",
-    label: "Geburtstage",
-    description: "Wer heute oder in den nächsten Tagen Geburtstag hat.",
-    zone: "operations",
-    permitted: (access) => access.has(PERMISSION.usersRead),
-    available: (ctx) => ctx.birthdaysEnabled,
-    defaultVisible: true,
-  },
-  {
-    key: "section.recent_activity",
-    kind: "section",
-    label: "Letzte Bewegungen",
-    description: "Welche Gruppen zuletzt den Raum gewechselt haben.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: roomSurfaces,
-    defaultVisible: true,
-  },
-  {
-    key: "section.current_activities",
-    kind: "section",
-    label: "Laufende Aktivitäten",
-    description: "Welche Aktivitäten gerade stattfinden und wie voll sie sind.",
-    zone: "operations",
-    permitted: operationalNumbers,
-    available: activitySurfaces,
-    defaultVisible: true,
-  },
-  // ---- Heute für mich ----------------------------------------------------
+  // ---- Der eigene Tag -----------------------------------------------------
   {
     key: "section.my_day",
     kind: "section",
     label: "Mein Tag",
     description: "Ihre heutigen Einsätze mit Ort, Zeit und Vertretungen.",
-    zone: "today",
+    spans: SECTION_SPANS,
     // /api/time-tracking/assignments (#1844) liefert nur die eigenen Blöcke.
     permitted: (access) => access.has(PERMISSION.timeTrackingOwn),
     available: (ctx) => ctx.timetableEnabled,
-    defaultVisible: true,
   },
   {
     key: "section.staff_notices",
     kind: "section",
     label: "Tagesinformationen",
     description: "Hinweise der Leitung, die heute gelten.",
-    zone: "today",
+    spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.usersRead),
     available: always,
-    defaultVisible: true,
   },
-
-  // ---- Zu erledigen ------------------------------------------------------
   {
     key: "section.open_requests",
     kind: "section",
     label: "Offene Anfragen",
-    description: "Wünsche von Eltern und Anträge des Teams, die auf eine Entscheidung warten.",
-    zone: "todo",
+    description:
+      "Wünsche von Eltern und Anträge des Teams, die auf eine Entscheidung warten.",
+    spans: SECTION_SPANS,
     permitted: anyRequestQueue,
     available: always,
-    defaultVisible: true,
   },
 
+  // ---- Der laufende Betrieb ----------------------------------------------
+  {
+    key: "section.day_flow",
+    kind: "section",
+    label: "Ablauf des Tages",
+    description:
+      "Die Blöcke des Betreuungsplans, die gerade laufen oder als Nächstes anstehen.",
+    spans: SECTION_SPANS,
+    permitted: (access) => access.has(PERMISSION.schedulesRead),
+    // Ohne Betreuungsplan gibt es keinen Ablauf, und im Anwesenheitsmodus
+    // "binary" plant die Schule keine Blöcke.
+    available: (ctx) => ctx.timetableEnabled && ctx.detailed,
+  },
   {
     key: "section.active_groups",
     kind: "section",
     label: "Aktive Gruppen",
     description: "Welche Gruppen gerade betreut werden und wo.",
-    zone: "operations",
+    spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: (ctx) => !ctx.openCareGroupMode,
-    defaultVisible: true,
   },
   {
-    key: "section.day_flow",
+    key: "section.current_activities",
     kind: "section",
-    label: "Ablauf des Tages",
-    description: "Die Blöcke des Betreuungsplans, die gerade laufen oder als Nächstes anstehen.",
-    zone: "operations",
-    permitted: (access) => access.has(PERMISSION.schedulesRead),
-    // Ohne Betreuungsplan gibt es keinen Ablauf, und im Anwesenheitsmodus
-    // "binary" plant die Schule keine Blöcke.
-    available: (ctx) => ctx.timetableEnabled && ctx.detailed,
-    defaultVisible: true,
+    label: "Laufende Aktivitäten",
+    description: "Welche Aktivitäten gerade stattfinden und wie voll sie sind.",
+    spans: SECTION_SPANS,
+    permitted: operationalNumbers,
+    available: activitySurfaces,
+  },
+  {
+    key: "section.recent_activity",
+    kind: "section",
+    label: "Letzte Bewegungen",
+    description: "Welche Gruppen zuletzt den Raum gewechselt haben.",
+    spans: SECTION_SPANS,
+    permitted: operationalNumbers,
+    available: roomSurfaces,
+  },
+  {
+    key: "section.birthdays",
+    kind: "section",
+    label: "Geburtstage",
+    description: "Wer heute oder in den nächsten Tagen Geburtstag hat.",
+    spans: SECTION_SPANS,
+    permitted: (access) => access.has(PERMISSION.usersRead),
+    available: (ctx) => ctx.birthdaysEnabled,
   },
 ];
 
-export interface ResolvedHomeBlocks {
-  /** Alles, was es in dieser Schule gibt — auch, was die Leitung festgelegt hat. */
+const BLOCK_BY_KEY = new Map<HomeBlockKey, HomeBlockDefinition>(
+  HOME_BLOCKS.map((block) => [block.key, block]),
+);
+
+/** Ein Baustein an seinem Platz: welcher, wie breit. */
+export interface HomeBlockPlacement {
+  readonly key: HomeBlockKey;
+  readonly span: HomeBlockSpan;
+}
+
+/**
+ * Die Standardansichten, aus denen jemand startet.
+ *
+ * Sie sind kurz gehalten: die Startseite soll den Einstieg auf einen Blick
+ * geben, nicht alles zeigen, was es gibt. Wer mehr will, holt es sich über
+ * "Anpassen" dazu — der Katalog oben ist die volle Auswahl.
+ *
+ * Betreuung: der eigene Tag zuerst, daneben die Hinweise der Leitung, darunter
+ * der Ablauf und die eigenen Gruppen.
+ *
+ * Leitung: die Lage der Schule in vier Zahlen, darunter was auf eine
+ * Entscheidung wartet, die Hinweise und der laufende Betrieb.
+ */
+export const DEFAULT_LAYOUTS: Record<
+  HomeProfile,
+  readonly HomeBlockPlacement[]
+> = {
+  care: [
+    { key: "section.my_day", span: 2 },
+    { key: "section.staff_notices", span: 2 },
+    { key: "section.day_flow", span: 2 },
+    { key: "section.active_groups", span: 2 },
+    // Vier Karten, zwei Reihen: die Betreuungsansicht passt damit auf einen
+    // Bildschirm. Die offenen Anfragen betreffen nur Gruppenleitungen und
+    // Vertretungen und stehen für sie im Hinzufügen-Menü.
+  ],
+  lead: [
+    { key: "tile.students_present", span: 1 },
+    { key: "tile.students_sick", span: 1 },
+    { key: "tile.students_excused", span: 1 },
+    { key: "tile.students_home", span: 1 },
+    { key: "section.open_requests", span: 2 },
+    { key: "section.staff_notices", span: 2 },
+    { key: "section.active_groups", span: 2 },
+    { key: "section.day_flow", span: 2 },
+  ],
+};
+
+/**
+ * Welche Standardansicht jemand bekommt.
+ *
+ * Am Adminzuschnitt festgemacht, nicht am Rollennamen: eine Schule kann ihre
+ * Rollen frei anlegen, und die Frage ist nur, ob jemand die Einrichtung führt
+ * oder in ihr betreut. Wer beides tut, bekommt die Leitungsansicht und findet
+ * "Mein Tag" im Hinzufügen-Menü.
+ */
+export function homeProfileFor(access: HomeBlockAccess): HomeProfile {
+  return access.isAdminScope ? "lead" : "care";
+}
+
+export interface ResolvedHomeLayout {
+  /** Was gezeigt wird, in dieser Reihenfolge und Breite. */
+  readonly placements: readonly HomeBlockPlacement[];
+  /** Was die Person noch hinzufügen kann. */
+  readonly addable: readonly HomeBlockDefinition[];
+  /** Alles, was es in dieser Schule für diese Person gibt. */
   readonly available: readonly HomeBlockDefinition[];
-  /** Was die Person selbst ein- und ausblenden darf. */
-  readonly adjustable: readonly HomeBlockDefinition[];
-  /** Was gerade gezeigt wird. */
-  readonly visible: ReadonlySet<HomeBlockKey>;
-  /** Weicht die Person vom Standard ab? Steuert "Zurücksetzen". */
+  /** Weicht die Person vom Standard ab? Steuert "Standard wiederherstellen". */
   readonly customized: boolean;
 }
 
+function clampSpan(
+  block: HomeBlockDefinition,
+  span: number | undefined,
+): HomeBlockSpan {
+  const allowed = block.spans;
+  if (span !== undefined && allowed.includes(span as HomeBlockSpan)) {
+    return span as HomeBlockSpan;
+  }
+  // Der mittlere Wert ist die Voreinstellung einer Liste, der einzige Wert die
+  // einer Kennzahl.
+  return allowed.length > 1 ? (allowed[1] as HomeBlockSpan) : allowed[0]!;
+}
+
 /**
- * Wendet Berechtigung, Betriebsmodus, Vorgabe der Schule und persönliche
- * Auswahl an.
+ * Baut die Fläche aus Katalog, Vorgabe der Schule und eigener Anordnung.
  *
- * Die Berechtigung schlägt alles: eine verpflichtende Kachel bleibt
- * unsichtbar, wenn die Person die Daten dahinter nicht abrufen darf.
- *
- * Die Vorgabe der Schule schlägt die persönliche Auswahl: eine verpflichtende
- * Kachel ist sichtbar, eine deaktivierte verschwindet, und beide stehen nicht
- * mehr im Dialog. Ein gespeicherter Eintrag dazu wird ignoriert statt gelöscht,
- * damit die ursprüngliche Wahl wieder gilt, wenn die Leitung ihre Entscheidung
- * zurücknimmt.
+ * Reihenfolge der Entscheidungen:
+ *   1. Was die Person abrufen darf und was es in dieser Schule gibt.
+ *   2. Was die Schule abgeschaltet hat, fällt raus; was sie verlangt, bleibt
+ *      drin, auch wenn die Person es entfernt hat.
+ *   3. Die gespeicherte Anordnung gibt Reihenfolge und Breite.
+ *   4. Ein Baustein aus der Standardansicht, den die Person weder angeordnet
+ *      noch entfernt hat, kommt ans Ende — so erreicht ein später ergänzter
+ *      Baustein auch bestehende Konten.
  */
-export function resolveHomeBlocks(
+export function resolveHomeLayout(
   ctx: HomeBlockContext,
+  stored: readonly HomeBlockPlacement[] | null | undefined,
   overrides: HomeLayoutOverrides | null | undefined,
   policies: HomeBlockPolicies | null | undefined,
-): ResolvedHomeBlocks {
-  // Berechtigung zuerst: was die Person nicht abrufen darf, steht auch nicht
-  // im Dialog und kann nicht per Schulvorgabe eingeblendet werden.
+): ResolvedHomeLayout {
   const available = HOME_BLOCKS.filter(
     (block) => block.permitted(ctx.access) && block.available(ctx),
   );
-  const adjustable: HomeBlockDefinition[] = [];
-  const visible = new Set<HomeBlockKey>();
-  // A stored deviation remains resettable while a school policy or operating
-  // mode temporarily hides its block. Otherwise a person could no longer
-  // clear a hidden choice that becomes relevant again later.
-  const customized = HOME_BLOCKS.some((block) => {
-    const override = overrides?.[block.key];
-    return override !== undefined && override !== block.defaultVisible;
-  });
+  const availableKeys = new Set(available.map((block) => block.key));
+  const policyOf = (key: HomeBlockKey) => policies?.[key] ?? "optional";
 
-  for (const block of available) {
-    const policy = policies?.[block.key] ?? "optional";
+  const placements: HomeBlockPlacement[] = [];
+  const placed = new Set<HomeBlockKey>();
 
-    if (policy === "disabled") continue;
-    if (policy === "required") {
-      visible.add(block.key);
-      continue;
-    }
+  const place = (key: HomeBlockKey, span: number | undefined) => {
+    if (placed.has(key) || !availableKeys.has(key)) return;
+    if (policyOf(key) === "disabled") return;
+    const block = BLOCK_BY_KEY.get(key);
+    if (!block) return;
+    placements.push({ key, span: clampSpan(block, span) });
+    placed.add(key);
+  };
 
-    adjustable.push(block);
-    const override = overrides?.[block.key];
-    const shown = override ?? block.defaultVisible;
-    if (shown) visible.add(block.key);
+  for (const entry of stored ?? []) {
+    place(entry.key, entry.span);
   }
 
-  return { available, adjustable, visible, customized };
-}
+  const profile = homeProfileFor(ctx.access);
+  const arranged = (stored?.length ?? 0) > 0;
+  for (const entry of DEFAULT_LAYOUTS[profile]) {
+    // Entfernt bleibt entfernt. Alles andere aus der Standardansicht steht am
+    // Ende — beim ersten Besuch ist das die ganze Ansicht, später ist es der
+    // Weg, auf dem ein neuer Baustein bestehende Konten erreicht.
+    if (overrides?.[entry.key] === false) continue;
+    place(entry.key, entry.span);
+  }
 
-/**
- * Sichtbarkeit eines einzelnen Bausteins, ohne die ganze Auflösung zu bemühen.
- *
- * Dafür da, eine Datenabfrage zu verhindern, bevor überhaupt jemand die
- * zugehörige Karte sieht (#2875).
- */
-export function isHomeBlockVisible(
-  ctx: HomeBlockContext,
-  overrides: HomeLayoutOverrides | null | undefined,
-  policies: HomeBlockPolicies | null | undefined,
-  key: HomeBlockKey,
-): boolean {
-  return resolveHomeBlocks(ctx, overrides, policies).visible.has(key);
+  // Was die Schule verlangt, steht auf jeder Startseite, die es sehen darf.
+  for (const block of available) {
+    if (policyOf(block.key) === "required") place(block.key, undefined);
+  }
+
+  const addable = available.filter(
+    (block) => !placed.has(block.key) && policyOf(block.key) !== "disabled",
+  );
+
+  const customized =
+    arranged || Object.values(overrides ?? {}).some((shown) => shown === false);
+
+  return { placements, addable, available, customized };
 }
 
 function isHomeBlockKey(value: unknown): value is HomeBlockKey {
-  return (
-    typeof value === "string" &&
-    HOME_BLOCKS.some((block) => block.key === value)
-  );
+  return typeof value === "string" && BLOCK_BY_KEY.has(value as HomeBlockKey);
 }
 
 function isHomeBlockPolicy(value: unknown): value is HomeBlockPolicy {
@@ -415,7 +466,7 @@ function isHomeBlockPolicy(value: unknown): value is HomeBlockPolicy {
  * Verwirft unbekannte Schlüssel und falsche Werte aus gespeicherten Daten.
  *
  * Ein Baustein, den es nicht mehr gibt, darf keine Rolle mehr spielen — weder
- * im Dialog noch beim nächsten Speichern.
+ * auf der Fläche noch beim nächsten Speichern.
  */
 export function sanitizeHomeLayoutOverrides(raw: unknown): HomeLayoutOverrides {
   if (raw === null || typeof raw !== "object") return {};
@@ -424,6 +475,27 @@ export function sanitizeHomeLayoutOverrides(raw: unknown): HomeLayoutOverrides {
     if (isHomeBlockKey(key) && typeof value === "boolean") {
       result[key] = value;
     }
+  }
+  return result;
+}
+
+/** Dasselbe für die gespeicherte Anordnung: Form prüfen, Doppelte verwerfen. */
+export function sanitizeHomeBlockPlacements(
+  raw: unknown,
+): readonly HomeBlockPlacement[] {
+  if (!Array.isArray(raw)) return [];
+  const result: HomeBlockPlacement[] = [];
+  const seen = new Set<HomeBlockKey>();
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== "object") continue;
+    const { key, span } = entry as { key?: unknown; span?: unknown };
+    if (!isHomeBlockKey(key) || seen.has(key)) continue;
+    const block = BLOCK_BY_KEY.get(key)!;
+    result.push({
+      key,
+      span: clampSpan(block, typeof span === "number" ? span : undefined),
+    });
+    seen.add(key);
   }
   return result;
 }
@@ -437,4 +509,18 @@ export function sanitizeHomeBlockPolicies(raw: unknown): HomeBlockPolicies {
     }
   }
   return result;
+}
+
+/** Die Breite, mit der ein Baustein neu auf die Fläche kommt. */
+export function defaultSpanFor(key: HomeBlockKey): HomeBlockSpan {
+  const block = BLOCK_BY_KEY.get(key);
+  if (!block) return 2;
+  return clampSpan(block, undefined);
+}
+
+/** Beschriftung eines Bausteins, oder null, wenn es ihn nicht mehr gibt. */
+export function homeBlockDefinition(
+  key: HomeBlockKey,
+): HomeBlockDefinition | null {
+  return BLOCK_BY_KEY.get(key) ?? null;
 }

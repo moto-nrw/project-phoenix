@@ -1,19 +1,20 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import DashboardPage from "./page";
-import {
-  HOME_BLOCKS,
-  type HomeBlockPolicies,
-  type HomeLayoutOverrides,
+import HomePage from "./page";
+import type {
+  HomeBlockPlacement,
+  HomeBlockPolicies,
+  HomeLayoutOverrides,
 } from "~/lib/home-blocks";
 
 /**
- * Datenabfragen der Startseite (#2875).
+ * Datenabfragen der Startseite (#2875, #2180).
  *
- * Eine ausgeblendete Kachel darf keine Last erzeugen — und die Auswahl ist
- * beim ersten Rendern noch nicht da, weshalb die Abfrage warten muss statt
- * den Standard "alles sichtbar" zu holen.
+ * Ein Baustein, der nicht auf der Fläche steht, darf keine Last erzeugen. Die
+ * Anordnung ist beim ersten Rendern noch nicht da; solange gilt die
+ * Standardansicht der Rolle — auf ihre Ankunft zu WARTEN würde die Startseite
+ * bei einer hängenden Abfrage leer lassen.
  */
 
 vi.mock("next/navigation", () => ({
@@ -44,6 +45,10 @@ vi.mock("~/lib/auth-utils", () => ({
   hasRole: vi.fn(() => true),
 }));
 
+vi.mock("~/lib/change-request-access", () => ({
+  canOpenRequestsPage: vi.fn(() => true),
+}));
+
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
   useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
@@ -62,9 +67,7 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
   PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
-// Die Bausteine der Zonen „Heute für mich" und „Zu erledigen" (#2180) holen
-// ihre Daten selbst und haben eigene Tests. Hier stehen sie als Platzhalter,
-// damit diese Datei weiterhin genau die Abfragen der Kennzahlen prüft.
+// Bausteine mit eigener Quelle laden für sich und haben eigene Tests.
 vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));
@@ -88,30 +91,35 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({
-  formatRecentActivityTime: vi.fn(() => "12:00"),
-  getActivityStatusColor: vi.fn(() => "bg-green-500"),
-  getGroupStatusColor: vi.fn(() => "bg-green-500"),
+  formatRecentActivityTime: vi.fn(() => "14:05"),
+  getActivityStatusColor: vi.fn(() => "bg-moto-green"),
+  getGroupStatusColor: vi.fn(() => "bg-moto-green"),
 }));
 
 vi.mock("~/lib/swr/hooks", () => ({ useSWRAuth: vi.fn() }));
 
 const layoutState = {
+  blocks: [] as readonly HomeBlockPlacement[],
   overrides: {} as HomeLayoutOverrides,
   policies: {} as HomeBlockPolicies,
   canManagePolicies: true,
   isLoading: false,
 };
 
+const save = vi.fn();
+const reset = vi.fn();
+
 vi.mock("~/lib/hooks/use-home-layout", () => ({
   useHomeLayout: () => ({
     state: {
+      blocks: layoutState.blocks,
       overrides: layoutState.overrides,
       policies: layoutState.policies,
       canManagePolicies: layoutState.canManagePolicies,
     },
     isLoading: layoutState.isLoading,
-    save: vi.fn(),
-    reset: vi.fn(),
+    save,
+    reset,
   }),
 }));
 
@@ -122,9 +130,10 @@ function requestedKeys(): (string | null)[] {
   return vi.mocked(useSWRAuth).mock.calls.map((call) => call[0]);
 }
 
-describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
+describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    layoutState.blocks = [];
     layoutState.overrides = {};
     layoutState.policies = {};
     layoutState.canManagePolicies = true;
@@ -138,8 +147,8 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     } as unknown as ReturnType<typeof useSWRAuth>);
   });
 
-  it("fragt die Betriebszahlen, solange eine Kennzahl sichtbar ist", async () => {
-    render(<DashboardPage />);
+  it("fragt die Betriebszahlen, weil die Standardansicht der Leitung Kennzahlen zeigt", async () => {
+    render(<HomePage />);
 
     await waitFor(() =>
       expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
@@ -147,178 +156,75 @@ describe("Startseite — Abfragen ausgeblendeter Kacheln", () => {
     expect(requestedKeys()).toContain("dashboard-analytics");
   });
 
-  it("fragt die Betriebszahlen nicht, wenn jede Kachel daraus ausgeblendet ist", async () => {
+  it("fragt die Betriebszahlen nicht, wenn kein Baustein daraus lebt", async () => {
+    layoutState.blocks = [{ key: "section.staff_notices", span: 2 }];
     layoutState.overrides = {
       "tile.students_present": false,
-      "tile.students_in_rooms": false,
-      "tile.students_in_transit": false,
-      "tile.students_on_playground": false,
       "tile.students_sick": false,
       "tile.students_excused": false,
       "tile.students_home": false,
-      "tile.active_activities": false,
-      "tile.capacity_utilization": false,
-      "section.recent_activity": false,
-      "section.current_activities": false,
       "section.active_groups": false,
+      "section.open_requests": false,
+      "section.day_flow": false,
+      "section.my_day": false,
     };
 
-    render(<DashboardPage />);
+    render(<HomePage />);
 
     await waitFor(() =>
       expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
     );
     expect(requestedKeys()).not.toContain("dashboard-analytics");
-    // Die Geburtstage hängen an einer eigenen Abfrage und bleiben sichtbar.
+  });
+
+  it("fragt die Geburtstage nur, wenn die Karte auf der Fläche steht", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
+    );
+    // Nicht in der Standardansicht: die Startseite ist ein Einstieg, die Karte
+    // holt man sich über "Anpassen" dazu.
+    expect(requestedKeys()).not.toContain("birthday-overview");
+
+    vi.mocked(useSWRAuth).mockClear();
+    layoutState.blocks = [{ key: "section.birthdays", span: 2 }];
+    render(<HomePage />);
+
     expect(requestedKeys()).toContain("birthday-overview");
   });
 
-  it("fragt die Geburtstage nicht, wenn die Karte ausgeblendet ist", async () => {
-    layoutState.overrides = { "section.birthdays": false };
-
-    render(<DashboardPage />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
-    );
-    expect(requestedKeys()).not.toContain("birthday-overview");
-  });
-
-  it("zeigt Geburtstage nach einer späteren Freigabe wieder", async () => {
-    let birthdayFeatureEnabled = false;
-    vi.mocked(useSWRAuth).mockImplementation(
-      (key: string | null) =>
-        ({
-          data:
-            key === "birthday-overview"
-              ? { enabled: birthdayFeatureEnabled, celebrations: [] }
-              : undefined,
-          isLoading: false,
-          error: undefined,
-          mutate: vi.fn(),
-          isValidating: false,
-        }) as unknown as ReturnType<typeof useSWRAuth>,
-    );
-
-    const { rerender } = render(<DashboardPage />);
-
-    await waitFor(() =>
-      expect(
-        requestedKeys().filter((key) => key === "birthday-overview"),
-      ).toHaveLength(2),
-    );
-    expect(screen.queryByText("Geburtstage")).not.toBeInTheDocument();
-
-    birthdayFeatureEnabled = true;
-    rerender(<DashboardPage />);
-
-    await waitFor(() =>
-      expect(screen.getByText("Geburtstage")).toBeInTheDocument(),
-    );
-    expect(requestedKeys()).not.toContain(null);
-  });
-
-  it("nutzt den gemerkten Stand, während die Auswahl noch nachgeladen wird", async () => {
-    // Der gemerkte Stand dieses Browsers liegt schon beim ersten Rendern vor,
-    // die Abfrage bestätigt ihn nur. Deshalb wird auch dann nichts geholt,
-    // was niemand sieht.
+  it("zeigt die Standardansicht, wenn die Anordnung nicht geladen werden kann", async () => {
     layoutState.isLoading = true;
-    layoutState.overrides = { "section.birthdays": false };
 
-    render(<DashboardPage />);
-
-    await waitFor(() =>
-      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
-    );
-    expect(requestedKeys()).not.toContain("birthday-overview");
-  });
-
-  it("zeigt die Standardansicht, wenn die Auswahl nicht geladen werden kann", async () => {
-    // Auf die Abfrage zu warten wäre der falsche Ausweg: hängt sie, bliebe die
-    // Startseite leer. Ohne Vorwissen gilt deshalb die Empfehlung.
-    layoutState.isLoading = true;
-    layoutState.overrides = {};
-
-    render(<DashboardPage />);
+    render(<HomePage />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
+      expect(screen.getByText("Kinder anwesend")).toBeInTheDocument(),
     );
     expect(requestedKeys()).toContain("dashboard-analytics");
-    expect(requestedKeys()).toContain("birthday-overview");
   });
 
-  it("bietet einen Weg zurück, wenn jede Kachel ausgeblendet ist", async () => {
-    // Eine leere Fläche liest sich als Fehler. Die Seite sagt stattdessen, was
-    // los ist und wie die Kacheln zurückkommen.
-    layoutState.overrides = Object.fromEntries(
-      HOME_BLOCKS.map((block) => [block.key, false]),
-    );
+  it("lässt einen von der Schule abgeschalteten Baustein weg", async () => {
+    layoutState.policies = { "tile.students_present": "disabled" };
 
-    render(<DashboardPage />);
-
-    expect(
-      await screen.findByText("Ihre Startseite ist leer"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Kacheln einblenden" }),
-    ).toBeInTheDocument();
-  });
-
-  it("erklärt eine von der Schule geleerte Startseite ohne wirkungslosen Knopf", async () => {
-    layoutState.policies = Object.fromEntries(
-      HOME_BLOCKS.map((block) => [block.key, "disabled"]),
-    );
-    layoutState.canManagePolicies = false;
-
-    render(<DashboardPage />);
-
-    expect(
-      await screen.findByText(
-        "Die Schule blendet alle Kacheln aus. Wenden Sie sich an Ihre Leitung.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Kacheln einblenden" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("führt die Leitung zur Vorgabe, wenn sie alle Kacheln ausgeschaltet hat", async () => {
-    layoutState.policies = Object.fromEntries(
-      HOME_BLOCKS.map((block) => [block.key, "disabled"]),
-    );
-
-    render(<DashboardPage />);
-
-    expect(
-      await screen.findByRole("button", {
-        name: "Startseite für alle öffnen",
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("fragt die Betriebszahlen, wenn die Schule eine Kachel verpflichtend macht", async () => {
-    layoutState.overrides = {
-      "tile.students_present": false,
-      "tile.students_in_rooms": false,
-      "tile.students_in_transit": false,
-      "tile.students_on_playground": false,
-      "tile.students_sick": false,
-      "tile.students_excused": false,
-      "tile.students_home": false,
-      "tile.active_activities": false,
-      "tile.capacity_utilization": false,
-      "section.recent_activity": false,
-      "section.current_activities": false,
-      "section.active_groups": false,
-    };
-    layoutState.policies = { "tile.students_present": "required" };
-
-    render(<DashboardPage />);
+    render(<HomePage />);
 
     await waitFor(() =>
       expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
     );
+    expect(screen.queryByText("Kinder anwesend")).not.toBeInTheDocument();
+    // Die übrigen Kennzahlen leben weiter aus derselben Abfrage.
     expect(requestedKeys()).toContain("dashboard-analytics");
+  });
+
+  it("stellt einen verpflichtenden Baustein auf, auch wenn er entfernt wurde", async () => {
+    layoutState.blocks = [{ key: "section.staff_notices", span: 2 }];
+    layoutState.overrides = { "tile.students_sick": false };
+    layoutState.policies = { "tile.students_sick": "required" };
+
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByText("Krank")).toBeInTheDocument());
   });
 });
