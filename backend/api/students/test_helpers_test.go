@@ -18,9 +18,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -53,15 +53,14 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	// wake (parent_child_updated fan-out after a care write, #1725) is exercised
 	// and assertable via broadcaster.CallsByMethod("guardian"). Message-independent:
 	// it reads the guardian list and broadcasts regardless of the messaging setting.
-	parentEventEmitter := parentmessaging.NewEmitter(
-		db,
+	parentEventEmitter := communicationtest.NewParentEventEmitter(
+		db, testpkg.TenantRuntime(t, db),
 		repoFactory.ParentMessageThread,
 		repoFactory.ParentMessage,
 		svc.Settings,
 		broadcaster,
 		slog.Default(),
 	)
-	testpkg.SetTenantRuntime(t, parentEventEmitter, db)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,

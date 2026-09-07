@@ -189,7 +189,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
 }
 
-func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -343,7 +343,7 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, 
 		return moduleServices{}, err
 	}
 	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger,
+		repoFactory, db, logger, tenantRuntime,
 		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 		communicationCapability,
 		func(observation communicationCompose.Observation) {
@@ -719,7 +719,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	}
 
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, logger)
+	modules, err := initializeModuleServices(db, logger, tenantRuntime)
 	if err != nil {
 		return nil, err
 	}
