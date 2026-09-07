@@ -28106,7 +28106,7 @@
         },
         {
           "file": "services/factory.go",
-          "line": 459,
+          "line": 463,
           "declaration": "newFactory"
         },
         {
