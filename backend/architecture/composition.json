@@ -5176,21 +5176,85 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/users/notification_preference_test.go",
-      "declaration": "TestNotificationPreferenceRepository",
+      "file": "database/repositories/users/parent_message_extra_test.go",
+      "declaration": "TestListInboxForStaff_ScopeFlag",
       "target": "database/repositories.NewFactory",
       "lines": [
-        22
+        133,
+        134,
+        135
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/users/parent_message_extra_test.go",
-      "declaration": "TestListInboxForStaff_ScopeFlag",
+      "declaration": "TestParentMessage_FindByIDAndTail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        135
+        30,
+        31
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_message_extra_test.go",
+      "declaration": "TestParentMessage_FindEventByRef",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        74,
+        75
+      ],
+      "tables": [
+        "schedule.care_schedule_change_requests",
+        "users.student_data_change_requests"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_ListGuardiansForStudent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        436
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembership",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        507
+      ],
+      "tables": [
+        "auth.account_tenants"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        487
+      ],
+      "tables": [
+        "auth.accounts",
+        "users.guardian_profiles",
+        "users.students",
+        "users.students_guardians"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_MessageAppendLockSerializesThreadWrites",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        251
       ],
       "tables": []
     },
@@ -5200,7 +5264,9 @@
       "declaration": "TestParentMessaging_OneThreadPerGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        397
+        396,
+        397,
+        421
       ],
       "tables": []
     },
@@ -5210,6 +5276,8 @@
       "declaration": "TestParentMessaging_RequestCreatedPillNotCounted",
       "target": "database/repositories.NewFactory",
       "lines": [
+        347,
+        348,
         349
       ],
       "tables": []
@@ -5217,9 +5285,23 @@
     {
       "scope": "test",
       "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_StaffNotificationClaimDebouncesOneThread",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        287
+      ],
+      "tables": [
+        "users.parent_message_threads"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
       "declaration": "TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage",
       "target": "database/repositories.NewFactory",
       "lines": [
+        217,
+        218,
         219
       ],
       "tables": []
@@ -5230,7 +5312,29 @@
       "declaration": "TestParentMessaging_ThreadsMessagesAndReadState",
       "target": "database/repositories.NewFactory",
       "lines": [
+        66,
+        67,
         68
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_TouchLastMessage_Monotonic",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        538
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/parent_messaging_repository_test.go",
+      "declaration": "TestParentMessaging_TouchLastMessage_TiedTimestamp",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        588
       ],
       "tables": []
     },
@@ -5240,6 +5344,8 @@
       "declaration": "TestParentMessaging_UnreadCountExcludesAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
+        633,
+        634,
         635
       ],
       "tables": [
@@ -5252,6 +5358,8 @@
       "declaration": "TestParentMessaging_UnreadCreatedAtTie",
       "target": "database/repositories.NewFactory",
       "lines": [
+        168,
+        169,
         170
       ],
       "tables": []
