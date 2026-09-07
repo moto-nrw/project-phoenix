@@ -130,7 +130,7 @@ func configuredTarget() domain.Target {
 		Host:            "dateien.beispiel.de",
 		Port:            22,
 		Username:        "lohn-export",
-		Password:        "s3hr-geheim",
+		Password:        "example-test-password",
 		RemoteDirectory: "/upload/lohn",
 	}
 }
@@ -173,7 +173,7 @@ func TestTransfer_SuccessIsRecordedWithoutCredentials(t *testing.T) {
 	assert.Zero(t, uploader.pending.rollbacks)
 	// The journal entry has no field for them, which is the point — this
 	// assertion pins that the shape never grows one.
-	assert.NotContains(t, entry.Filename, "s3hr-geheim")
+	assert.NotContains(t, entry.Filename, "example-test-password")
 }
 
 func TestTransfer_FailureIsRecordedAsFailureWithItsReason(t *testing.T) {

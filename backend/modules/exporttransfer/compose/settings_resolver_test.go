@@ -40,7 +40,7 @@ func completeValues() map[string]string {
 	return map[string]string{
 		keyHost:        "dateien.beispiel.de",
 		keyUsername:    "lohn-export",
-		keyPassword:    "s3hr-geheim",
+		keyPassword:    "example-test-password",
 		keyDirectory:   "/upload/lohn",
 		keyFingerprint: "SHA256:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU",
 	}
@@ -72,7 +72,7 @@ func TestResolve_CompleteConfiguration(t *testing.T) {
 	assert.Equal(t, "dateien.beispiel.de", target.Host)
 	assert.Equal(t, 2222, target.Port)
 	assert.Equal(t, "lohn-export", target.Username)
-	assert.Equal(t, "s3hr-geheim", target.Password)
+	assert.Equal(t, "example-test-password", target.Password)
 	assert.Equal(t, "/upload/lohn", target.RemoteDirectory)
 }
 
@@ -176,11 +176,11 @@ func TestResolve_PreservesPasswordWhitespace(t *testing.T) {
 	t.Parallel()
 
 	values := completeValues()
-	values[keyPassword] = "  geheim mit rand  "
+	values[keyPassword] = "  example-test-password  "
 
 	target, err := newResolver(true, 22, values).Resolve(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, "  geheim mit rand  ", target.Password)
+	assert.Equal(t, "  example-test-password  ", target.Password)
 }
 
 // Copy-paste whitespace around a host or fingerprint is an artefact, not part

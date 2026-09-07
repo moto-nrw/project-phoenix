@@ -25,10 +25,12 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Credentials the server accepts.
+// Credentials the server accepts. Both are fixtures with no meaning outside a
+// test run: they unlock nothing but this in-process server, whose host key is
+// generated fresh in Start() and thrown away with the test.
 const (
 	User     = "lohn-export"
-	Password = "s3hr-geheim"
+	Password = "example-test-password"
 )
 
 // Server describes a running test counterpart.

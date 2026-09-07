@@ -147,7 +147,7 @@ func TestUpload_ReportsRejectedCredentials(t *testing.T) {
 	server := startTestSFTPServer(t)
 	dir := t.TempDir()
 	target := server.target(dir)
-	target.Password = "falsch"
+	target.Password = "example-test-password-wrong"
 
 	err := newTestClient(t).Upload(context.Background(), target, "monat.csv", []byte("inhalt"))
 	require.ErrorIs(t, err, sftp.ErrAuthFailed)
