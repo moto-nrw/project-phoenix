@@ -290,6 +290,66 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 		"cross-tenant FindByID should fail: tenant B must not see tenant A device %d", dA.ID)
 }
 
+// TestTenantIsolation_DisplayVisibility covers display.displays, the Device
+// Fleet owner's second table (#2676). Every id-addressed display read and
+// write carries a tenant predicate; only the dashboard token lookup runs
+// without one, and only inside the admin scope.
+func TestTenantIsolation_DisplayVisibility(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+	tenantA, tenantB := isolationTenants(t, db)
+
+	fleet, err := repositories.NewDeviceFleet(db)
+	require.NoError(t, err)
+
+	ctxA := ctxForTenant(tenantA)
+	ctxB := ctxForTenant(tenantB)
+
+	displayA, _, err := fleet.CreateDisplay(ctxA, "Eingang A")
+	require.NoError(t, err)
+	displayB, _, err := fleet.CreateDisplay(ctxB, "Eingang B")
+	require.NoError(t, err)
+
+	// --- Tenant A ---
+	listed, err := fleet.ListDisplays(ctxA)
+	require.NoError(t, err)
+	for _, display := range listed {
+		assert.Equal(t, tenantA, display.TenantID,
+			"cross-tenant leak: tenant B display visible to tenant A (ListDisplays)")
+	}
+
+	name := "Umbenannt"
+	_, err = fleet.UpdateDisplay(ctxA, displayB.ID, &name, nil)
+	assert.Error(t, err,
+		"cross-tenant UpdateDisplay should fail: tenant A must not write tenant B display %d", displayB.ID)
+
+	_, err = fleet.RegenerateDisplayToken(ctxA, displayB.ID)
+	assert.Error(t, err,
+		"cross-tenant RegenerateDisplayToken should fail for display %d", displayB.ID)
+
+	err = fleet.DeleteDisplay(ctxA, displayB.ID)
+	assert.Error(t, err,
+		"cross-tenant DeleteDisplay should fail for display %d", displayB.ID)
+
+	// --- Tenant B ---
+	listed, err = fleet.ListDisplays(ctxB)
+	require.NoError(t, err)
+	for _, display := range listed {
+		assert.Equal(t, tenantB, display.TenantID,
+			"cross-tenant leak: tenant A display visible to tenant B (ListDisplays)")
+	}
+
+	err = fleet.DeleteDisplay(ctxB, displayA.ID)
+	assert.Error(t, err,
+		"cross-tenant DeleteDisplay should fail for display %d", displayA.ID)
+
+	// The owner's own rows stay reachable, so the assertions above prove
+	// isolation rather than a broken composition.
+	_, err = fleet.UpdateDisplay(ctxA, displayA.ID, &name, nil)
+	require.NoError(t, err, "a display of the caller's own tenant must stay writable")
+}
+
 // ============================================================================
 // Auth Domain
 // ============================================================================

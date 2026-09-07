@@ -41,6 +41,11 @@ var repoMethodZeroCallerAllowlist = map[string]string{
 	// transition as false, nil). Until #2676 the name had a production caller
 	// only by collision with the retired iot.DeviceRepository.UpdateStatus.
 	"UpdateStatus": "test-only twin of TransitionStatus; covers the tenant-guard write path in test/isolation_test.go",
+
+	// audit.DataDeletionRepository.FindByType is the same story: the name had
+	// a production caller only through the retired iot.DeviceRepository.
+	// It is covered by database/repositories/audit/data_deletion_repository_test.go.
+	"FindByType": "test-only audit deletion lookup; its production caller was the retired iot.DeviceRepository.FindByType",
 }
 
 func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {

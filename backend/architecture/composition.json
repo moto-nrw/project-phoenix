@@ -11855,7 +11855,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        462
       ],
       "tables": []
     },

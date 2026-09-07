@@ -13,6 +13,11 @@ import (
 
 const displayTableExpr = `display.displays AS "display"`
 
+// errDisplayTenantRequired guards every display statement addressed by id.
+// Only FindByTokenHash may run without a tenant predicate, and only inside
+// the admin scope: the token is the sole auth signal there.
+var errDisplayTenantRequired = errors.New("devicefleet postgres: tenant is required for display access")
+
 // displayRow is this owner's private mapping of display.displays.
 type displayRow struct {
 	bun.BaseModel `bun:"table:displays,alias:display"`
@@ -44,7 +49,7 @@ func (s *DisplayStore) Create(ctx context.Context, input domain.CreateDisplay) (
 		return domain.Display{}, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
-		return domain.Display{}, domain.OperationStats{}, errors.New("devicefleet postgres: tenant is required to create a display")
+		return domain.Display{}, domain.OperationStats{}, errDisplayTenantRequired
 	}
 	row := displayRow{TenantID: tenantID, Name: input.Name, IsActive: true, TokenHash: input.TokenHash}
 	stats := domain.OperationStats{Queries: 1}
@@ -65,6 +70,9 @@ func (s *DisplayStore) Update(ctx context.Context, input domain.UpdateDisplay) (
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	if tenantID <= 0 {
+		return 0, domain.OperationStats{}, errDisplayTenantRequired
+	}
 	row := displayRow{ID: input.ID, UpdatedAt: time.Now()}
 	columns := []string{"updated_at"}
 	if input.Name != nil {
@@ -82,10 +90,8 @@ func (s *DisplayStore) Update(ctx context.Context, input domain.UpdateDisplay) (
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(displayTableExpr).
 		Column(columns...).
-		Where(`"display".id = ?`, input.ID)
-	if tenantID > 0 {
-		query = query.Where(`"display".tenant_id = ?`, tenantID)
-	}
+		Where(`"display".id = ?`, input.ID).
+		Where(`"display".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -107,12 +113,13 @@ func (s *DisplayStore) Delete(ctx context.Context, id int64) (int64, domain.Oper
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	if tenantID <= 0 {
+		return 0, domain.OperationStats{}, errDisplayTenantRequired
+	}
 	query := db.NewDelete().Model((*displayRow)(nil)).
 		ModelTableExpr(displayTableExpr).
-		Where(`"display".id = ?`, id)
-	if tenantID > 0 {
-		query = query.Where(`"display".tenant_id = ?`, tenantID)
-	}
+		Where(`"display".id = ?`, id).
+		Where(`"display".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -134,11 +141,14 @@ func (s *DisplayStore) FindByID(ctx context.Context, id int64) (domain.Display, 
 	if err != nil {
 		return domain.Display{}, false, domain.OperationStats{}, err
 	}
-	row := displayRow{}
-	query := db.NewSelect().Model(&row).ModelTableExpr(displayTableExpr).Where(`"display".id = ?`, id)
-	if tenantID > 0 {
-		query = query.Where(`"display".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return domain.Display{}, false, domain.OperationStats{}, errDisplayTenantRequired
 	}
+	row := displayRow{}
+	query := db.NewSelect().Model(&row).
+		ModelTableExpr(displayTableExpr).
+		Where(`"display".id = ?`, id).
+		Where(`"display".tenant_id = ?`, tenantID)
 	return scanDisplay(ctx, query, &row, "find display")
 }
 
@@ -184,11 +194,13 @@ func (s *DisplayStore) List(ctx context.Context) ([]domain.Display, domain.Opera
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	var rows []displayRow
-	query := db.NewSelect().Model(&rows).ModelTableExpr(displayTableExpr)
-	if tenantID > 0 {
-		query = query.Where(`"display".tenant_id = ?`, tenantID)
+	if tenantID <= 0 {
+		return nil, domain.OperationStats{}, errDisplayTenantRequired
 	}
+	var rows []displayRow
+	query := db.NewSelect().Model(&rows).
+		ModelTableExpr(displayTableExpr).
+		Where(`"display".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)

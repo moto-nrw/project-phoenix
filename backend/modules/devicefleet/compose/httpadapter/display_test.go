@@ -671,9 +671,12 @@ func TestDisplayFeatureGate(t *testing.T) {
 	})
 }
 
+// firstClock returns the test's clock, defaulting to Berlin time: the
+// dashboard derives the rendered calendar day from it, so the owner refuses
+// to compose without one.
 func firstClock(clocks []func() time.Time) func() time.Time {
 	if len(clocks) == 0 {
-		return nil
+		return timezone.Now
 	}
 	return clocks[0]
 }

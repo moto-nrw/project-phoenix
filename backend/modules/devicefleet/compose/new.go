@@ -72,7 +72,11 @@ type Dependencies struct {
 	Presence  PresenceQuery
 	Dashboard DashboardSources
 	Tenants   TenantFacts
-	Now       func() time.Time
+	// Now is the owner's clock. The info-point aggregate derives the rendered
+	// calendar day and the "later today" cut-off from it, so a graph that
+	// serves the dashboard must supply Berlin time (timezone.Now); device-only
+	// graphs may leave it unset and get plain instants.
+	Now func() time.Time
 	// OnlineWindow resolves the per-tenant iot.device_online_window_minutes
 	// setting. Graphs without a settings service leave it unset and the owner
 	// falls back to defaultDeviceOnlineWindow.
@@ -91,6 +95,9 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	}
 	now := dependencies.Now
 	if now == nil {
+		if dependencies.Dashboard != nil || dependencies.Tenants != nil || dependencies.Presence != nil {
+			return nil, errors.New("devicefleet compose: the info-point dashboard requires an explicit Berlin clock")
+		}
 		now = time.Now
 	}
 	// Device-only graphs (the repository factory, CLI roots) never serve the
