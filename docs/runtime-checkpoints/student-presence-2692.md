@@ -107,8 +107,10 @@ query. The only errors are the 30 expected duplicate rejections per flow in
   supervisors, both assignments, instance) plus a failure after the whole
   restore, proves complete rollback, and retries successfully. It runs
   unchanged against the facade-backed repository.
-- `TestExpectRestoredRows` keeps the stable mismatch error for the remaining
-  instance write in the schedule repository.
+- The remaining `schedule.activity_instances` write keeps its previous error
+  strings unchanged. The row-count helper that served the moved statements had
+  no production caller left and was removed with its unit test; the mismatch
+  contract it checked is now covered by the module tests above.
 
 ## Rollback and cleanup
 

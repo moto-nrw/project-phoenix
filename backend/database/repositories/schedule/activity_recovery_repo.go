@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -74,22 +73,15 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 	}
 	db := base.GetDB(ctx, r.db)
 	result, err := db.NewUpdate().Table("schedule.activity_instances").Set("status = 'active'").Set("active_group_id = ?", snapshot.ActiveGroupID).Set("completed_at = NULL").Set("completed_by = NULL").Set("reopen_until = NULL").Set("completion_snapshot = NULL").Where("id = ? AND status = 'completed'", instanceID).Exec(ctx)
-	if err := expectRestoredRows(result, err, 1, "completed instance"); err != nil {
-		return fmt.Errorf("restore instance: %w", err)
-	}
-	return nil
-}
-
-func expectRestoredRows(result sql.Result, err error, expected int64, label string) error {
 	if err != nil {
-		return err
+		return fmt.Errorf("restore instance: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return fmt.Errorf("count restored instances: %w", err)
 	}
-	if rows != expected {
-		return fmt.Errorf("snapshot mismatch for %s: expected %d rows, updated %d", label, expected, rows)
+	if rows != 1 {
+		return fmt.Errorf("restore instance: expected one completed instance, updated %d", rows)
 	}
 	return nil
 }
