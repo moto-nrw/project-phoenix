@@ -361,7 +361,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db))
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -800,7 +800,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability)
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db))
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
