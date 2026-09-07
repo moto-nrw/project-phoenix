@@ -47,6 +47,10 @@
       "kind": "projection"
     },
     {
+      "id": "parent-announcement-audience",
+      "kind": "projection"
+    },
+    {
       "id": "staff-announcement-audience",
       "kind": "projection"
     },
@@ -2281,6 +2285,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/communication/internal/adapters/parentaudience",
+      "owner": "parent-announcement-audience",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/parentstore",
       "owner": "communication",
       "role": "compose",
@@ -3232,6 +3243,25 @@
       "tenant_safe": true
     },
     {
+      "id": "parent-announcement-audience",
+      "package": "modules/communication/internal/adapters/parentaudience",
+      "data_objects": [
+        "activities.student_enrollments",
+        "auth.account_tenants",
+        "auth.accounts",
+        "users.guardian_profiles",
+        "users.parent_announcement_options",
+        "users.parent_announcement_reads",
+        "users.parent_announcement_responses",
+        "users.parent_announcement_targets",
+        "users.parent_announcements",
+        "users.persons",
+        "users.students",
+        "users.students_guardians"
+      ],
+      "tenant_safe": true
+    },
+    {
       "id": "staff-announcement-audience",
       "package": "modules/communication/internal/adapters/audience",
       "data_objects": [
@@ -3906,7 +3936,9 @@
     {
       "id": "enrollment.integration-test.enrollment.postgres",
       "description": "Enrollment rollback tests inject failures around real owner writes while exercising the public command.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "enrollment",
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
@@ -10600,6 +10632,39 @@
       "target_role": "postgres"
     },
     {
+      "id": "parent-announcement-audience.domain",
+      "description": "The parent announcement audience projection returns Communication domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-announcement-audience.calendar-date",
+      "description": "The parent announcement audience projection evaluates activity-group targets on the shared calendar day.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.parent-audience",
+      "description": "Communication composition constructs the tenant-safe parent announcement audience projection.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "postgres"
+    },
+    {
       "id": "communication.integration-test.public",
       "description": "Communication integration tests exercise the public facade.",
       "scopes": [
@@ -11343,7 +11408,9 @@
     {
       "id": "test-support.to.enrollment-support",
       "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
-      "scopes": ["production"],
+      "scopes": [
+        "production"
+      ],
       "source_owner": "test-support",
       "source_role": "test-support",
       "target_owner": "enrollment",
@@ -11440,7 +11507,9 @@
     {
       "id": "identity-access.behavior-test.enrollment-public",
       "description": "Guardian invitation integration fixtures create Enrollment requests through public owner values.",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "identity-access",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -11449,7 +11518,9 @@
     {
       "id": "timetable-activities.behavior-test.enrollment-public",
       "description": "Sourced-template integration fixtures create Enrollment phases through public owner values.",
-      "scopes": ["external_test"],
+      "scopes": [
+        "external_test"
+      ],
       "source_owner": "timetable-activities",
       "source_role": "module-behavior-test",
       "target_owner": "enrollment",
@@ -11458,7 +11529,9 @@
     {
       "id": "care-plan.internal-test.enrollment-public",
       "description": "Parent care-period tests implement the Enrollment owner query port with public values.",
-      "scopes": ["internal_test"],
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "care-plan",
       "source_role": "module-internal-test",
       "target_owner": "enrollment",

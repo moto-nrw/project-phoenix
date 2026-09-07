@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -67,7 +67,7 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t) // tenant 1
 	tenantIDs := []int64{chain.TenantID}
 
@@ -164,7 +164,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
@@ -236,7 +236,7 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -298,7 +298,7 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -339,7 +339,7 @@ func TestParentAnnouncementDelete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := &usersModels.ParentAnnouncement{
@@ -369,7 +369,7 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	a := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -412,7 +412,7 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 
@@ -462,7 +462,7 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	// Uppercase + padded target text against a lowercase "1a" student class.
@@ -486,7 +486,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Regression")
@@ -540,7 +540,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New(), func() time.Time {
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New(), func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
 	})
 	ctx := tenantCtx(t)
@@ -634,7 +634,7 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
 
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 	tenantIDs := []int64{chain.TenantID}
 	owner := enrollmentAudience.New()

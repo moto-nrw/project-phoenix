@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -83,7 +83,7 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -115,7 +115,7 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -160,7 +160,7 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -192,7 +192,7 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,

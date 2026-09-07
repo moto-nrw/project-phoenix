@@ -523,7 +523,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	attendance := active.NewAttendanceRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
-	parentAnnouncement := users.NewParentAnnouncementRepository(db, enrollmentModule, now)
+	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
 		tenantID := auditModels.TenantIDFromContext(ctx)
 		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
