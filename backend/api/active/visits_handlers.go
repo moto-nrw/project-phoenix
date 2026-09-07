@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ===== Visit Handlers =====
@@ -198,6 +199,19 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 	if err := rs.ActiveService.CreateVisit(r.Context(), visit); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
+	}
+
+	// Binary mode deliberately succeeds without creating a room visit.
+	if visit.ID == 0 {
+		mode, err := rs.ActiveService.GetPresenceMode(r.Context())
+		if err != nil {
+			common.RenderError(w, r, ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
+			return
+		}
+		if mode == activeService.PresenceModeBinary {
+			common.Respond(w, r, http.StatusCreated, newPresenceVisitResponse(*visit), "Visit created successfully")
+			return
+		}
 	}
 
 	// Get the created visit

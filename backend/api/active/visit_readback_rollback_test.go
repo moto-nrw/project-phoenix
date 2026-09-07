@@ -23,6 +23,40 @@ func (failingVisitReadback) FindVisit(context.Context, int64) (*studentpresence.
 	return nil, errors.New("private readback failure")
 }
 
+func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
+	t.Parallel()
+	tc, router := setupProtectedRouter(t)
+	queries := tc.resource.Presence
+	student := testpkg.CreateTestStudent(t, tc.db, "Create", "Readback", "3a")
+	staff := testpkg.CreateTestStaff(t, tc.db, "Create", "Staff")
+	device := testpkg.CreateTestDevice(t, tc.db, "create-readback")
+	group := testpkg.CreateTestActiveGroupForTenant(t, tc.db, testpkg.Tenant(t))
+	tc.resource.Presence = failingVisitReadback{PresenceQueries: queries}
+	request := func() int {
+		t.Helper()
+		req := testutil.NewJSONRequest(t, http.MethodPost, "/active/visits", map[string]any{
+			"student_id": student.ID, "active_group_id": group.ID, "check_in_time": time.Now(),
+		})
+		testutil.WithDeviceContext(device)(req)
+		testutil.WithStaffContext(staff)(req)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{permissions.GroupsCreate})
+		assert.NotContains(t, rr.Body.String(), "private readback failure")
+		return rr.Code
+	}
+	require.Equal(t, http.StatusInternalServerError, request())
+	visits, err := queries.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
+	require.NoError(t, err)
+	assert.Empty(t, visits, "failed readback must roll back the visit")
+	status, err := tc.resource.ActiveService.GetStudentAttendanceStatus(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "not_checked_in", status.Status, "failed readback must roll back attendance too")
+	tc.resource.Presence = queries
+	require.Equal(t, http.StatusCreated, request())
+	visits, err = queries.ListVisits(testpkg.Ctx(t), studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
+	require.NoError(t, err)
+	require.Len(t, visits, 1)
+}
+
 func TestVisitEndReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)

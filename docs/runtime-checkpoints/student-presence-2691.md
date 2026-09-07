@@ -476,3 +476,34 @@ Standards review: zero confirmed findings. Spec review: both confirmed findings
 fixed and re-reviewed. Review coverage is the migration core and representative
 callers, complemented by the full suite and architecture checks, not a claim
 that tests prove every possible behavior.
+
+## PR #3082 follow-up corrections
+
+The subsequent review identified three remaining findings, corrected together:
+
+- Removed the unused compose-to-`models/active` and compose-to-`models/base`
+  compatibility permissions. Architecture `explain` now reports both production
+  imports as forbidden; no ownership, projection or legacy-baseline change is
+  needed.
+- Binary-mode visit creation retains its deliberate no-op and HTTP 201 response.
+  Only a successful zero-ID result confirmed as binary skips readback. Detailed
+  creation still requires successful readback; readback failures roll back both
+  the visit and attendance, and the same request succeeds on retry.
+- Attendance-history visit-read failures now return the existing generic HTTP
+  500 envelope instead of successful attendance-only data. The obsolete assembly
+  failure flag is removed; retention cutoffs are unchanged.
+
+Both bug regression tests failed before the fixes: binary creation returned 500
+instead of 201, and the injected history read returned 200 instead of 500. Their
+production-router tests now pass, including history recovery and visit readback
+rollback/retry. The former helper-level partial-history expectation is replaced
+by the route-level failure contract, not silently dropped.
+
+Follow-up verification passed: full backend tests with
+`go test ./... -p 4 -parallel 8 -count=1`, full vet, full lint (zero issues),
+the architecture ratchet (2358 entries; composition 829 → 823),
+`scripts/test-changed.sh origin/development` without `--fast`, and
+`git diff --check`. Go checks used the pinned repository toolchain with
+`CGO_ENABLED=0`. Local logs are `/tmp/3082-full-tests.log`, `/tmp/3082-vet.log`,
+`/tmp/3082-lint.log`, `/tmp/3082-architecture.log` and
+`/tmp/3082-test-changed.log`.

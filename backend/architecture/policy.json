@@ -3964,28 +3964,6 @@
       "target_role": "compose"
     },
     {
-      "id": "student-presence.compose.student-presence-domain",
-      "description": "Presence composition maps existing internal model and error contracts at the compatibility boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "domain"
-    },
-    {
-      "id": "student-presence.compose.transaction-runtime-domain",
-      "description": "Presence composition maps existing internal model and error contracts at the compatibility boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
       "id": "student-presence.port.calendar-date",
       "description": "Presence records retain the canonical calendar-date value without legacy ORM models.",
       "scopes": ["production"],
