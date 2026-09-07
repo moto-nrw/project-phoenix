@@ -9,8 +9,7 @@ import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
-import { hasPermission, isCaregiver } from "~/lib/auth-utils";
-import { usePresenceMode, useTimetableEnabled } from "~/lib/tenant-context";
+import { hasPermission } from "~/lib/auth-utils";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { mutate } from "~/lib/swr";
 
@@ -84,19 +83,10 @@ export function TeacherShellProvider({
 }) {
   const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
-  const presenceMode = usePresenceMode();
-  const timetableEnabled = useTimetableEnabled();
-  // Home der Betreuungskräfte ist der Tagesplan (#2383) — dieselbe Regel wie
-  // der Login-Redirect, inklusive schedules:read (das Gate der Tagesplan-
-  // Route). Admins (und Schulen ohne Betreuungsplan bzw. im binären Modus)
-  // behalten /dashboard als Logo-Ziel.
-  const homeUrl =
-    isCaregiver(session) &&
-    presenceMode !== "binary" &&
-    timetableEnabled &&
-    hasPermission(session, "schedules:read")
-      ? "/tagesplan"
-      : "/dashboard";
+  // Das Logo führt zur Startseite — für jede Rolle dieselbe, seit #2180.
+  // Vorher war das Ziel je nach Rolle, Anwesenheitsmodus und Recht ein
+  // anderes; dieselbe Regel stand doppelt hier und im Login-Redirect.
+  const homeUrl = "/home";
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user

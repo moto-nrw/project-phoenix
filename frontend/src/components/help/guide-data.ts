@@ -593,8 +593,8 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Alle Bereiche der App stehen links in fünf Gruppen: `Tagesbetrieb`, `Eltern`, `Team`, `Planung` und `Verwaltung`. Am Handy zeigt das `Mehr`-Menü dieselben Gruppen.",
         steps: [
-          "Ganz oben steht Ihre Startseite: `Home` für Admins, `Tagesplan` für Betreuungskräfte.",
-          "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
+          "Ganz oben steht `Startseite`. Sie ist für alle gleich erreichbar; was darauf steht, hängt von Ihren Rechten ab.",
+          "`Tagesbetrieb` ist beim ersten Besuch geöffnet. Dort stehen `Tagesplan`, `Meine Gruppen`, `Aktuelle Aufsicht`, `Alle Kinder`, `Räume`, `Aktivitäten`, `Vertretungen` und `Anfragen`.",
           "Auf den Namen einer Gruppe tippen, um sie auf- oder zuzuklappen. moto merkt sich, welche Gruppen offen sind. Öffnen Sie eine Seite, klappt ihre Gruppe von selbst auf.",
           "`Eltern` bündelt Nachrichten, Mitteilungen, Elternzugänge, Bankverbindungen, Essensplan und die Anmeldungen. `Team` enthält Zeiterfassung, Mein Kalender, Mitarbeiter, Team-Chat und Tagesinformationen.",
           "`Planung` enthält je nach Ihren Rechten Betreuungsplan, Dienstplan, Vertretungsplan, Tageslisten, Schuljahr und Ferien sowie Abrechnung. `Verwaltung` enthält Datenverwaltung, Tagesauswertung, Statistik, Dateien und Info-Displays.",
@@ -612,12 +612,15 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "home",
-        title: "Home",
+        title: "Startseite",
         icon: LayoutDashboard,
         summary:
-          "Die Startseite für Admins zeigt die Kacheln, die Sie ausgewählt haben. Fast jede Zahl führt direkt in den passenden Bereich.",
+          "Nach dem Anmelden landen alle auf der Startseite. Sie ist in drei Bereiche geteilt: `Heute für mich`, `Betrieb` und `Zu erledigen`. Was Sie darin sehen, hängt von Ihren Rechten ab.",
         steps: [
-          "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
+          "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle.",
+          "Unter `Heute für mich` steht `Mein Tag` mit Ihren heutigen Einsätzen aus dem Betreuungsplan, samt Vertretungen. Daneben stehen die `Tagesinformationen`, die heute gelten; verlangt ein Hinweis eine Kenntnisnahme, bestätigen Sie ihn direkt dort.",
+          "Unter `Betrieb` stehen die Kennzahlen der Einrichtung und der `Ablauf des Tages` mit den Blöcken, die gerade laufen oder als Nächstes anstehen. `Zum Tagesplan` führt in den laufenden Tag.",
+          "Unter `Zu erledigen` steht, was auf eine Entscheidung wartet: Wünsche von Eltern und Anträge des Teams. Jede Zeile führt in die passende Liste.",
           "Die sichtbaren Kacheln ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Zuhause` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Auslastung` hinzu.",
           "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. `Auslastung` zeigt nur den aktuellen Wert.",
           "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
@@ -646,11 +649,12 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Jede Person entscheidet selbst, was ihre Startseite zeigt. Die Auswahl gilt auf allen Geräten.",
         steps: [
-          "Auf `Home` oben rechts `Startseite anpassen` öffnen.",
+          "Auf der `Startseite` oben rechts `Startseite anpassen` öffnen.",
           "Unter `Kennzahlen` und `Bereiche` die Haken setzen oder entfernen. Was Sie abwählen, verschwindet von Ihrer Startseite.",
           "`Speichern` klicken. Die Auswahl gilt sofort, auch am Handy und auf dem Tablet.",
           "`Zurücksetzen` stellt die empfohlene Ansicht wieder her. Der Knopf ist nur aktiv, wenn Sie etwas geändert haben.",
           "Haben Sie alles ausgeblendet, steht auf der Startseite `Ihre Startseite ist leer` mit dem Knopf `Kacheln einblenden`.",
+          "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht dafür; Ihre Leitung kann es freischalten.",
         ],
         callout: {
           title: "Manches gibt die Schule vor",
@@ -915,7 +919,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
         steps: [
-          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
+          "Nach dem Anmelden landen Sie auf der `Startseite`. Von dort führt `Zum Tagesplan` hierher. In der Seitenleiste steht `Tagesplan` ganz oben im `Tagesbetrieb`, am Handy ist es der erste Reiter unten.",
           "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
           "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
           "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",

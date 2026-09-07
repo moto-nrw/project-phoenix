@@ -66,6 +66,21 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
   PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
+// Die Bausteine der Zonen „Heute für mich" und „Zu erledigen" (#2180) holen
+// ihre Daten selbst und haben eigene Tests; hier stehen sie als Platzhalter.
+vi.mock("~/components/home/staff-notices-block", () => ({
+  StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
+}));
+vi.mock("~/components/home/day-flow-block", () => ({
+  DayFlowBlock: () => <div data-testid="day-flow-block" />,
+}));
+vi.mock("~/components/home/open-requests-block", () => ({
+  OpenRequestsBlock: () => <div data-testid="open-requests-block" />,
+}));
+vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
+  BetreuungsplanHeuteCard: () => <div data-testid="my-day-block" />,
+}));
+
 const mockDashboardData = {
   studentsPresent: 150,
   studentsInRooms: 120,
@@ -118,6 +133,7 @@ vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
+  useTimetableEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({
@@ -181,8 +197,13 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("shows access denied for non-admin users", () => {
+  // Seit #2180 ist die Startseite für jede Rolle offen: nicht die Rolle
+  // entscheidet, was zu sehen ist, sondern die Rechte hinter jedem Baustein.
+  // Ohne Recht auf die Betriebszahlen bleiben die Kennzahlen weg — und die
+  // Seite sagt, woran es liegt, statt „Kein Zugriff".
+  it("opens for a non-admin and leaves out the blocks they may not fetch", () => {
     vi.mocked(isAdmin).mockReturnValue(false);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
     vi.mocked(useSession).mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, isAdmin: false } },
       status: "authenticated",
@@ -191,7 +212,12 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kinder anwesend")).not.toBeInTheDocument();
+    expect(screen.getByText("Ihre Startseite ist leer")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Für Ihre Berechtigungen gibt es hier noch keine/),
+    ).toBeInTheDocument();
   });
 
   it("does not load phase expiry warnings without admin permission", () => {
@@ -279,8 +305,10 @@ describe("DashboardPage", () => {
       expect(screen.getByTestId("dashboard-stats-grid")).toHaveClass(
         "xl:grid-cols-4",
       );
+      // Vier Bereiche (mit dem Ablauf des Tages, #2180) stehen in zwei
+      // Spalten, damit keiner allein in der zweiten Reihe hängt.
       expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
-        "xl:grid-cols-3",
+        "xl:grid-cols-2",
       );
     });
   });
@@ -316,8 +344,10 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
+      // Drei Bereiche: Letzte Bewegungen, Aktive Gruppen und der Ablauf des
+      // Tages (#2180) — der hängt am Betreuungsplan, nicht an NFC.
       expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
-        "xl:grid-cols-2",
+        "xl:grid-cols-3",
       );
     });
   });

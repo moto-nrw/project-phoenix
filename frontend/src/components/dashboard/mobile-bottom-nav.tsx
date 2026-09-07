@@ -166,8 +166,10 @@ interface NavItem {
 // Admins don't have assigned groups or supervision duties (#608)
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   {
-    href: "/dashboard",
-    label: "Home",
+    href: "/home",
+    // Unten in der Leiste ist wenig Platz; „Start" ist die mobile Kurzform
+    // von „Startseite" (#2180), wie „Suchen" für „Alle Kinder".
+    label: "Start",
     iconKey: "home",
     concept: "dashboard",
     alwaysShow: true,
@@ -342,10 +344,14 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
  */
 const PAGE_ITEMS: readonly AdditionalNavItem[] = [
   {
+    // Startseite aller Rollen (#2180). Unten in der Leiste bleibt für
+    // Betreuungskräfte der laufende Tag (Tagesplan, Gruppe, Aufsicht,
+    // Suchen, Aktivitäten); die Startseite ist über das Mehr-Menü und das
+    // Logo erreichbar.
     ...STAFF_FLAT_PAGES.dashboard,
     iconKey: "home",
     concept: "dashboard",
-    requiresAdmin: true,
+    alwaysShow: true,
   },
   {
     // Tagesplan (#2383): Laufzeit-Gating (binary, timetable.enabled,
@@ -628,8 +634,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/parents") {
         return pathname === "/parents" || pathname === "/";
       }
-      if (href === "/dashboard") {
-        return pathname === "/dashboard" || pathname === "/";
+      if (href === "/home") {
+        return pathname === "/home" || pathname === "/";
       }
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page

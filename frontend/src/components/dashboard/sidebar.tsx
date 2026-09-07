@@ -121,11 +121,15 @@ interface NavItem {
 // ~/lib/staff-navigation (#2826); a page missing there never renders.
 const NAV_ITEMS: NavItem[] = [
   {
+    // Startseite aller Rollen (#2180): sie setzt sich aus Bausteinen
+    // zusammen, die jeder für sich am Recht der Person hängen. Deshalb steht
+    // der Eintrag für alle da — auch für eine Rolle, die nur einen einzigen
+    // Baustein sieht.
     ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
     concept: "dashboard",
     activeColor: "text-moto-blue",
-    requiresAdmin: true,
+    alwaysShow: true,
   },
   {
     // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
@@ -819,7 +823,7 @@ function SidebarContent({
     if (operatorDrillInHref) {
       return href === operatorDrillInHref;
     }
-    if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/home") return pathname === "/home";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
     // Planungsseiten zählen mit ihren Alt-Pfaden (/timetables,
     // /staff/dienstplan, /vertretungsplan), damit ein alter Link die richtige

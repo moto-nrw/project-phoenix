@@ -51,7 +51,7 @@ interface BrandTenantSwitcherProps {
  */
 export function BrandTenantSwitcher({
   isScrolled = false,
-  href = "/dashboard",
+  href = "/home",
   label,
   hideLabelBelow,
 }: BrandTenantSwitcherProps) {

@@ -62,12 +62,29 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
   PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
+// Die Bausteine der Zonen „Heute für mich" und „Zu erledigen" (#2180) holen
+// ihre Daten selbst und haben eigene Tests. Hier stehen sie als Platzhalter,
+// damit diese Datei weiterhin genau die Abfragen der Kennzahlen prüft.
+vi.mock("~/components/home/staff-notices-block", () => ({
+  StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
+}));
+vi.mock("~/components/home/day-flow-block", () => ({
+  DayFlowBlock: () => <div data-testid="day-flow-block" />,
+}));
+vi.mock("~/components/home/open-requests-block", () => ({
+  OpenRequestsBlock: () => <div data-testid="open-requests-block" />,
+}));
+vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
+  BetreuungsplanHeuteCard: () => <div data-testid="my-day-block" />,
+}));
+
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
   useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
+  useTimetableEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({

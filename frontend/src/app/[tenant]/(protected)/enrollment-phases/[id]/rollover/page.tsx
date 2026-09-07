@@ -67,10 +67,10 @@ export default function MobileRolloverPage({ params }: PageProps) {
     <RolloverForm
       variant="page"
       source={phase}
-      onCancel={() => (globalThis.location.href = tenantPath("/dashboard"))}
+      onCancel={() => (globalThis.location.href = tenantPath("/home"))}
       onSuccess={() => {
         void tenantMutate("enrollment-phase-expiry-warnings");
-        globalThis.location.href = tenantPath("/dashboard");
+        globalThis.location.href = tenantPath("/home");
       }}
     />
   );

@@ -13,6 +13,8 @@ const context: HomeBlockContext = {
   openCareGroupMode: false,
   nfcEnabled: true,
   birthdaysEnabled: true,
+  timetableEnabled: true,
+  access: { isAdminScope: true, has: () => true, canOpenRequestsPage: true },
 };
 
 function renderModal(

@@ -8,11 +8,20 @@ import {
   type HomeBlockContext,
 } from "./home-blocks";
 
+/** Jemand, der alles darf — der Betriebsmodus bleibt so die einzige Variable. */
+const fullAccess = {
+  isAdminScope: true,
+  has: () => true,
+  canOpenRequestsPage: true,
+};
+
 const fullContext: HomeBlockContext = {
   detailed: true,
   openCareGroupMode: false,
   nfcEnabled: true,
   birthdaysEnabled: true,
+  timetableEnabled: true,
+  access: fullAccess,
 };
 
 describe("resolveHomeBlocks — Betriebsmodus", () => {
@@ -190,5 +199,84 @@ describe("sanitize", () => {
     expect(sanitizeHomeLayoutOverrides(null)).toEqual({});
     expect(sanitizeHomeLayoutOverrides("nope")).toEqual({});
     expect(sanitizeHomeBlockPolicies(undefined)).toEqual({});
+  });
+});
+
+// Die Berechtigungsebene (#2180): jede Regel spiegelt das Gate des Endpunkts
+// hinter dem Baustein. Eine Rolle, die eine Schule sich selbst anlegt, bekommt
+// dadurch ohne Codeänderung genau die Bausteine, die sie auch abrufen darf.
+describe("resolveHomeBlocks — Berechtigung", () => {
+  const accessWith = (
+    permissions: readonly string[],
+    canOpenRequestsPage = false,
+  ) => ({
+    isAdminScope: false,
+    has: (permission: string) => permissions.includes(permission),
+    canOpenRequestsPage,
+  });
+
+  const resolveFor = (
+    permissions: readonly string[],
+    canOpenRequestsPage = false,
+  ) =>
+    resolveHomeBlocks(
+      { ...fullContext, access: accessWith(permissions, canOpenRequestsPage) },
+      {},
+      {},
+    );
+
+  it("lässt ohne groups:read jede Kennzahl aus den Betriebszahlen weg", () => {
+    const { available, visible } = resolveFor(["users:read"]);
+
+    const keys = available.map((block) => block.key);
+    expect(keys).not.toContain("tile.students_present");
+    expect(keys).not.toContain("section.active_groups");
+    expect(visible.has("tile.students_present")).toBe(false);
+    // users:read trägt die Tagesinformationen — die bleiben.
+    expect(visible.has("section.staff_notices")).toBe(true);
+  });
+
+  it("zeigt Mein Tag nur mit time_tracking:own", () => {
+    expect(resolveFor([]).visible.has("section.my_day")).toBe(false);
+    expect(
+      resolveFor(["time_tracking:own"]).visible.has("section.my_day"),
+    ).toBe(true);
+  });
+
+  it("zeigt den Ablauf des Tages nur mit schedules:read", () => {
+    expect(resolveFor([]).visible.has("section.day_flow")).toBe(false);
+    expect(resolveFor(["schedules:read"]).visible.has("section.day_flow")).toBe(
+      true,
+    );
+  });
+
+  it("zeigt offene Anfragen nur, wer das Anfragen-Modul öffnen darf", () => {
+    expect(resolveFor([]).visible.has("section.open_requests")).toBe(false);
+    expect(resolveFor([], true).visible.has("section.open_requests")).toBe(true);
+  });
+
+  it("hält einen Baustein auch dann fern, wenn die Schule ihn verpflichtend macht", () => {
+    const { visible, adjustable } = resolveHomeBlocks(
+      { ...fullContext, access: accessWith([]) },
+      {},
+      { "tile.students_present": "required" },
+    );
+
+    expect(visible.has("tile.students_present")).toBe(false);
+    expect(adjustable.map((block) => block.key)).not.toContain(
+      "tile.students_present",
+    );
+  });
+
+  it("lässt den Ablauf des Tages ohne Betreuungsplan weg", () => {
+    const { available } = resolveHomeBlocks(
+      { ...fullContext, timetableEnabled: false },
+      {},
+      {},
+    );
+
+    const keys = available.map((block) => block.key);
+    expect(keys).not.toContain("section.day_flow");
+    expect(keys).not.toContain("section.my_day");
   });
 });

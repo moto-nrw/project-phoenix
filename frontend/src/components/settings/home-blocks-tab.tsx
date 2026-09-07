@@ -66,6 +66,9 @@ export function HomeBlocksTab() {
       // Die Geburtstagskarte hängt an einer eigenen Einstellung; die Vorgabe
       // soll sie trotzdem regeln können, deshalb hier immer verfügbar.
       birthdaysEnabled: true,
+      // Dasselbe für den Betreuungsplan: die Leitung entscheidet hier für die
+      // ganze Schule, nicht für den eigenen Bildschirm.
+      timetableEnabled: true,
     };
     return HOME_BLOCKS.filter((block) => block.available(ctx));
   }, [presenceMode, openCareGroupMode, nfcEnabled]);

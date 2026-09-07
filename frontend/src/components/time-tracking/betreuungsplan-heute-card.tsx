@@ -1,6 +1,7 @@
 "use client";
 
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { InfoCard } from "~/components/ui/info-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -16,7 +17,20 @@ import { useSWRAuth } from "~/lib/swr";
 // pflegt (leere Liste), damit die Seite nicht mit einer leeren Karte zusteht.
 // Ein Ladefehler zeigt dagegen eine Fehlerkarte, damit er nicht wie "keine
 // Einsätze" aussieht.
-export function BetreuungsplanHeuteCard() {
+export function BetreuungsplanHeuteCard({
+  title = "Heute geplant",
+  showEmpty = false,
+}: {
+  /** Überschrift der Karte. Auf der Startseite heißt derselbe Baustein „Mein Tag". */
+  readonly title?: string;
+  /**
+   * Auf der Zeiterfassung verschwindet die Karte ohne Einsätze, damit die
+   * Seite nicht mit einer leeren Karte zusteht. Auf der Startseite ist sie ein
+   * gewählter Baustein: dort muss „heute nichts geplant" als Antwort dastehen,
+   * sonst sucht die Person den Fehler bei sich (#2180).
+   */
+  readonly showEmpty?: boolean;
+} = {}) {
   // Berlin, not browser-local: the backend defines "today" in Europe/Berlin,
   // and a browser in another timezone around midnight would otherwise fetch
   // yesterday's/tomorrow's assignments and label them "Heute geplant".
@@ -33,7 +47,7 @@ export function BetreuungsplanHeuteCard() {
   if (error) {
     return (
       <InfoCard
-        title="Heute geplant"
+        title={title}
         icon={<MotoConceptIcon concept="carePlan" size={20} />}
       >
         <Alert
@@ -49,11 +63,25 @@ export function BetreuungsplanHeuteCard() {
     .slice()
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  if (blocks.length === 0) return null;
+  if (blocks.length === 0) {
+    if (!showEmpty) return null;
+    return (
+      <InfoCard
+        title={title}
+        icon={<MotoConceptIcon concept="carePlan" size={20} />}
+      >
+        <EmptyState
+          className="py-8"
+          title="Heute ist für Sie nichts geplant"
+          description="Ihre Einsätze aus dem Betreuungsplan erscheinen hier."
+        />
+      </InfoCard>
+    );
+  }
 
   return (
     <InfoCard
-      title="Heute geplant"
+      title={title}
       icon={<MotoConceptIcon concept="carePlan" size={20} />}
     >
       <ul className="divide-y divide-gray-100">
