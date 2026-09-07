@@ -399,6 +399,8 @@ function HomeContent() {
           onSpanChange={changeSpan}
           onRemove={removeBlock}
           onAdd={addBlock}
+          onRestoreDefault={restoreDefault}
+          restoring={saving}
         >
           {(placement) => (
             <HomeBlockContent blockKey={placement.key} data={blockData} />
@@ -406,21 +408,6 @@ function HomeContent() {
         </HomeBoard>
       )}
 
-      {/* Der Weg zurück zur Rollenansicht steht am Ende der Fläche, nicht
-          neben „Fertig": er verwirft alles, was jemand je eingerichtet hat. */}
-      {editing && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            size="md"
-            disabled={saving}
-            onClick={restoreDefault}
-          >
-            Standardansicht wiederherstellen
-          </Button>
-        </div>
-      )}
     </TenantPage>
   );
 }

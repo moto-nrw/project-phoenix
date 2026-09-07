@@ -121,7 +121,17 @@ export function SectionCard({
         // Zeile um (dev-Fix "keep SectionCard collapse chevron on the title
         // row on mobile").
         <div className="flex flex-wrap items-start gap-3">
-          <div className="flex min-w-0 flex-1 gap-3">
+          {/* Ohne Kicker und Beschreibung ist der Titel eine Zeile neben einer
+              40px-Symbolfläche: oben bündig liegen die beiden Mitten 8px
+              auseinander und der Titel wirkt zu hoch. Mit Beschreibung bleibt
+              es bei oben bündig, sonst rutschte das Symbol in die Mitte des
+              Textblocks. */}
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 gap-3",
+              !description && !kicker && "items-center",
+            )}
+          >
             {leading ??
               (Icon && (
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">

@@ -57,6 +57,9 @@ export interface HomeBoardProps {
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onAdd: (key: HomeBlockKey) => void;
+  /** Zurück zur Rollenansicht. Steht in der Leiste, weil sie immer sichtbar ist. */
+  readonly onRestoreDefault: () => void;
+  readonly restoring: boolean;
   readonly children: (placement: HomeBlockPlacement) => ReactNode;
 }
 
@@ -68,6 +71,8 @@ export function HomeBoard({
   onSpanChange,
   onRemove,
   onAdd,
+  onRestoreDefault,
+  restoring,
   children,
 }: HomeBoardProps) {
   const [draggedKey, setDraggedKey] = useState<HomeBlockKey | null>(null);
@@ -119,13 +124,19 @@ export function HomeBoard({
               setSelectedKey(null);
               onRemove(key);
             }}
+            onRestoreDefault={onRestoreDefault}
+            restoring={restoring}
           />
         </div>
       )}
 
       <ul
         data-testid="home-board"
-        className="grid auto-rows-[7rem] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        // `grid-flow-row-dense` füllt Lücken: steht eine schmale Kennzahl
+        // hinter einer breiten Karte, rutscht sie in das freie Feld davor,
+        // statt eine halbe Reihe leer zu lassen — dasselbe Verhalten wie auf
+        // einem Startbildschirm mit gemischten Kachelgrößen.
+        className="grid auto-rows-[7rem] grid-flow-row-dense grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         {placements.map((placement, index) => {
           const definition = homeBlockDefinition(placement.key);
@@ -291,6 +302,8 @@ function SelectionBar({
   onMove,
   onSpanChange,
   onRemove,
+  onRestoreDefault,
+  restoring,
 }: {
   readonly definition: HomeBlockDefinition | null;
   readonly placement: HomeBlockPlacement | undefined;
@@ -299,12 +312,30 @@ function SelectionBar({
   readonly onMove: (from: number, to: number) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
+  readonly onRestoreDefault: () => void;
+  readonly restoring: boolean;
 }) {
+  const restoreButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="md"
+      className="ml-auto shrink-0"
+      disabled={restoring}
+      onClick={onRestoreDefault}
+    >
+      Standardansicht wiederherstellen
+    </Button>
+  );
+
   if (!definition || !placement) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-600 shadow-lg">
-        Eine Karte anklicken, um Breite und Platz zu ändern. Zum Umsortieren
-        die Karte an ihren neuen Platz ziehen.
+      <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-lg">
+        <span className="text-sm text-gray-600">
+          Eine Karte anklicken, um Breite und Platz zu ändern. Zum Umsortieren
+          die Karte an ihren neuen Platz ziehen.
+        </span>
+        {restoreButton}
       </div>
     );
   }
@@ -364,12 +395,14 @@ function SelectionBar({
         type="button"
         variant="outline_danger"
         size="md"
-        className="ml-auto gap-1"
+        className="gap-1"
         onClick={() => onRemove(placement.key)}
       >
         <Trash2 className="h-4 w-4" aria-hidden="true" />
         Entfernen
       </Button>
+
+      {restoreButton}
     </div>
   );
 }
