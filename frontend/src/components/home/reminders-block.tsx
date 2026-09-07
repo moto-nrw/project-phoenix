@@ -1,0 +1,139 @@
+"use client";
+
+import { ChevronRight } from "lucide-react";
+
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import Link from "~/components/ui/navigation-link";
+import { SectionCard } from "~/components/ui/section-card";
+import { useReminders } from "~/lib/hooks/use-reminders";
+import {
+  isReminderOverdue,
+  reminderKey,
+  reminderRelativeLabel,
+  reminderToneClass,
+} from "~/lib/reminders-display";
+import { useTenantAwarePath } from "~/lib/tenant-path";
+
+/** So viele Zeilen zeigt die Karte; der Rest steht auf der Seite. */
+const MAX_ROWS = 6;
+
+/**
+ * Baustein „Erinnerungen" (#2180, Daten aus #1457): was in den nächsten
+ * Minuten ansteht oder schon überfällig ist — Abholungen und Aktivitätsbeginn.
+ *
+ * Für eine Betreuungskraft ist das der Teil des Tages, den man verpassen kann;
+ * deshalb steht er in ihrer Standardansicht und nicht nur hinter der Glocke in
+ * der Kopfzeile. Überfälliges zuerst, weil es sonst untergeht.
+ */
+export function RemindersBlock() {
+  const tenantPath = useTenantAwarePath();
+  const { reminders, error, isLoading, data } = useReminders();
+
+  const sorted = [...reminders].sort(
+    (a, b) => a.minutes_away - b.minutes_away,
+  );
+  const shown = sorted.slice(0, MAX_ROWS);
+
+  return (
+    <SectionCard
+      title="Erinnerungen"
+      className="flex h-full flex-col"
+      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
+      leading={<MotoConceptIcon concept="pickup" size={20} />}
+      actions={
+        <Link
+          href={tenantPath("/reminders")}
+          aria-label="Erinnerungen: alle ansehen"
+          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+        >
+          Alle ansehen
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      }
+    >
+      {(() => {
+        if (error) {
+          return (
+            <Alert
+              type="error"
+              message="Die Erinnerungen konnten nicht geladen werden. Bitte die Seite neu laden."
+            />
+          );
+        }
+        if (isLoading && data === undefined) {
+          return (
+            <div className="space-y-2" aria-hidden="true">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+                >
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
+                    <div className="h-3 w-1/4 animate-pulse rounded bg-gray-200"></div>
+                  </div>
+                  <div className="h-4 w-12 animate-pulse rounded bg-gray-200"></div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+        // Eine Schule, die keine Erinnerungsart eingeschaltet hat, sieht hier
+        // sonst dauerhaft „nichts anstehend" und hielte es für einen Fehler.
+        if (data && !data.enabled) {
+          return (
+            <EmptyState
+              className="py-8"
+              title="Erinnerungen sind ausgeschaltet"
+              description="Ihre Leitung kann sie in den Einstellungen einschalten."
+            />
+          );
+        }
+        if (shown.length === 0) {
+          return (
+            <EmptyState
+              className="py-8"
+              title="Nichts steht an"
+              description="Anstehende Abholungen und Aktivitäten erscheinen hier."
+            />
+          );
+        }
+        return (
+          <ul className="space-y-2">
+            {shown.map((reminder) => (
+              <li
+                key={reminderKey(reminder)}
+                className={`flex items-center justify-between gap-3 rounded-xl p-3 ${
+                  isReminderOverdue(reminder)
+                    ? "bg-moto-red/5"
+                    : "bg-gray-50/50"
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-gray-900">
+                    {reminder.title}
+                  </span>
+                  {reminder.subtitle && (
+                    <span className="block truncate text-xs text-gray-500">
+                      {reminder.subtitle}
+                    </span>
+                  )}
+                </span>
+                <span className="flex shrink-0 flex-col items-end">
+                  <span className="text-sm font-semibold text-gray-900 tabular-nums">
+                    {reminder.due_time}
+                  </span>
+                  <span className={`text-xs ${reminderToneClass(reminder)}`}>
+                    {reminderRelativeLabel(reminder)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
+    </SectionCard>
+  );
+}

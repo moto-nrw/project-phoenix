@@ -66,6 +66,17 @@ describe("resolveHomeLayout — Standardansicht", () => {
     expect(placements.length).toBeLessThanOrEqual(6);
   });
 
+  // Zwei Bausteine, die dieselben Zeilen zeigen, gehören nicht zusammen in
+  // einen Standard: „Mein Tag" ist der eigene Ausschnitt des Ablaufs.
+  it("stellt Mein Tag und Ablauf des Tages nie zusammen auf", () => {
+    for (const layout of Object.values(DEFAULT_LAYOUTS)) {
+      const keys = keysOf(layout);
+      expect(
+        keys.includes("section.my_day") && keys.includes("section.day_flow"),
+      ).toBe(false);
+    }
+  });
+
   it("lässt jeden Baustein der Standardansicht auch wirklich existieren", () => {
     const known = new Set(HOME_BLOCKS.map((block) => block.key));
     for (const layout of Object.values(DEFAULT_LAYOUTS)) {
@@ -201,11 +212,16 @@ describe("resolveHomeLayout — Berechtigung", () => {
     ).toContain("section.my_day");
   });
 
-  it("zeigt den Ablauf des Tages nur mit schedules:read", () => {
-    expect(keysOf(resolveFor([]).placements)).not.toContain("section.day_flow");
-    expect(keysOf(resolveFor(["schedules:read"]).placements)).toContain(
+  // In der Betreuungsansicht steht der Ablauf des Tages nicht: er zeigt
+  // dieselben Blöcke wie „Mein Tag". Anbieten lässt er sich trotzdem, sobald
+  // das Recht reicht.
+  it("bietet den Ablauf des Tages nur mit schedules:read an", () => {
+    expect(resolveFor([]).addable.map((block) => block.key)).not.toContain(
       "section.day_flow",
     );
+    expect(
+      resolveFor(["schedules:read"]).addable.map((block) => block.key),
+    ).toContain("section.day_flow");
   });
 
   // In der Betreuungsansicht stehen die offenen Anfragen nicht von Haus aus:

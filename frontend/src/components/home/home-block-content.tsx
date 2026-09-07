@@ -6,6 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { BirthdayList } from "~/components/dashboard/birthday-list";
 import { DayFlowBlock } from "~/components/home/day-flow-block";
 import { OpenRequestsBlock } from "~/components/home/open-requests-block";
+import { RemindersBlock } from "~/components/home/reminders-block";
 import { StaffNoticesBlock } from "~/components/home/staff-notices-block";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -350,6 +351,8 @@ export function HomeBlockContent({
       return <DayFlowBlock />;
     case "section.open_requests":
       return <OpenRequestsBlock />;
+    case "section.reminders":
+      return <RemindersBlock />;
     case "section.recent_activity":
       return <RecentActivityCard data={data} />;
     case "section.current_activities":

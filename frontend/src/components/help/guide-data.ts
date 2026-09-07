@@ -618,7 +618,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Nach dem Anmelden landen alle auf der Startseite. Sie besteht aus Bausteinen, die auf einen Bildschirm passen. Womit Sie starten, hängt von Ihrer Aufgabe ab; danach stellen Sie sich die Fläche selbst zusammen.",
         steps: [
           "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle.",
-          "Betreuungskräfte starten mit `Mein Tag` (Ihre heutigen Einsätze samt Vertretungen), den `Tagesinformationen` der Leitung, dem `Ablauf des Tages` und den `Aktiven Gruppen`.",
+          "Betreuungskräfte starten mit `Mein Tag` (Ihre heutigen Einsätze samt Vertretungen), den `Tagesinformationen` der Leitung, den `Erinnerungen` (anstehende Abholungen und Aktivitäten) und den `Aktiven Gruppen`.",
           "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Krank`, `Entschuldigt`, `Zuhause`), den `Offenen Anfragen`, den `Tagesinformationen`, den `Aktiven Gruppen` und dem `Ablauf des Tages`.",
           "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`.",
           "Verlangt eine Tagesinformation eine Kenntnisnahme, bestätigen Sie sie direkt auf der Karte.",
@@ -649,7 +649,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "Auf der `Startseite` oben rechts `Anpassen` klicken. Statt der Inhalte zeigt die Fläche jetzt die Anordnung: jede Karte als Kachel mit Name und Breite.",
           "Eine Kachel an ihren neuen Platz ziehen.",
-          "Eine Kachel anklicken, um sie auszuwählen. Unter der Fläche erscheint eine Leiste mit allem, was mit ihr geht.",
+          "Eine Kachel anklicken, um sie auszuwählen. Über der Fläche erscheint eine Leiste mit allem, was mit ihr geht; sie bleibt beim Scrollen stehen.",
           "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
           "`Nach vorne` und `Nach hinten` verschieben die Kachel auch ohne Maus. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
           "Unter `Bausteine hinzufügen` holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
@@ -662,7 +662,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite im Anpassen-Modus: die Bausteine als Kacheln, eine davon ausgewählt, darunter die Leiste mit Breite, Verschieben und Entfernen sowie die Liste der Bausteine zum Hinzufügen.",
+          "Startseite im Anpassen-Modus: oben die Leiste mit Breite, Verschieben und Entfernen, darunter die Bausteine als Kacheln mit einer ausgewählten, ganz unten die Liste der Bausteine zum Hinzufügen.",
         image: "/help/screens/startseite-anpassen.webp",
       },
       {

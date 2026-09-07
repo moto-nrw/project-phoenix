@@ -27,7 +27,8 @@ import {
  * jede Karte wird zu einer Platzhalter-Kachel mit Symbol, Name und Breite, an
  * derselben Stelle und in derselben Größe wie die echte Karte. Man ordnet
  * hier, man liest nicht. Eine Kachel anklicken wählt sie aus; alles Weitere
- * steht in EINER Leiste darunter, statt in fünf Knöpfen auf jeder Karte.
+ * steht in EINER Leiste über der Fläche, die beim Scrollen stehen bleibt —
+ * statt in fünf Knöpfen auf jeder einzelnen Karte.
  */
 
 const SPAN_CLASS: Record<HomeBlockSpan, string> = {
@@ -100,6 +101,27 @@ export function HomeBoard({
 
   return (
     <div className="space-y-4">
+      {/* Die Bedienleiste steht ÜBER der Fläche und bleibt beim Scrollen
+          stehen: unter acht Karten hätte man sie nie gesehen. Der Abstand von
+          oben ist die Höhe der App-Kopfzeile (65 px, sticky) plus Luft —
+          darunter verschwände die Leiste hinter ihr. */}
+      {editing && (
+        <div className="sticky top-[4.5rem] z-20">
+          <SelectionBar
+            definition={selectedDefinition}
+            placement={selected}
+            index={selectedIndex}
+            total={placements.length}
+            onMove={move}
+            onSpanChange={onSpanChange}
+            onRemove={(key) => {
+              setSelectedKey(null);
+              onRemove(key);
+            }}
+          />
+        </div>
+      )}
+
       <ul
         data-testid="home-board"
         className="grid auto-rows-[7rem] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -181,23 +203,7 @@ export function HomeBoard({
         })}
       </ul>
 
-      {editing && (
-        <>
-          <SelectionBar
-            definition={selectedDefinition}
-            placement={selected}
-            index={selectedIndex}
-            total={placements.length}
-            onMove={move}
-            onSpanChange={onSpanChange}
-            onRemove={(key) => {
-              setSelectedKey(null);
-              onRemove(key);
-            }}
-          />
-          <AddPanel addable={addable} onAdd={onAdd} />
-        </>
-      )}
+      {editing && <AddPanel addable={addable} onAdd={onAdd} />}
     </div>
   );
 }
@@ -297,7 +303,7 @@ function SelectionBar({
 }) {
   if (!definition || !placement) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-600 shadow-sm">
+      <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-600 shadow-lg">
         Eine Karte anklicken, um Breite und Platz zu ändern. Zum Umsortieren
         die Karte an ihren neuen Platz ziehen.
       </div>
@@ -305,7 +311,7 @@ function SelectionBar({
   }
 
   return (
-    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-lg">
       <span className="flex items-center gap-2">
         <MotoConceptIcon concept={definition.concept} size={20} />
         <span className="text-sm font-semibold text-gray-900">

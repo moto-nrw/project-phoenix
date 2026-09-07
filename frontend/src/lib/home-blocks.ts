@@ -125,7 +125,8 @@ export type HomeBlockKey =
   | "section.my_day"
   | "section.staff_notices"
   | "section.day_flow"
-  | "section.open_requests";
+  | "section.open_requests"
+  | "section.reminders";
 
 const always = () => true;
 const roomSurfaces = (ctx: HomeBlockModeContext) => ctx.detailed;
@@ -264,6 +265,20 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     available: always,
   },
   {
+    key: "section.reminders",
+    kind: "section",
+    label: "Erinnerungen",
+    description:
+      "Was in den nächsten Minuten ansteht oder überfällig ist: Abholungen und Aktivitätsbeginn.",
+    concept: "pickup",
+    spans: SECTION_SPANS,
+    // GET /api/reminders (#1457) hängt an users:read wie die
+    // Tagesinformationen. Ob die Schule eine Erinnerungsart eingeschaltet hat,
+    // steht erst in der Antwort; das sagt die Karte selbst.
+    permitted: (access) => access.has(PERMISSION.usersRead),
+    available: always,
+  },
+  {
     key: "section.open_requests",
     kind: "section",
     label: "Offene Anfragen",
@@ -344,15 +359,22 @@ export interface HomeBlockPlacement {
 /**
  * Die Standardansichten, aus denen jemand startet.
  *
- * Sie sind kurz gehalten: die Startseite soll den Einstieg auf einen Blick
- * geben, nicht alles zeigen, was es gibt. Wer mehr will, holt es sich über
- * "Anpassen" dazu — der Katalog oben ist die volle Auswahl.
+ * Zwei Regeln halten sie brauchbar:
  *
- * Betreuung: der eigene Tag zuerst, daneben die Hinweise der Leitung, darunter
- * der Ablauf und die eigenen Gruppen.
+ * 1. KURZ. Die Startseite gibt den Einstieg auf einen Blick, sie zeigt nicht
+ *    alles, was es gibt. Vier bis acht Bausteine, nicht mehr.
+ * 2. KEINE DOPPLUNG. Zwei Bausteine, die dieselben Zeilen zeigen, gehören
+ *    nicht zusammen in einen Standard. „Mein Tag" (die eigenen Einsätze) und
+ *    „Ablauf des Tages" (alle Blöcke) sind genau so ein Paar: für eine
+ *    Betreuungskraft ist der eigene Tag der interessante Ausschnitt, für die
+ *    Leitung der ganze Ablauf. Also bekommt jede Seite genau EINEN von beiden;
+ *    der andere steht im Hinzufügen-Menü.
  *
- * Leitung: die Lage der Schule in vier Zahlen, darunter was auf eine
- * Entscheidung wartet, die Hinweise und der laufende Betrieb.
+ * Betreuung: der eigene Tag, die Hinweise der Leitung, was in den nächsten
+ * Minuten ansteht, und wer gerade betreut.
+ *
+ * Leitung: die Lage der Schule in vier Zahlen, was auf eine Entscheidung
+ * wartet, die Hinweise, der laufende Betrieb und der Ablauf des Tages.
  */
 export const DEFAULT_LAYOUTS: Record<
   HomeProfile,
@@ -361,11 +383,12 @@ export const DEFAULT_LAYOUTS: Record<
   care: [
     { key: "section.my_day", span: 2 },
     { key: "section.staff_notices", span: 2 },
-    { key: "section.day_flow", span: 2 },
+    { key: "section.reminders", span: 2 },
     { key: "section.active_groups", span: 2 },
     // Vier Karten, zwei Reihen: die Betreuungsansicht passt damit auf einen
-    // Bildschirm. Die offenen Anfragen betreffen nur Gruppenleitungen und
-    // Vertretungen und stehen für sie im Hinzufügen-Menü.
+    // Bildschirm. Der Ablauf des Tages fehlt hier bewusst — er zeigt dieselben
+    // Blöcke wie „Mein Tag", nur ungefiltert. Die offenen Anfragen betreffen
+    // nur Gruppenleitungen und Vertretungen. Beides steht im Hinzufügen-Menü.
   ],
   lead: [
     { key: "tile.students_present", span: 1 },
