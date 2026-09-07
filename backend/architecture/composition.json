@@ -27981,7 +27981,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 1097,
+          "line": 1103,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -28011,8 +28011,13 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 109,
+          "line": 111,
           "declaration": "newStaffComposition"
+        },
+        {
+          "file": "api/staff_composition.go",
+          "line": 126,
+          "declaration": "newExportTransferModule"
         }
       ]
     },
