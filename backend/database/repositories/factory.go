@@ -35,6 +35,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -628,7 +629,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
-		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
+		GroupSubstitution:     nil, // bound to Workforce below
 		GradeTransition:       education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
@@ -673,9 +674,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
 		WorkSession:                     active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:               active.NewStaffAbsenceAuditRepository(db),
-		StaffAbsenceType:                active.NewStaffAbsenceTypeRepository(db),
+		StaffAbsence:                    workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
+		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
+		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(timetableDependencies.Workforce),
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
 		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db),
@@ -800,6 +801,15 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
+	// Group substitutions belong to Workforce (#2688): the retained contract
+	// is served by the adapter, which resolves groups through School
+	// Structure and staff through School Membership.
+	factory.GroupSubstitution = workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce,
+		func(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+			return factory.Group.FindByIDs(ctx, ids)
+		},
+		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
+	)
 	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db), presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
@@ -839,7 +849,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// school and group wrappers bound afterwards (#2667, agent A2).
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
-	})
+	}, timetableDependencies.Workforce)
 	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, factory.ShiftType)
 	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
