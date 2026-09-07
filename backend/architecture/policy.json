@@ -2299,6 +2299,13 @@
       "external_test_role": "e2e-test"
     },
     {
+      "path": "modules/communication/communicationtest",
+      "owner": "communication",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/internal/application",
       "owner": "communication",
       "role": "application",
@@ -10663,6 +10670,116 @@
       "source_role": "compose",
       "target_owner": "parent-announcement-audience",
       "target_role": "postgres"
+    },
+    {
+      "id": "communication.test-support.compose",
+      "description": "Communication test support constructs the real parent-event emitter and conversation core through the owner composition.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "communication",
+      "target_role": "compose"
+    },
+    {
+      "id": "communication.test-support.application",
+      "description": "Communication test support returns the consumer-facing emitter shell.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.test-support.people-domain",
+      "description": "Communication test support accepts the retained conversation repositories pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.test-support.delivery-public",
+      "description": "Communication test support accepts the realtime broadcaster under test.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.test-support.tenant-runtime",
+      "description": "Communication test support accepts the unit of work the detached parent-event paths run under.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.behavior-test.communication-support",
+      "description": "Absence request behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "timetable-activities.behavior-test.communication-support",
+      "description": "Care request behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "care-plan.behavior-test.communication-support",
+      "description": "Parent portal behavior tests compose the real parent-event emitter and conversation core through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.behavior-test.communication-support",
+      "description": "Master-data review behavior tests compose the real parent-event emitter through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-students.adapter-test.communication-support",
+      "description": "Student handler tests compose the real guardian wake through Communication test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
     },
     {
       "id": "communication.integration-test.public",

@@ -14,8 +14,8 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -276,11 +276,10 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	settings := parentSettingsStub{boolDefault: true}
-	emitter := parentmessaging.NewEmitter(
-		db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(
+		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		settings, nil, slog.Default(),
 	)
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,

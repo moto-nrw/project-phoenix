@@ -30,6 +30,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -75,11 +76,10 @@ func (f *careFixture) emitter(
 	t *testing.T,
 	messageRepo usersModels.ParentMessageRepository,
 	settings parentmessaging.TenantSettingsResolver,
-	broadcaster parentmessaging.Broadcaster,
+	broadcaster realtime.Broadcaster,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, f.db)
+	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
 	return emitter
 }
 

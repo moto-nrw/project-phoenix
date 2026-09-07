@@ -2,7 +2,7 @@
 // against a real thread so the consent read and the dispatch run inside the
 // tenant transaction they need. The pure copy/eligibility rules live in
 // decision_notification_internal_test.go.
-package parentmessaging_test
+package messaging_test
 
 import (
 	"context"

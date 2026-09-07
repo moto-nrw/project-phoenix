@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/services/absence"
@@ -20,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -108,14 +108,15 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
 	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
 	rosterReconciler := schedule.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
-	pillEmitter := parentmessaging.NewEmitter(
-		db,
-		repos.ParentMessageThread,
-		repos.ParentMessage,
-		settingsService,
-		realtimeHub,
-		logger.With("service", "parent-events"),
-	)
+	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
+		DB:          db,
+		Runtime:     unit,
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		Logger:      logger.With("service", "parent-events"),
+	})
 	partialAbsenceService := schedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
@@ -211,7 +212,6 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		feedbackCounter,
 		db,
 	)
-	pillEmitter.SetTenantRuntime(unit)
 	pillEmitter.WithDecisionNotifications(delivery.Notifications, delivery.NotificationPreferences)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
 	users.WireStudentDeletionCareWithdrawals(studentDeletionService, repos.CareWithdrawal)
