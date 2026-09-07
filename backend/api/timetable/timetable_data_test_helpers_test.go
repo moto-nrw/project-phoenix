@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	"github.com/uptrace/bun"
@@ -56,6 +58,10 @@ func testTimetableDataWithOfferingCallbacks(
 		activityInstanceRepo = scheduleRepo.NewActivityInstanceRepository(db, clock)
 		supervisorRepo = activeRepo.NewGroupSupervisorRepository(db, clock)
 	}
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	if err != nil {
+		panic(err)
+	}
 	deps := scheduleSvc.TimetableDataDependencies{
 		InstanceStudentRepo:   boundRepos.InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
@@ -85,7 +91,7 @@ func testTimetableDataWithOfferingCallbacks(
 			boundRepos.CareOffering,
 		),
 		PickupExceptionRepo:        boundRepos.StudentPickupException,
-		VisitRepo:                  activeRepo.NewVisitRepository(db),
+		Presence:                   presence,
 		RoomRepo:                   boundRepos.Room,
 		ActivityCategoryRepo:       boundRepos.ActivityCategory,
 		ActivityGroupRepo:          boundRepos.ActivityGroup,
@@ -97,6 +103,8 @@ func testTimetableDataWithOfferingCallbacks(
 		ValidateOfferingSource:     validateOfferingSource,
 		ResyncOfferingRoster:       resyncOfferingRoster,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
+		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
+		PersonRepo:                 usersRepo.NewPersonRepository(db),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		RecoveryRepo:               repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent),
 		DB:                         db,

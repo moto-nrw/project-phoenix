@@ -34,6 +34,7 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -201,12 +202,10 @@ type Factory struct {
 
 	// Active domain
 	ActiveGroup      activeModels.GroupRepository
-	ActiveVisit      activeModels.VisitRepository
 	GroupSupervisor  activeModels.GroupSupervisorRepository
 	CrossTenant      CrossTenantQuery
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
-	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
 	Statistics activeModels.StatisticsRepository
@@ -361,7 +360,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db))
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db), newStudentPresence(f.db).CountAttendanceRecords)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -371,6 +370,12 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	if f.students != nil {
 		f.bindGuardianDirectories(f.students)
 	}
+}
+
+// NewAttendanceCorrectionRepository composes the append-only attendance trail
+// with the request-scoped audit runtime used by timetable corrections.
+func NewAttendanceCorrectionRepository(runtime audit.Runtime) auditModels.AttendanceCorrectionRepository {
+	return audit.NewAttendanceCorrectionRepository(runtime)
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -457,9 +462,6 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	if f.Student != nil {
 		f.Student = groupStudentRepository{StudentRepository: f.Student, groups: groups}
 	}
-	if f.ActiveVisit != nil {
-		f.ActiveVisit = groupVisitRepository{VisitRepository: f.ActiveVisit, groups: groups}
-	}
 	if f.GroupSupervisor != nil {
 		f.GroupSupervisor = groupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, groups: groups}
 	}
@@ -512,16 +514,16 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
-	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil {
+	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil || timetableDependencies.Workforce == nil {
 		panic("repository factory: timetable and projection dependencies are required")
 	}
 	timetableCapability := timetableDependencies.Capability
+	presenceCapability := newStudentPresence(db)
 	var now func() time.Time
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
-	attendance := active.NewAttendanceRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
@@ -586,7 +588,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, enrollmentModule, careExitAssignments{capability: timetableCapability}),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db, enrollmentModule, careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
@@ -661,12 +663,10 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Active repositories
 		ActiveGroup:                     active.NewGroupRepository(db),
-		ActiveVisit:                     active.NewVisitRepository(db),
 		GroupSupervisor:                 groupSupervisor,
 		CrossTenant:                     active.NewCrossTenantRepository(db),
 		CombinedGroup:                   active.NewCombinedGroupRepository(db),
 		GroupMapping:                    active.NewGroupMappingRepository(db),
-		Attendance:                      attendance,
 		StudentStatusDay:                nil, // bound to Care Plan below
 		Statistics:                      active.NewStatisticsRepository(db),
 		CourseStatistics:                timetableCourseStatisticsRepository{timetable: timetableCapability},
@@ -693,8 +693,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
 		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(config.NewRuntime(db)),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
+		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(timetableDependencies.Workforce),
+		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(timetableDependencies.Workforce),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(auditRepositoryRuntime),
@@ -800,7 +800,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db))
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db), presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
@@ -851,13 +851,16 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	return factory
 }
 
-// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
-// instances before the service graph captures them.
+// SetConfigRuntime replaces the bootstrap settings repositories with
+// tenant-aware instances before the service graph captures them.
+//
+// The work-time repositories are deliberately not rebound: they are Workforce
+// capability adapters now, and that owner resolves the tenant transaction from
+// the context itself (#2687). Passing a custom runtime here does not, and must
+// not, reach them.
 func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
 	f.SettingValue = config.NewSettingValueRepository(runtime)
 	f.SettingAudit = config.NewSettingAuditRepository(runtime)
-	f.StaffWorkSchedule = config.NewStaffWorkScheduleRepository(runtime)
-	f.WorkTimeModel = config.NewWorkTimeModelRepository(runtime)
 }
 
 func (r *Factory) Enrollment() *enrollmentCapability.Module { return r.SubmissionRateLimit }

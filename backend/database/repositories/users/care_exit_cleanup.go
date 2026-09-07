@@ -34,6 +34,7 @@ import (
 type CareExitCleanupRepository struct {
 	db          *bun.DB
 	assignments CareExitAssignments
+	presence    CareExitPresence
 	periods     CalendarPeriodDirectory
 	carePlan    CarePlanDirectory
 	bookings    ActivityBookingDirectory
@@ -180,14 +181,17 @@ type CalendarPeriodDirectory interface {
 var errCalendarPeriodDirectoryRequired = errors.New("users repositories: calendar period directory is not bound")
 
 // NewCareExitCleanupRepository builds the repository.
-func NewCareExitCleanupRepository(db *bun.DB, enrollment CareExitEnrollmentQueries, assignments CareExitAssignments) userModels.CareExitCleanupRepository {
+func NewCareExitCleanupRepository(db *bun.DB, enrollment CareExitEnrollmentQueries, assignments CareExitAssignments, presence CareExitPresence) userModels.CareExitCleanupRepository {
 	if enrollment == nil {
 		panic("care exit cleanup requires Enrollment queries")
 	}
 	if assignments == nil {
 		panic("care exit cleanup: timetable assignments are required")
 	}
-	return &CareExitCleanupRepository{db: db, enrollment: enrollment, assignments: assignments}
+	if presence == nil {
+		panic("care exit cleanup: student presence is required")
+	}
+	return &CareExitCleanupRepository{db: db, enrollment: enrollment, assignments: assignments, presence: presence}
 }
 
 // BindCalendarPeriods installs the School Calendar query the booking restore
@@ -361,21 +365,12 @@ func (r *CareExitCleanupRepository) FindOpenPresence(
 	if len(studentIDs) == 0 {
 		return present, nil
 	}
-	var rows []struct {
-		StudentID int64 `bun:"student_id"`
-	}
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT student_id FROM active.attendance
-		WHERE tenant_id = ? AND student_id IN (?) AND check_out_time IS NULL
-		UNION
-		SELECT student_id FROM active.visits
-		WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL
-	`, tenant.FromContext(ctx), bun.List(studentIDs),
-		tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
+	ids, err := r.presence.ListOpenPresence(ctx, studentIDs)
+	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: base.TranslateNotFound(err)}
 	}
-	for _, row := range rows {
-		present[row.StudentID] = true
+	for _, id := range ids {
+		present[id] = true
 	}
 	rosterIDs, err := r.assignments.ListOpenStudentAssignments(ctx, studentIDs)
 	if err != nil {
@@ -422,13 +417,14 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 		sql string
 	}{
 		{"lock people for care exit", `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`},
-		{"lock attendance for care exit", `SELECT id FROM active.attendance WHERE tenant_id = ? AND student_id IN (?) AND check_out_time IS NULL FOR UPDATE`},
-		{"lock visits for care exit", `SELECT id FROM active.visits WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL FOR UPDATE`},
 	}
 	for _, statement := range statements {
 		if _, err := db.ExecContext(ctx, statement.sql, tenantID, bun.List(studentIDs)); err != nil {
 			return &modelBase.DatabaseError{Op: statement.op, Err: base.TranslateNotFound(err)}
 		}
+	}
+	if err := r.presence.LockOpenPresence(ctx, studentIDs); err != nil {
+		return &modelBase.DatabaseError{Op: "lock presence for care exit", Err: err}
 	}
 	if err := r.assignments.LockOpenStudentAssignments(ctx, studentIDs); err != nil {
 		return &modelBase.DatabaseError{Op: "lock roster presence for care exit", Err: err}
@@ -441,20 +437,17 @@ func (r *CareExitCleanupRepository) LatestAttendanceDate(ctx context.Context, st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: base.TranslateNotFound(err)}
 	}
-	var day *timezone.Date
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT MAX(recorded.day) FROM (
-			SELECT attendance.date AS day
-			FROM active.attendance AS attendance
-			WHERE attendance.tenant_id = ? AND attendance.student_id = ?
-			UNION ALL
-			SELECT (visit.entry_time AT TIME ZONE 'Europe/Berlin')::date AS day
-			FROM active.visits AS visit
-			WHERE visit.tenant_id = ? AND visit.student_id = ?
-		) AS recorded
-	`, tenant.FromContext(ctx), studentID,
-		tenant.FromContext(ctx), studentID).Scan(ctx, &day); err != nil {
+	value, err := r.presence.LatestPresenceDate(ctx, studentID)
+	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: base.TranslateNotFound(err)}
+	}
+	var day *timezone.Date
+	if value != nil {
+		parsed, err := timezone.ParseDate(*value)
+		if err != nil {
+			return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: err}
+		}
+		day = &parsed
 	}
 	if rosterDay != nil && (day == nil || rosterDay.After(*day)) {
 		day = rosterDay
@@ -477,26 +470,15 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(ctx context.Context, stude
 }
 
 func (r *CareExitCleanupRepository) closeOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int64, error) {
-	tenantID := tenant.FromContext(ctx)
-	total := 0
-	for _, statement := range []string{
-		`UPDATE active.attendance SET check_out_time = ?, updated_at = ?
-		 WHERE tenant_id = ? AND student_id IN (?) AND check_out_time IS NULL`,
-		`UPDATE active.visits SET exit_time = ?, updated_at = ?
-		 WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL`,
-	} {
-		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement, at, at, tenantID, bun.List(studentIDs))
-		if err != nil {
-			return 0, &modelBase.DatabaseError{Op: "close open presence", Err: base.TranslateNotFound(err)}
-		}
-		affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
-		total += int(affected)
+	total, err := r.presence.CloseOpenPresence(ctx, studentIDs, at)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "close open presence", Err: base.TranslateNotFound(err)}
 	}
 	rosterRows, err := r.assignments.CloseOpenStudentAssignments(ctx, studentIDs, at)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "close open presence", Err: err}
 	}
-	return int64(total) + rosterRows, nil
+	return total + rosterRows, nil
 }
 
 // CountPlannedByStudentIDsAfter counts the roster rows the child would lose,

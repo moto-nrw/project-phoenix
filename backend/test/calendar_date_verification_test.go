@@ -110,6 +110,28 @@ func declaredTypeIsString(backendRoot, source, name string) bool {
 	return false
 }
 
+// storageDateAdapters is the reviewed list of Postgres adapters that declare
+// their own package-private calendarDate. Each entry names the file that must
+// declare it as a string; a new owner needs a review, not a path pattern.
+// Shrink-only, like every other list in this file.
+var storageDateAdapters = map[string]string{
+	"modules/careplan/internal/adapters/postgres/":  "modules/careplan/internal/adapters/postgres/store.go",
+	"modules/workforce/internal/adapters/postgres/": "modules/workforce/internal/adapters/postgres/store.go",
+}
+
+// storageDateIsString reports whether the field's adapter is a reviewed
+// storage-date owner AND still declares calendarDate as a string. The
+// declaration is verified rather than trusted: a string is what BUN binds
+// verbatim, so the driver cannot shift the day.
+func storageDateIsString(backendRoot, source string) bool {
+	for prefix, declaration := range storageDateAdapters {
+		if strings.HasPrefix(source, prefix) {
+			return declaredTypeIsString(backendRoot, declaration, "calendarDate")
+		}
+	}
+	return false
+}
+
 func TestDateColumnTypes(t *testing.T) {
 	t.Parallel()
 
@@ -143,10 +165,9 @@ func TestDateColumnTypes(t *testing.T) {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
-					if !strings.HasPrefix(f.file, "modules/careplan/internal/adapters/postgres/") ||
-						!declaredTypeIsString(backendRoot, "modules/careplan/internal/adapters/postgres/store.go", "calendarDate") {
+					if !storageDateIsString(backendRoot, f.file) {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" must use Care Plan's string-backed storage date"))
+							col+" must use a reviewed adapter's string-backed storage date (storageDateAdapters)"))
 					}
 				case "enrollment.Date", "*enrollment.Date":
 					// Verify the owner type's representation instead of accepting
@@ -187,8 +208,10 @@ func TestDateColumnTypes(t *testing.T) {
 								" — use timezone.Date (see .claude/rules/calendar-dates.md)"))
 					}
 				default:
-					violations = append(violations, formatViolation(f.file, f.line,
-						col+" maps to unexpected Go type "+f.goType+" — use timezone.Date"))
+					if !isCanonicalDateAlias(backendRoot, f.file, f.goType) {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" maps to unexpected Go type "+f.goType+" — use timezone.Date"))
+					}
 				}
 			}
 		}

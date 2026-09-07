@@ -66,7 +66,7 @@ func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
 	checkedOut := checkedIn.Add(time.Hour)
 	sick, excused := true, true
 	storedPhoto := studentPhotoStoredURLPrefix + "portrait.jpg"
-	rows := []*activeModels.VisitWithStudentDisplay{{
+	rows := []*activeService.VisitWithStudentDisplay{{
 		StudentID: 1, ActiveGroupID: 2, EntryTime: checkedIn,
 		FirstName: "  Erika", LastName: "Mustermann ", SchoolClass: "4a", OGSGroupName: "Bären",
 		Sick: &sick, SickSince: &checkedIn, Excused: &excused, ExcusedSince: &checkedOut, PhotoPath: &storedPhoto,
@@ -261,9 +261,9 @@ func TestGetCapturesOneServerTimeSnapshot(t *testing.T) {
 	}
 	deps.Active = &mockActiveService{
 		getUnclaimedActiveGroupsFn: func() ([]*activeModels.Group, error) { return nil, nil },
-		getActiveGroupVisitsFn: func(gotActiveGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
+		getActiveGroupVisitsFn: func(gotActiveGroupID int64) ([]*activeService.VisitWithStudentDisplay, error) {
 			assert.Equal(t, activeGroupID, gotActiveGroupID)
-			return []*activeModels.VisitWithStudentDisplay{{
+			return []*activeService.VisitWithStudentDisplay{{
 				StudentID:     studentID,
 				ActiveGroupID: activeGroupID,
 				EntryTime:     beforeMidnight,

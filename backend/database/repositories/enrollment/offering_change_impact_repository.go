@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -42,4 +43,33 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(ctx conte
 		result = append(result, ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date})
 	}
 	return result, nil
+}
+
+func (r *OfferingChangeImpactRepository) CourseGroupsForOfferings(
+	ctx context.Context,
+	offerings []enrollmentModels.CourseOfferingReference,
+) (map[int64][]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.CourseGroupsForOfferings(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), offerings,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) LockCourseGroups(
+	ctx context.Context,
+	groupIDs []int64,
+) ([]enrollmentModels.CourseGroup, error) {
+	return timetableprojection.LockCourseGroups(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs,
+	)
+}
+
+func (r *OfferingChangeImpactRepository) CountActiveCourseEnrollments(
+	ctx context.Context,
+	groupIDs []int64,
+	from, until timezone.Date,
+	excludeStudentID int64,
+) (map[int64]int, error) {
+	return timetableprojection.CountActiveCourseEnrollments(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID,
+	)
 }

@@ -59,7 +59,8 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 			return result, nil
 		},
 	}
-	rs := NewResource(active, nil, nil, nil, nil, settings, db, slog.Default())
+	// This route does not read visits; an unexpected presence call must fail.
+	rs := NewResource(active, nil, nil, nil, nil, settings, db, slog.Default(), struct{ PresenceQueries }{})
 	router := rs.Router()
 
 	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})

@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,6 +29,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -38,13 +41,14 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	return activeService.NewService(activeService.ServiceDependencies{
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	svc := activeService.NewService(activeService.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
+		SchoolPresence:     presence,
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
@@ -66,6 +70,10 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		DB:     db,
 		Logger: slog.Default(),
 	})
+	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+		return "binary", nil
+	}})
+	return svc
 }
 
 // makeExitEffective moves the recorded last care day into the past, which is
@@ -117,7 +125,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "kiosk-altenberge")
 	// The child is at the OGS on their last care day, and is still checked in
 	// when the day ends — the case the effect pass has to close cleanly.
-	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-3*time.Hour), nil)
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-3*time.Hour), nil)
 
 	endCare(t, ctx, svc, actorID, userService.CareExitInput{
 		StudentIDs:  []int64{student.ID},
@@ -142,9 +150,10 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	assert.Empty(t, latePlans, "effect-day cleanup removes plans written after exit confirmation")
 
 	t.Run("the open attendance is closed, not deleted", func(t *testing.T) {
-		rows, err := repos.Attendance.GetTodayByStudentIDs(ctx, []int64{student.ID})
+		presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 		require.NoError(t, err)
-		record := rows[student.ID]
+		record, err := presence.FindAttendance(ctx, attendance.ID)
+		require.NoError(t, err)
 		require.NotNil(t, record, "the day that happened stays in the history")
 		assert.NotNil(t, record.CheckOutTime, "but it is no longer an open day")
 	})

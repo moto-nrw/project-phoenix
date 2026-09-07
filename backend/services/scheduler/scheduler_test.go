@@ -10,6 +10,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -919,7 +921,7 @@ func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*faci
 	return nil, nil
 }
 
-func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeService.VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
@@ -969,38 +971,36 @@ func (m *mockActiveService) FindActiveGroupsByTimeRange(_ context.Context, _, _ 
 	return nil, nil
 }
 func (m *mockActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64) (*active.Group, error) {
+func (m *mockActiveService) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*active.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) CreateVisit(_ context.Context, _ *active.Visit) error { return nil }
-func (m *mockActiveService) UpdateVisit(_ context.Context, _ *active.Visit) error { return nil }
-func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error         { return nil }
-func (m *mockActiveService) ListVisits(_ context.Context, _ *base.QueryOptions) ([]*active.Visit, error) {
+func (m *mockActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindVisitsByTimeRange(_ context.Context, _, _ time.Time) ([]*active.Visit, error) {
+func (m *mockActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*active.Visit, error) {
+func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
-func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*active.Visit, error) {
+func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
@@ -1177,7 +1177,9 @@ func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, 
 }
 func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
 func (m *mockActiveService) SetTenantRuntime(_ tenant.UnitOfWork)                {}
-func (m *mockActiveService) GetPresenceMode(_ context.Context) string            { return "detailed" }
+func (m *mockActiveService) GetPresenceMode(_ context.Context) (string, error) {
+	return "detailed", nil
+}
 
 // =============================================================================
 // Mock Cleanup Service for Execute Tests

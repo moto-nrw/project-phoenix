@@ -15,8 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,62 +58,6 @@ func TestActiveGroup_IsActive(t *testing.T) {
 			EndTime: &pastTime,
 		}
 		assert.False(t, group.IsActive())
-	})
-}
-
-// =============================================================================
-// Visit Model Tests
-// =============================================================================
-
-func TestVisit_Fields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("visit has required fields", func(t *testing.T) {
-		now := time.Now()
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     now,
-		}
-
-		assert.Equal(t, int64(123), visit.StudentID)
-		assert.Equal(t, int64(456), visit.ActiveGroupID)
-		assert.Equal(t, now, visit.EntryTime)
-		assert.Nil(t, visit.ExitTime)
-	})
-
-	t.Run("visit can have exit time", func(t *testing.T) {
-		now := time.Now()
-		exitTime := now.Add(1 * time.Hour)
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     now,
-			ExitTime:      &exitTime,
-		}
-
-		require.NotNil(t, visit.ExitTime)
-		assert.True(t, visit.ExitTime.After(visit.EntryTime))
-	})
-
-	t.Run("visit IsActive returns true when no exit time", func(t *testing.T) {
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     time.Now(),
-		}
-		assert.True(t, visit.IsActive())
-	})
-
-	t.Run("visit IsActive returns false when exit time is set", func(t *testing.T) {
-		exitTime := time.Now()
-		visit := &activeModels.Visit{
-			StudentID:     123,
-			ActiveGroupID: 456,
-			EntryTime:     time.Now().Add(-1 * time.Hour),
-			ExitTime:      &exitTime,
-		}
-		assert.False(t, visit.IsActive())
 	})
 }
 
@@ -164,55 +109,6 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 }
 
 // =============================================================================
-// Attendance Model Tests
-// =============================================================================
-
-func TestAttendance_Fields(t *testing.T) {
-	t.Parallel()
-
-	t.Run("attendance has required fields", func(t *testing.T) {
-		now := time.Now()
-		today := timezone.NewDate(2026, 8, 24)
-		attendance := &activeModels.Attendance{
-			StudentID:   123,
-			Date:        today,
-			CheckInTime: now,
-			CheckedInBy: 456,
-			DeviceID:    789,
-		}
-
-		assert.Equal(t, int64(123), attendance.StudentID)
-		assert.Equal(t, today, attendance.Date)
-		assert.Equal(t, now, attendance.CheckInTime)
-		assert.Equal(t, int64(456), attendance.CheckedInBy)
-		assert.Equal(t, int64(789), attendance.DeviceID)
-		assert.Nil(t, attendance.CheckOutTime)
-		assert.Nil(t, attendance.CheckedOutBy)
-	})
-
-	t.Run("attendance can have checkout fields", func(t *testing.T) {
-		now := time.Now()
-		checkoutTime := now.Add(4 * time.Hour)
-		checkedOutBy := int64(789)
-
-		attendance := &activeModels.Attendance{
-			StudentID:    123,
-			Date:         timezone.NewDate(2026, 8, 24),
-			CheckInTime:  now,
-			CheckedInBy:  456,
-			DeviceID:     111,
-			CheckOutTime: &checkoutTime,
-			CheckedOutBy: &checkedOutBy,
-		}
-
-		require.NotNil(t, attendance.CheckOutTime)
-		require.NotNil(t, attendance.CheckedOutBy)
-		assert.True(t, attendance.CheckOutTime.After(attendance.CheckInTime))
-		assert.Equal(t, int64(789), *attendance.CheckedOutBy)
-	})
-}
-
-// =============================================================================
 // Handler Integration Tests (Hermetic with Test DB)
 // =============================================================================
 
@@ -222,7 +118,7 @@ func setupCheckinRoute(t *testing.T, db *bun.DB) *active.Resource {
 
 	_, serviceFactory := testutil.SetupActiveModule(t)
 
-	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default())
+	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default(), testPresenceQueries(t, db))
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
@@ -517,4 +413,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		assert.Equal(t, "checked_in", data["action"])
 		assert.NotZero(t, data["visit_id"])
 	})
+}
+
+func testPresenceQueries(t *testing.T, db *bun.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

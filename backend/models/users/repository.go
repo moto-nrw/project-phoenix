@@ -581,9 +581,6 @@ type PrivacyConsentRepository interface {
 	// FindByStudentID retrieves privacy consents for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
 
-	// FindActiveByStudentID retrieves active privacy consents for a student
-	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
 	// Accept marks a privacy consent as accepted
 	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
 

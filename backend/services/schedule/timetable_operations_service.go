@@ -21,6 +21,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -56,7 +57,7 @@ type OperationPersonService interface {
 }
 
 type OperationActiveService interface {
-	CreateVisit(ctx context.Context, visit *activeModel.Visit) error
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	EndVisit(ctx context.Context, id int64) error
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
 }
@@ -127,7 +128,7 @@ type TimetableOperationsDependencies struct {
 	PickupService      OperationPickupService
 	CareDayService     CareDayService
 	SupervisorRepo     activeModel.GroupSupervisorRepository
-	VisitRepo          activeModel.VisitRepository
+	Presence           StudentVisitReader
 	StudentRepo        usersModel.StudentRepository
 	EducationGroupRepo educationModel.GroupRepository
 	RoomRepo           facilitiesModel.RoomRepository
@@ -296,7 +297,7 @@ func NewTimetableOperationsService(deps TimetableOperationsDependencies) Timetab
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActivityGroupRepo == nil ||
 		deps.ActiveService == nil || deps.ArrivalService == nil || deps.PickupService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
-		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
+		deps.Presence == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
 	return &timetableOperationsService{deps: deps}
@@ -714,20 +715,20 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
 		return nil, err
 	}
-	current, err := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-	if err != nil && !modelBase.IsNoRows(err) {
+	current, err := s.currentVisit(ctx, studentID)
+	if err != nil {
 		return nil, err
 	}
 	if current != nil {
 		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
 	}
 	now := s.now()
-	visit := &activeModel.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: *inst.ActiveGroupID,
 		EntryTime:     now,
 	}
-	visit.SetTenantID(tenant.FromContext(ctx))
+	visit.TenantID = tenant.FromContext(ctx)
 	staff := &usersModel.Staff{}
 	staff.ID = staffID
 	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
@@ -744,8 +745,8 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 			return nil, createErr
 		}
 		if errors.Is(createErr, activeSvc.ErrStudentAlreadyActive) {
-			current, lookupErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-			if lookupErr != nil && !modelBase.IsNoRows(lookupErr) {
+			current, lookupErr := s.currentVisit(ctx, studentID)
+			if lookupErr != nil {
 				return nil, lookupErr
 			}
 			if current != nil {
@@ -765,7 +766,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	return s.buildRoster(ctx, instanceID)
 }
 
-func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *activeModel.Visit) (*OperationRoster, error) {
+func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *studentpresence.Visit) (*OperationRoster, error) {
 	if current.ActiveGroupID != *inst.ActiveGroupID {
 		return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
 	}
@@ -966,7 +967,7 @@ func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, i
 		return nil
 	}
 	if inst != nil && inst.ActiveGroupID != nil {
-		visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
+		visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*inst.ActiveGroupID}})
 		if err != nil {
 			return err
 		}
@@ -1136,9 +1137,9 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, err
 	}
-	var visits []*activeModel.Visit
+	var visits []studentpresence.Visit
 	if inst.ActiveGroupID != nil {
-		visits, err = s.deps.VisitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
+		visits, err = s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*inst.ActiveGroupID}})
 		if err != nil {
 			return nil, err
 		}
@@ -1190,10 +1191,10 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, err
 	}
-	latestVisits := map[int64]*activeModel.Visit{}
+	latestVisits := map[int64]*studentpresence.Visit{}
 	for _, visit := range visits {
 		if current := latestVisits[visit.StudentID]; current == nil || visit.EntryTime.After(current.EntryTime) {
-			latestVisits[visit.StudentID] = visit
+			latestVisits[visit.StudentID] = &visit
 		}
 	}
 	warningsByStudent := s.rosterWarnings(ctx, inst, studentIDs, students, groups, templateGroup)
@@ -1355,7 +1356,7 @@ func (s *timetableOperationsService) parallelPresenceByStudent(ctx context.Conte
 	return out, nil
 }
 
-func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
+func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *studentpresence.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
 		Planned:          planned != nil && !planned.IsUnplanned,
@@ -1393,7 +1394,7 @@ func rosterCareDayStatus(
 	inst *scheduleModel.ActivityInstance,
 	studentID int64,
 	planned *scheduleModel.InstanceStudent,
-	visit *activeModel.Visit,
+	visit *studentpresence.Visit,
 	careDay map[int64]CareDayStatus,
 ) CareDayStatus {
 	if visit != nil || (planned != nil && planned.Status == scheduleModel.AttendanceStatusPresent) {
@@ -1699,14 +1700,25 @@ func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceI
 	return inst, nil
 }
 
-func (s *timetableOperationsService) findActiveVisitForInstanceStudent(ctx context.Context, activeGroupID, studentID int64) (*activeModel.Visit, error) {
-	visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, activeGroupID)
+func (s *timetableOperationsService) currentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(visits) == 0 {
+		return nil, nil
+	}
+	return &visits[0], nil
+}
+
+func (s *timetableOperationsService) findActiveVisitForInstanceStudent(ctx context.Context, activeGroupID, studentID int64) (*studentpresence.Visit, error) {
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroupID}})
 	if err != nil {
 		return nil, err
 	}
 	for _, visit := range visits {
 		if visit.StudentID == studentID && visit.ExitTime == nil {
-			return visit, nil
+			return &visit, nil
 		}
 	}
 	return nil, nil

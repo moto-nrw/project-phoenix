@@ -11,12 +11,55 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
+
+func (m *mockVisitRepository) FindVisit(ctx context.Context, id int64) (*studentpresence.Visit, error) {
+	row, err := m.FindByID(ctx, id)
+	if base.IsNoRows(err) {
+		return nil, studentpresence.ErrVisitNotFound
+	}
+	if err != nil || row == nil {
+		return nil, err
+	}
+	value := *row
+	return &value, nil
+}
+
+func (m *mockVisitRepository) ReviseVisit(ctx context.Context, row studentpresence.Visit) (studentpresence.Visit, error) {
+	return row, m.Update(ctx, &row)
+}
+
+func (m *mockVisitRepository) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]studentpresence.Visit, error) {
+	rows := make([]studentpresence.Visit, 0, len(ids))
+	for _, id := range ids {
+		if err := m.EndVisit(ctx, id); err != nil {
+			return nil, err
+		}
+		row, err := m.FindVisit(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if row != nil {
+			if row.ExitTime == nil {
+				row.ExitTime = &at
+			}
+			rows = append(rows, *row)
+		}
+	}
+	return rows, nil
+}
+
+func (m *mockVisitRepository) LockStudentAttendance(context.Context, int64) error { return nil }
+
+func (m *mockVisitRepository) ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error) {
+	return nil, nil
+}
 
 // mockGroupRepository is a minimal mock implementation of active.GroupRepository
 type mockGroupRepository struct {
@@ -197,36 +240,38 @@ func (m *mockGroupRepository) AggregateRoomSessions(ctx context.Context, roomID 
 	return nil, nil
 }
 
-// mockVisitRepository is a minimal mock implementation of active.VisitRepository
+// mockVisitRepository supplies presence operations for service failure injection.
 type mockVisitRepository struct {
-	findByActiveGroupIDFunc               func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
-	findByIDFunc                          func(ctx context.Context, id interface{}) (*active.Visit, error)
-	updateFunc                            func(ctx context.Context, entity *active.Visit) error
+	StudentPresence
+
+	findByActiveGroupIDFunc               func(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error)
+	findByIDFunc                          func(ctx context.Context, id interface{}) (*studentpresence.Visit, error)
+	updateFunc                            func(ctx context.Context, entity *studentpresence.Visit) error
 	endVisitFunc                          func(ctx context.Context, id int64) error
-	getCurrentByStudentIDFunc             func(ctx context.Context, studentID int64) (*active.Visit, error)
-	getCurrentByStudentIDWithRoomFunc     func(ctx context.Context, studentID int64) (*active.Visit, error)
+	getCurrentByStudentIDFunc             func(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
+	getCurrentByStudentIDWithRoomFunc     func(ctx context.Context, studentID int64) (*studentpresence.VisitLocation, error)
 	countActiveByRoomIDFunc               func(ctx context.Context, roomID int64) (int, error)
 	countActiveByGroupIDFunc              func(ctx context.Context, activeGroupID int64) (int, error)
 	listActiveStudentIDsByRoomIDFunc      func(ctx context.Context, roomID int64) ([]int64, error)
-	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
+	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]visitGroupNames, error)
 	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
-	endVisitsByIDsFunc                    func(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error)
+	endVisitsByIDsFunc                    func(ctx context.Context, ids []int64, at time.Time) ([]*studentpresence.Visit, error)
 	transferVisitsFromRecentSessionsFunc  func(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 }
 
-func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
+func (m *mockVisitRepository) Create(ctx context.Context, entity *studentpresence.Visit) error {
 	return nil
 }
 
-func (m *mockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) {
+func (m *mockVisitRepository) FindByID(ctx context.Context, id interface{}) (*studentpresence.Visit, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, nil
 }
 
-func (m *mockVisitRepository) Update(ctx context.Context, entity *active.Visit) error {
+func (m *mockVisitRepository) Update(ctx context.Context, entity *studentpresence.Visit) error {
 	if m.updateFunc != nil {
 		return m.updateFunc(ctx, entity)
 	}
@@ -237,38 +282,38 @@ func (m *mockVisitRepository) Delete(ctx context.Context, id interface{}) error 
 	return nil
 }
 
-func (m *mockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
+func (m *mockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error) {
 	if m.findByActiveGroupIDFunc != nil {
 		return m.findByActiveGroupIDFunc(ctx, activeGroupID)
 	}
-	return []*active.Visit{}, nil
+	return []*studentpresence.Visit{}, nil
 }
 
-func (m *mockVisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindActiveWithStudentDisplayByGroup(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+func (m *mockVisitRepository) FindActiveWithStudentDisplayByGroup(_ context.Context, _ int64) ([]*VisitWithStudentDisplay, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
@@ -309,25 +354,25 @@ func (m *mockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, er
 	return 0, nil
 }
 
-func (m *mockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+func (m *mockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
 	if m.getCurrentByStudentIDFunc != nil {
 		return m.getCurrentByStudentIDFunc(ctx, studentID)
 	}
 	return nil, nil
 }
 
-func (m *mockVisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
+func (m *mockVisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*studentpresence.VisitLocation, error) {
 	if m.getCurrentByStudentIDWithRoomFunc != nil {
 		return m.getCurrentByStudentIDWithRoomFunc(ctx, studentID)
 	}
 	return nil, nil
 }
 
-func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+func (m *mockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
-func (m *mockVisitRepository) GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+func (m *mockVisitRepository) GetCurrentByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error) {
 	return m.GetCurrentByStudentIDs(ctx, studentIDs)
 }
 
@@ -352,7 +397,7 @@ func (m *mockVisitRepository) ListActiveStudentIDsByRoomID(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
+func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
 
@@ -360,7 +405,7 @@ func (m *mockVisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context)
 	return nil, nil
 }
 
-func (m *mockVisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error) {
+func (m *mockVisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*studentpresence.Visit, error) {
 	if m.endVisitsByIDsFunc != nil {
 		return m.endVisitsByIDsFunc(ctx, ids, at)
 	}
@@ -378,7 +423,7 @@ func (m *mockVisitRepository) CountActiveByStudentID(ctx context.Context, studen
 	return 0, nil
 }
 
-func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error) {
+func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]visitGroupNames, error) {
 	if m.getTodayVisitNamesFunc != nil {
 		return m.getTodayVisitNamesFunc(ctx, studentIDs)
 	}
@@ -509,14 +554,14 @@ func TestEndActivitySessionLocksGroupBeforeEnding(t *testing.T) {
 			return nil
 		},
 	}
-	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
-		return []*active.Visit{}, nil
+	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
+		return []*studentpresence.Visit{}, nil
 	}}
 	supervisorRepo := &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
 		return []*active.GroupSupervisor{}, nil
 	}}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo,
+		GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo,
 	}}
 
 	require.NoError(t, svc.EndActivitySession(context.Background(), 1))
@@ -538,8 +583,8 @@ func TestProcessSessionTimeoutLocksGroupBeforeEnding(t *testing.T) {
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{
 		GroupRepo: groupRepo,
-		VisitRepo: &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
-			return []*active.Visit{}, nil
+		SchoolPresence: &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
+			return []*studentpresence.Visit{}, nil
 		}},
 		SupervisorRepo: &mockGroupSupervisorRepository{},
 	}}
@@ -591,15 +636,15 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 			return &active.Group{Model: base.Model{ID: 1}}, nil
 		},
 	}
-	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
-		return []*active.Visit{}, nil
+	visitRepo := &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
+		return []*studentpresence.Visit{}, nil
 	}}
 	supervisorRepo := &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
 		return []*active.GroupSupervisor{}, nil
 	}}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		DB: db, GroupRepo: groupRepo, VisitRepo: visitRepo,
+		DB: db, GroupRepo: groupRepo, SchoolPresence: visitRepo,
 		SupervisorRepo: supervisorRepo, Broadcaster: broadcaster,
 	}}
 
@@ -623,9 +668,7 @@ func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T)
 		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
 			return &active.Group{Model: base.Model{ID: 1}}, nil
 		}},
-		VisitRepo: &mockVisitRepository{findByActiveGroupIDFunc: func(context.Context, int64) ([]*active.Visit, error) {
-			return []*active.Visit{}, nil
-		}},
+		SchoolPresence: &mockVisitRepository{},
 		SupervisorRepo: &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*active.GroupSupervisor, error) {
 			return []*active.GroupSupervisor{}, nil
 		}},
@@ -663,9 +706,9 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	}
 
 	visitRepo := &mockVisitRepository{
-		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error) {
+		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error) {
 			// Return empty visits (no visits to process)
-			return []*active.Visit{}, nil
+			return []*studentpresence.Visit{}, nil
 		},
 	}
 
@@ -678,7 +721,7 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	}
 
 	// Create service with mocks
-	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
+	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)
@@ -744,9 +787,9 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	}
 
 	visitRepo := &mockVisitRepository{
-		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error) {
+		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error) {
 			// Return empty visits
-			return []*active.Visit{}, nil
+			return []*studentpresence.Visit{}, nil
 		},
 		endVisitFunc: func(ctx context.Context, id int64) error {
 			return nil // Should not be reached
@@ -769,7 +812,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	}
 
 	// Create service with mocks
-	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
+	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, SchoolPresence: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)
@@ -818,4 +861,71 @@ func (m *mockGroupSupervisorRepository) UpdateColumns(ctx context.Context, super
 		return m.updateColumnsFunc(ctx, supervisor, columns...)
 	}
 	return 0, nil
+}
+
+func (m *mockVisitRepository) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, error) {
+	return m.CountActiveByRoomID(ctx, id)
+}
+
+func (m *mockVisitRepository) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]studentpresence.OpenVisitRoom, error) {
+	ids, err := m.ListActiveStudentIDsByRoomID(ctx, roomID)
+	rows := make([]studentpresence.OpenVisitRoom, 0, len(ids))
+	for _, id := range ids {
+		rows = append(rows, studentpresence.OpenVisitRoom{StudentID: id, RoomID: roomID})
+	}
+	return rows, err
+}
+func (m *mockVisitRepository) CountOpenVisitsInGroup(ctx context.Context, id int64) (int, error) {
+	return m.CountActiveByGroupID(ctx, id)
+}
+func (m *mockVisitRepository) CloseGroupVisits(ctx context.Context, ids []int64) (int64, error) {
+	return m.EndVisitsByActiveGroupIDs(ctx, ids)
+}
+
+func (m *mockVisitRepository) TransferOpenVisits(ctx context.Context, from, to int64) (int64, error) {
+	count, err := m.TransferActiveVisitsBetweenGroups(ctx, from, to)
+	return int64(count), err
+}
+func (m *mockVisitRepository) TransferRecentDeviceVisits(ctx context.Context, to, deviceID int64) (int64, error) {
+	count, err := m.TransferVisitsFromRecentSessions(ctx, to, deviceID)
+	return int64(count), err
+}
+
+func (m *mockVisitRepository) ListVisitLocations(ctx context.Context, filter studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error) {
+	if len(filter.StudentIDs) != 1 || !filter.OpenOnly || filter.Limit != 1 {
+		panic("unexpected visit location filter")
+	}
+	row, err := m.GetCurrentByStudentIDWithRoom(ctx, filter.StudentIDs[0])
+	if base.IsNoRows(err) {
+		return nil, nil
+	}
+	if err != nil || row == nil {
+		return nil, err
+	}
+	return []studentpresence.VisitLocation{*row}, nil
+}
+
+func (m *mockVisitRepository) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	if len(filter.StudentIDs) == 1 && filter.OpenOnly && filter.Limit == 1 {
+		row, err := m.GetCurrentByStudentID(ctx, filter.StudentIDs[0])
+		if base.IsNoRows(err) {
+			return nil, nil
+		}
+		if err != nil || row == nil {
+			return nil, err
+		}
+		return []studentpresence.Visit{*row}, nil
+	}
+	if len(filter.ActiveGroupIDs) != 1 {
+		panic("unexpected visit filter")
+	}
+	rows, err := m.FindByActiveGroupID(ctx, filter.ActiveGroupIDs[0])
+	result := make([]studentpresence.Visit, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.Visit{
+			ID: row.ID, TenantID: row.TenantID, StudentID: row.StudentID,
+			ActiveGroupID: row.ActiveGroupID, EntryTime: row.EntryTime, ExitTime: row.ExitTime,
+		})
+	}
+	return result, err
 }

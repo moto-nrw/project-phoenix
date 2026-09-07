@@ -13,6 +13,7 @@ import (
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
@@ -77,7 +78,7 @@ func (m *mockAvatarUserContextService) GetGroupStudents(context.Context, int64) 
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockAvatarUserContextService) GetGroupVisits(context.Context, int64) ([]*active.Visit, error) {
+func (m *mockAvatarUserContextService) GetGroupVisits(context.Context, int64) ([]studentpresence.Visit, error) {
 	return nil, errors.New("not implemented")
 }
 

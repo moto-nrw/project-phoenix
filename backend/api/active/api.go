@@ -21,6 +21,7 @@ import (
 // Resource defines the active API resource
 type Resource struct {
 	ActiveService      activeSvc.Service
+	Presence           PresenceQueries
 	PersonService      userSvc.PersonService
 	EducationService   educationSvc.Service
 	SchulhofService    facilities.SchulhofService
@@ -40,9 +41,13 @@ func (rs *Resource) getLogger() *slog.Logger {
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, educationService educationSvc.Service, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, educationService educationSvc.Service, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger, presence PresenceQueries) *Resource {
+	if presence == nil {
+		panic("active API: student presence queries are required")
+	}
 	return &Resource{
 		ActiveService:      activeService,
+		Presence:           presence,
 		PersonService:      personService,
 		EducationService:   educationService,
 		SchulhofService:    schulhofService,

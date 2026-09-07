@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -204,7 +206,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
 					return false, nil
 				},
-				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*activeModel.Visit, error) {
+				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*studentpresence.Visit, error) {
 					return nil, &activeSvc.ActiveError{Op: "GetStudentCurrentVisit", Err: activeSvc.ErrVisitNotFound}
 				},
 				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {

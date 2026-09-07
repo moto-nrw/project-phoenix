@@ -45,6 +45,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -319,7 +320,7 @@ type InstanceServiceDependencies struct {
 	ExceptionRepo      scheduleModel.ActivityExceptionRepository
 	ActiveGroupRepo    activeModel.GroupRepository
 	SupervisorRepo     activeModel.GroupSupervisorRepository
-	VisitRepo          activeModel.VisitRepository
+	Presence           InstancePresence
 	RoomRepo           facilitiesModel.RoomRepository
 	ActivityGroupRepo  activitiesModel.GroupRepository
 	StaffRepo          usersModel.StaffRepository
@@ -367,7 +368,7 @@ func hasSpontaneousStartWorkdayGuard(ctx context.Context) bool {
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 	if deps.InstanceRepo == nil || deps.IdempotencyRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.ExceptionRepo == nil ||
-		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
+		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.Presence == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
 		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
@@ -533,16 +534,18 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, err
 	}
 
-	// Conflict detection is read-only + advisory. Warnings reflect state
-	// inside the tx; they never block the transition.
-	warnings := DetectStartConflicts(ctx, ConflictDependencies{
+	// Conflicts are advisory; failed presence reads abort before any writes.
+	warnings, err := DetectStartConflicts(ctx, ConflictDependencies{
 		GroupRepo:         s.deps.ActiveGroupRepo,
 		SupervisorRepo:    s.deps.SupervisorRepo,
-		VisitRepo:         s.deps.VisitRepo,
+		Presence:          s.deps.Presence,
 		InstanceRepo:      s.deps.InstanceRepo,
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
 		InstanceStudents:  s.deps.InstanceStudents,
 	}, instance, s.getLogger())
+	if err != nil {
+		return nil, err
+	}
 
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
@@ -659,7 +662,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 	})
 
 	today := timezone.TodayDate()
-	movedTotal := 0
+	movedTotal := int64(0)
 	for _, group := range openGroups {
 		if group.ID == newGroupID {
 			continue
@@ -703,7 +706,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 			continue
 		}
 
-		moved, err := s.deps.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, group.ID, newGroupID)
+		moved, err := s.deps.Presence.TransferOpenVisits(ctx, group.ID, newGroupID)
 		if err != nil {
 			return fmt.Errorf("move open visits from group %d to group %d: %w", group.ID, newGroupID, err)
 		}
@@ -715,7 +718,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 		s.getLogger().Info("absorbed unsupervised session into started instance",
 			slog.Int64("absorbed_group_id", group.ID),
 			slog.Int64("new_group_id", newGroupID),
-			slog.Int("moved_visits", moved),
+			slog.Int64("moved_visits", moved),
 		)
 	}
 
@@ -729,7 +732,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 }
 
 func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, instanceID, activeGroupID int64) error {
-	visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, activeGroupID)
+	visits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroupID}})
 	if err != nil {
 		return fmt.Errorf("load absorbed visits from group %d: %w", activeGroupID, err)
 	}
@@ -743,7 +746,7 @@ func (s *instanceService) syncAbsorbedVisitAttendance(ctx context.Context, insta
 	}
 
 	for _, visit := range visits {
-		if visit == nil || visit.ExitTime != nil {
+		if visit.ExitTime != nil {
 			continue
 		}
 
@@ -849,7 +852,7 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		}
 	}
 
-	visitsBefore, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *instance.ActiveGroupID)
+	visitsBefore, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{*instance.ActiveGroupID}})
 	if err != nil {
 		return nil, &ScheduleError{Op: "complete instance: snapshot visits", Err: err}
 	}
@@ -1164,7 +1167,7 @@ func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapsh
 	if len(snapshot.VisitIDs) == 0 {
 		return nil, nil
 	}
-	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
+	closedVisits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{snapshot.ActiveGroupID}})
 	if err != nil {
 		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
 	}
@@ -1191,15 +1194,12 @@ func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapsh
 			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: modelBase.ErrNotFound}
 		}
 	}
-	currentByStudent, err := s.deps.VisitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	currentVisits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, NewestFirst: true, StudentOrder: true})
 	if err != nil {
 		return nil, err
 	}
-	for _, studentID := range studentIDs {
-		current := currentByStudent[studentID]
-		if current != nil {
-			return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, studentID)
-		}
+	if len(currentVisits) > 0 {
+		return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, currentVisits[0].StudentID)
 	}
 	return studentIDs, nil
 }
@@ -1225,7 +1225,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 	if room.Capacity == nil || *room.Capacity <= 0 {
 		return nil
 	}
-	currentOccupancy, err := s.deps.VisitRepo.CountActiveByRoomID(ctx, instance.RoomID)
+	currentOccupancy, err := s.deps.Presence.CountOpenVisitsInRoom(ctx, instance.RoomID)
 	if err != nil {
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}

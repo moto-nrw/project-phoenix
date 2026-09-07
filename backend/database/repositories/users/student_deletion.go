@@ -23,6 +23,7 @@ type StudentDeletionRepository struct {
 	// #2662); the preview must not join users.privacy_consents itself.
 	countConsents             func(context.Context, int64) (int, error)
 	countEnrollmentReferences func(context.Context, int64) (int, error)
+	countAttendanceRecords    func(context.Context, int64) (int, error)
 	carePlan                  interface {
 		CountCompanionLinks(context.Context, int64) (int, error)
 		CountStudentScheduleRows(context.Context, int64) (int, error)
@@ -84,6 +85,7 @@ func NewStudentDeletionRepository(
 	countEnrollmentReferences func(context.Context, int64) (int, error),
 	assignments StudentAssignmentDeletion,
 	conversations StudentConversationDeletion,
+	countAttendanceRecords func(context.Context, int64) (int, error),
 ) userModels.StudentDeletionRepository {
 	if countEnrollmentReferences == nil {
 		panic("student deletion repository: enrollment references query is required")
@@ -94,10 +96,13 @@ func NewStudentDeletionRepository(
 	if conversations == nil {
 		panic("student deletion repository: communication conversations are required")
 	}
+	if countAttendanceRecords == nil {
+		panic("student deletion repository: presence query is required")
+	}
 	return &StudentDeletionRepository{
 		db: db, countAuditReferences: countAuditReferences, countConsents: countConsents,
 		countEnrollmentReferences: countEnrollmentReferences, assignments: assignments,
-		conversations: conversations,
+		conversations: conversations, countAttendanceRecords: countAttendanceRecords,
 	}
 }
 
@@ -114,7 +119,6 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			0::int AS activity_enrollments,
 			(
 				active.count_student_visits_for_deletion(?, ?) +
-				(SELECT COUNT(*) FROM active.attendance WHERE tenant_id = ? AND student_id = ?) +
 				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?)
 			)::int AS attendance_records,
 			0::int AS care_schedules,
@@ -132,7 +136,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID, tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID,
@@ -145,6 +149,11 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		return nil, fmt.Errorf("preview student deletion: count conversations: %w", err)
 	}
 	counts.Communications += conversations
+	attendanceCount, err := r.countAttendanceRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: %w", err)
+	}
+	counts.AttendanceRecords += attendanceCount
 	counts.EnrollmentReferences, err = r.countEnrollmentReferences(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: count enrollment references: %w", err)

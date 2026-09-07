@@ -240,7 +240,7 @@ func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today str
 	if s.Attendance == nil {
 		return nil, nil
 	}
-	return s.Attendance.ListOpenStudentIDsForDate(ctx, today)
+	return s.Attendance.ListOpenAttendanceStudentIDs(ctx, today)
 }
 
 // binaryMode reports whether the tenant runs the binary presence mode, in which

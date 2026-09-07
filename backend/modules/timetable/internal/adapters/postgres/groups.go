@@ -112,6 +112,78 @@ func (s *Store) ListGroups(ctx context.Context, filter domain.GroupFilter) ([]do
 	return result, stats, nil
 }
 
+func (s *Store) ListCourseGroups(ctx context.Context, filter domain.CourseGroupFilter) ([]domain.CourseGroup, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	type courseGroupRow struct {
+		ID                    int64    `bun:"id"`
+		Active                bool     `bun:"active"`
+		MaxParticipants       int      `bun:"max_participants"`
+		SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
+		SourceGradeLevels     []int    `bun:"source_grade_levels,type:jsonb,nullzero"`
+		SourceSchoolClasses   []string `bun:"source_school_classes,type:jsonb,nullzero"`
+		ScheduledWeekdays     []int    `bun:"scheduled_weekdays,array"`
+	}
+	rows := []courseGroupRow{}
+	query := db.NewSelect().Model(&rows).ModelTableExpr(`activities.groups AS "group"`).
+		ColumnExpr(`"group".id, "group".archived_at IS NULL AS active, "group".max_participants,
+			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`)
+	if filter.EffectiveOn == "" {
+		query = query.ColumnExpr(`COALESCE(ARRAY(
+			SELECT DISTINCT schedule.weekday
+			FROM activities.schedules AS schedule
+			WHERE schedule.tenant_id = "group".tenant_id
+			  AND schedule.activity_group_id = "group".id
+			ORDER BY schedule.weekday
+		), ARRAY[]::integer[]) AS scheduled_weekdays`)
+	} else {
+		query = query.ColumnExpr(`COALESCE(ARRAY(
+			SELECT DISTINCT schedule.weekday
+			FROM activities.schedules AS schedule
+			WHERE schedule.tenant_id = "group".tenant_id
+			  AND schedule.activity_group_id = "group".id
+			  AND (schedule.valid_from IS NULL OR schedule.valid_from <= ?::date)
+			  AND (schedule.valid_until IS NULL OR schedule.valid_until > ?::date)
+			ORDER BY schedule.weekday
+		), ARRAY[]::integer[]) AS scheduled_weekdays`, filter.EffectiveOn, filter.EffectiveOn)
+	}
+	query = query.
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".type = ?`, "activity").
+		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			if len(filter.LegacyGroupIDs) > 0 {
+				q = q.WhereOr(`"group".id IN (?)`, bun.List(filter.LegacyGroupIDs))
+			}
+			if len(filter.SourceOfferingIDs) > 0 {
+				q = q.WhereOr(`"group".is_template = TRUE AND EXISTS (
+					SELECT 1 FROM jsonb_array_elements_text(COALESCE("group".source_care_offering_ids, '[]'::jsonb)) AS source(id)
+					WHERE source.id::bigint IN (?)
+				)`, bun.List(filter.SourceOfferingIDs))
+			}
+			return q
+		})
+	stats, err := scanAll(ctx, query, "list course groups")
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make([]domain.CourseGroup, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.CourseGroup{
+			ID:                    row.ID,
+			Active:                row.Active,
+			MaxParticipants:       row.MaxParticipants,
+			SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),
+			SourceGradeLevels:     append([]int(nil), row.SourceGradeLevels...),
+			SourceSchoolClasses:   append([]string(nil), row.SourceSchoolClasses...),
+			ScheduledWeekdays:     append([]int(nil), row.ScheduledWeekdays...),
+		})
+	}
+	stats.Rows = int64(len(result))
+	return result, stats, nil
+}
+
 func (s *Store) CreateGroup(ctx context.Context, fields domain.GroupFields) (domain.Group, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

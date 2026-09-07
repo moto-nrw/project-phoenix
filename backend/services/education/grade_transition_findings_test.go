@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -212,8 +211,7 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 		TransitionRepo: newGradeTransitionRepository(t, db),
 		StudentRepo:    usersRepo.NewStudentRepository(db),
 		PersonRepo:     usersRepo.NewPersonRepository(db),
-		VisitRepo:      activeRepo.NewVisitRepository(db),
-		AttendanceRepo: activeRepo.NewAttendanceRepository(db),
+		Presence:       graduationPresence(t, db),
 		DB:             db,
 	})
 

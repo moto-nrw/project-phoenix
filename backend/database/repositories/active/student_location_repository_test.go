@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestAttendanceRepository_GetTodayByStudentIDs tests fetching today's attendance
+// TestPresenceAttendance_StudentSelection tests fetching today's attendance
 // records for multiple students with hermetic fixtures.
 func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	t.Parallel()
@@ -27,9 +27,9 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := activeRepo.NewAttendanceRepository(db)
+	repo := newPresence(t, db)
 
-	t.Run("returns latest attendance per student with deduplication", func(t *testing.T) {
+	t.Run("returns each stay once for duplicated student IDs", func(t *testing.T) {
 		// ARRANGE: Create fixtures
 		student1 := testpkg.CreateTestStudent(t, db, "Alice", "Test", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Bob", "Test", "1a")
@@ -44,7 +44,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		// unique index on (student_id, date) WHERE check_out_time IS NULL
 		// permits a second open row at 08:00.
 		earlyCheckout := today.Add(7*time.Hour + 30*time.Minute)
-		_ = testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,
+		earlyAttendance := testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,
 			today.Add(7*time.Hour), &earlyCheckout) // 07:00 → 07:30
 
 		// Later check-in for student1 (open — this is the row that should be returned)
@@ -58,42 +58,36 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 
 		// ACT: Query with duplicate student IDs to test de-duplication
 		studentIDs := []int64{student1.ID, student2.ID, student1.ID}
-		result, err := repo.GetTodayByStudentIDs(ctx, studentIDs)
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String(), StudentOrder: true, NewestFirst: true})
 
 		// ASSERT
 		require.NoError(t, err)
-		require.Len(t, result, 2, "Should return 2 students after de-duplication")
+		require.Len(t, result, 3, "duplicate student IDs must not duplicate attendance rows")
+		assert.Equal(t, []int64{attendance1.ID, earlyAttendance.ID, attendance2.ID},
+			[]int64{result[0].ID, result[1].ID, result[2].ID}, "newest stay first within each student")
+		assert.Nil(t, result[0].CheckOutTime, "Student1's latest stay is open")
+		assert.NotNil(t, result[1].CheckOutTime, "Student1's earlier stay remains in history")
+		assert.NotNil(t, result[2].CheckOutTime, "Student2's stay is closed")
 
-		// Student1 should have the latest attendance (08:00, not 07:00)
-		if att, ok := result[student1.ID]; assert.True(t, ok, "Should have attendance for student1") {
-			assert.Equal(t, attendance1.ID, att.ID, "Should return latest attendance record")
-			assert.Nil(t, att.CheckOutTime, "Student1 should not be checked out")
-		}
-
-		// Student2 should have checkout time
-		if att, ok := result[student2.ID]; assert.True(t, ok, "Should have attendance for student2") {
-			assert.Equal(t, attendance2.ID, att.ID)
-			assert.NotNil(t, att.CheckOutTime, "Student2 should be checked out")
-		}
 	})
 
-	t.Run("returns empty map for empty input", func(t *testing.T) {
-		result, err := repo.GetTodayByStudentIDs(ctx, []int64{})
+	t.Run("returns empty list for empty input", func(t *testing.T) {
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String()})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 
-	t.Run("returns empty map when no attendance records exist", func(t *testing.T) {
+	t.Run("returns empty list when no attendance records exist", func(t *testing.T) {
 		// ARRANGE: Create student with no attendance
 		student := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "2a")
 
 		// ACT
-		result, err := repo.GetTodayByStudentIDs(ctx, []int64{student.ID})
+		result, err := repo.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}, FromDate: timezone.TodayDate().String(), UntilDate: timezone.TodayDate().String()})
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Empty(t, result, "Should return empty map for student without attendance")
+		assert.Empty(t, result, "Should return empty list for student without attendance")
 	})
 }
 
@@ -105,7 +99,7 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := activeRepo.NewVisitRepository(db)
+	repo := newPresence(t, db)
 
 	t.Run("returns current visits for students", func(t *testing.T) {
 		// ARRANGE: Create activity infrastructure
@@ -133,14 +127,15 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 
 		// ACT
 		studentIDs := []int64{student1.ID, student2.ID}
-		result, err := repo.GetCurrentByStudentIDs(ctx, studentIDs)
+		result, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, NewestFirst: true, StudentOrder: true})
 
 		// ASSERT
 		require.NoError(t, err)
 		require.Len(t, result, 2)
 
-		assert.Equal(t, activeGroup.ID, result[student1.ID].ActiveGroupID)
-		assert.Equal(t, activeGroup.ID, result[student2.ID].ActiveGroupID)
+		assert.ElementsMatch(t, studentIDs, []int64{result[0].StudentID, result[1].StudentID})
+		assert.Equal(t, activeGroup.ID, result[0].ActiveGroupID)
+		assert.Equal(t, activeGroup.ID, result[1].ActiveGroupID)
 	})
 
 	t.Run("excludes visits with exit time", func(t *testing.T) {
@@ -156,15 +151,15 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 			time.Now().Add(-30*time.Minute), &exitTime)
 
 		// ACT
-		result, err := repo.GetCurrentByStudentIDs(ctx, []int64{student.ID})
+		result, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{student.ID}, OpenOnly: true, NewestFirst: true, StudentOrder: true})
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, result, "Should not return visits with exit time")
 	})
 
-	t.Run("returns empty map for empty input", func(t *testing.T) {
-		result, err := repo.GetCurrentByStudentIDs(ctx, []int64{})
+	t.Run("returns empty list for empty input", func(t *testing.T) {
+		result, err := repo.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{}, OpenOnly: true, NewestFirst: true, StudentOrder: true})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -214,14 +209,14 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 		}
 	})
 
-	t.Run("returns empty map for empty input", func(t *testing.T) {
+	t.Run("returns empty list for empty input", func(t *testing.T) {
 		result, err := repo.FindByIDs(ctx, []int64{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 
-	t.Run("returns empty map for non-existent IDs", func(t *testing.T) {
+	t.Run("returns empty list for non-existent IDs", func(t *testing.T) {
 		result, err := repo.FindByIDs(ctx, []int64{999999, 999998})
 
 		require.NoError(t, err)

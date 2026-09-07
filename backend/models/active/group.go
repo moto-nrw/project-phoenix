@@ -27,7 +27,6 @@ type Group struct {
 	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
 	Device      *iot.Device        `bun:"rel:belongs-to,join:device_id=id" json:"device,omitempty"`
 	Room        *facilities.Room   `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
-	Visits      []*Visit           `bun:"rel:has-many,join:id=active_group_id" json:"visits,omitempty"`
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 

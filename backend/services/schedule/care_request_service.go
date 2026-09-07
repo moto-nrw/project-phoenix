@@ -28,10 +28,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -240,7 +240,7 @@ type careScheduleRequestService struct {
 	arrival           ArrivalScheduleService
 	pickup            PickupScheduleService
 	pickupExceptions  scheduleModels.StudentPickupExceptionRepository
-	attendance        activeModels.AttendanceRepository
+	attendance        PickupChangePresence
 	pickupAutoExcusal *PickupAutoExcusalSyncer
 	userContext       userContextService.UserContextService
 	emitter           *parentmessaging.Emitter
@@ -281,7 +281,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	arrival ArrivalScheduleService,
 	pickup PickupScheduleService,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
-	attendance activeModels.AttendanceRepository,
+	attendance PickupChangePresence,
 	pickupAutoExcusal *PickupAutoExcusalSyncer,
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
@@ -1032,6 +1032,19 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	if err != nil {
 		return nil, err
 	}
+	var result *CareRequestReviewItem
+	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+		var decisionErr error
+		result, decisionErr = s.decide(txCtx, input, reason)
+		return decisionErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *careScheduleRequestService) decide(ctx context.Context, input CareRequestDecideInput, reason string) (*CareRequestReviewItem, error) {
 	req, err := s.loadAuthorizedCareDecision(ctx, input.RequestID, input.ExpectedVersion)
 	if err != nil {
 		return nil, err
@@ -1420,16 +1433,15 @@ func (s *careScheduleRequestService) ensurePickupChangeNotCompleted(
 	if err := s.attendance.LockStudentAttendance(ctx, studentID); err != nil {
 		return fmt.Errorf("schedule: lock attendance for pickup request: %w", err)
 	}
-	rows, err := s.attendance.FindByStudentAndDate(ctx, studentID, date)
+	rows, err := s.attendance.ListAttendance(ctx, studentpresence.AttendanceFilter{
+		StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String(),
+	})
 	if err != nil {
 		return fmt.Errorf("schedule: load attendance for pickup request: %w", err)
 	}
 	hasOpenAttendance := false
 	hasCompletedAttendance := false
 	for _, row := range rows {
-		if row == nil {
-			continue
-		}
 		if row.CheckOutTime == nil {
 			hasOpenAttendance = true
 		} else {

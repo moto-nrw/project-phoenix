@@ -729,6 +729,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
           "Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird. Ebenso fragt die App nach, wenn beim Speichern des Wochenplans eine bereits eingetragene Zeit entfernt würde.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
+          "Bemerkungen, die während der Betreuung zu einem Kind erfasst wurden, stehen im Tab `Historie` beim jeweiligen Zeitslot. So finden Sie eine Bemerkung auch Wochen später wieder. Mit der Berechtigung `Betreuungsplan verwalten` können Sie einen abgeschlossenen Eintrag über `Korrigieren` nachträglich ändern; dabei ist ein Grund Pflicht, und die Änderung wird mit Name und Uhrzeit festgehalten.",
           "Im Tab `Historie` über `Änderungsverlauf` nachvollziehen, wer wann welche Angaben zum Kind geändert hat (Vorher → Nachher). Sichtbar nur für Admins und Gruppenbetreuer. Direkt im Tab `Stammdaten` zeigt ein ⓘ neben einem Feld, wer es zuletzt geändert hat.",
           "Tab `Änderungsprotokoll`: alle entschiedenen Anfragen zu diesem Kind in einer Liste, neueste zuerst. Wer Kinderdaten bearbeiten darf, sieht Stammdaten, Betreuungszeiten, Angebote, Abwesenheiten und Direkt-Korrekturen der OGS. Mit der Berechtigung nur für Abwesenheiten sehen Sie nur Abwesenheiten. Direkt-Korrekturen sind dann nicht sichtbar. Jeder Eintrag zeigt Vorher → Nachher, wer entschieden hat, wann und mit welcher Begründung. So ist am Kind nachvollziehbar, warum es zum Beispiel seit dieser Woche früher geht. Den Reiter sieht, wer Kinderdaten bearbeiten oder Abwesenheiten entscheiden darf.",
           "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Bei bestätigten Kindern können Betreuungsangebote dort nachträglich mit Begründung korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Die Angaben können außerdem exportiert werden.",
@@ -865,6 +866,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Haben Sie sich vertan, öffnen Sie die Zeile in der `Historie` und tippen auf `Entscheidung korrigieren`. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
           "Ob eine Begründung Pflicht ist, legen Sie unter `Einstellungen` > `Elternportal` fest. Ablehnen verlangt immer eine Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
+          "Kursanfragen der Eltern stehen in derselben Liste. In der Zeile steht dann `Kurs`. Sie entscheiden sie wie jede andere Anfrage. Erst mit Ihrer Freigabe ist das Kind im Kurs.",
+          "War der Kurs beim Anfragen voll, steht das Kind in der Eltern-App auf der Warteliste. Die Anfrage bleibt hier offen, bis Sie sie entscheiden. Wird ein Platz frei, geben Sie die Anfrage frei.",
+          "Kursanfragen schalten Sie unter `Einstellungen` > `Anmeldung` frei. Der Schalter heißt `Kursanfragen durch Eltern erlauben` und ist zuerst aus. Er erscheint erst, wenn Anfragen zu Betreuungsangeboten eingeschaltet sind.",
         ],
         callout: {
           title: "Was wird direkt übernommen?",
@@ -2419,8 +2423,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
-          "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
-          "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "Nach dem Anmelden fragt moto einmal von selbst nach. Der Dialog führt durch die fehlenden Schritte: erst installieren, dann erlauben.",
+          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät` über `Einrichtung erneut starten`.",
+          "Die Karte zeigt oben, wie es auf diesem Gerät steht: ob moto als App geöffnet ist und ob moto benachrichtigen darf.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
           "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",

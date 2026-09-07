@@ -62,7 +62,6 @@ func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenReposi
 
 type SessionCleanupRepositories struct {
 	Group           activeModels.GroupRepository
-	Visit           activeModels.VisitRepository
 	Supervisor      activeModels.GroupSupervisorRepository
 	Device          iotModels.DeviceRepository
 	TimetableBridge scheduleModels.ActivityInstanceRepository
@@ -73,24 +72,20 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 		panic("session cleanup repositories: timetable capability is required")
 	}
 	group := activeRepo.NewGroupRepository(db)
-	visit := activeRepo.NewVisitRepository(db)
 	device := iotRepo.NewDeviceRepository(db)
 	rooms, err := NewFacilities(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
 	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
-	visit.(*activeRepo.VisitRepository).BindRoomDirectory(activeRoomDirectory{rooms})
 	device.(*iotRepo.DeviceRepository).BindRoomDirectory(iotRoomDirectory{rooms})
 	return SessionCleanupRepositories{
-		Group: group, Visit: visit, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
+		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
 		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
 
 type RetentionCleanupRepositories struct {
-	Visit      activeModels.VisitRepository
-	Attendance activeModels.AttendanceRepository
 	Supervisor activeModels.GroupSupervisorRepository
 	Consent    usersModels.PrivacyConsentRepository
 	Deletion   auditModels.DataDeletionRepository
@@ -99,7 +94,6 @@ type RetentionCleanupRepositories struct {
 func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Visit: activeRepo.NewVisitRepository(db), Attendance: activeRepo.NewAttendanceRepository(db),
 		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: activeRepo.NewPrivacyConsentRepository(db),
 		Deletion: RouteDataDeletionWrites(deletions, command),
 	}

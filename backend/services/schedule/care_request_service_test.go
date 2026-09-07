@@ -31,6 +31,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -83,6 +84,16 @@ func (f *careFixture) emitter(
 	return emitter
 }
 
+func newPickupChangePresence(t *testing.T, db *bun.DB) interface {
+	schedule.PickupChangePresence
+	schedule.InstancePresence
+} {
+	t.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return presence
+}
+
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -104,7 +115,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
-		repos.Attendance,
+		newPickupChangePresence(t, db),
 		autoExcusal,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops

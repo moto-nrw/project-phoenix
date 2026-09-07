@@ -150,34 +150,3 @@ func fullNameOf(persons map[int64]peopledirectory.Person, id *int64) string {
 	}
 	return person.FullName()
 }
-
-// personVisitRepository attaches the student names to the open-visit
-// display rows.
-type personVisitRepository struct {
-	activeModels.VisitRepository
-	persons peopledirectory.Query
-}
-
-func (r personVisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
-	rows, err := r.VisitRepository.FindActiveWithStudentDisplayByGroup(ctx, activeGroupID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.PersonID)
-	}
-	persons, err := personsByID(ctx, r.persons, ids)
-	if err != nil {
-		return nil, err
-	}
-	// A person row always exists behind a student; one the directory no
-	// longer shows (soft-deleted) keeps the visit with blank names.
-	for _, row := range rows {
-		if person, found := persons[row.PersonID]; found {
-			row.FirstName = person.FirstName
-			row.LastName = person.LastName
-		}
-	}
-	return rows, nil
-}
