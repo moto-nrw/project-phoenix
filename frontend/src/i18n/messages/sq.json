@@ -243,13 +243,14 @@
     "installError": "moto nuk mund të instalohej. Provoni përsëri.",
     "understood": "E kuptova",
     "closeGuide": "Mbyll udhëzuesin",
-    "close": "Mbyll dialogun"
+    "close": "Mbyll dialogun",
+    "introStaff": "Aktivizoni njoftimet. Atëherë moto ju njofton për ngjarje të rëndësishme, edhe kur aplikacioni është i mbyllur."
   },
   "pushNotifications": {
     "title": "Njoftimet në këtë pajisje",
     "installIntro": "Në iPhone dhe iPad, njoftimet funksionojnë vetëm kur e hapni moto nga ekrani kryesor.",
     "installStepsLabel": "Shtoni moto në ekranin kryesor",
-    "installStep1": "Hapni moto në Safari dhe prekni ikonën e ndarjes.",
+    "installStep1": "Prekni „Ndaj“ në menu.",
     "installStep2": "Lëvizni poshtë në menu dhe zgjidhni “Shto në ekranin kryesor”.",
     "installStep3": "Prekni “Shto”. Pastaj hapni moto nga ikona e re.",
     "installOutro": "Në aplikacionin e instaluar hapni përsëri cilësimet. Atje mund t'i aktivizoni njoftimet me një prekje.",
@@ -272,7 +273,23 @@
     "sendTest": "Dërgo njoftim provë",
     "testing": "Po dërgohet …",
     "testSent": "Njoftimi provë u dërgua.",
-    "testError": "Njoftimi provë nuk mund të dërgohej. Provoni përsëri."
+    "testError": "Njoftimi provë nuk mund të dërgohej. Provoni përsëri.",
+    "statusInstallLabel": "moto i hapur si aplikacion",
+    "statusInstallYes": "Po",
+    "statusInstallNo": "Jo",
+    "statusPermissionLabel": "moto mund t'ju njoftojë",
+    "statusPermissionYes": "Po",
+    "statusPermissionNo": "Ende jo",
+    "statusPermissionBlocked": "E bllokuar",
+    "restart": "Nisni përsëri konfigurimin",
+    "installOffer": "Mund ta instaloni moto në këtë pajisje. Atëherë moto hapet si aplikacion, pa shiritin e shfletuesit.",
+    "installOfferAction": "Instalo moto",
+    "installNotNeeded": "Në këtë pajisje kjo nuk është e nevojshme. Njoftimet vijnë edhe në shfletues.",
+    "installIntroAndroid": "Kështu moto qëndron në ekranin kryesor si një aplikacion.",
+    "installStepAndroid1": "Prekni tri pikat lart djathtas në shfletues.",
+    "installStepAndroid2": "Zgjidhni „Instalo aplikacionin“ ose „Shto në ekranin kryesor“.",
+    "installStepAndroid3": "Konfirmoni me „Instalo“. Pastaj hapni moto nga ikona e re.",
+    "installOutroAndroid": "Hapni sërish cilësimet brenda aplikacionit. Aty i ndizni njoftimet me një prekje."
   },
   "parentSettings": {
     "eyebrow": "Llogaria juaj",

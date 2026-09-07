@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import { ParentNotificationOnboarding } from "./parent-notification-onboarding";
 
@@ -42,6 +42,10 @@ vi.mock("~/lib/pwa-install-prompt", () => ({
   subscribeInstallPrompt: () => () => undefined,
   triggerInstallPrompt: mocks.triggerInstallPrompt,
 }));
+
+beforeAll(async () => {
+  await import("~/components/notifications/notification-setup-dialog");
+});
 
 function renderOnboarding() {
   return render(
@@ -161,8 +165,13 @@ describe("ParentNotificationOnboarding", () => {
     mocks.isAndroidDevice.mockReturnValue(true);
     renderOnboarding();
 
+    // Seit #2831 dieselben nummerierten Schritte wie auf iPhone und iPad
+    // statt eines Fließtextes.
     expect(
-      await screen.findByText(/Öffnen Sie das Browser-Menü/),
+      await screen.findByText(/Tippen Sie oben rechts im Browser/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Zum Startbildschirm hinzufügen/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "App installieren" }),

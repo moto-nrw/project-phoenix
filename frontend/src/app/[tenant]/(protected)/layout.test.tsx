@@ -8,6 +8,8 @@ import ProtectedLayout from "./layout";
 
 const IPHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const SAMSUNG_INTERNET_UA =
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/130.0.0.0 Mobile Safari/537.36";
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
@@ -19,6 +21,8 @@ vi.mock("~/lib/shell-auth-context", () => ({
   TeacherShellProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="teacher-shell-provider">{children}</div>
   ),
+  // Der geführte Einstieg im Layout (#2831) liest die Sitzung hierüber.
+  useShellAuthSafe: () => undefined,
 }));
 
 vi.mock("~/components/dashboard/app-shell", () => ({
@@ -67,7 +71,7 @@ describe("ProtectedLayout", () => {
     expect(provider).toContainElement(shell);
   });
 
-  it("renders the install hint with the real translation provider", async () => {
+  it("uses only the guided notification setup on a mobile device", async () => {
     vi.stubGlobal("navigator", {
       userAgent: IPHONE_UA,
       platform: "iPhone",
@@ -91,7 +95,38 @@ describe("ProtectedLayout", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "moto als App nutzen" }),
+      screen.queryByRole("heading", { name: "moto als App nutzen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the Chrome guidance for Samsung Internet", async () => {
+    vi.stubGlobal("navigator", {
+      userAgent: SAMSUNG_INTERNET_UA,
+      platform: "Linux armv81",
+      maxTouchPoints: 1,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        matches: false,
+        media: "(display-mode: standalone)",
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    localStorage.setItem("moto-pwa-install-hint-visits", "1");
+
+    render(
+      <ProtectedLayout>
+        <div>Geschützter Inhalt</div>
+      </ProtectedLayout>,
+    );
+
+    expect(
+      await screen.findByText(/nicht über Samsung Internet/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "In Chrome öffnen" }),
     ).toBeInTheDocument();
   });
 });
