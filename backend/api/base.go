@@ -107,6 +107,7 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
+	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -1228,8 +1229,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		return err
 	}
 	api.Staff, api.StaffAdmin = staffResource, staffAdmin
-	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
-	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
+	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
+		Planning: workforceShiftPlanning.NewStaffShiftPlanning(workforceShiftPlanning.PlanningDependencies{
+			Shifts: api.Services.StaffShifts, Series: api.Services.StaffShiftSeries,
+			Overview: api.Services.StaffScheduleOverview, PlanExport: api.Services.PlanExport,
+		}),
+		DB:             db,
+		ResolveStaffID: api.currentStaffID,
+		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
+	})
+	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
+		workforceShiftPlanning.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(api.Services.StaffAbsenceType), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,

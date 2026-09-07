@@ -19,6 +19,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -810,7 +812,35 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
+	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(plannedShifts(shifts)), "Shifts retrieved successfully")
+}
+
+// plannedShifts maps the retained shift rows onto the Workforce planning
+// shape the shared wire format is rendered from (#2689).
+func plannedShifts(shifts []*scheduleModels.StaffShift) []workforce.PlannedShift {
+	result := make([]workforce.PlannedShift, 0, len(shifts))
+	for _, shift := range shifts {
+		if shift == nil {
+			continue
+		}
+		planned := workforce.PlannedShift{StaffShift: workforce.StaffShift{
+			ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
+			StartTime: timezone.NormalizeWallClock(shift.StartTime).Format(workforce.ClockLayout),
+			EndTime:   timezone.NormalizeWallClock(shift.EndTime).Format(workforce.ClockLayout),
+			BreakMinutes: shift.BreakMinutes, ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes,
+			SeriesID: shift.SeriesID, Detached: shift.Detached, Cancelled: shift.Cancelled,
+			ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID, SickAbsenceID: shift.SickAbsenceID,
+			CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy, CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,
+		}}
+		if shift.SeriesOccurrenceDate != nil {
+			planned.SeriesOccurrenceDate = shift.SeriesOccurrenceDate.String()
+		}
+		if shift.ShiftType != nil {
+			planned.ShiftType = &workforce.ShiftTypeLabel{Name: shift.ShiftType.Name, Color: shift.ShiftType.Color}
+		}
+		result = append(result, planned)
+	}
+	return result
 }
 
 // assignmentResponse is the wire format for one Betreuungsplan block a staff

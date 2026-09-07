@@ -229,6 +229,22 @@ permissions for #2688's retained consumers, not target dependencies: convert
 them to exact debt with the rule below once the packages exist at a base SHA,
 and delete the adapter with the last consumer of those contracts.
 
+The Workforce shift-planning HTTP composition
+(`modules/workforce/inbound/shiftplanning`) is classified `workforce`/`http`
+for the same reason (#2689). It serves the public `StaffShiftPlanning` and
+`ShiftTypeAdministration` contracts from the retained `services/schedule` and
+`services/planexport` services and maps their `models/schedule` rows. Every
+`workforce.http.*` rule is a compatibility permission, not a target
+dependency: the `timetable-activities`, `document-rendering` and
+`legacy-shared` edges go when the shift services move into the Workforce
+owner, and the `inbound-common`, `security-runtime`, `tenant-runtime`,
+`orm-sql` and route-adapter edges follow the same conversion the
+`workforce.adapter.*` rules above are bound to. Convert them to exact debt
+once the package exists at a base SHA.
+The retained `models/schedule` repository contracts are served from
+`database/repositories` over the Workforce facade; that package's
+`models/schedule` import is already recorded debt.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to

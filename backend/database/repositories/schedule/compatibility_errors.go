@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -540,4 +541,97 @@ func assignInstanceStaffID(result *InstanceStaffListFilter, field string, id int
 		return errors.New("instance staff filter is unsupported")
 	}
 	return nil
+}
+
+// StaffShiftQueryOptions keeps the retained list-with-options signature of the
+// staff shift contract without making the composition adapter import the base
+// model package (#2689).
+type StaffShiftQueryOptions = modelBase.QueryOptions
+
+// StaffShiftListFilter is the typed form of the query options the retained
+// staff shift consumers still build: the sick cascade filters by the stamped
+// absence and by the covered origin shifts.
+type StaffShiftListFilter struct {
+	SickAbsenceID  *int64
+	OriginShiftIDs []int64
+	StaffIDs       []int64
+	Limit          int
+	Offset         int
+}
+
+// WrapNoRowsDatabaseError restores the legacy read error for a missing row:
+// the persistence-neutral not-found sentinel joined with the driver's no-rows
+// value, so callers that classify on either keep working.
+func WrapNoRowsDatabaseError(operation string) error {
+	return WrapDatabaseError(operation, errors.Join(modelBase.ErrNotFound, sql.ErrNoRows))
+}
+
+// StaffShiftListOptions translates the generic query options into the typed
+// filter. Only the predicates the retained consumers use are accepted;
+// anything else is an error rather than a silently ignored condition.
+func StaffShiftListOptions(options *StaffShiftQueryOptions) (StaffShiftListFilter, error) {
+	result := StaffShiftListFilter{}
+	if options == nil {
+		return result, nil
+	}
+	if options.Pagination != nil {
+		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
+	}
+	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
+		return StaffShiftListFilter{}, errors.New("staff shift sorting is unsupported")
+	}
+	if options.Filter == nil {
+		return result, nil
+	}
+	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
+		return StaffShiftListFilter{}, errors.New("compound staff shift filters are unsupported")
+	}
+	for _, condition := range options.Filter.Conditions() {
+		if err := applyStaffShiftCondition(&result, condition); err != nil {
+			return StaffShiftListFilter{}, err
+		}
+	}
+	return result, nil
+}
+
+func applyStaffShiftCondition(result *StaffShiftListFilter, condition modelBase.FilterCondition) error {
+	switch {
+	case condition.Field == "sick_absence_id" && condition.Operator == modelBase.OpEqual:
+		id, ok := condition.Value.(int64)
+		if !ok {
+			return errors.New("staff shift sick_absence_id filter is unsupported")
+		}
+		result.SickAbsenceID = &id
+	case condition.Field == "origin_shift_id" && condition.Operator == modelBase.OpIn:
+		ids, err := staffShiftIDList(condition.Value)
+		if err != nil {
+			return err
+		}
+		result.OriginShiftIDs = ids
+	case condition.Field == "staff_id" && condition.Operator == modelBase.OpIn:
+		ids, err := staffShiftIDList(condition.Value)
+		if err != nil {
+			return err
+		}
+		result.StaffIDs = ids
+	default:
+		return errors.New("staff shift filter is unsupported")
+	}
+	return nil
+}
+
+func staffShiftIDList(value any) ([]int64, error) {
+	values, ok := value.([]interface{})
+	if !ok {
+		return nil, errors.New("staff shift IN filter is unsupported")
+	}
+	ids := make([]int64, 0, len(values))
+	for _, entry := range values {
+		id, idOK := entry.(int64)
+		if !idOK {
+			return nil, errors.New("staff shift IN filter is unsupported")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

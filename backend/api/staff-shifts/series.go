@@ -8,10 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // occurrenceShiftID accepts legacy JSON numbers as well as the lossless
@@ -78,35 +75,31 @@ type SeriesResponse struct {
 	SkippedDates []string `json:"skipped_dates"`
 }
 
-func toSeriesResponse(result *scheduleSvc.SeriesResult) SeriesResponse {
-	skipped := make([]string, 0, len(result.SkippedDates))
-	for _, d := range result.SkippedDates {
-		skipped = append(skipped, d.String())
+func toSeriesResponse(result workforce.StaffShiftSeriesResult) SeriesResponse {
+	skipped := result.SkippedDates
+	if skipped == nil {
+		skipped = []string{}
 	}
-	resp := SeriesResponse{
+	return SeriesResponse{
+		SeriesID:     result.SeriesID,
 		OldSeriesID:  result.OldSeriesID,
 		Created:      result.Created,
 		Deleted:      result.Deleted,
 		SkippedDates: skipped,
 	}
-	if result.Series != nil {
-		resp.SeriesID = result.Series.ID
-	}
-	return resp
 }
 
-func toWeekdays(values []int) ([]int16, error) {
+func toWeekdays(values []int) ([]int, error) {
 	if values == nil {
 		return nil, nil // split: keep predecessor weekdays
 	}
-	out := make([]int16, 0, len(values))
+	out := make([]int, 0, len(values))
 	for _, v := range values {
-		// Bounds check BEFORE the int16 conversion: without it an
-		// out-of-range value like 65538 silently wraps to a valid weekday.
+		// Bounds check here so an out-of-range value never reaches the plan.
 		if v < 1 || v > 7 {
 			return nil, errors.New("weekdays must be between 1 (Monday) and 7 (Sunday)")
 		}
-		out = append(out, int16(v))
+		out = append(out, v)
 	}
 	return out, nil
 }
@@ -130,26 +123,24 @@ type SeriesDetailResponse struct {
 	ValidUntil       *string `json:"valid_until"`
 }
 
-func toSeriesDetailResponse(series *scheduleModels.StaffShiftSeries) SeriesDetailResponse {
+func toSeriesDetailResponse(series workforce.StaffShiftSeries) SeriesDetailResponse {
 	weekdays := make([]int, 0, len(series.Weekdays))
-	for _, wd := range series.Weekdays {
-		weekdays = append(weekdays, int(wd))
-	}
+	weekdays = append(weekdays, series.Weekdays...)
 	resp := SeriesDetailResponse{
 		ID:               series.ID,
 		StaffID:          series.StaffID,
 		Weekdays:         weekdays,
-		StartTime:        timezone.NormalizeWallClock(series.StartTime).Format("15:04"),
-		EndTime:          timezone.NormalizeWallClock(series.EndTime).Format("15:04"),
+		StartTime:        FormatWallClock(series.StartTime),
+		EndTime:          FormatWallClock(series.EndTime),
 		BreakMinutes:     series.BreakMinutes,
 		ShiftTypeID:      series.ShiftTypeID,
 		Notes:            series.Notes,
 		CalendarPeriodID: series.CalendarPeriodID,
 		WeekPattern:      series.WeekPattern,
-		ValidFrom:        series.ValidFrom.String(),
+		ValidFrom:        series.ValidFrom,
 	}
-	if series.ValidUntil != nil {
-		until := series.ValidUntil.String()
+	if series.ValidUntil != "" {
+		until := series.ValidUntil
 		resp.ValidUntil = &until
 	}
 	return resp
@@ -159,59 +150,43 @@ func toSeriesDetailResponse(series *scheduleModels.StaffShiftSeries) SeriesDetai
 // An absent key and an explicit null both mean "no end date" here; the split
 // handler additionally reads Present to tell "clear the end" from "keep the
 // predecessor's end".
-func parseOptionalValidUntil(raw optionalString) (*timezone.Date, error) {
+func parseOptionalValidUntil(raw optionalString) (string, error) {
 	if raw.Value == nil || *raw.Value == "" {
-		return nil, nil
+		return "", nil
 	}
-	parsed, err := timezone.ParseDate(*raw.Value)
-	if err != nil {
-		return nil, errors.New("valid_until must be YYYY-MM-DD")
+	parsed, ok := parseDate(*raw.Value)
+	if !ok {
+		return "", errors.New("valid_until must be YYYY-MM-DD")
 	}
-	return &parsed, nil
+	return parsed, nil
 }
 
-func renderSeriesServiceError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, scheduleSvc.ErrSeriesNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrSeriesInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		renderServiceError(w, r, err)
-	}
-}
-
-func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSeries, error) {
-	validFrom, err := timezone.ParseDate(req.ValidFrom)
-	if err != nil {
-		return nil, errors.New("valid_from must be YYYY-MM-DD")
+func buildSeries(req SeriesRequest) (workforce.StaffShiftSeriesInput, error) {
+	validFrom, ok := parseDate(req.ValidFrom)
+	if !ok {
+		return workforce.StaffShiftSeriesInput{}, errors.New("valid_from must be YYYY-MM-DD")
 	}
 	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
 	if err != nil {
-		return nil, err
+		return workforce.StaffShiftSeriesInput{}, err
 	}
-	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+	start, end, err := parseShiftTimes(req.StartTime, req.EndTime)
 	if err != nil {
-		return nil, err
+		return workforce.StaffShiftSeriesInput{}, err
 	}
 	notes := ""
 	if req.Notes != nil {
 		notes = *req.Notes
 	}
-	weekPattern := scheduleModels.WeekPatternEvery
+	weekPattern := workforce.WeekPatternEvery
 	if req.WeekPattern != nil {
 		weekPattern = *req.WeekPattern
 	}
 	weekdays, err := toWeekdays(req.Weekdays)
 	if err != nil {
-		return nil, err
+		return workforce.StaffShiftSeriesInput{}, err
 	}
-	var scheduleValidUntil *scheduleModels.Date
-	if validUntil != nil {
-		value := scheduleModels.Date(*validUntil)
-		scheduleValidUntil = &value
-	}
-	return &scheduleModels.StaffShiftSeries{
+	return workforce.StaffShiftSeriesInput{
 		StaffID:          req.StaffID,
 		Weekdays:         weekdays,
 		StartTime:        start,
@@ -221,74 +196,29 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 		Notes:            notes,
 		CalendarPeriodID: req.CalendarPeriodID,
 		WeekPattern:      weekPattern,
-		ValidFrom:        scheduleModels.Date(validFrom),
-		ValidUntil:       scheduleValidUntil,
+		ValidFrom:        validFrom,
+		ValidUntil:       validUntil,
 	}, nil
 }
 
-func (rs *Resource) createSeries(w http.ResponseWriter, r *http.Request) {
-	var req SeriesRequest
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
+func buildSplit(id int64, req SeriesRequest) (workforce.SplitStaffShiftSeries, error) {
+	effective, ok := parseDate(req.EffectiveDate)
+	if !ok {
+		return workforce.SplitStaffShiftSeries{}, errors.New("effective_date must be YYYY-MM-DD")
 	}
-	series, err := rs.buildSeries(req)
+	start, end, err := parseShiftTimes(req.StartTime, req.EndTime)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	editorID, err := rs.editorStaffID(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
-	series.CreatedBy = editorID
-
-	result, err := rs.SeriesService.CreateSeries(r.Context(), series)
-	if err != nil {
-		renderSeriesServiceError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusCreated, toSeriesResponse(result), "Staff shift series created")
-}
-
-func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	var req SeriesRequest
-	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	effective, err := timezone.ParseDate(req.EffectiveDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("effective_date must be YYYY-MM-DD")))
-		return
-	}
-	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
+		return workforce.SplitStaffShiftSeries{}, err
 	}
 	weekdays, err := toWeekdays(req.Weekdays)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
+		return workforce.SplitStaffShiftSeries{}, err
 	}
 	validUntil, err := parseOptionalValidUntil(req.ValidUntil)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
+		return workforce.SplitStaffShiftSeries{}, err
 	}
-	editorID, err := rs.editorStaffID(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
-	result, err := rs.SeriesService.SplitSeries(r.Context(), scheduleSvc.SplitSeriesInput{
+	return workforce.SplitStaffShiftSeries{
 		SeriesID:          id,
 		EffectiveDate:     effective,
 		OccurrenceShiftID: int64(req.OccurrenceShiftID),
@@ -302,51 +232,99 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 		ValidUntil:        validUntil,
 		ValidUntilSet:     req.ValidUntil.Present,
 		WeekPattern:       req.WeekPattern,
-		ActorStaffID:      editorID,
-	})
-	if err != nil {
-		renderSeriesServiceError(w, r, err)
+	}, nil
+}
+
+func (rs *Resource) createSeries(w http.ResponseWriter, r *http.Request) {
+	var req SeriesRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		rs.invalid(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series split")
+	input, err := buildSeries(req)
+	if err != nil {
+		rs.invalid(w, r, err)
+		return
+	}
+	actor, ok := rs.actor(w, r)
+	if !ok {
+		return
+	}
+	input.ActorStaffID = actor.StaffID
+
+	result, err := rs.planning.CreateSeries(r.Context(), workforce.CreateStaffShiftSeries{StaffShiftSeriesInput: input})
+	if err != nil {
+		rs.renderError(w, r, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusCreated, toSeriesResponse(result), "Staff shift series created")
+}
+
+func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := rs.runtime.ParseID(r)
+	if err != nil {
+		rs.invalid(w, r, err)
+		return
+	}
+	var req SeriesRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		rs.invalid(w, r, err)
+		return
+	}
+	input, err := buildSplit(id, req)
+	if err != nil {
+		rs.invalid(w, r, err)
+		return
+	}
+	actor, ok := rs.actor(w, r)
+	if !ok {
+		return
+	}
+	input.ActorStaffID = actor.StaffID
+	result, err := rs.planning.SplitSeries(r.Context(), input)
+	if err != nil {
+		rs.renderError(w, r, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series split")
 }
 
 // getSeries returns the rule behind a shift so the planner can edit the whole
 // series (weekdays, rhythm, validity), not just one occurrence (#2028).
 func (rs *Resource) getSeries(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	series, err := rs.SeriesService.GetSeries(r.Context(), id)
+	series, err := rs.planning.GetSeries(r.Context(), id)
 	if err != nil {
-		renderSeriesServiceError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toSeriesDetailResponse(series), "Staff shift series retrieved")
+	rs.runtime.Success(w, r, http.StatusOK, toSeriesDetailResponse(series), "Staff shift series retrieved")
 }
 
 func (rs *Resource) endSeries(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
 	fromStr := r.URL.Query().Get("from")
 	if fromStr == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from query parameter is required")))
+		rs.invalid(w, r, errors.New("from query parameter is required"))
 		return
 	}
-	from, err := timezone.ParseDate(fromStr)
+	from, ok := parseDate(fromStr)
+	if !ok {
+		rs.invalid(w, r, errors.New("invalid from date format, expected YYYY-MM-DD"))
+		return
+	}
+	result, err := rs.planning.EndSeries(r.Context(), id, from)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		rs.renderError(w, r, err)
 		return
 	}
-	result, err := rs.SeriesService.EndSeries(r.Context(), id, from)
-	if err != nil {
-		renderSeriesServiceError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series ended")
+	rs.runtime.Success(w, r, http.StatusOK, toSeriesResponse(result), "Staff shift series ended")
 }
