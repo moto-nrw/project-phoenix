@@ -516,6 +516,19 @@ func (e engine) DeleteTimeframe(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteTimeframe(ctx, id))
 }
 
+func (e engine) ListConflictAcks(ctx context.Context, accountID int64) ([]string, error) {
+	values, err := e.service.ListConflictAcks(ctx, accountID)
+	return values, mapError(err)
+}
+
+func (e engine) AcknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	return mapError(e.service.AcknowledgeConflict(ctx, accountID, fingerprint))
+}
+
+func (e engine) UnacknowledgeConflict(ctx context.Context, accountID int64, fingerprint string) error {
+	return mapError(e.service.UnacknowledgeConflict(ctx, accountID, fingerprint))
+}
+
 func (e engine) FindPlanningTrack(ctx context.Context, id int64) (timetable.PlanningTrack, error) {
 	value, err := e.service.FindPlanningTrack(ctx, id, "")
 	return planningTrackToPublic(value), mapError(err)

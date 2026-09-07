@@ -104,7 +104,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		ActivityGroupRepo: r.ActivityGroup, ActivitySupervisorRepo: r.ActivitySupervisor, StudentEnrollmentRepo: r.StudentEnrollment,
 		TimeframeRepo: r.Timeframe, EducationGroupRepo: r.Group,
 		ValidateCareOfferingSeries: series.ValidateTemplateSeries, ValidateOfferingSource: series.ValidateTemplateOfferingSource,
-		DeviationEventRepo: r.DeviationEvent, ConflictAckRepo: r.TimetableConflictAck, RecoveryRepo: recovery,
+		DeviationEventRepo: r.DeviationEvent, ConflictAcks: r.Timetable, RecoveryRepo: recovery,
 		Broadcaster: hub, Logger: logger, DB: db, Today: today,
 	})
 	return TimetableTestModule{Instance: instance, CalendarPeriod: periods, TimetableData: data, Materialization: materialization, RealtimeHub: hub}, nil

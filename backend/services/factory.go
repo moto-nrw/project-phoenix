@@ -2985,7 +2985,7 @@ func newFactory(
 		DeviationEventRepo:         repos.DeviationEvent,
 		AttendanceCorrectionRepo:   repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
 		PersonRepo:                 repos.Person,
-		ConflictAckRepo:            repos.TimetableConflictAck,
+		ConflictAcks:               timetableCapability,
 		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),

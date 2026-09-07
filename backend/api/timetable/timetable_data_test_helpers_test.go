@@ -105,7 +105,7 @@ func testTimetableDataWithOfferingCallbacks(
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		PersonRepo:                 usersRepo.NewPersonRepository(db),
-		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
+		ConflictAcks:               boundRepos.Timetable,
 		RecoveryRepo:               repositories.NewActivityRecoveryRepository(db, boundRepos.InstanceStudent),
 		DB:                         db,
 		Today:                      today,
