@@ -141,6 +141,42 @@ func TestUpload_RefusesAConnectionWithTheWrongHostKey(t *testing.T) {
 	assert.Empty(t, entries, "nothing may be written to an unverified counterpart")
 }
 
+// Which host key the counterpart presents is negotiated, not fixed, and the
+// settings tell admins to paste the RSA fingerprint. So the client has to ASK
+// for RSA: left to its own preference, x/crypto/ssh takes ECDSA first and a
+// correctly configured school would see a mismatch from the right counterpart.
+//
+// The test server offers ed25519, ECDSA and RSA, like a stock OpenSSH host.
+func TestUpload_NegotiatesTheRSAHostKeyTheSettingsAskFor(t *testing.T) {
+	t.Parallel()
+
+	server := startTestSFTPServer(t)
+	require.NotEqual(t, server.Fingerprint, server.FingerprintECDSA,
+		"the counterpart must offer more than one key for this test to mean anything")
+
+	t.Run("the RSA fingerprint is accepted", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		err := newTestClient(t).Upload(context.Background(), server.target(dir), "monat.csv", []byte("inhalt"))
+		require.NoError(t, err)
+	})
+
+	t.Run("the ECDSA fingerprint is refused", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		target := server.target(dir)
+		target.HostKeyFingerprint = server.FingerprintECDSA
+
+		err := newTestClient(t).Upload(context.Background(), target, "monat.csv", []byte("inhalt"))
+		require.ErrorIs(t, err, sftp.ErrHostKeyMismatch,
+			"pinning the key the library would have preferred must fail — otherwise nothing was pinned")
+		assert.Contains(t, err.Error(), server.Fingerprint,
+			"and the RSA key is what actually arrived")
+	})
+}
+
 func TestUpload_ReportsRejectedCredentials(t *testing.T) {
 	t.Parallel()
 

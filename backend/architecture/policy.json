@@ -3365,6 +3365,18 @@
       "class": "crypto"
     },
     {
+      "path": "crypto/ecdsa",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/elliptic",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/rsa",
+      "class": "crypto"
+    },
+    {
       "path": "crypto/hmac",
       "class": "crypto"
     },

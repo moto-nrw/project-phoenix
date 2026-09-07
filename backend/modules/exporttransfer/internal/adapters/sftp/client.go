@@ -168,6 +168,22 @@ func ValidateFilename(filename string) error {
 	return nil
 }
 
+// hostKeyAlgorithms decides WHICH of the counterpart's host keys is offered,
+// and therefore which fingerprint the school has to paste into the settings.
+//
+// Left unset, x/crypto/ssh negotiates by its own order (ECDSA, then RSA, then
+// ed25519 last), so the answer would depend on which keys a given counterpart
+// happens to have installed. The settings and the help guide ask for the RSA
+// fingerprint, so the client asks for an RSA host key — the instruction and the
+// handshake now describe the same key on every counterpart.
+//
+// SHA-2 signatures only: plain ssh-rsa is SHA-1 and this repo's crypto rules
+// ban that family. The consequence is deliberate and worth stating: a
+// counterpart that serves ed25519 or ECDSA only cannot be used yet. It fails
+// during negotiation with a connection error rather than silently presenting a
+// key whose fingerprint nobody was asked for.
+var hostKeyAlgorithms = []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256}
+
 // hostKeyCallback pins the counterpart to the configured fingerprint.
 //
 // There is no fallback branch on purpose. ssh.InsecureIgnoreHostKey and
@@ -177,14 +193,17 @@ func ValidateFilename(filename string) error {
 // The comparison is an ordinary one: both sides are public values — a hash of
 // a public host key against a fingerprint the school was told to publish — so
 // there is no secret whose length or content a timing difference could leak.
-// A counterpart usually offers SEVERAL host keys (RSA, ECDSA, ed25519) and the
-// negotiated one decides which fingerprint is presented — x/crypto/ssh prefers
-// RSA over ed25519, so the key an admin looked up with `ssh-keyscan -t ed25519`
-// is often not the key that arrives here. The mismatch therefore names the
-// presented fingerprint and its type. That text reaches the LOG only: the
-// school reads a fixed sentence, because showing the offered fingerprint in
-// the UI would invite pasting whatever answered — which is precisely the
-// trust-on-first-use hole the pinning exists to close.
+//
+// A counterpart usually offers SEVERAL host keys, and the NEGOTIATED one
+// decides which fingerprint arrives here. That is why hostKeyAlgorithms below
+// pins the family: without it x/crypto/ssh picks by its own preference order,
+// which puts ECDSA ahead of RSA, and an admin who pasted the RSA fingerprint
+// would get a mismatch from a counterpart that is exactly who it claims to be.
+//
+// The mismatch names the presented fingerprint and its type. That text reaches
+// the LOG only: the school reads a fixed sentence, because showing the offered
+// fingerprint in the UI would invite pasting whatever answered — which is
+// precisely the trust-on-first-use hole the pinning exists to close.
 func hostKeyCallback(expected string) ssh.HostKeyCallback {
 	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
 		actual := ssh.FingerprintSHA256(key)
@@ -358,10 +377,11 @@ func (u *pendingUpload) Rollback() error {
 // closing only the SFTP client leaves the SSH session's goroutines running.
 func (c *Client) newSFTPClient(conn net.Conn, addr netip.Addr, target Target) (*ssh.Client, *sftp.Client, error) {
 	config := &ssh.ClientConfig{
-		User:            target.Username,
-		Auth:            []ssh.AuthMethod{ssh.Password(target.Password)},
-		HostKeyCallback: hostKeyCallback(target.HostKeyFingerprint),
-		Timeout:         c.timeout,
+		User:              target.Username,
+		Auth:              []ssh.AuthMethod{ssh.Password(target.Password)},
+		HostKeyCallback:   hostKeyCallback(target.HostKeyFingerprint),
+		HostKeyAlgorithms: hostKeyAlgorithms,
+		Timeout:           c.timeout,
 	}
 
 	address := net.JoinHostPort(addr.String(), strconv.Itoa(target.Port))

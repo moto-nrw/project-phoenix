@@ -68,6 +68,7 @@ var reservedPrefixes = buildReservedPrefixes()
 
 func buildReservedPrefixes() []netip.Prefix {
 	raw := []string{
+		"0.0.0.0/8",       // "this network" — 0.0.0.1 is not routable, and some stacks read it as this host
 		"100.64.0.0/10",   // CGNAT — carrier-internal, reachable from some hosts
 		"192.0.0.0/24",    // IETF protocol assignments
 		"192.0.2.0/24",    // TEST-NET-1
