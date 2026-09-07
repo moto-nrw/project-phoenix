@@ -41,10 +41,15 @@ var queryBudgets = map[string]queryBudget{
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
 	// api/students — GET /students list, 10 students, page_size=50.
-	"api.students.list": {max: 32},
+	// 33 since #3074 (#2685): schedule.instance_students moved to the
+	// timetable module, so CareExitCleanupRepository.FindOpenPresence reads
+	// the open roster rows through the owner instead of as a third UNION
+	// branch. Flat at 3 and at 10 students — a boundary cost, not an N+1.
+	"api.students.list": {max: 33},
 	// api/students — #2056: aggregated OGS group view, 10 students. Measured
 	// well below; the cap leaves room for benign changes only.
-	"api.students.ogs_group_live": {max: 41},
+	// 42 for the same FindOpenPresence split as api.students.list.
+	"api.students.ogs_group_live": {max: 42},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},
