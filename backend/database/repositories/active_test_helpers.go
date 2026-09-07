@@ -34,9 +34,13 @@ func NewActiveTestRepositories(db *bun.DB, clocks ...func() time.Time) (ActiveTe
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return ActiveTestRepositories{}, err
+	}
 	r := &Factory{db: db, CrossTenant: activeRepo.NewCrossTenantRepository(db),
 		CombinedGroup: activeRepo.NewCombinedGroupRepository(db), GroupMapping: activeRepo.NewGroupMappingRepository(db)}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	r.BindSchoolStructure(groups)
 	return ActiveTestRepositories{TimetableTestRepositories: tt,

@@ -10,15 +10,7 @@ func (r *WorkSessionRepository) OldestBefore(ctx context.Context, column string,
 	return oldestDate(ctx, r.Repository.OldestBefore, column, cutoff)
 }
 
-func (r *StaffAbsenceRepository) OldestBefore(ctx context.Context, column string, cutoff *timezone.Date) (*timezone.Date, error) {
-	return oldestDate(ctx, r.Repository.OldestBefore, column, cutoff)
-}
-
 func (r *WorkSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
-	return r.Repository.DeleteOlderThan(ctx, column, string(cutoff))
-}
-
-func (r *StaffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
 	return r.Repository.DeleteOlderThan(ctx, column, string(cutoff))
 }
 

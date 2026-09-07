@@ -125,7 +125,11 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	}
 	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
+	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)
 	rooms, err := NewFacilities(db)

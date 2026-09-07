@@ -19,6 +19,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -131,8 +132,16 @@ type TimeTrackingCleanupRepositories struct {
 
 func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command) TimeTrackingCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
+	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
+	}
 	return TimeTrackingCleanupRepositories{
-		Session: activeRepo.NewWorkSessionRepository(db), Absence: activeRepo.NewStaffAbsenceRepository(db),
+		Session: activeRepo.NewWorkSessionRepository(db), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
 		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }
