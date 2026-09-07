@@ -441,7 +441,7 @@ func (s *service) carePeriodOfferings(
 	return items, nil
 }
 
-func uniqueOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
+func uniqueOfferingIDs(links []*enrollmentSvc.RequestChildOffering) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -456,7 +456,7 @@ func uniqueOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
 
 func careOfferingSelection(
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *enrollmentSvc.RequestChildOffering,
 	today timezone.Date,
 ) (CareOfferingSelection, bool) {
 	if offering == nil {
@@ -481,7 +481,7 @@ func careOfferingSelection(
 	return item, true
 }
 
-func careOfferingDays(offering *enrollmentModels.CareOffering, link *enrollmentModels.RequestChildOffering) []string {
+func careOfferingDays(offering *enrollmentModels.CareOffering, link *enrollmentSvc.RequestChildOffering) []string {
 	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
 		return offering.AvailableDays
 	}

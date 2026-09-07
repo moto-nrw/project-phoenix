@@ -227,7 +227,7 @@ func mergeEditableCustomData(
 	return out
 }
 
-func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []map[string]any {
+func existingChildCustomDataBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []map[string]any {
 	out := make([]map[string]any, len(submitted))
 	for i, child := range matchExistingChildrenBySubmittedIdentity(existing, submitted) {
 		if child != nil {
@@ -242,9 +242,9 @@ func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentModels.Req
 // matched only when the normalized (name, date-of-birth) identity is unique on
 // both sides; ambiguous or genuinely new children stay unmatched. This avoids
 // silently transferring hidden offerings or lifecycle metadata by array index.
-func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []*enrollmentModels.RequestChild {
-	matches := make([]*enrollmentModels.RequestChild, len(submitted))
-	byID := make(map[int64]*enrollmentModels.RequestChild, len(existing))
+func matchExistingChildrenBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []*RequestChild {
+	matches := make([]*RequestChild, len(submitted))
+	byID := make(map[int64]*RequestChild, len(existing))
 	used := make(map[int64]bool, len(existing))
 	for _, child := range existing {
 		if child != nil && child.ID > 0 {
@@ -261,7 +261,7 @@ func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentModels.Reque
 		}
 	}
 
-	existingByIdentity := make(map[string][]*enrollmentModels.RequestChild)
+	existingByIdentity := make(map[string][]*RequestChild)
 	incomingByIdentity := make(map[string][]int)
 	for _, child := range existing {
 		if child == nil || child.ID <= 0 || used[child.ID] {
@@ -299,7 +299,7 @@ func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
 // even though it now describes a different child. Callers use this to drop a
 // stale existing-student pin before approval renews the wrong live student
 // (#1663).
-func sameSubmittedIdentity(existing *enrollmentModels.RequestChild, submitted SubmitChild) bool {
+func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
 	if existing == nil {
 		return false
 	}
@@ -498,13 +498,13 @@ func (s *requestService) validateConstrainedSchedules(
 	schema *capability.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
-	existingChildren ...[]*enrollmentModels.RequestChild,
+	existingChildren ...[]*RequestChild,
 ) error {
 	if schema == nil {
 		return nil
 	}
 	byKey := buildFieldsByKey(schema)
-	var existingBySubmittedChild []*enrollmentModels.RequestChild
+	var existingBySubmittedChild []*RequestChild
 	if len(existingChildren) > 0 {
 		existingBySubmittedChild = matchExistingChildrenBySubmittedIdentity(existingChildren[0], req.Children)
 	}
@@ -597,7 +597,7 @@ func (s *requestService) validateConstrainedSchedules(
 // change request may resubmit every custom-data value while changing something
 // unrelated. A changed target grade still revalidates because it can newly put
 // the child under the rule.
-func unchangedSingleModeDepartureAnswer(existing *enrollmentModels.RequestChild, submitted SubmitChild, key string) bool {
+func unchangedSingleModeDepartureAnswer(existing *RequestChild, submitted SubmitChild, key string) bool {
 	if existing == nil || !sameGradeLevel(existing.TargetGradeLevel, submitted.TargetGradeLevel) {
 		return false
 	}

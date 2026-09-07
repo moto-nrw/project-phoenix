@@ -21,6 +21,7 @@ import { BookedCareSection } from "~/components/parent/child/booked-care-section
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
 import { ChildConsentsSection } from "~/components/parent/child/child-consents-section";
+import { CoursesSection } from "~/components/parent/child/courses-section";
 import {
   ChildSwitcher,
   type ChildSwitcherItem,
@@ -441,6 +442,10 @@ function ChildAreaTabs({
           enrolledUntil={child.enrolled_until}
           reasonRequired={reasonRequired}
         />
+        {/* Kurse (#3075): eigener Abschnitt, damit eine Kursanfrage nicht
+            zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
+            die Schule sie aus, rendert der Abschnitt nichts. */}
+        <CoursesSection studentId={child.student_id} careEnded={careEnded} />
         <ChildMasterDataView
           studentId={child.student_id}
           childName={childName}

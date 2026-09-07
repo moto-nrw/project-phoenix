@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
-	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,7 @@ func TestOwnerOfferingSelectionPreservesLegacyJSON(t *testing.T) {
 			name = "dated_selection"
 		}
 		t.Run(name, func(t *testing.T) {
-			row := &legacy.RequestChildOffering{RequestChildID: 9007199254740993, CareOfferingID: 9007199254740995}
+			row := &RequestChildOffering{RequestChildID: 9007199254740993, CareOfferingID: 9007199254740995}
 			row.ID = 9007199254740997
 			row.TenantID = 9007199254740999
 			row.CreatedAt = time.Date(2027, 3, 28, 0, 0, 0, 0, time.UTC)

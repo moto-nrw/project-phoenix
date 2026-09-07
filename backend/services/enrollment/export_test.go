@@ -9,22 +9,22 @@ import (
 )
 
 // InsertOwnerChildForTest persists a service fixture and its generated metadata.
-func InsertOwnerChildForTest(ctx context.Context, owner *capability.Module, child *enrollmentModels.RequestChild) error {
+func InsertOwnerChildForTest(ctx context.Context, owner *capability.Module, child *RequestChild) error {
 	return createIntakeChild(ctx, owner, child)
 }
 
 // ReadOwnerRequestChildrenForTest loads service-shaped child fixtures.
-func ReadOwnerRequestChildrenForTest(ctx context.Context, owner *capability.Module, requestID int64) ([]*enrollmentModels.RequestChild, error) {
+func ReadOwnerRequestChildrenForTest(ctx context.Context, owner *capability.Module, requestID int64) ([]*RequestChild, error) {
 	return listIntakeChildren(ctx, owner, requestID, false)
 }
 
 // ReadOwnerChildForTest loads a service-shaped fixture through the owner query.
-func ReadOwnerChildForTest(ctx context.Context, owner *capability.Module, id int64) (*enrollmentModels.RequestChild, error) {
+func ReadOwnerChildForTest(ctx context.Context, owner *capability.Module, id int64) (*RequestChild, error) {
 	return offeringChildByID(ctx, owner, id)
 }
 
 // UpdateOwnerChildForTest writes service-shaped fixture data through the owner.
-func UpdateOwnerChildForTest(ctx context.Context, owner *capability.Module, child *enrollmentModels.RequestChild) error {
+func UpdateOwnerChildForTest(ctx context.Context, owner *capability.Module, child *RequestChild) error {
 	return updateIntakeChild(ctx, owner, child)
 }
 

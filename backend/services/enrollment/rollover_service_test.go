@@ -207,7 +207,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 // seedApprovedChild walks one parent submission through Submit + admin
 // approval so the source phase has a real `approved` request_children
 // row to roll forward. Returns the child for assertions.
-func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardianFirst, guardianLast, guardianEmail, childFirst, childLast string, grade int16) *enrollmentModels.RequestChild {
+func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardianFirst, guardianLast, guardianEmail, childFirst, childLast string, grade int16) *enrollmentService.RequestChild {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 
@@ -878,7 +878,7 @@ func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int
 	return nil, nil
 }
 
-func (f *fakeApproveDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+func (f *fakeApproveDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentService.RequestChild, error) {
 	return nil, nil
 }
 

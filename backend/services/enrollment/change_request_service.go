@@ -80,9 +80,9 @@ type CompanionGraphCoordinator interface {
 
 type ChangeRequestDecisionApplier interface {
 	LockOfferingDerivedWrites(ctx context.Context) error
-	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
 	applyApprovedChangeRequestOfferingsWithResult(ctx context.Context, input UpdateChildOfferingsInput) (*appliedOfferingAdjustment, error)
-	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
+	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error)
 	// ReconcileOfferingPickupForStudents refreshes dependent state
 	// after an approved change replaced the students' offering bookings.
 	ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64) error
@@ -91,7 +91,7 @@ type ChangeRequestDecisionApplier interface {
 type ChangeRequestAggregate struct {
 	ChangeRequest *enrollmentModels.ChangeRequest
 	Request       *enrollmentModels.Request
-	Children      []*enrollmentModels.RequestChild
+	Children      []*RequestChild
 	Messages      []*capability.ChangeRequestMessage
 	Phase         *capability.Phase
 }
@@ -482,7 +482,7 @@ func validateAdminCorrectionInput(input CorrectApprovedChildDataInput) (string, 
 	return firstName, lastName, reason, nil
 }
 
-func requestChildByID(children []*enrollmentModels.RequestChild, childID int64) *enrollmentModels.RequestChild {
+func requestChildByID(children []*RequestChild, childID int64) *RequestChild {
 	for _, child := range children {
 		if child != nil && child.ID == childID {
 			return child
@@ -491,7 +491,7 @@ func requestChildByID(children []*enrollmentModels.RequestChild, childID int64) 
 	return nil
 }
 
-func validateAdminCorrectionChild(child *enrollmentModels.RequestChild, decisionService ChangeRequestDecisionApplier) error {
+func validateAdminCorrectionChild(child *RequestChild, decisionService ChangeRequestDecisionApplier) error {
 	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 || decisionService == nil {
 		return fmt.Errorf("%w: only approved children with a linked student can be corrected", ErrChangeRequestNotAllowed)
 	}
@@ -501,7 +501,7 @@ func validateAdminCorrectionChild(child *enrollmentModels.RequestChild, decision
 func (s *changeRequestService) prepareAdminCorrectionTargets(
 	ctx context.Context,
 	req *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	input CorrectApprovedChildDataInput,
 ) (*int16, *string, error) {
 	normalizedSchoolClass := normalizedOptionalString(input.TargetSchoolClass)
@@ -546,7 +546,7 @@ func validateAdminCorrectionTargetPermissions(gradeChanged, classChanged, collec
 
 func (s *changeRequestService) changedAdminCorrectionTargets(
 	ctx context.Context,
-	child *enrollmentModels.RequestChild,
+	child *RequestChild,
 	input CorrectApprovedChildDataInput,
 	normalizedSchoolClass *string,
 	gradeChanged, classChanged bool,
@@ -756,7 +756,7 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 // children into submitted and mirrors the transition on the in-memory rows
 // (the caller builds the base snapshot from them). Idempotent: rows in any
 // other status are untouched.
-func (s *changeRequestService) flipRenewalChildrenToSubmitted(ctx context.Context, children []*enrollmentModels.RequestChild) error {
+func (s *changeRequestService) flipRenewalChildrenToSubmitted(ctx context.Context, children []*RequestChild) error {
 	for _, child := range children {
 		if child.Status != enrollmentModels.ChildStatusPendingRenewal &&
 			child.Status != enrollmentModels.ChildStatusAutoRenewed {
@@ -770,7 +770,7 @@ func (s *changeRequestService) flipRenewalChildrenToSubmitted(ctx context.Contex
 	return nil
 }
 
-func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
+func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) error {
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
 		Children: s.Children, Settings: s.Settings}}
 	if err := rs.ensureChangeRequestDraftAvailable(ctx, req, children); err != nil {
@@ -821,7 +821,7 @@ func (s *changeRequestService) formCapabilities(ctx context.Context, pinnedCareO
 func (s *changeRequestService) prepareProposed(
 	ctx context.Context,
 	req *enrollmentModels.Request,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	incoming SubmitRequest,
 	capabilities FormCapabilities,
 	allowStoredHiddenOfferings bool,
@@ -1035,7 +1035,7 @@ func (s *changeRequestService) prepareProposed(
 
 func (s *changeRequestService) changeRequestOfferingCatalogs(
 	ctx context.Context,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 	onDate timezone.Date,
 ) ([]map[int64]*enrollmentModels.CareOffering, map[int64]*enrollmentModels.CareOffering, error) {
@@ -1113,7 +1113,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 
 func materializeAndValidateChangeRequestChildrenOfferingSelections(
 	children []SubmitChild,
-	existingChildren []*enrollmentModels.RequestChild,
+	existingChildren []*RequestChild,
 	catalogs []map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
 	skipTakenOverChildren ...bool,
@@ -1165,7 +1165,7 @@ func materializeAndValidateChangeRequestChildrenOfferingSelections(
 	return out, nil
 }
 
-func mutableChangeRequestChildren(submitted []SubmitChild, existing []*enrollmentModels.RequestChild) []SubmitChild {
+func mutableChangeRequestChildren(submitted []SubmitChild, existing []*RequestChild) []SubmitChild {
 	mutable := make([]SubmitChild, 0, len(submitted))
 	for i, child := range submitted {
 		if i < len(existing) && ChildTakenOver(existing[i]) {
@@ -1176,7 +1176,7 @@ func mutableChangeRequestChildren(submitted []SubmitChild, existing []*enrollmen
 	return mutable
 }
 
-func normalizeChangeRequestChildren(req *SubmitRequest, existing []*enrollmentModels.RequestChild, capabilities FormCapabilities, skipTakenOverChildren bool) error {
+func normalizeChangeRequestChildren(req *SubmitRequest, existing []*RequestChild, capabilities FormCapabilities, skipTakenOverChildren bool) error {
 	for i := range req.Children {
 		if skipTakenOverChildren && i < len(existing) && ChildTakenOver(existing[i]) {
 			continue
@@ -1195,7 +1195,7 @@ func normalizeChangeRequestSchoolClasses(
 	rs *requestService,
 	phase *capability.Phase,
 	req *SubmitRequest,
-	existing []*enrollmentModels.RequestChild,
+	existing []*RequestChild,
 	skipTakenOverChildren bool,
 ) error {
 	for i := range req.Children {
@@ -1211,7 +1211,7 @@ func normalizeChangeRequestSchoolClasses(
 	return nil
 }
 
-func changeRequestValidationSubmission(req SubmitRequest, existing []*enrollmentModels.RequestChild, skipTakenOverChildren bool) SubmitRequest {
+func changeRequestValidationSubmission(req SubmitRequest, existing []*RequestChild, skipTakenOverChildren bool) SubmitRequest {
 	if !skipTakenOverChildren {
 		return req
 	}
@@ -1261,7 +1261,7 @@ func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema
 	return applyTemplateLegalBlocks(texts, schema).Blocks, nil
 }
 
-func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (map[string]any, error) {
+func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (map[string]any, error) {
 	guardians, err := listIntakeGuardians(ctx, s.Guardians, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
@@ -1286,7 +1286,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	linksByChild := make(map[int64][]*RequestChildOffering, len(children))
 	for _, link := range links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
@@ -1306,7 +1306,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 // aborts one of them. Taking the whole set in one ordered pass first removes
 // the inversion — every later lock in this transaction re-acquires a row it
 // already holds.
-func (s *changeRequestService) lockApprovedStudents(ctx context.Context, children []*enrollmentModels.RequestChild) error {
+func (s *changeRequestService) lockApprovedStudents(ctx context.Context, children []*RequestChild) error {
 	if s.CompanionGraphLocker == nil {
 		return nil
 	}
@@ -1596,7 +1596,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 func (s *changeRequestService) changeRequestCapacityOverrides(
 	ctx context.Context,
 	row *enrollmentModels.ChangeRequest,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	prepared SubmitRequest,
 	phase *capability.Phase,
 	openByID map[int64]*enrollmentModels.CareOffering,
@@ -1646,7 +1646,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	return overrides, nil
 }
 
-func (s *changeRequestService) approvedChildUsesDecisionSync(child *enrollmentModels.RequestChild) bool {
+func (s *changeRequestService) approvedChildUsesDecisionSync(child *RequestChild) bool {
 	return child != nil &&
 		child.Status == enrollmentModels.ChildStatusApproved &&
 		child.CreatedStudentID != nil &&
@@ -1695,7 +1695,7 @@ func (s *changeRequestService) validateChangedChildIdentityEligibility(
 	ctx context.Context,
 	phase *capability.Phase,
 	editReq SubmitRequest,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 ) error {
 	rs := s.matchResolverShim()
 	for i := range editReq.Children {
@@ -1713,7 +1713,7 @@ func (s *changeRequestService) validateChangedChildIdentityEligibility(
 // mirroring the status decisions the write loop makes further down: a capacity
 // override wins, otherwise a rejected child whose own data changed is reopened
 // to under_review, otherwise the status is unchanged.
-func postApprovalChildStatus(row *enrollmentModels.ChangeRequest, existing *enrollmentModels.RequestChild, overrides map[int]string, index int) string {
+func postApprovalChildStatus(row *enrollmentModels.ChangeRequest, existing *RequestChild, overrides map[int]string, index int) string {
 	if status, ok := overrides[index]; ok {
 		return status
 	}
@@ -1755,7 +1755,7 @@ func (s *changeRequestService) reconcileMatchedStudent(
 	req *enrollmentModels.Request,
 	phase *capability.Phase,
 	row *enrollmentModels.ChangeRequest,
-	existing *enrollmentModels.RequestChild,
+	existing *RequestChild,
 	next SubmitChild,
 	overrides map[int]string,
 	eligibilityEnforced bool,
@@ -1928,7 +1928,7 @@ func (s *changeRequestService) ensureNoOpenChangeRequest(ctx context.Context, re
 	return nil
 }
 
-func validateChangeRequestChildIdentity(existing []*enrollmentModels.RequestChild, incoming []SubmitChild) error {
+func validateChangeRequestChildIdentity(existing []*RequestChild, incoming []SubmitChild) error {
 	if len(existing) != len(incoming) {
 		return fmt.Errorf("%w: child count changes are not supported for change requests", ErrChangeRequestInvalidData)
 	}
@@ -2260,9 +2260,9 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 
 func persistedSnapshot(
 	req *enrollmentModels.Request,
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	guardians []*capability.RequestGuardian,
-	linksByChild map[int64][]*enrollmentModels.RequestChildOffering,
+	linksByChild map[int64][]*RequestChildOffering,
 ) map[string]any {
 	submit := SubmitRequest{
 		TenantID:          req.TenantID,
@@ -2321,7 +2321,7 @@ func persistedSnapshot(
 // aligned with children — validateChangeRequestChildIdentity pins that in
 // prepareProposed — so comparing row by row is enough. id and status are
 // bookkeeping the persisted snapshot carries and the proposal does not.
-func ensureTakenOverChildrenUnchanged(children []*enrollmentModels.RequestChild, base, proposed map[string]any) error {
+func ensureTakenOverChildrenUnchanged(children []*RequestChild, base, proposed map[string]any) error {
 	baseRows := sliceFromAny(base["children"])
 	proposedRows := sliceFromAny(proposed["children"])
 	for i, child := range children {

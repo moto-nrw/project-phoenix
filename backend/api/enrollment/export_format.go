@@ -42,7 +42,7 @@ func statusLabelDE(status string) string {
 	return status
 }
 
-func activationSummary(c *enrollmentModels.RequestChild) string {
+func activationSummary(c *enrollmentService.RequestChild) string {
 	mode := "Geplant"
 	if c.ActivationMode == enrollmentModels.ChildActivationImmediate {
 		mode = "Sofort"

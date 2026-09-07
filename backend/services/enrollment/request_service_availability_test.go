@@ -64,7 +64,7 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 			{TargetGradeLevel: &grade2, OfferingIDs: []int64{10}},
 			{TargetGradeLevel: &grade3, OfferingIDs: []int64{20}},
 		},
-		[]*enrollmentModels.RequestChild{{}, {}},
+		[]*RequestChild{{}, {}},
 		[]map[int64]*enrollmentModels.CareOffering{catalog, catalog},
 		enrollmentModels.PhaseCareOfferingSelectionOptional,
 	)

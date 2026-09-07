@@ -154,6 +154,11 @@ func (e *recordingEngine) ListGroups(context.Context, timetable.GroupFilter) ([]
 	return []timetable.Group{}, nil
 }
 
+func (e *recordingEngine) ListCourseGroups(context.Context, timetable.CourseGroupFilter) ([]timetable.CourseGroup, error) {
+	e.calls++
+	return []timetable.CourseGroup{}, nil
+}
+
 func (e *recordingEngine) ListTemplateRows(context.Context, *int64) ([]timetable.TemplateListRow, error) {
 	e.calls++
 	return []timetable.TemplateListRow{}, nil

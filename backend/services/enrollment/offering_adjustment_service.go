@@ -38,8 +38,8 @@ type offeringAdjustmentSnapshot struct {
 // shared adjustment path. The change-request decision uses it for its snapshot
 // so a second catalog read cannot describe a different booking.
 type appliedOfferingAdjustment struct {
-	Child              *enrollmentModels.RequestChild
-	Before             []*enrollmentModels.RequestChildOffering
+	Child              *RequestChild
+	Before             []*RequestChildOffering
 	Selections         []materializedOfferingSelection
 	Offerings          map[int64]*enrollmentModels.CareOffering
 	Overridden         []enrollmentModels.OfferingChangeSnapshotOffering
@@ -60,7 +60,7 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 	return s.OfferingAdjustmentRepo.ListByRequestChildID(ctx, requestChildID)
 }
 
-func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error) {
 	result, err := s.updateChildOfferings(ctx, input, auditModels.OfferingAdjustmentSourceDirect)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 // request. The offering-change request service separately enforces the live
 // care-offerings setting before using this shared path; generic form
 // corrections intentionally preserve their frozen offering snapshot.
-func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error) {
 	result, err := s.applyApprovedChangeRequestOfferingsWithResult(ctx, input)
 	if err != nil {
 		return nil, err
@@ -146,17 +146,17 @@ type offeringAdjustmentWork struct {
 	input                                  UpdateChildOfferingsInput
 	source, reason                         string
 	request                                *enrollmentModels.Request
-	child                                  *enrollmentModels.RequestChild
+	child                                  *RequestChild
 	student                                *users.Student
 	phase                                  *enrollmentOwner.Phase
 	effectiveFrom                          *timezone.Date
 	selectionDate                          timezone.Date
 	offeringByID                           map[int64]*enrollmentModels.CareOffering
 	activeOfferingByID, beforeOfferingByID map[int64]*enrollmentModels.CareOffering
-	beforeLinks                            []*enrollmentModels.RequestChildOffering
+	beforeLinks                            []*RequestChildOffering
 	beforeJSON, afterJSON                  []byte
 	selections                             []materializedOfferingSelection
-	replacement                            []*enrollmentModels.RequestChildOffering
+	replacement                            []*RequestChildOffering
 	overridden                             []enrollmentModels.OfferingChangeSnapshotOffering
 	authoritative, afterHasCareDays        bool
 	isCompleteWithdrawal                   bool
@@ -383,9 +383,9 @@ func addCareOfferingMap(target, source map[int64]*enrollmentModels.CareOffering)
 }
 
 func (s *decisionService) buildOfferingAdjustmentReplacement(work *offeringAdjustmentWork) error {
-	replacement := make([]*enrollmentModels.RequestChildOffering, 0, len(work.selections))
+	replacement := make([]*RequestChildOffering, 0, len(work.selections))
 	for _, selection := range work.selections {
-		replacement = append(replacement, &enrollmentModels.RequestChildOffering{
+		replacement = append(replacement, &RequestChildOffering{
 			RequestChildID:        work.child.ID,
 			CareOfferingID:        selection.OfferingID,
 			SelectedDays:          selection.SelectedDays,
@@ -510,11 +510,11 @@ func (s *decisionService) finishOfferingAdjustment(
 }
 
 func capOfferingReplacementAtCareEnd(
-	rows []*enrollmentModels.RequestChildOffering,
+	rows []*RequestChildOffering,
 	lastCareDay *timezone.Date,
 	phase *enrollmentOwner.Phase,
 	effectiveFrom *timezone.Date,
-) []*enrollmentModels.RequestChildOffering {
+) []*RequestChildOffering {
 	if lastCareDay == nil {
 		return rows
 	}
@@ -534,7 +534,7 @@ func capOfferingReplacementAtCareEnd(
 }
 
 func careExitSourceOfferingsFromLinks(
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	offerings map[int64]*enrollmentModels.CareOffering,
 ) []users.CareExitSourceOffering {
 	result := make([]users.CareExitSourceOffering, 0, len(links))
@@ -556,7 +556,7 @@ func careExitSourceOfferingsFromLinks(
 }
 
 func requestChildOfferingLinksHaveCareDays(
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 	offerings map[int64]*enrollmentModels.CareOffering,
 ) bool {
 	for _, link := range links {
@@ -632,7 +632,7 @@ func adjustmentReasonWithOverrides(
 // re-derived while the trigger stays selected. Classifying a mixed link as
 // manual only dropped it out of the auto-materialization catalog on that very
 // save and deleted its automatic days.
-func grandfatheredOfferingsFromLinks(links []*enrollmentModels.RequestChildOffering) GrandfatheredOfferings {
+func grandfatheredOfferingsFromLinks(links []*RequestChildOffering) GrandfatheredOfferings {
 	grandfathered := GrandfatheredOfferings{
 		Manual:    make(map[int64]bool, len(links)),
 		Automatic: make(map[int64]bool, len(links)),
@@ -702,7 +702,7 @@ func offeringSelectionDateOn(phase *enrollmentOwner.Phase, today timezone.Date) 
 
 type scheduledOfferingReplacement struct {
 	EffectiveFrom timezone.Date
-	Rows          []*enrollmentModels.RequestChildOffering
+	Rows          []*RequestChildOffering
 }
 
 // scheduledOfferingReplacements captures future changes before an undated
@@ -721,7 +721,7 @@ func (s *decisionService) scheduledOfferingReplacements(
 	if err != nil {
 		return nil, fmt.Errorf("decision: list scheduled child offerings: %w", err)
 	}
-	byDate := make(map[timezone.Date][]*enrollmentModels.RequestChildOffering)
+	byDate := make(map[timezone.Date][]*RequestChildOffering)
 	for _, row := range history {
 		if row == nil || row.ValidFrom == nil || !timezone.Date(*row.ValidFrom).After(selectionDate) {
 			continue
@@ -741,7 +741,7 @@ func (s *decisionService) scheduledOfferingReplacements(
 	return scheduled, nil
 }
 
-func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error) {
+func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error) {
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
@@ -984,7 +984,7 @@ func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*
 	return name, email
 }
 
-func adjustmentSnapshotJSON(links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering) ([]byte, error) {
+func adjustmentSnapshotJSON(links []*RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering) ([]byte, error) {
 	rows := make([]offeringAdjustmentSnapshot, 0, len(links))
 	for _, link := range links {
 		if link == nil {
@@ -1022,7 +1022,7 @@ func lessNumericString(left, right string) bool {
 	return left < right
 }
 
-func offeringIDsFromLinks(links []*enrollmentModels.RequestChildOffering) []int64 {
+func offeringIDsFromLinks(links []*RequestChildOffering) []int64 {
 	ids := make([]int64, 0, len(links))
 	seen := make(map[int64]bool, len(links))
 	for _, link := range links {
@@ -1038,8 +1038,8 @@ func offeringIDsFromLinks(links []*enrollmentModels.RequestChildOffering) []int6
 func (s *decisionService) rematerializeAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	beforeLinks []*enrollmentModels.RequestChildOffering,
-	replacement []*enrollmentModels.RequestChildOffering,
+	beforeLinks []*RequestChildOffering,
+	replacement []*RequestChildOffering,
 	phase *enrollmentOwner.Phase,
 	effectiveFrom *timezone.Date,
 ) error {
@@ -1115,7 +1115,7 @@ func (s *decisionService) enrollmentGroupIDsForRequestChild(
 func (s *decisionService) splitAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	replacement []*enrollmentModels.RequestChildOffering,
+	replacement []*RequestChildOffering,
 	phase *enrollmentOwner.Phase,
 	effectiveFrom timezone.Date,
 ) error {
@@ -1223,7 +1223,7 @@ func careDraftMatchesEnrollment(draft *careEnrollmentDraft, row *activities.Stud
 func (s *decisionService) backfillLegacyAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
-	beforeLinks []*enrollmentModels.RequestChildOffering,
+	beforeLinks []*RequestChildOffering,
 ) error {
 	if s.CareOfferingRepo == nil {
 		return nil

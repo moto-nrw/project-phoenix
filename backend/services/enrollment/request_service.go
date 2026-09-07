@@ -288,7 +288,7 @@ func fullWindowClaims(children []SubmitChild) [][]OfferingClaim {
 // SubmitResult bundles what the handler needs after Submit returns.
 type SubmitResult struct {
 	Request   *enrollmentModels.Request
-	Children  []*enrollmentModels.RequestChild
+	Children  []*RequestChild
 	StatusURL string
 	Warnings  []SubmissionWarning
 }
@@ -334,9 +334,9 @@ type materializedOfferingSelection struct {
 // public enrollment form for a submitted request.
 type EditDraft struct {
 	Request          *enrollmentModels.Request
-	Children         []*enrollmentModels.RequestChild
+	Children         []*RequestChild
 	Guardians        []*enrollmentCapability.RequestGuardian
-	OfferingsByChild map[int64][]*enrollmentModels.RequestChildOffering
+	OfferingsByChild map[int64][]*RequestChildOffering
 	Phase            *enrollmentCapability.Phase
 	School           *platformModels.School
 	Schema           *enrollmentCapability.FormSchema
@@ -380,8 +380,8 @@ type EditPatch struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error)
-	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
-	EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error)
+	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*RequestChild, error)
+	EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (string, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
 	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	// GuardiansByStatusToken returns the additional guardians (co-guardians)
@@ -824,7 +824,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 
 	var (
 		createdRequest  *enrollmentModels.Request
-		createdChildren []*enrollmentModels.RequestChild
+		createdChildren []*RequestChild
 		warnings        []SubmissionWarning
 	)
 	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
@@ -951,7 +951,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			if override, ok := childStatusOverrides[i]; ok {
 				status = override
 			}
-			row := &enrollmentModels.RequestChild{
+			row := &RequestChild{
 				RequestID:         request.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
@@ -1659,9 +1659,9 @@ func selectionPayload(selections []materializedOfferingSelection, openByID map[i
 // child rows while the catalog is disabled. The parent cannot see or change
 // these values, but re-enabling the setting restores them intact.
 func preservedOfferingSelections(
-	existingChildren []*enrollmentModels.RequestChild,
+	existingChildren []*RequestChild,
 	incoming []SubmitChild,
-	links []*enrollmentModels.RequestChildOffering,
+	links []*RequestChildOffering,
 ) [][]materializedOfferingSelection {
 	byChild := make(map[int64][]materializedOfferingSelection, len(existingChildren))
 	for _, link := range links {
@@ -1908,7 +1908,7 @@ func hasChoosableCareOffering(catalog map[int64]*enrollmentModels.CareOffering) 
 // GetByStatusToken loads a request + its children for the public
 // status page. Caller is responsible for setting an admin-tx context
 // (token-only auth - RLS would block unprivileged SELECTs).
-func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error) {
+func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*RequestChild, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, nil, ErrRequestNotFound
@@ -1943,7 +1943,7 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 
 // EditModeForStatus returns the edit path the public status page may offer.
 // It intentionally mirrors GetEditDraft's gates without loading the full draft.
-func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error) {
+func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) (string, error) {
 	if req == nil {
 		return EditModeNone, nil
 	}
@@ -2031,10 +2031,10 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 
 	var (
 		req       *enrollmentModels.Request
-		children  []*enrollmentModels.RequestChild
+		children  []*RequestChild
 		childIDs  []int64
 		guardians []*enrollmentCapability.RequestGuardian
-		links     []*enrollmentModels.RequestChildOffering
+		links     []*RequestChildOffering
 		school    *platformModels.School
 	)
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
@@ -2200,7 +2200,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		return nil, err
 	}
 
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	linksByChild := make(map[int64][]*RequestChildOffering, len(children))
 	for _, link := range links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
@@ -2249,7 +2249,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 
 	var (
 		updatedRequest  *enrollmentModels.Request
-		createdChildren []*enrollmentModels.RequestChild
+		createdChildren []*RequestChild
 		warnings        []SubmissionWarning
 	)
 	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -2524,7 +2524,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			if override, ok := childStatusOverrides[i]; ok {
 				status = override
 			}
-			row := &enrollmentModels.RequestChild{
+			row := &RequestChild{
 				RequestID:         req.ID,
 				FirstName:         strings.TrimSpace(child.FirstName),
 				LastName:          strings.TrimSpace(child.LastName),
@@ -2663,7 +2663,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 	}, nil
 }
 
-func (s *requestService) ensureRequestEditable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
+func (s *requestService) ensureRequestEditable(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil {
 		return ErrEditNotAllowed
 	}
@@ -2681,7 +2681,7 @@ func (s *requestService) ensureRequestEditable(ctx context.Context, req *enrollm
 	return nil
 }
 
-func editModeForChildren(children []*enrollmentModels.RequestChild) string {
+func editModeForChildren(children []*RequestChild) string {
 	if len(children) == 0 {
 		return EditModeDirectEdit
 	}
@@ -2698,14 +2698,14 @@ func editModeForChildren(children []*enrollmentModels.RequestChild) string {
 // change wishes for this child run exclusively through the parent app, so the
 // status link keeps the child readable but locks it in the change form
 // (ADR 0003).
-func ChildTakenOver(child *enrollmentModels.RequestChild) bool {
+func ChildTakenOver(child *RequestChild) bool {
 	return child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID > 0
 }
 
 // allChildrenTakenOver reports whether every child of the enrollment is past
 // the takeover. Then there is nothing left the status link could change and the
 // change form disappears entirely.
-func allChildrenTakenOver(children []*enrollmentModels.RequestChild) bool {
+func allChildrenTakenOver(children []*RequestChild) bool {
 	if len(children) == 0 {
 		return false
 	}
@@ -2717,7 +2717,7 @@ func allChildrenTakenOver(children []*enrollmentModels.RequestChild) bool {
 	return true
 }
 
-func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
+func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentModels.Request, children []*RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil {
 		return ErrEditNotAllowed
 	}
@@ -2748,7 +2748,7 @@ func (s *requestService) schemaForEditableRequest(ctx context.Context, req *enro
 	return nil, nil
 }
 
-func validateRolloverEditIdentity(existing []*enrollmentModels.RequestChild, incoming []SubmitChild) error {
+func validateRolloverEditIdentity(existing []*RequestChild, incoming []SubmitChild) error {
 	if len(incoming) != len(existing) {
 		return ErrEditNotAllowed
 	}
@@ -2917,7 +2917,7 @@ func (s *requestService) withdrawInTenant(ctx context.Context, token string, chi
 	return s.enqueueWithdrawDecision(ctx, lockedReq)
 }
 
-func (s *requestService) withdrawChildren(ctx context.Context, children []*enrollmentModels.RequestChild, childID int64) (bool, error) {
+func (s *requestService) withdrawChildren(ctx context.Context, children []*RequestChild, childID int64) (bool, error) {
 	anyWithdrawn := false
 	for _, child := range children {
 		if childID != 0 && child.ID != childID {
@@ -2961,7 +2961,7 @@ func (s *requestService) enqueueWithdrawDecision(ctx context.Context, request *e
 	return nil
 }
 
-func childIDsForStatus(children []*enrollmentModels.RequestChild, status string) map[int64]struct{} {
+func childIDsForStatus(children []*RequestChild, status string) map[int64]struct{} {
 	ids := make(map[int64]struct{})
 	for _, child := range children {
 		if child != nil && child.Status == status {
@@ -3011,7 +3011,7 @@ func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int,
 // enqueueSubmissionEmails fires off the parent confirmation + admin
 // notifications in the submission transaction so the request and every
 // delivery intent commit together.
-func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*enrollmentModels.RequestChild, statusURL string) error {
+func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*RequestChild, statusURL string) error {
 	if s.OutboxEnqueuer == nil {
 		return nil
 	}
@@ -4368,7 +4368,7 @@ func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID 
 // carried forward by the rollover flow (RolloverSourceChildID set). Rollover
 // requests are generated with submission_source='public' but must not be held
 // to the self-service eligibility gates on renewal (#1663).
-func hasRolloverGeneratedChild(children []*enrollmentModels.RequestChild) bool {
+func hasRolloverGeneratedChild(children []*RequestChild) bool {
 	for _, child := range children {
 		if child.RolloverSourceChildID != nil {
 			return true

@@ -507,3 +507,13 @@ the architecture ratchet (2358 entries; composition 829 → 823),
 `CGO_ENABLED=0`. Local logs are `/tmp/3082-full-tests.log`, `/tmp/3082-vet.log`,
 `/tmp/3082-lint.log`, `/tmp/3082-architecture.log` and
 `/tmp/3082-test-changed.log`.
+
+The first CI run exposed three additional history-test callers from the newer
+`development` branch in GitHub's merge checkout. Their obsolete failure-flag
+argument prevented compilation, although the standalone branch checks above
+passed. Development was merged and those three calls adapted without changing
+their lifecycle-status or attendance-note assertions. The merged architecture
+baseline has 2356 entries; the two removed compatibility imports remain forbidden.
+The merged full backend suite, vet, lint, architecture and non-fast changed-test
+checks also passed. Their local logs use the `/tmp/3082-merged-` prefix with the
+same suffixes as above.

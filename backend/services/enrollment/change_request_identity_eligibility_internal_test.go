@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // newIdentityEligibilityService wires a change-request service with only the
@@ -24,8 +23,8 @@ func newIdentityEligibilityService(exists bool) *changeRequestService {
 	return svc
 }
 
-func identityEligibilityChild(id int64, firstName string) *enrollmentModels.RequestChild {
-	child := &enrollmentModels.RequestChild{
+func identityEligibilityChild(id int64, firstName string) *RequestChild {
+	child := &RequestChild{
 		FirstName:   firstName,
 		LastName:    "Müller",
 		DateOfBirth: "2019-04-12",
@@ -51,7 +50,7 @@ func TestValidateChangedChildIdentityEligibility_RejectsRetargetToEnrolledIdenti
 
 	svc := newIdentityEligibilityService(true)
 	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
-	children := []*enrollmentModels.RequestChild{
+	children := []*RequestChild{
 		identityEligibilityChild(11, "Anna"),
 		identityEligibilityChild(12, "Ben"),
 	}
@@ -77,7 +76,7 @@ func TestValidateChangedChildIdentityEligibility_SkipsUnchangedIdentities(t *tes
 
 	svc := newIdentityEligibilityService(true)
 	phase := &capability.Phase{Audience: capability.PhaseAudienceNewStudents}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Anna")},
@@ -93,7 +92,7 @@ func TestValidateChangedChildIdentityEligibility_ExistingStudentsRejectsUnknownI
 
 	svc := newIdentityEligibilityService(false)
 	phase := &capability.Phase{Audience: capability.PhaseAudienceExistingStudents}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},
@@ -109,7 +108,7 @@ func TestValidateChangedChildIdentityEligibility_OtherAudiencesPass(t *testing.T
 
 	svc := newIdentityEligibilityService(true)
 	phase := &capability.Phase{Audience: capability.PhaseAudienceOpen}
-	children := []*enrollmentModels.RequestChild{identityEligibilityChild(11, "Anna")}
+	children := []*RequestChild{identityEligibilityChild(11, "Anna")}
 	editReq := SubmitRequest{
 		TenantID: 77,
 		Children: []SubmitChild{identityEligibilitySubmit(11, "Ben")},

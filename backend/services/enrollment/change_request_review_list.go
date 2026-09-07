@@ -136,7 +136,7 @@ func (s *changeRequestService) ListForReview(
 	return items, next, nil
 }
 
-func affectedReviewChildren(children []*enrollmentModels.RequestChild, pinnedChildID *int64) []ChangeRequestReviewChild {
+func affectedReviewChildren(children []*RequestChild, pinnedChildID *int64) []ChangeRequestReviewChild {
 	result := make([]ChangeRequestReviewChild, 0, len(children))
 	for _, child := range children {
 		if pinnedChildID != nil && child.ID != *pinnedChildID {
@@ -175,7 +175,7 @@ func (s *changeRequestService) reviewListLookups(
 	rows []*enrollmentModels.ChangeRequest,
 ) (
 	map[int64]*enrollmentModels.Request,
-	map[int64][]*enrollmentModels.RequestChild,
+	map[int64][]*RequestChild,
 	map[int64]*userModels.Person,
 	error,
 ) {
@@ -210,7 +210,7 @@ func (s *changeRequestService) reviewListLookups(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("change request review list: load children: %w", err)
 	}
-	children := make(map[int64][]*enrollmentModels.RequestChild, len(requestIDs))
+	children := make(map[int64][]*RequestChild, len(requestIDs))
 	for _, child := range childRows {
 		children[child.RequestID] = append(children[child.RequestID], child)
 	}

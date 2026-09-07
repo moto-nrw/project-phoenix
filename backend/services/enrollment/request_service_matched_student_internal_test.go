@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // stubMatchLockRequestRepo backs guardMatchedStudentUnique: it records the
@@ -114,7 +113,7 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 func TestSameSubmittedIdentity(t *testing.T) {
 	t.Parallel()
 
-	existing := &enrollmentModels.RequestChild{
+	existing := &RequestChild{
 		FirstName:   "Anna",
 		LastName:    "Müller",
 		DateOfBirth: "2019-04-12",

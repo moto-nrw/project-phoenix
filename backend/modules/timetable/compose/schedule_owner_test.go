@@ -44,6 +44,54 @@ func TestModuleOwnsScheduleLifecycleAndObservesQueries(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrScheduleNotFound)
 }
 
+func TestModuleProjectsCourseGroupsWithScheduledWeekdays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	log := &observationLog{}
+	module := buildModule(t, db, log.record)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActivityGroup(t, db, "Course group projection")
+	for _, weekday := range []int{timetable.WeekdayWednesday, timetable.WeekdayFriday} {
+		_, err := module.CreateSchedule(ctx, timetable.ScheduleInput{ActivityGroupID: group.ID, Weekday: weekday})
+		require.NoError(t, err)
+	}
+
+	groups, err := module.ListCourseGroups(ctx, timetable.CourseGroupFilter{LegacyGroupIDs: []int64{group.ID}})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	assert.Equal(t, []int{timetable.WeekdayWednesday, timetable.WeekdayFriday}, groups[0].ScheduledWeekdays)
+	assert.EqualValues(t, 1, observedOperation(log.seen, "list_course_groups").Stats.Queries)
+}
+
+func TestModuleProjectsCourseGroupsWithEffectiveScheduleWeekdays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActivityGroup(t, db, "Effective course group projection")
+	onDate := "2026-09-06"
+	startsOn := onDate
+	expiresOn := onDate
+	startsTomorrow := "2026-09-07"
+
+	for _, input := range []timetable.ScheduleInput{
+		{ActivityGroupID: group.ID, Weekday: timetable.WeekdayMonday, ValidFrom: &startsOn},
+		{ActivityGroupID: group.ID, Weekday: timetable.WeekdayTuesday, ValidUntil: &expiresOn},
+		{ActivityGroupID: group.ID, Weekday: timetable.WeekdayWednesday, ValidFrom: &startsTomorrow},
+	} {
+		_, err := module.CreateSchedule(ctx, input)
+		require.NoError(t, err)
+	}
+
+	groups, err := module.ListCourseGroups(ctx, timetable.CourseGroupFilter{
+		LegacyGroupIDs: []int64{group.ID},
+		EffectiveOn:    onDate,
+	})
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	assert.Equal(t, []int{timetable.WeekdayMonday}, groups[0].ScheduledWeekdays)
+}
+
 func TestModuleScheduleRowsAreTenantIsolated(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

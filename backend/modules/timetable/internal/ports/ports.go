@@ -39,6 +39,7 @@ type Store interface {
 	FindGroup(context.Context, int64, string) (domain.Group, bool, domain.OperationStats, error)
 	FindGroupByName(context.Context, string) (domain.Group, bool, domain.OperationStats, error)
 	ListGroups(context.Context, domain.GroupFilter) ([]domain.Group, domain.OperationStats, error)
+	ListCourseGroups(context.Context, domain.CourseGroupFilter) ([]domain.CourseGroup, domain.OperationStats, error)
 	ListTemplateRows(context.Context, *int64, string) ([]domain.TemplateListRow, domain.OperationStats, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64, string) ([]domain.TemplateListRow, domain.OperationStats, error)
 	ListTemplateRowsForPeriod(context.Context, *int64, string) ([]domain.TemplateListRow, domain.OperationStats, error)

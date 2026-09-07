@@ -1,23 +1,51 @@
 "use client";
 
-import { House, Plus, Share, type LucideIcon } from "lucide-react";
+import {
+  EllipsisVertical,
+  House,
+  Plus,
+  Share,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "~/lib/utils";
 
-const INSTALL_STEPS: readonly {
-  readonly step: 1 | 2 | 3;
-  readonly icon: LucideIcon;
-}[] = [
-  { step: 1, icon: Share },
-  { step: 2, icon: Plus },
-  { step: 3, icon: House },
-];
+export type InstallStepsPlatform = "ios" | "android";
+
+/**
+ * Dieselbe Anleitung in derselben Form für beide Plattformen (#2831). Android
+ * hatte vorher nur einen Fließtext, iPhone und iPad nummerierte Schritte —
+ * genau die Ungleichheit, die das Issue benennt.
+ */
+const INSTALL_STEPS: Record<
+  InstallStepsPlatform,
+  readonly { readonly step: 1 | 2 | 3; readonly icon: LucideIcon }[]
+> = {
+  ios: [
+    { step: 1, icon: Share },
+    { step: 2, icon: Plus },
+    { step: 3, icon: House },
+  ],
+  android: [
+    { step: 1, icon: EllipsisVertical },
+    { step: 2, icon: Plus },
+    { step: 3, icon: House },
+  ],
+};
 
 export function PushInstallSteps({
   className,
   compact = false,
-}: Readonly<{ className?: string; compact?: boolean }>) {
+  platform = "ios",
+}: Readonly<{
+  className?: string;
+  compact?: boolean;
+  platform?: InstallStepsPlatform;
+}>) {
   const t = useTranslations("pushNotifications");
+  // Die iOS-Schlüssel bleiben unbenannt, damit bestehende Texte und Tests
+  // gelten; Android hängt sein Kürzel an.
+  const key = (name: string) => (platform === "ios" ? name : `${name}Android`);
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -27,10 +55,10 @@ export function PushInstallSteps({
           compact ? "text-sm leading-6" : "text-base leading-7",
         )}
       >
-        {t("installIntro")}
+        {t(key("installIntro"))}
       </p>
       <ol className="space-y-3" aria-label={t("installStepsLabel")}>
-        {INSTALL_STEPS.map(({ step, icon: StepIcon }) => (
+        {INSTALL_STEPS[platform].map(({ step, icon: StepIcon }) => (
           <li key={step} className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-800">
               {step}
@@ -52,7 +80,11 @@ export function PushInstallSteps({
                   compact ? "text-sm leading-5" : "text-base leading-6",
                 )}
               >
-                {t(`installStep${step}`)}
+                {t(
+                  platform === "ios"
+                    ? `installStep${step}`
+                    : `installStepAndroid${step}`,
+                )}
               </span>
             </div>
           </li>
@@ -64,7 +96,7 @@ export function PushInstallSteps({
           compact ? "text-sm leading-6" : "text-base leading-7",
         )}
       >
-        {t("installOutro")}
+        {t(key("installOutro"))}
       </p>
     </div>
   );

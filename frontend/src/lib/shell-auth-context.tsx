@@ -17,6 +17,14 @@ import { mutate } from "~/lib/swr";
 const logger = createLogger({ component: "ShellAuthContext" });
 
 interface ShellUser {
+  /**
+   * Kontokennung der angemeldeten Person. Jede Portal-Hülle löst die Sitzung
+   * ohnehin auf; Karten, die etwas pro Konto im Browser merken (die
+   * Geräte-Einrichtung, #2831), holen sie hier statt eine eigene
+   * Sitzungsabfrage zu öffnen. Optional, weil ältere Testdoppel der Hülle
+   * ohne Kennung auskommen; fehlt sie, entfällt nur der Neustart-Knopf.
+   */
+  id?: string;
   name: string;
   email: string;
   roles: string[];
@@ -93,6 +101,7 @@ export function TeacherShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
@@ -193,6 +202,7 @@ export function OperatorShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],
@@ -254,6 +264,7 @@ export function SchoolShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Lehrkraft",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["lehrkraft"],
@@ -339,6 +350,7 @@ export function ParentShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Eltern",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["guardian"],

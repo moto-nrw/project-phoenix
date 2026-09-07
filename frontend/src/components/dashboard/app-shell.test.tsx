@@ -4,6 +4,7 @@ import { AppShell } from "./app-shell";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("./header", () => ({

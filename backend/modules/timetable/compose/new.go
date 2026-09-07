@@ -215,6 +215,28 @@ func (e engine) ListGroups(ctx context.Context, filter timetable.GroupFilter) ([
 	return result, nil
 }
 
+func (e engine) ListCourseGroups(ctx context.Context, filter timetable.CourseGroupFilter) ([]timetable.CourseGroup, error) {
+	values, err := e.service.ListCourseGroups(ctx, domain.CourseGroupFilter{
+		LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs, EffectiveOn: filter.EffectiveOn,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]timetable.CourseGroup, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetable.CourseGroup{
+			ID:                    value.ID,
+			Active:                value.Active,
+			MaxParticipants:       value.MaxParticipants,
+			SourceCareOfferingIDs: append([]int64(nil), value.SourceCareOfferingIDs...),
+			SourceGradeLevels:     append([]int(nil), value.SourceGradeLevels...),
+			SourceSchoolClasses:   append([]string(nil), value.SourceSchoolClasses...),
+			ScheduledWeekdays:     append([]int(nil), value.ScheduledWeekdays...),
+		})
+	}
+	return result, nil
+}
+
 func (e engine) ListTemplateRows(ctx context.Context, templateID *int64) ([]timetable.TemplateListRow, error) {
 	values, err := e.service.ListTemplateRows(ctx, templateID)
 	return publicTemplateRows(values), mapError(err)

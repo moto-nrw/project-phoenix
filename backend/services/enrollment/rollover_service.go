@@ -187,9 +187,9 @@ type RolloverPreview struct {
 // by the admin to see "this is Lina, last year she was in 4a, now
 // she'd be in 5a which is above the cap".
 type ReviewQueueItem struct {
-	Child       *enrollmentModels.RequestChild
+	Child       *RequestChild
 	Request     *enrollmentModels.Request
-	SourceChild *enrollmentModels.RequestChild
+	SourceChild *RequestChild
 }
 
 // ReviewDecision values the admin can pick on a queued review row.
@@ -221,7 +221,7 @@ type rolloverRequestInput struct {
 	sourcePhase       *capability.Phase
 	newPhase          *capability.Phase
 	sourceRequest     *enrollmentModels.Request
-	sourceChildren    []*enrollmentModels.RequestChild
+	sourceChildren    []*RequestChild
 	maxGrade          int
 	collectGradeLevel bool
 	// offeringIDMap translates source-phase care offering IDs to their
@@ -372,7 +372,7 @@ func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseI
 	return mapping, nil
 }
 
-func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *capability.Phase, children []*enrollmentModels.RequestChild) ([]int64, error) {
+func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *capability.Phase, children []*RequestChild) ([]int64, error) {
 	ids := make(map[int64]struct{})
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
@@ -479,7 +479,7 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	return phase, nil
 }
 
-func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, sourcePhaseID int64) ([]*enrollmentModels.RequestChild, error) {
+func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, sourcePhaseID int64) ([]*RequestChild, error) {
 	children, err := rolloverChildrenByStatuses(ctx, s.Children, sourcePhaseID, []string{enrollmentModels.ChildStatusApproved})
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list source children: %w", err)
@@ -513,8 +513,8 @@ func (s *rolloverService) rollSourceRequests(ctx context.Context, input rollover
 	return nil
 }
 
-func groupRolloverChildrenByRequest(sourceChildren []*enrollmentModels.RequestChild) ([]int64, map[int64][]*enrollmentModels.RequestChild) {
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(sourceChildren))
+func groupRolloverChildrenByRequest(sourceChildren []*RequestChild) ([]int64, map[int64][]*RequestChild) {
+	childrenByRequest := make(map[int64][]*RequestChild, len(sourceChildren))
 	requestOrder := make([]int64, 0)
 	for _, child := range sourceChildren {
 		if _, seen := childrenByRequest[child.RequestID]; !seen {
@@ -570,10 +570,10 @@ func (s *rolloverService) createRolloverRequest(ctx context.Context, input rollo
 	return request, nil
 }
 
-func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentModels.Request, source *enrollmentModels.RequestChild) (string, error) {
+func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentModels.Request, source *RequestChild) (string, error) {
 	attributes := rolloverAttributesForSource(input, source)
 	sourceID := source.ID
-	child := &enrollmentModels.RequestChild{
+	child := &RequestChild{
 		RequestID:             newRequest.ID,
 		FirstName:             source.FirstName,
 		LastName:              source.LastName,
@@ -600,7 +600,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
 }
 
-func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentModels.RequestChild) rolloverChildAttributes {
+func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChild) rolloverChildAttributes {
 	grade, reviewReason := classifyRolloverGrade(
 		source.TargetGradeLevel,
 		input.newPhase.RolloverBumpsGrade,
@@ -880,8 +880,8 @@ func requestMap(rows []*enrollmentModels.Request) map[int64]*enrollmentModels.Re
 	return result
 }
 
-func requestChildMap(rows []*enrollmentModels.RequestChild) map[int64]*enrollmentModels.RequestChild {
-	result := make(map[int64]*enrollmentModels.RequestChild, len(rows))
+func requestChildMap(rows []*RequestChild) map[int64]*RequestChild {
+	result := make(map[int64]*RequestChild, len(rows))
 	for _, row := range rows {
 		result[row.ID] = row
 	}
@@ -1112,7 +1112,7 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *capabil
 // savepoint and later rows can still proceed. Direct calls without a
 // transaction are retained for lightweight service tests; they do not claim
 // the production atomicity contract documented on RunDeadlineWorker.
-func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *enrollmentModels.RequestChild) error {
+func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *RequestChild) error {
 	decide := func(decideCtx context.Context) error {
 		_, err := s.DecisionService.Decide(decideCtx, DecideInput{
 			RequestID: row.RequestID,

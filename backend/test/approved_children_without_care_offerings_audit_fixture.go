@@ -70,12 +70,12 @@ func seedApprovedWithoutOfferingScenario(
 	}
 	offering.TenantID = phase.TenantID
 	InsertTestCareOffering(t, db, ctx, offering)
-	bookedLink := &enrollmentModels.RequestChildOffering{
+	bookedLink := &auditOfferingSelection{
 		RequestChildID: booked.ID, CareOfferingID: offering.ID,
 	}
 	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, bookedLink)
 	afterPhase, afterPhaseUntil := timezone.Date(phase.ServiceEndDate).AddDays(1), timezone.Date(phase.ServiceEndDate).AddDays(31)
-	outOfPeriodLink := &enrollmentModels.RequestChildOffering{
+	outOfPeriodLink := &auditOfferingSelection{
 		RequestChildID: outOfPeriod.ID, CareOfferingID: offering.ID,
 		ValidFrom: &afterPhase, ValidUntil: &afterPhaseUntil,
 	}
@@ -86,7 +86,7 @@ func seedApprovedWithoutOfferingScenario(
 	}
 	required.TenantID = phase.TenantID
 	InsertTestCareOffering(t, db, ctx, required)
-	requiredLink := &enrollmentModels.RequestChildOffering{
+	requiredLink := &auditOfferingSelection{
 		RequestChildID: requiredOnly.ID, CareOfferingID: required.ID,
 	}
 	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, requiredLink)

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -8,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
+import NavigationLink from "~/components/ui/navigation-link";
 import {
   type AdminEnrollmentDeletionImpact,
   deleteAdminChild,
@@ -213,13 +213,13 @@ export function AdminEnrollmentDeletionModal({
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {impact.blocking_student_ids.map((studentId) => (
-                          <Link
+                          <NavigationLink
                             key={studentId}
                             href={studentHref(studentId)}
                             className="text-moto-red text-sm font-semibold underline underline-offset-2"
                           >
                             Kind #{studentId} öffnen
-                          </Link>
+                          </NavigationLink>
                         ))}
                       </div>
                     </div>

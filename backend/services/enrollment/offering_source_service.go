@@ -834,7 +834,7 @@ func sameSourcedDraftDays(left, right *careEnrollmentDraft) bool {
 // child from the template's save date onward, and one ending in September
 // must not outlive it. ok is false when the intersection is empty.
 func sourcedRosterWindow(
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	phase *enrollmentOwner.Phase,
 	effectiveFrom timezone.Date,
 	envelopeFrom, envelopeUntil *timezone.Date,
@@ -1220,7 +1220,7 @@ func (s *decisionService) legacyCoverageWindowForLink(
 	ctx context.Context,
 	phases map[int64]*enrollmentOwner.Phase,
 	offering *enrollmentModels.CareOffering,
-	link *enrollmentModels.RequestChildOffering,
+	link *RequestChildOffering,
 	templateID int64,
 ) (*legacyCoverageWindow, error) {
 	if offering == nil {
@@ -1698,7 +1698,7 @@ type offeringGradeCount struct {
 
 // groupOfferingGradeCounts aggregates approved children per offering into
 // distinct-child totals and per-grade buckets (0 = no derivable grade).
-func groupOfferingGradeCounts(children []*enrollmentModels.ApprovedOfferingChild) map[int64]*offeringGradeCount {
+func groupOfferingGradeCounts(children []*ApprovedOfferingChild) map[int64]*offeringGradeCount {
 	counts := make(map[int64]*offeringGradeCount)
 	seen := make(map[int64]map[int64]bool)
 	for _, child := range children {

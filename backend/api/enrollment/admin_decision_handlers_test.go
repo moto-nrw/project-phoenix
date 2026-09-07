@@ -49,7 +49,7 @@ type mockDecisionService struct {
 	listChildOffResult map[int64]enrollmentService.ChildOfferingSet
 	listChildOffErr    error
 
-	updateChildOffResult *enrollmentModels.RequestChild
+	updateChildOffResult *enrollmentService.RequestChild
 	updateChildOffErr    error
 	updateChildOffInput  enrollmentService.UpdateChildOfferingsInput
 
@@ -115,7 +115,7 @@ func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, res
 	return m.restoreResult, m.restoreErr
 }
 
-func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input enrollmentService.UpdateChildOfferingsInput) (*enrollmentService.RequestChild, error) {
 	m.updateChildOffInput = input
 	return m.updateChildOffResult, m.updateChildOffErr
 }
@@ -209,7 +209,7 @@ func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, pa
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.
-func makeReqSummary(id, phaseID int64, children ...*enrollmentModels.RequestChild) *enrollmentService.RequestSummary {
+func makeReqSummary(id, phaseID int64, children ...*enrollmentService.RequestChild) *enrollmentService.RequestSummary {
 	return &enrollmentService.RequestSummary{
 		Request: &enrollmentModels.Request{
 			ID:                id,
@@ -224,8 +224,8 @@ func makeReqSummary(id, phaseID int64, children ...*enrollmentModels.RequestChil
 	}
 }
 
-func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentModels.RequestChild {
-	return &enrollmentModels.RequestChild{
+func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentService.RequestChild {
+	return &enrollmentService.RequestChild{
 		ID:             id,
 		FirstName:      firstName,
 		LastName:       lastName,

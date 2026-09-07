@@ -322,6 +322,7 @@ const (
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
+	KeyEnrollmentParentCourseRequestsEnabled            = "enrollment.parent_course_requests_enabled"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
 	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"

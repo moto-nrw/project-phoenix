@@ -511,7 +511,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	req.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Kept",
 		LastName:         "Child",
@@ -578,7 +578,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	req.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Impact",
 		LastName:         "Child",

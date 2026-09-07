@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import {
+  NavigationProgressBar,
+  NavigationProgressProvider,
+} from "~/components/ui/navigation-progress";
 
 /**
  * Das gemeinsame Gerüst aller vier Portale: gepunkteter Hintergrund,
@@ -43,30 +47,37 @@ export function PortalShell({
   children,
 }: PortalShellProps) {
   return (
-    // Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
-    // Zeile aus Seitenleiste und <main> immer bis zur Unterkante des
-    // Bildschirms, und eine Seite kann ihren Inhalt daran ausrichten (die
-    // letzte Fläche des Personal-Gerüsts wächst bis dorthin). Jede Stufe hat
-    // genau ein Kind, deshalb ändert die Spalte an Abständen nichts.
-    <div className="relative flex min-h-screen flex-col">
-      <div
-        data-portal-background
-        className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
-        aria-hidden="true"
-      />
-      {topLayer}
+    <NavigationProgressProvider>
+      {/*
+       * Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
+       * Zeile aus Seitenleiste und <main> immer bis zur Unterkante des
+       * Bildschirms, und eine Seite kann ihren Inhalt daran ausrichten (die
+       * letzte Fläche des Personal-Gerüsts wächst bis dorthin). Jede Stufe hat
+       * genau ein Kind, deshalb ändert die Spalte an Abständen nichts.
+       */}
+      <div className="relative flex min-h-screen flex-col">
+        <NavigationProgressBar />
+        <div
+          data-portal-background
+          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
+          aria-hidden="true"
+        />
+        {topLayer}
 
-      <div className={headerClassName}>{header}</div>
+        <div className={headerClassName}>{header}</div>
 
-      <div className="relative z-10 flex flex-1">
-        {sidebar}
+        <div className="relative z-10 flex flex-1">
+          {sidebar}
 
-        <main className="flex min-w-0 flex-1 flex-col p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
-          <div className={`relative z-10 ${contentClassName}`}>{children}</div>
-        </main>
+          <main className="flex min-w-0 flex-1 flex-col p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
+            <div className={`relative z-10 ${contentClassName}`}>
+              {children}
+            </div>
+          </main>
+        </div>
+
+        {bottomNav}
       </div>
-
-      {bottomNav}
-    </div>
+    </NavigationProgressProvider>
   );
 }

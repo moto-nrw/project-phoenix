@@ -70,7 +70,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 					ID:   5,
 					Name: "Anmeldung 2026",
 				},
-				Children: []*enrollmentModels.RequestChild{
+				Children: []*enrollmentService.RequestChild{
 					{
 						ID:               701,
 						CreatedStudentID: &linkedStudentID,
@@ -186,7 +186,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 					ID:       77,
 					SchemaID: &schemaID,
 				},
-				Children: []*enrollmentModels.RequestChild{
+				Children: []*enrollmentService.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
 						CustomData: map[string]any{
@@ -228,7 +228,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 					ID:       77,
 					SchemaID: &schemaID,
 				},
-				Children: []*enrollmentModels.RequestChild{
+				Children: []*enrollmentService.RequestChild{
 					{
 						CreatedStudentID: &linkedStudentID,
 						CustomData: map[string]any{

@@ -80,6 +80,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 	var query *bun.InsertQuery
 	var table string
 	switch value := event.(type) {
+	case *auditModels.AttendanceCorrection:
+		table, query = "audit.attendance_corrections", db.NewInsert().Model(value).ModelTableExpr("audit.attendance_corrections")
 	case *auditModels.AuthEvent:
 		table, query = "audit.auth_events", db.NewInsert().Model(value).ModelTableExpr("audit.auth_events")
 	case *auditModels.ClassListEntryChange:
@@ -131,6 +133,8 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 func validateEvent(event any) error {
 	var err error
 	switch value := event.(type) {
+	case *auditModels.AttendanceCorrection:
+		err = value.Validate()
 	case *auditModels.AuthEvent:
 		err = value.Validate()
 	case *auditModels.ClassListEntryChange:

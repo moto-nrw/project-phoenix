@@ -93,7 +93,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	require.NoError(t, enrollmentService.InsertOwnerRequestForTest(ctx, repos.Enrollment(), request))
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)
-	child := &enrollmentModels.RequestChild{
+	child := &enrollmentService.RequestChild{
 		RequestID:      request.ID,
 		FirstName:      "Cleanup",
 		LastName:       "Child",
@@ -223,7 +223,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		}
 		requestID = request.ID
 
-		child := &enrollmentModels.RequestChild{
+		child := &enrollmentService.RequestChild{
 			RequestID:      request.ID,
 			FirstName:      "Cleanup",
 			LastName:       "Child",

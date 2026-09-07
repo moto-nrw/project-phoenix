@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { PushInstallSteps } from "~/components/settings/push-install-steps";
@@ -7,6 +8,8 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { createLogger } from "~/lib/logger";
 import { sendTestNotification } from "~/lib/notification-api";
 import {
@@ -23,6 +26,7 @@ import {
 import {
   canPromptInstall,
   isAndroidDevice,
+  isDesktopDevice,
   isInstallationCompleted,
   isSamsungInternet,
   subscribeInstallPrompt,
@@ -30,6 +34,14 @@ import {
 } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PushNotificationSection" });
+
+const NotificationSetupDialog = dynamic(
+  () =>
+    import("~/components/notifications/notification-setup-dialog").then(
+      (module) => module.NotificationSetupDialog,
+    ),
+  { ssr: false },
+);
 
 interface PushNotificationSectionProps {
   readonly portal?: PushPortal;
@@ -53,6 +65,10 @@ type PushState =
 export function PushNotificationSection({
   portal = "tenant",
 }: PushNotificationSectionProps) {
+  // Die Einrichtung merkt sich pro Konto im Browser, dass sie erledigt ist.
+  // Ohne Kontokennung lässt sie sich nicht erneut starten; die Hülle jedes
+  // Portals kennt sie ohnehin (#2831).
+  const accountId = useShellAuthSafe()?.user?.id;
   const t = useTranslations("pushNotifications");
   const setupT = useTranslations("parentNotificationSetup");
   const [state, setState] = useState<PushState>("loading");
@@ -61,6 +77,11 @@ export function PushNotificationSection({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [installAccepted, setInstallAccepted] = useState(false);
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [permission, setPermission] = useState<NotificationPermission | null>(
+    null,
+  );
+  const [restartToken, setRestartToken] = useState(0);
   const installPromptReady = useSyncExternalStore(
     subscribeInstallPrompt,
     canPromptInstall,
@@ -73,7 +94,20 @@ export function PushNotificationSection({
   );
 
   const refresh = useCallback(async () => {
-    if (needsIOSInstall()) {
+    const needsIosInstall = needsIOSInstall();
+    if (!needsIosInstall && !isPushSupported()) {
+      setInstalled(null);
+      setPermission(null);
+      setState("unsupported");
+      return;
+    }
+    // Beide Fragen, die niemand am Gerät selbst beantworten kann: läuft moto
+    // als App, und darf moto überhaupt benachrichtigen (#2831).
+    setInstalled(isStandaloneApp() || installationCompleted || installAccepted);
+    setPermission(
+      typeof Notification === "undefined" ? null : Notification.permission,
+    );
+    if (needsIosInstall) {
       try {
         await verifyPushConfiguration(portal);
         setState("needs-install-ios");
@@ -87,8 +121,10 @@ export function PushNotificationSection({
       }
       return;
     }
+    // Galt bis #2831 nur im Elternportal. Auf Android ist der Schritt in
+    // jedem Portal derselbe, und ohne ihn landen Betreuungskräfte und
+    // Lehrkräfte in einer Einrichtung, die auf ihrem Gerät nicht hält.
     if (
-      portal === "parent" &&
       isAndroidDevice(window.navigator) &&
       !isSamsungInternet(window.navigator) &&
       !isStandaloneApp() &&
@@ -106,10 +142,6 @@ export function PushNotificationSection({
         }
         setState("disabled");
       }
-      return;
-    }
-    if (!isPushSupported()) {
-      setState("unsupported");
       return;
     }
     if (Notification.permission === "denied") {
@@ -154,7 +186,7 @@ export function PushNotificationSection({
     }
   };
 
-  const installAndroid = async () => {
+  const install = async () => {
     setBusy(true);
     setError(null);
     try {
@@ -263,7 +295,7 @@ export function PushNotificationSection({
         size="md"
         isLoading={busy}
         loadingText={setupT("installing")}
-        onClick={() => void installAndroid()}
+        onClick={() => void install()}
       >
         {setupT("installApp")}
       </Button>
@@ -284,9 +316,34 @@ export function PushNotificationSection({
       </Button>
     ) : null;
 
+  // Desktop-Chromium meldet die Installierbarkeit über dasselbe Ereignis wie
+  // Android. Auf dem Rechner ist sie kein Muss für Benachrichtigungen, deshalb
+  // steht sie als Angebot in der Karte statt als Vorstufe davor.
+  const desktopInstallOffer =
+    installPromptReady &&
+    installed === false &&
+    typeof navigator !== "undefined" &&
+    isDesktopDevice(navigator) &&
+    state !== "needs-install-ios" &&
+    state !== "needs-install-android";
+
+  const restartAction =
+    accountId !== undefined && state !== "unsupported" ? (
+      <Button
+        type="button"
+        variant="surface"
+        size="md"
+        disabled={busy}
+        onClick={() => setRestartToken((token) => token + 1)}
+      >
+        {t("restart")}
+      </Button>
+    ) : null;
+
   const headerActions =
-    primaryAction != null || testAction != null ? (
+    primaryAction != null || testAction != null || restartAction != null ? (
       <>
+        {restartAction}
         {testAction}
         {primaryAction}
       </>
@@ -298,7 +355,9 @@ export function PushNotificationSection({
     message != null ||
     state === "needs-install-ios" ||
     state === "needs-install-android" ||
-    state === "denied";
+    state === "denied" ||
+    desktopInstallOffer ||
+    installed !== null;
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
@@ -324,19 +383,88 @@ export function PushNotificationSection({
         </div>
       )}
 
-      {state === "needs-install-ios" && <PushInstallSteps compact />}
+      {installed !== null && (
+        <dl className="mb-4 grid gap-2 sm:grid-cols-2">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+            <dt className="text-sm text-gray-700">{t("statusInstallLabel")}</dt>
+            <dd>
+              <StatusBadge
+                label={installed ? t("statusInstallYes") : t("statusInstallNo")}
+                tone={installed ? "green" : "orange"}
+              />
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2">
+            <dt className="text-sm text-gray-700">
+              {t("statusPermissionLabel")}
+            </dt>
+            <dd>
+              <StatusBadge
+                label={
+                  permission === "granted"
+                    ? t("statusPermissionYes")
+                    : permission === "denied"
+                      ? t("statusPermissionBlocked")
+                      : t("statusPermissionNo")
+                }
+                tone={
+                  permission === "granted"
+                    ? "green"
+                    : permission === "denied"
+                      ? "red"
+                      : "orange"
+                }
+              />
+            </dd>
+          </div>
+        </dl>
+      )}
 
-      {state === "needs-install-android" && (
+      {/* Ein "Nein" ohne nächsten Schritt ist eine Sackgasse. Wo weder eine
+          Anleitung noch ein Installationsangebot folgt, gehört die Entwarnung
+          dazu: auf diesem Gerät ist die Installation keine Bedingung. */}
+      {installed === false &&
+        !desktopInstallOffer &&
+        state !== "needs-install-ios" &&
+        state !== "needs-install-android" && (
+          <p className="mb-4 max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+            {t("installNotNeeded")}
+          </p>
+        )}
+
+      {desktopInstallOffer && (
         <Alert
           type="info"
-          title={setupT("installAndroidTitle")}
-          message={
-            installPromptReady
-              ? setupT("installAndroidIntro")
-              : setupT("installAndroidManual")
+          message={t("installOffer")}
+          action={
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              isLoading={busy}
+              loadingText={setupT("installing")}
+              onClick={() => void install()}
+            >
+              {t("installOfferAction")}
+            </Button>
           }
         />
       )}
+
+      {state === "needs-install-ios" && <PushInstallSteps compact />}
+
+      {state === "needs-install-android" &&
+        (installPromptReady ? (
+          <Alert
+            type="info"
+            title={setupT("installAndroidTitle")}
+            message={setupT("installAndroidIntro")}
+          />
+        ) : (
+          // Ohne Ein-Tipp-Installation dieselbe nummerierte Anleitung wie auf
+          // iPhone und iPad, statt eines Fließtextes (#2831).
+          <PushInstallSteps compact platform="android" />
+        ))}
 
       {state === "denied" && (
         <Alert
@@ -354,6 +482,15 @@ export function PushNotificationSection({
               {t("checkAgain")}
             </Button>
           }
+        />
+      )}
+
+      {accountId !== undefined && restartToken > 0 && (
+        <NotificationSetupDialog
+          portal={portal}
+          accountId={accountId}
+          restartToken={restartToken}
+          onFinished={() => void refresh()}
         />
       )}
     </div>

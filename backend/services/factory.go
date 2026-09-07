@@ -1443,9 +1443,9 @@ func newFactory(
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
 		Now:                now,
-		// E2E fixtures start future weekday instances. Dedicated unit tests
-		// construct the service with EnforceTimePolicy: true.
-		EnforceTimePolicy: cfg.AppEnv != "test",
+		// Development and test seed profiles create completed instances at the
+		// current clock time. Lifecycle policy remains covered by dedicated tests.
+		EnforceTimePolicy: enforceInstanceTimePolicy(cfg.AppEnv),
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -2481,7 +2481,7 @@ func newFactory(
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
 		CareOfferingRepo:       repos.CareOffering,
-		ImpactRepo:             manualPlanningReader{db: db},
+		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
 		CareWithdrawalRepo:     repos.CareWithdrawal,
@@ -2943,6 +2943,8 @@ func newFactory(
 		ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
+		AttendanceCorrectionRepo:   repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
+		PersonRepo:                 repos.Person,
 		ConflictAckRepo:            repos.TimetableConflictAck,
 		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
@@ -3212,6 +3214,11 @@ func newFactory(
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
+}
+
+func enforceInstanceTimePolicy(appEnv string) bool {
+	appEnv = strings.ToLower(strings.TrimSpace(appEnv))
+	return appEnv == "production" || appEnv == "staging"
 }
 
 func optionalClock(clocks []func() time.Time) func() time.Time {

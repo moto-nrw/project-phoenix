@@ -436,7 +436,7 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	}
 	filters.CareOfferingIDs = normalizedCareUsageOfferingIDs(filters.CareOfferingIDs, offerings, filters.CareOfferingIDsSet)
 	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
-	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(childIDs))
+	linksByChild := make(map[int64][]*RequestChildOffering, len(childIDs))
 	for _, link := range links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
@@ -522,9 +522,9 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	return report, nil
 }
 
-func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering, offeringDate timezone.Date) error {
+func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering, offeringDate timezone.Date) error {
 	requestIDs := make([]int64, 0, len(report.Rows))
-	childByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	childByID := make(map[int64]*RequestChild, len(children))
 	for _, child := range children {
 		childByID[child.ID] = child
 	}
@@ -730,7 +730,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	}
 
 	var requests []*enrollmentModels.Request
-	var children []*enrollmentModels.RequestChild
+	var children []*RequestChild
 	requestGuardiansByID := map[int64][]*capability.RequestGuardian{}
 	if len(studentIDs) > 0 {
 		requests, err = listReportRequests(ctx, s.Requests, capability.RequestListFilters{
@@ -956,7 +956,7 @@ func dedupePositiveInt64(ids []int64) []int64 {
 	return out
 }
 
-func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, includedOfferingIDs map[int64]bool, pickupByDayArgs ...map[string]string) CareUsageRow {
+func careUsageRow(req *enrollmentModels.Request, child *RequestChild, links []*RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, includedOfferingIDs map[int64]bool, pickupByDayArgs ...map[string]string) CareUsageRow {
 	daySet := map[string]bool{}
 	rowOfferings := make([]CareUsageRowOffering, 0, len(links))
 	for _, link := range links {
@@ -1058,8 +1058,8 @@ func careUsageDays(row CareUsageRow, filters CareUsageFilters, include func(day 
 
 type classRosterApprovedEnrollment struct {
 	request   *enrollmentModels.Request
-	child     *enrollmentModels.RequestChild
-	links     []*enrollmentModels.RequestChildOffering
+	child     *RequestChild
+	links     []*RequestChildOffering
 	guardians []*capability.RequestGuardian
 }
 
@@ -1123,8 +1123,8 @@ func classRosterRequestGuardiansByRequestID(guardians []*capability.RequestGuard
 	return out
 }
 
-func classRosterChildrenForStudents(children []*enrollmentModels.RequestChild, studentByID map[int64]*userModels.Student) []*enrollmentModels.RequestChild {
-	out := make([]*enrollmentModels.RequestChild, 0, len(children))
+func classRosterChildrenForStudents(children []*RequestChild, studentByID map[int64]*userModels.Student) []*RequestChild {
+	out := make([]*RequestChild, 0, len(children))
 	for _, child := range children {
 		if child == nil || child.CreatedStudentID == nil {
 			continue
@@ -1262,7 +1262,7 @@ func classRosterGroupName(student *userModels.Student, groups map[int64]*educati
 }
 
 func classRosterApprovedEnrollments(
-	children []*enrollmentModels.RequestChild,
+	children []*RequestChild,
 	requestByID map[int64]*enrollmentModels.Request,
 	studentByID map[int64]*userModels.Student,
 ) (map[int64]*classRosterApprovedEnrollment, []int64) {
@@ -1300,7 +1300,7 @@ func classRosterApprovedEnrollments(
 	return out, childIDs
 }
 
-func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateChild *enrollmentModels.RequestChild, currentReq *enrollmentModels.Request, currentChild *enrollmentModels.RequestChild) bool {
+func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateChild *RequestChild, currentReq *enrollmentModels.Request, currentChild *RequestChild) bool {
 	if currentReq == nil {
 		return true
 	}
@@ -1319,7 +1319,7 @@ func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateCh
 	return candidateChild.ID > currentChild.ID
 }
 
-func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEnrollment, links []*enrollmentModels.RequestChildOffering) {
+func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEnrollment, links []*RequestChildOffering) {
 	studentIDByChildID := make(map[int64]int64)
 	for studentID, enrollment := range enrollments {
 		if enrollment == nil || enrollment.child == nil || enrollment.child.ID <= 0 {
@@ -1623,11 +1623,11 @@ func classRosterOfferingsByDay(offerings []CareUsageRowOffering) map[string][]st
 	return out
 }
 
-func classRosterMergeOfferingLinks(links []*enrollmentModels.RequestChildOffering) []*enrollmentModels.RequestChildOffering {
+func classRosterMergeOfferingLinks(links []*RequestChildOffering) []*RequestChildOffering {
 	if len(links) == 0 {
 		return nil
 	}
-	byID := make(map[int64]*enrollmentModels.RequestChildOffering, len(links))
+	byID := make(map[int64]*RequestChildOffering, len(links))
 	for _, link := range links {
 		if link == nil || link.CareOfferingID <= 0 {
 			continue
@@ -1645,7 +1645,7 @@ func classRosterMergeOfferingLinks(links []*enrollmentModels.RequestChildOfferin
 		merged.ManualSelectedDays = mergeDayCodes(merged.ManualSelectedDays, link.ManualSelectedDays)
 		merged.AutomaticSelectedDays = mergeDayCodes(merged.AutomaticSelectedDays, link.AutomaticSelectedDays)
 	}
-	out := make([]*enrollmentModels.RequestChildOffering, 0, len(byID))
+	out := make([]*RequestChildOffering, 0, len(byID))
 	for _, link := range byID {
 		out = append(out, link)
 	}
@@ -1660,7 +1660,7 @@ func mergeDayCodes(a, b []string) []string {
 	return sortedDayCodes(combined)
 }
 
-func classRosterIncludedOfferingIDs(links []*enrollmentModels.RequestChildOffering) map[int64]bool {
+func classRosterIncludedOfferingIDs(links []*RequestChildOffering) map[int64]bool {
 	out := make(map[int64]bool, len(links))
 	for _, link := range links {
 		if link != nil && link.CareOfferingID > 0 {
@@ -1688,7 +1688,7 @@ func classRosterEnrollmentSummary(offerings []CareUsageRowOffering) string {
 	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
-func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (map[string]string, error) {
+func classRosterDepartureByDay(req *enrollmentModels.Request, child *RequestChild, schemas map[int64]*capability.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (map[string]string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
 		return nil, err
@@ -1702,7 +1702,7 @@ func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentM
 	return classRosterDepartureByDayFromStudent(student, companions), nil
 }
 
-func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
+func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *RequestChild, schemas map[int64]*capability.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
 	if req == nil || req.SchemaID == nil || child == nil {
 		return nil, nil, nil, false, nil
 	}
@@ -1797,7 +1797,7 @@ func classRosterDepartureFields(schema *capability.FormSchema) []capability.Form
 	return fields
 }
 
-func classRosterFieldValue(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, field capability.FormField) any {
+func classRosterFieldValue(req *enrollmentModels.Request, child *RequestChild, field capability.FormField) any {
 	if field.AppliesToCh {
 		if child == nil || child.CustomData == nil {
 			return nil
@@ -1810,7 +1810,7 @@ func classRosterFieldValue(req *enrollmentModels.Request, child *enrollmentModel
 	return req.CustomData[field.Key]
 }
 
-func classRosterCompanionNote(child *enrollmentModels.RequestChild) *string {
+func classRosterCompanionNote(child *RequestChild) *string {
 	if child == nil || child.CustomData == nil {
 		return nil
 	}
@@ -1902,11 +1902,11 @@ func classRosterFormatDepartureByDay(allowed userModels.AllowedDepartureModes, f
 	return out
 }
 
-func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema) (map[string]string, error) {
+func careUsagePickupByDay(req *enrollmentModels.Request, child *RequestChild, schemas map[int64]*capability.FormSchema) (map[string]string, error) {
 	return careUsageScheduleByTarget(req, child, schemas, capability.TargetSchedulePickup)
 }
 
-func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*capability.FormSchema, target string) (map[string]string, error) {
+func careUsageScheduleByTarget(req *enrollmentModels.Request, child *RequestChild, schemas map[int64]*capability.FormSchema, target string) (map[string]string, error) {
 	out := map[string]string{}
 	if req == nil || req.SchemaID == nil || child == nil {
 		return out, nil
@@ -2233,7 +2233,7 @@ func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, 
 // careUsageStudentID resolves the student of an approved request child
 // (rollout-created or matched existing student). Unapproved children return
 // 0 because their form snapshot must not be replaced by live student data.
-func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
+func careUsageStudentID(child *RequestChild) int64 {
 	if child == nil || child.Status != enrollmentModels.ChildStatusApproved {
 		return 0
 	}

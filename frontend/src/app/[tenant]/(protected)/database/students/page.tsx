@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
   ClipboardList,

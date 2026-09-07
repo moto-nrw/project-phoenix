@@ -279,6 +279,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/care-offerings/requests", rs.createOfferingChangeRequest)
 		r.Put("/me/children/{studentId}/care-offerings/requests/{requestId}", rs.editOfferingChangeRequest)
 
+		// Kurse (#3075, SH 4.3). Ein Kurs ist eine AG, die über ein
+		// Betreuungsangebot erreichbar ist; die Anfrage ist deshalb dieselbe
+		// Änderungsanfrage und wird in der bestehenden Freigabeansicht
+		// entschieden. Gated by enrollment.parent_course_requests_enabled.
+		r.Get("/me/children/{studentId}/courses", rs.getChildCourses)
+		r.Post("/me/children/{studentId}/courses/requests", rs.createCourseRequest)
+		r.Post("/me/children/{studentId}/courses/requests/{requestId}/withdraw", rs.withdrawCourseRequest)
+
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply
 		// immediately and are audited; Track B change requests (name,
