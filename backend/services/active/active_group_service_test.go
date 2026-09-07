@@ -581,7 +581,7 @@ func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Visits Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "1a")
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Truncate(time.Microsecond), nil)
+		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().UTC().Truncate(time.Microsecond), nil)
 
 		// ACT
 		result, err := service.GetActiveGroupVisits(ctx, activeGroup.ID)
@@ -590,7 +590,10 @@ func TestActiveService_GetActiveGroupVisits(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		require.Len(t, result, 1)
-		assert.Equal(t, *visit, result[0])
+		// Compare the stored instant independently of the database session timezone.
+		actual := result[0]
+		actual.EntryTime = actual.EntryTime.UTC()
+		assert.Equal(t, *visit, actual)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
