@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +27,7 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	draft := &usersModels.ParentAnnouncement{
@@ -83,7 +83,7 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := usersRepo.NewParentAnnouncementRepository(db, enrollmentAudience.New())
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
 	draft := &usersModels.ParentAnnouncement{

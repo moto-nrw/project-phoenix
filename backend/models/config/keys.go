@@ -322,6 +322,7 @@ const (
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
+	KeyEnrollmentParentCourseRequestsEnabled            = "enrollment.parent_course_requests_enabled"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
 	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
@@ -478,6 +479,25 @@ const (
 const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
+)
+
+// SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
+// (#3050). Exactly ONE target per school; the file transferred is the
+// unchanged export file the download produces.
+//
+// Every value is empty by default — an incomplete configuration means "not
+// set up", and no transfer is started. There is deliberately no environment
+// fallback and no host-key exception: the fingerprint is mandatory, and an
+// unknown or changed key aborts the transfer. Definitions live in
+// defaults/sftp.go, resolution in services/config/sftp_target_service.go.
+const (
+	KeySFTPEnabled            = "sftp.enabled"
+	KeySFTPHost               = "sftp.host"
+	KeySFTPPort               = "sftp.port"
+	KeySFTPUsername           = "sftp.username"
+	KeySFTPPassword           = "sftp.password"
+	KeySFTPRemoteDirectory    = "sftp.remote_directory"
+	KeySFTPHostKeyFingerprint = "sftp.host_key_fingerprint"
 )
 
 // School file storage (#2596).

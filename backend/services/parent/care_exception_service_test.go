@@ -108,7 +108,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	}
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
-		AttendanceRepo:       repos.Attendance,
+		Attendance:           parentAttendance(t, db),
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
@@ -139,7 +139,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
-		AttendanceRepo:       repos.Attendance,
+		Attendance:           parentAttendance(t, db),
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,

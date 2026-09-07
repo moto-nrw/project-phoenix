@@ -86,11 +86,9 @@ func TestNewFactory(t *testing.T) {
 	// Verify active repositories are initialized
 	t.Run("active repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.ActiveGroup)
-		assert.NotNil(t, factory.ActiveVisit)
 		assert.NotNil(t, factory.GroupSupervisor)
 		assert.NotNil(t, factory.CombinedGroup)
 		assert.NotNil(t, factory.GroupMapping)
-		assert.NotNil(t, factory.Attendance)
 	})
 
 	// Verify feedback repositories are initialized

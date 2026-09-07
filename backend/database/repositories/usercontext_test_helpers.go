@@ -8,6 +8,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -31,8 +32,12 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	substitutions := educationRepo.NewGroupSubstitutionRepository(db)
-	substitutions.(substitutionStaffResolverSetter).SetSubstitutionStaffResolver(
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return UserContextTestRepositories{}, err
+	}
+	groups := educationRepo.NewGroupRepository(db)
+	substitutions := workforceLegacy.NewGroupSubstitutionRepository(workTime, groups.FindByIDs,
 		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}))
 	return UserContextTestRepositories{
 		Timetable: timetable, Profile: usersRepo.NewProfileRepository(db), Substitutions: substitutions,

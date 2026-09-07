@@ -18,6 +18,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -137,6 +138,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       repos.ParentMessage,
 		MessageReadRepo:   repos.ParentMessageRead,
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		DB:                db,
 		Logger:            slog.Default(),
 	})

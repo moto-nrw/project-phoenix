@@ -257,34 +257,6 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).PrivacyConsent
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds active consents for student", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Active")
-
-		found, err := repo.FindActiveByStudentID(ctx, consent.StudentID)
-		require.NoError(t, err)
-
-		var foundConsent bool
-		for _, c := range found {
-			if c.ID == consent.ID {
-				foundConsent = true
-				break
-			}
-		}
-		assert.True(t, foundConsent)
-	})
-
-	// NOTE: Database has check constraint preventing expired dates at insert time,
-	// so we can only test by setting expiry date after creation via SetExpiryDate
-}
-
 // ============================================================================
 // List and Filter Tests
 // ============================================================================

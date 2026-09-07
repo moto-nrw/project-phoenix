@@ -321,6 +321,16 @@ type Service interface {
 	// change feature being switched on.
 	GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error)
 
+	// GetChildCourses lists the school's courses (AGs reached through a care
+	// offering) with the child's state, and RequestChildCourse /
+	// WithdrawChildCourseRequest are the family's two actions on them (#3075).
+	// Reading needs parent_portal.enrollments.view and reports a missing
+	// permission as a named reason. The two actions additionally need
+	// parent_portal.enrollment.submit.
+	GetChildCourses(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.CourseCatalog, error)
+	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*enrollmentSvc.CourseCatalog, error)
+	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*enrollmentSvc.CourseCatalog, error)
+
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
 	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
@@ -462,6 +472,25 @@ type Profile struct {
 	Explicit  bool
 }
 
+// ConversationCore is the consumer-owned port for Communication's shared
+// parent-OGS conversation rules. Both portals mark reads, stamp receipts, and
+// fan out over the SAME implementation, so the two chats' unread counts and
+// receipts cannot drift; Communication supplies it at the composition seam.
+type ConversationCore interface {
+	// AppendMessage serializes the thread, persists the message, and advances
+	// the thread preview off the row's DB-stamped created_at.
+	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
+	// MarkReadToNewest advances the reader's cursor to the newest counterpart
+	// message in the snapshot and reports whether it moved.
+	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
+	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
+	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
+	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
+	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
+	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
+	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
+}
+
 // ServiceConfig is the dependency-injection bundle.
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
@@ -470,12 +499,9 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// AttendanceRepo liefert die schulweite Anwesenheit des Kindes. Sie ist
-	// die einzige Praesenzquelle fuer Eltern; active.visits wird nie gelesen,
-	// damit kein Raumbezug nach aussen gelangt. Gefuellt wird die Tabelle
-	// sowohl vom Kiosk-Scan als auch von der manuellen Erfassung im
-	// Personal-Portal, der Tagesstatus funktioniert also mit und ohne NFC.
-	AttendanceRepo activeModels.AttendanceRepository
+	// Attendance is the only presence source for parents. Visits and room
+	// locations are deliberately excluded from this consumer contract.
+	Attendance AttendanceReader
 
 	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository
@@ -526,6 +552,10 @@ type ServiceConfig struct {
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
+	// Conversations applies Communication's shared conversation rules (append,
+	// mark-to-newest, receipts, fan-out) to the stores above, so the parent and
+	// staff chats can never drift apart.
+	Conversations ConversationCore
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -23,21 +25,20 @@ type Service interface {
 	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
-	GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error)
+	GetActiveGroupVisits(ctx context.Context, id int64) ([]studentpresence.Visit, error)
 	GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error)
 
 	// Visit operations
-	GetVisit(ctx context.Context, id int64) (*active.Visit, error)
-	CreateVisit(ctx context.Context, visit *active.Visit) error
-	UpdateVisit(ctx context.Context, visit *active.Visit) error
+	GetVisit(ctx context.Context, id int64) (*studentpresence.Visit, error)
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
+	UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	DeleteVisit(ctx context.Context, id int64) error
-	ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error)
-	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error)
-	FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
+	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)
+	FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]studentpresence.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
-	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
-	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
-	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
+	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
+	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*VisitWithRoom, error)
+	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error)
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
@@ -108,9 +109,8 @@ type Service interface {
 	// result returned verbatim).
 	GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error)
 	// GetActiveGroupVisitsWithDisplay returns the open visits of an active
-	// group joined with student display data (issue #584 lookup; repository
-	// result returned verbatim).
-	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error)
+	// group joined with tenant-scoped student display data.
+	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
 	// HasOpenAttendanceOn reports whether any attendance row on the given
 	// calendar date is still open (issue #584 lookup; repository result
 	// returned verbatim). Used by the operator presence-mode switch guard.
@@ -166,10 +166,8 @@ type Service interface {
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 
 	// GetPresenceMode resolves the tenant's presence mode ("detailed" | "binary").
-	// Fails safe to "detailed" when the settings resolver is nil or the lookup
-	// errors. Use this instead of calling the settings service directly so every
-	// caller gets consistent fallback behavior.
-	GetPresenceMode(ctx context.Context) string
+	// Missing wiring, lookup failures and invalid values return an error.
+	GetPresenceMode(ctx context.Context) (string, error)
 
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.

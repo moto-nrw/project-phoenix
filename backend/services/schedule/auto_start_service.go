@@ -40,7 +40,7 @@ type AutoStartConflictDetector func(
 	deps ConflictDependencies,
 	instance *scheduleModel.ActivityInstance,
 	logger *slog.Logger,
-) []InstanceConflictWarning
+) ([]InstanceConflictWarning, error)
 
 // AutoStartDependencies groups the collaborators required for automatic starts.
 type AutoStartDependencies struct {
@@ -51,7 +51,7 @@ type AutoStartDependencies struct {
 	RoomRepo          facilitiesModel.RoomRepository
 	ActiveGroupRepo   activeModel.GroupRepository
 	SupervisorRepo    activeModel.GroupSupervisorRepository
-	VisitRepo         activeModel.VisitRepository
+	Presence          StudentVisitReader
 	ConflictDetector  AutoStartConflictDetector
 	Logger            *slog.Logger
 }
@@ -84,8 +84,8 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 		if deps.SupervisorRepo == nil {
 			panic("schedule auto-start: SupervisorRepo is required")
 		}
-		if deps.VisitRepo == nil {
-			panic("schedule auto-start: VisitRepo is required")
+		if deps.Presence == nil {
+			panic("schedule auto-start: Presence is required")
 		}
 		if deps.InstanceStudents == nil {
 			panic("schedule auto-start: InstanceStudents is required")
@@ -100,7 +100,7 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 		conflictDeps: ConflictDependencies{
 			GroupRepo:         deps.ActiveGroupRepo,
 			SupervisorRepo:    deps.SupervisorRepo,
-			VisitRepo:         deps.VisitRepo,
+			Presence:          deps.Presence,
 			InstanceRepo:      deps.InstanceRepo,
 			InstanceStaffRepo: deps.InstanceStaffRepo,
 			InstanceStudents:  deps.InstanceStudents,
@@ -175,7 +175,11 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			continue
 		}
 
-		warnings := s.ConflictDetector(ctx, s.conflictDeps, inst, s.Logger)
+		warnings, err := s.ConflictDetector(ctx, s.conflictDeps, inst, s.Logger)
+		if err != nil {
+			result.Failed++
+			return result, fmt.Errorf("auto-start instance %d: detect conflicts: %w", inst.ID, err)
+		}
 		if len(warnings) > 0 {
 			result.SkippedConflict++
 			s.Logger.Warn("auto-start skipped planned instance with conflicts",

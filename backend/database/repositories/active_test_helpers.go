@@ -11,7 +11,6 @@ import (
 
 type ActiveTestRepositories struct {
 	TimetableTestRepositories
-	Attendance       activeModels.AttendanceRepository
 	SessionStartLock activeModels.SessionStartLocker
 	CombinedGroup    activeModels.CombinedGroupRepository
 	GroupMapping     activeModels.GroupMappingRepository
@@ -35,11 +34,15 @@ func NewActiveTestRepositories(db *bun.DB, clocks ...func() time.Time) (ActiveTe
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return ActiveTestRepositories{}, err
+	}
 	r := &Factory{db: db, CrossTenant: activeRepo.NewCrossTenantRepository(db),
 		CombinedGroup: activeRepo.NewCombinedGroupRepository(db), GroupMapping: activeRepo.NewGroupMappingRepository(db)}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	r.BindSchoolStructure(groups)
-	return ActiveTestRepositories{TimetableTestRepositories: tt, Attendance: activeRepo.NewAttendanceRepository(db, clocks...),
+	return ActiveTestRepositories{TimetableTestRepositories: tt,
 		SessionStartLock: activeRepo.NewSessionStartLocker(db), CombinedGroup: r.CombinedGroup, GroupMapping: r.GroupMapping, CrossTenant: r.CrossTenant}, nil
 }

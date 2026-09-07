@@ -9,23 +9,20 @@ import (
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// fakePreferenceRepo implements the four methods the service actually calls.
-// The embedded interface is nil on purpose: if the service ever reaches for
-// another method, the test panics instead of quietly passing.
+// fakePreferenceRepo implements the consent-store port the service depends on.
+// Every method the service can reach is declared here, so a call the fake does
+// not model is a compile error rather than a quiet pass.
 type fakePreferenceRepo struct {
-	userModel.NotificationPreferenceRepository
-
-	stored        []*userModel.NotificationPreference
+	stored        map[string]bool
 	optedIn       map[string][]int64
 	optedOut      map[string][]int64
-	upserted      []*userModel.NotificationPreference
+	upserted      []recordedConsent
 	disabled      []int64
 	disabledTypes [][]string
 	listErr       error
@@ -38,15 +35,22 @@ type fakePreferenceRepo struct {
 	bulkCalls     int
 }
 
-func (f *fakePreferenceRepo) ListByAccount(_ context.Context, _ int64) ([]*userModel.NotificationPreference, error) {
+// recordedConsent is what one RecordConsent call carried.
+type recordedConsent struct {
+	AccountID        int64
+	NotificationType string
+	Enabled          bool
+}
+
+func (f *fakePreferenceRepo) StoredConsent(_ context.Context, _ int64) (map[string]bool, error) {
 	return f.stored, f.listErr
 }
 
-func (f *fakePreferenceRepo) Upsert(_ context.Context, pref *userModel.NotificationPreference) error {
+func (f *fakePreferenceRepo) RecordConsent(_ context.Context, accountID int64, notificationType string, enabled bool) error {
 	if f.upsertErr != nil {
 		return f.upsertErr
 	}
-	f.upserted = append(f.upserted, pref)
+	f.upserted = append(f.upserted, recordedConsent{AccountID: accountID, NotificationType: notificationType, Enabled: enabled})
 	return nil
 }
 
@@ -116,7 +120,7 @@ func (f *fakePreferenceRepo) FilterNotOptedOut(_ context.Context, notificationTy
 	return remaining, nil
 }
 
-func (f *fakePreferenceRepo) DisableAllForAccount(_ context.Context, accountID int64, notificationTypes []string) error {
+func (f *fakePreferenceRepo) DisableConsent(_ context.Context, accountID int64, notificationTypes []string) error {
 	if f.disableErr != nil {
 		return f.disableErr
 	}
@@ -142,9 +146,9 @@ const (
 func TestGetForAccountMergesStoredDecisions(t *testing.T) {
 	t.Parallel()
 
-	repo := &fakePreferenceRepo{stored: []*userModel.NotificationPreference{
-		{AccountID: prefAccountA, NotificationType: notifications.TypePickupUpcoming, Enabled: true},
-		{AccountID: prefAccountA, NotificationType: notifications.TypePickupOverdue, Enabled: false},
+	repo := &fakePreferenceRepo{stored: map[string]bool{
+		notifications.TypePickupUpcoming: true,
+		notifications.TypePickupOverdue:  false,
 	}}
 	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
 

@@ -275,36 +275,39 @@ func runCleanupVisits(cmd *cobra.Command, _ []string) error {
 
 func runVisitsDryRun(logger *log.Logger, ctx *cleanupContext, verbose bool) error {
 	logger.Println("DRY RUN MODE - No data will be deleted")
-
-	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to preview cleanup: %w", err)
-	}
-
-	mustFprintln(ctx.output(), "\nCleanup Preview:")
-	mustFprintf(ctx.output(), "Total visits to delete: %d\n", preview.TotalVisits)
-	if preview.OldestVisit != nil {
-		mustFprintf(ctx.output(), "Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
-	}
-	mustFprintf(ctx.output(), fmtStudentsAffected, len(preview.StudentVisitCounts))
-
-	if verbose {
-		printStudentBreakdown(ctx.output(), "Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
-	}
-
-	return nil
+	return forEachPresenceTenant(ctx, "preview visit cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		preview, err := ctx.CleanupService.PreviewCleanup(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to preview cleanup: %w", err)
+		}
+		return func() {
+			mustFprintln(ctx.output(), "\nCleanup Preview:")
+			mustFprintf(ctx.output(), "Total visits to delete: %d\n", preview.TotalVisits)
+			if preview.OldestVisit != nil {
+				mustFprintf(ctx.output(), "Oldest visit: %s\n", preview.OldestVisit.Format(dateTimeFormat))
+			}
+			mustFprintf(ctx.output(), fmtStudentsAffected, len(preview.StudentVisitCounts))
+			if verbose {
+				printStudentBreakdown(ctx.output(), "Per-student breakdown", "Visits to Delete", preview.StudentVisitCounts)
+			}
+		}, nil
+	})
 }
 
 func runVisitsCleanup(logger *log.Logger, ctx *cleanupContext, verbose bool) error {
-	result, err := ctx.CleanupService.CleanupExpiredVisits(context.Background())
-	if err != nil {
-		return fmt.Errorf("cleanup failed: %w", err)
-	}
-
-	logVisitCleanupResult(logger, result, verbose)
-	printVisitCleanupSummary(ctx.output(), result)
-
-	return nil
+	return forEachPresenceTenant(ctx, "visit cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.CleanupService.CleanupExpiredVisits(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("visit cleanup failed: %v", result.Errors)
+		}
+		return func() {
+			logVisitCleanupResult(logger, result, verbose)
+			printVisitCleanupSummary(ctx.output(), result)
+		}, nil
+	})
 }
 
 func logVisitCleanupResult(logger *log.Logger, result *active.CleanupResult, verbose bool) {
@@ -346,20 +349,19 @@ func runCleanupPreview(cmd *cobra.Command, _ []string) error {
 	}
 	defer ctx.Close()
 	ctx.Output = cmd.OutOrStdout()
-
-	preview, err := ctx.CleanupService.PreviewCleanup(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get cleanup preview: %w", err)
-	}
-
-	printPreviewHeader(ctx.output(), preview)
-
 	verbose, _ := cmd.Flags().GetBool("verbose")
-	if verbose {
-		printStudentBreakdownWithTotal(ctx.output(), "Visits to Delete", preview.StudentVisitCounts)
-	}
-
-	return nil
+	return forEachPresenceTenant(ctx, "preview visit cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		preview, err := ctx.CleanupService.PreviewCleanup(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get cleanup preview: %w", err)
+		}
+		return func() {
+			printPreviewHeader(ctx.output(), preview)
+			if verbose {
+				printStudentBreakdownWithTotal(ctx.output(), "Visits to Delete", preview.StudentVisitCounts)
+			}
+		}, nil
+	})
 }
 
 func printPreviewHeader(output io.Writer, preview *active.CleanupPreview) {
@@ -383,22 +385,25 @@ func runCleanupStats(cmd *cobra.Command, _ []string) error {
 	}
 	defer ctx.Close()
 	ctx.Output = cmd.OutOrStdout()
-
-	stats, err := ctx.CleanupService.GetRetentionStatistics(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get retention statistics: %w", err)
-	}
-
-	printRetentionStats(ctx.output(), stats)
-
 	verbose, _ := cmd.Flags().GetBool("verbose")
-	if !verbose {
-		return nil
+	err = forEachPresenceTenant(ctx, "visit retention statistics", func(txCtx context.Context, _ int64) (func(), error) {
+		stats, err := ctx.CleanupService.GetRetentionStatistics(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get retention statistics: %w", err)
+		}
+		return func() {
+			printRetentionStats(ctx.output(), stats)
+			if verbose {
+				printMonthlyBreakdownWithTotal(ctx.output(), "Expired visits by month", stats.ExpiredVisitsByMonth)
+			}
+		}, nil
+	})
+	if err != nil {
+		return err
 	}
-
-	printMonthlyBreakdownWithTotal(ctx.output(), "Expired visits by month", stats.ExpiredVisitsByMonth)
-	printVerboseRecentDeletions(ctx)
-
+	if verbose {
+		printVerboseRecentDeletions(ctx)
+	}
 	return nil
 }
 
@@ -527,20 +532,19 @@ func runCleanupAttendance(cmd *cobra.Command, _ []string) error {
 
 func runAttendanceDryRun(ctx *cleanupContext, verbose bool) error {
 	mustFprintln(ctx.output(), "DRY RUN MODE - No data will be modified")
-
-	preview, err := ctx.CleanupService.PreviewAttendanceCleanup(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to preview attendance cleanup: %w", err)
-	}
-
-	printAttendancePreviewHeader(ctx.output(), preview)
-
-	if verbose {
-		printStudentBreakdown(ctx.output(), "Per-student breakdown", "Stale Records", preview.StudentRecords)
-		printDateBreakdown(ctx.output(), preview.RecordsByDate)
-	}
-
-	return nil
+	return forEachPresenceTenant(ctx, "preview attendance cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		preview, err := ctx.CleanupService.PreviewAttendanceCleanup(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to preview attendance cleanup: %w", err)
+		}
+		return func() {
+			printAttendancePreviewHeader(ctx.output(), preview)
+			if verbose {
+				printStudentBreakdown(ctx.output(), "Per-student breakdown", "Stale Records", preview.StudentRecords)
+				printDateBreakdown(ctx.output(), preview.RecordsByDate)
+			}
+		}, nil
+	})
 }
 
 func printAttendancePreviewHeader(output io.Writer, preview *active.AttendanceCleanupPreview) {
@@ -557,13 +561,16 @@ func printAttendancePreviewHeader(output io.Writer, preview *active.AttendanceCl
 }
 
 func runAttendanceCleanup(ctx *cleanupContext, verbose bool) error {
-	result, err := ctx.CleanupService.CleanupStaleAttendance(context.Background())
-	if err != nil {
-		return fmt.Errorf("attendance cleanup failed: %w", err)
-	}
-
-	printAttendanceCleanupSummary(ctx.output(), result, verbose)
-	return nil
+	return forEachPresenceTenant(ctx, "attendance cleanup", func(txCtx context.Context, _ int64) (func(), error) {
+		result, err := ctx.CleanupService.CleanupStaleAttendance(txCtx)
+		if err != nil {
+			return nil, fmt.Errorf("attendance cleanup failed: %w", err)
+		}
+		if !result.Success {
+			return nil, fmt.Errorf("attendance cleanup failed: %v", result.Errors)
+		}
+		return func() { printAttendanceCleanupSummary(ctx.output(), result, verbose) }, nil
+	})
 }
 
 func printAttendanceCleanupSummary(output io.Writer, result *active.AttendanceCleanupResult, verbose bool) {

@@ -144,20 +144,9 @@ var (
 
 func insertAttendance(t *testing.T, db *bun.DB, tenantID, studentID, deviceID int64, date timezone.Date) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
 	checkOut := checkIn.Add(6 * time.Hour)
-	row := &activeModels.Attendance{
-		StudentID:    studentID,
-		Date:         date,
-		CheckInTime:  checkIn,
-		CheckOutTime: &checkOut,
-		DeviceID:     deviceID,
-	}
-	row.SetTenantID(tenantID)
-	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.attendance`).Exec(ctx)
-	require.NoError(t, err)
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, 0, deviceID, date, checkIn, &checkOut)
 }
 
 func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date, status string) {

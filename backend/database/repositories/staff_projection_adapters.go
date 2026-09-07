@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // staffLookup is the slice of the School Membership query the projections
@@ -36,7 +37,7 @@ func (l lazyStaffLookup) ListTeachers(ctx context.Context, filter schoolmembersh
 //
 // Order matters: this runs BEFORE bindPersonProjections, so the person layer
 // sits outside and still finds the Staff rows it attaches Staff.Person to.
-func (f *Factory) bindStaffProjections(membership staffLookup) {
+func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforce.Capability) {
 	if membership == nil {
 		panic("repository factory: school membership query is required")
 	}
@@ -52,14 +53,12 @@ func (f *Factory) bindStaffProjections(membership staffLookup) {
 	if f.ActivitySupervisor != nil {
 		f.ActivitySupervisor = staffSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, membership: membership}
 	}
-	// The three repositories below keep their own method signatures — those
+	// The two repositories below keep their own method signatures — those
 	// speak calendar dates and query options, which this package must not
-	// import — and take the owner lookup as an injected function instead.
+	// import — and take the owner lookups as injected functions instead. The
+	// group substitution adapter receives its staff resolver at construction.
 	if setter, ok := f.Group.(supervisionStaffResolverSetter); ok {
-		setter.SetSupervisionStaffResolver(supervisionStaffResolver(membership))
-	}
-	if setter, ok := f.GroupSubstitution.(substitutionStaffResolverSetter); ok {
-		setter.SetSubstitutionStaffResolver(substitutionStaffResolver(membership))
+		setter.SetSupervisionStaffResolver(supervisionStaffResolver(membership, workforceSubstitutedStaff(workTime)))
 	}
 	if setter, ok := f.Room.(supervisorPersonsResolverSetter); ok {
 		setter.SetSupervisorPersonsResolver(supervisorPersonsResolver(membership))

@@ -1,38 +1,107 @@
 package worktimemodels
 
 import (
-	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func init() { testutil.SeedTestJWTConfig() }
-
-func TestRouter_RejectsUsersRead(t *testing.T) {
+func TestBuildFieldsRejectsMalformedWireValues(t *testing.T) {
 	t.Parallel()
-	resource := &Resource{}
-	router := resource.Router()
-	claims := testutil.DefaultTestClaims()
-	claims.Roles = []string{"user"}
-	claims.Permissions = []string{"users:read"}
-	claims.IsAdmin = false
-	token := testutil.MintTestJWT(t, claims)
 
-	for _, tc := range []struct {
-		method string
-		path   string
+	badClock := "0830"
+	for _, test := range []struct {
+		name    string
+		request ModelRequest
+		reason  string
 	}{
-		{method: http.MethodGet, path: "/"},
-		{method: http.MethodGet, path: "/123"},
-		{method: http.MethodPost, path: "/"},
-		{method: http.MethodPut, path: "/123"},
-		{method: http.MethodDelete, path: "/123"},
+		{
+			name:    "anchor is not a calendar day",
+			request: ModelRequest{Name: "Vollzeit", RotationLength: 1, RotationAnchorDate: "01.06.2026"},
+			reason:  "rotation_anchor_date must be YYYY-MM-DD",
+		},
+		{
+			name: "start time is not a wall clock",
+			request: ModelRequest{
+				Name: "Vollzeit", RotationLength: 1, RotationAnchorDate: "2026-06-01",
+				Entries: []EntryRequest{{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: &badClock}},
+			},
+			reason: "start_time must be HH:MM",
+		},
 	} {
-		req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, nil, testutil.WithJWTBearer(token))
-		rr := testutil.ExecuteRequest(router, req)
-
-		require.Equal(t, http.StatusForbidden, rr.Code)
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := buildFields(test.request)
+			require.Error(t, err)
+			assert.Equal(t, test.reason, err.Error())
+		})
 	}
+}
+
+// A zero-minute slot is how the UI clears a day; it must never reach the
+// capability as an entry, or the template would keep an empty weekday.
+func TestBuildFieldsDropsZeroMinuteEntriesAndNormalizesClocks(t *testing.T) {
+	t.Parallel()
+
+	startTime := "08:30"
+	fields, err := buildFields(ModelRequest{
+		Name: "Teilzeit", RotationLength: 2, RotationAnchorDate: "2026-06-01",
+		Entries: []EntryRequest{
+			{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: &startTime},
+			{WeekIndex: 0, DayOfWeek: 1, TargetMinutes: 0},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, fields.Entries, 1)
+	assert.Equal(t, "08:30:00", fields.Entries[0].StartTime)
+	assert.Equal(t, "2026-06-01", fields.RotationAnchorDate)
+}
+
+func TestToResponseSumsWeeklyTotalsPerRotationWeek(t *testing.T) {
+	t.Parallel()
+
+	response, err := toResponse(workforce.WorkTimeModel{
+		ID: 7, Name: "A/B", RotationLength: 2, RotationAnchorDate: "2026-06-01",
+		Entries: []workforce.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: "08:30:00"},
+			{WeekIndex: 0, DayOfWeek: 1, TargetMinutes: 240},
+			{WeekIndex: 1, DayOfWeek: 0, TargetMinutes: 180},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int{540, 180}, response.WeeklyTotals)
+	require.NotNil(t, response.Entries[0].StartTime)
+	assert.Equal(t, "08:30", *response.Entries[0].StartTime)
+	assert.Nil(t, response.Entries[1].StartTime)
+}
+
+// A stored clock the capability cannot have produced is reported, not
+// silently rendered as a template without a planned start.
+func TestToResponseReportsAnUnreadableStoredStartTime(t *testing.T) {
+	t.Parallel()
+
+	_, err := toResponse(workforce.WorkTimeModel{
+		ID: 7, Name: "Broken", RotationLength: 1, RotationAnchorDate: "2026-06-01",
+		Entries: []workforce.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: "half past eight"},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half past eight")
+}
+
+// An omitted anchor is bound as unset and rejected by the capability's own
+// validation, not silently turned into a date here.
+func TestBuildFieldsLeavesAnOmittedAnchorUnset(t *testing.T) {
+	t.Parallel()
+
+	fields, err := buildFields(ModelRequest{Name: "Vollzeit", RotationLength: 1})
+
+	require.NoError(t, err)
+	assert.Empty(t, fields.RotationAnchorDate,
+		"an omitted anchor stays unset so the capability rejects it, rather than being invented here")
 }

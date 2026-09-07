@@ -32,7 +32,6 @@ func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.Workfor
 	t.Helper()
 	repos, err := repositories.NewWorkforceTestRepositories(db, repositories.NewTestAuditStore(db))
 	require.NoError(t, err)
-	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(testpkg.SettingsRuntime(t, db))
 	return repos
 }
 
@@ -45,7 +44,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	db, svc := testutil.SetupWorkforceModule(t, clocks...)
 
-	resource := NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
+	resource := NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, testExportTransferModule(t), db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

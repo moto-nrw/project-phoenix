@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -341,8 +341,8 @@ func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) 
 	return scheduleSvc.NewAttendanceSyncService(instRepo, isRepo, logger)
 }
 
-func validVisit() *activeModel.Visit {
-	return &activeModel.Visit{
+func validVisit() *studentpresence.Visit {
+	return &studentpresence.Visit{
 		StudentID:     100,
 		ActiveGroupID: 42,
 		EntryTime:     time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC),
@@ -373,7 +373,9 @@ func TestMirrorCheckIn_B1_NilVisit(t *testing.T) {
 	t.Parallel()
 
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), nil))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), nil)
+	require.NoError(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 }
 
 func TestMirrorCheckIn_B1_ZeroActiveGroup(t *testing.T) {
@@ -382,7 +384,9 @@ func TestMirrorCheckIn_B1_ZeroActiveGroup(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = 0
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), v))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), v)
+	require.NoError(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 }
 
 func TestMirrorCheckIn_B1_NegativeActiveGroup(t *testing.T) {
@@ -391,7 +395,9 @@ func TestMirrorCheckIn_B1_NegativeActiveGroup(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = -1
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), v))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), v)
+	require.NoError(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 }
 
 func TestMirrorCheckIn_B2_InstanceLookupError(t *testing.T) {
@@ -401,7 +407,8 @@ func TestMirrorCheckIn_B2_InstanceLookupError(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.Error(t, checkInErr)
 	assert.Nil(t, snap, "instance lookup error must return nil (graceful degradation)")
 	assert.Equal(t, 0, isRepo.updateCalls, "must not attempt UPDATE after lookup failure")
 }
@@ -410,7 +417,9 @@ func TestMirrorCheckIn_B3_NoInstance(t *testing.T) {
 	t.Parallel()
 
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: nil}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), validVisit()))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 }
 
 func TestMirrorCheckIn_B4_InstanceStudentLookupError(t *testing.T) {
@@ -420,7 +429,9 @@ func TestMirrorCheckIn_B4_InstanceStudentLookupError(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findErr: errors.New("scan error")}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), validVisit()))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.Error(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 	assert.Equal(t, 0, isRepo.updateCalls)
 }
 
@@ -434,7 +445,8 @@ func TestMirrorCheckIn_B5_NoInstanceStudentRow(t *testing.T) {
 	}}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap)
 	assert.True(t, snap.IsUnplanned)
 	assert.Equal(t, 1, isRepo.unplannedCalls)
@@ -447,7 +459,9 @@ func TestMirrorCheckIn_UnplannedPersistenceError(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{unplannedErr: errors.New("insert failed")}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), validVisit()))
+	checkInSnapshot, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.Error(t, checkInErr)
+	assert.Nil(t, checkInSnapshot)
 	assert.Equal(t, 1, isRepo.unplannedCalls)
 }
 
@@ -465,7 +479,8 @@ func TestMirrorCheckIn_B6_AlreadyPresent_NoClobber(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
@@ -488,7 +503,8 @@ func TestMirrorCheckIn_ReopensCheckedOutPresentRow(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
 	visit := validVisit()
-	snap := syncer.MirrorCheckInForVisit(context.Background(), visit)
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), visit)
+	require.NoError(t, checkInErr)
 
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
@@ -508,7 +524,8 @@ func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
-	snapshot := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+	snapshot, err := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+	require.NoError(t, err)
 
 	require.NotNil(t, snapshot)
 	assert.Equal(t, int64(77), snapshot.InstanceID)
@@ -530,7 +547,8 @@ func TestMirrorCheckInAt_ReopensCheckedOutPresentRow(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
 	reentry := time.Now()
-	snapshot := syncer.MirrorCheckInAt(context.Background(), row.StudentID, reentry)
+	snapshot, err := syncer.MirrorCheckInAt(context.Background(), row.StudentID, reentry)
+	require.NoError(t, err)
 
 	require.NotNil(t, snapshot)
 	assert.Equal(t, 1, isRepo.updateCalls)
@@ -547,7 +565,9 @@ func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{first, second}}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
-	assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), first.StudentID, time.Now()))
+	snapshot, err := syncer.MirrorCheckInAt(context.Background(), first.StudentID, time.Now())
+	require.NoError(t, err)
+	assert.Nil(t, snapshot)
 	assert.Equal(t, 0, isRepo.updateCalls)
 }
 
@@ -556,7 +576,9 @@ func TestMirrorCheckInAt_HandlesLookupAndUpdateFailures(t *testing.T) {
 
 	t.Run("lookup error", func(t *testing.T) {
 		syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{candidateErr: errors.New("lookup failed")})
-		assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), 100, time.Now()))
+		snapshot, err := syncer.MirrorCheckInAt(context.Background(), 100, time.Now())
+		require.Error(t, err)
+		assert.Nil(t, snapshot)
 	})
 
 	t.Run("update error", func(t *testing.T) {
@@ -565,13 +587,17 @@ func TestMirrorCheckInAt_HandlesLookupAndUpdateFailures(t *testing.T) {
 			candidates: []*scheduleModel.InstanceStudent{row},
 			updateErr:  errors.New("update failed"),
 		})
-		assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now()))
+		snapshot, err := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		require.Error(t, err)
+		assert.Nil(t, snapshot)
 	})
 
 	t.Run("panic", func(t *testing.T) {
 		syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{candidatePanic: "boom"})
 		require.NotPanics(t, func() {
-			assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), 100, time.Now()))
+			snapshot, err := syncer.MirrorCheckInAt(context.Background(), 100, time.Now())
+			require.Error(t, err)
+			assert.Nil(t, snapshot)
 		})
 	})
 }
@@ -583,7 +609,8 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		row := expectedRow(15)
 		row.Status = scheduleModel.AttendanceStatusAbsent
 		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}}
-		snapshot := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		require.NoError(t, err)
 
 		require.NotNil(t, snapshot)
 		assert.Equal(t, scheduleModel.AttendanceStatusAbsent, snapshot.Status)
@@ -598,7 +625,8 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		row.Substatus = &sick
 		row.StudentStatusDayID = &statusDayID
 		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
-		snapshot := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		require.NoError(t, err)
 
 		require.NotNil(t, snapshot)
 		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
@@ -613,7 +641,8 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		row.Substatus = &excused
 		row.PickupExceptionID = &exceptionID
 		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
-		snapshot := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		snapshot, err := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+		require.NoError(t, err)
 
 		require.NotNil(t, snapshot)
 		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
@@ -632,7 +661,8 @@ func TestMirrorCheckIn_B6_Absent_NoClobber(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, snap.Status)
 	assert.Equal(t, 0, isRepo.updateCalls)
@@ -648,7 +678,8 @@ func TestMirrorCheckIn_B7_UpdateError(t *testing.T) {
 	}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.Error(t, checkInErr)
 	assert.Nil(t, snap, "UPDATE error → nil (graceful, logged at Error for ops)")
 	assert.Equal(t, 1, isRepo.updateCalls)
 }
@@ -664,7 +695,8 @@ func TestMirrorCheckIn_B8_RaceNoRowsAffected(t *testing.T) {
 	}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap, "race → snapshot of read row so SSE still fires")
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, snap.Status)
 }
@@ -679,7 +711,8 @@ func TestMirrorCheckIn_B9_HappyPath(t *testing.T) {
 	}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
 	assert.Equal(t, 1, isRepo.updateCalls)
@@ -699,7 +732,8 @@ func TestMirrorCheckIn_B9_HappyPathWithSubstatusAndNote(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row, updateResult: true}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	snap, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NoError(t, checkInErr)
 	require.NotNil(t, snap)
 	require.NotNil(t, snap.Substatus)
 	assert.Equal(t, scheduleModel.AttendanceSubstatusExcused, *snap.Substatus)
@@ -718,7 +752,8 @@ func TestMirrorCheckIn_PanicRecovery(t *testing.T) {
 
 	var snap *activeSvcSnapshot
 	require.NotPanics(t, func() {
-		result := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+		result, checkInErr := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+		require.Error(t, checkInErr)
 		if result != nil {
 			snap = &activeSvcSnapshot{Status: result.Status}
 		}
@@ -740,7 +775,9 @@ func TestLoadAttendance_NilVisit(t *testing.T) {
 	t.Parallel()
 
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), nil))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_ZeroActiveGroup(t *testing.T) {
@@ -749,7 +786,9 @@ func TestLoadAttendance_ZeroActiveGroup(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = 0
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), v))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), v)
+	require.NoError(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_InstanceLookupError(t *testing.T) {
@@ -757,14 +796,18 @@ func TestLoadAttendance_InstanceLookupError(t *testing.T) {
 
 	instRepo := &fakeInstanceRepo{findErr: errors.New("db down")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	require.Error(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_NoInstance(t *testing.T) {
 	t.Parallel()
 
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: nil}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	require.NoError(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_InstanceStudentLookupError(t *testing.T) {
@@ -773,7 +816,9 @@ func TestLoadAttendance_InstanceStudentLookupError(t *testing.T) {
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findErr: errors.New("scan failed")}
 	syncer := newUnitSyncer(instRepo, isRepo)
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	require.Error(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_NoRow(t *testing.T) {
@@ -782,7 +827,9 @@ func TestLoadAttendance_NoRow(t *testing.T) {
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findRow: nil}
 	syncer := newUnitSyncer(instRepo, isRepo)
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	require.NoError(t, err)
+	assert.Nil(t, snapshot)
 }
 
 func TestLoadAttendance_HappyPath(t *testing.T) {
@@ -799,7 +846,8 @@ func TestLoadAttendance_HappyPath(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	snap, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+	require.NoError(t, err)
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
@@ -821,7 +869,8 @@ func TestLoadAttendance_RecordsCheckout(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	snapshot := syncer.MirrorCheckOutForVisit(context.Background(), visit)
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), visit)
+	require.NoError(t, err)
 	require.NotNil(t, snapshot)
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 	assert.Equal(t, int64(7), isRepo.checkoutID)
@@ -853,8 +902,9 @@ func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
 	for name, row := range tests {
 		t.Run(name, func(t *testing.T) {
 			isRepo := &fakeInstanceStudentRepo{findRow: row}
-			snapshot := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+			snapshot, err := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
 				MirrorCheckOutForVisit(context.Background(), visit)
+			require.NoError(t, err)
 
 			require.NotNil(t, snapshot)
 			assert.Zero(t, isRepo.checkoutCalls)
@@ -875,7 +925,9 @@ func TestLoadAttendance_CheckoutError(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row, checkoutErr: errors.New("update failed")}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), visit))
+	snapshot, err := syncer.MirrorCheckOutForVisit(context.Background(), visit)
+	require.Error(t, err)
+	assert.Nil(t, snapshot)
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 }
 
@@ -885,7 +937,8 @@ func TestLoadAttendance_PanicRecovery(t *testing.T) {
 	instRepo := &fakeInstanceRepo{findPanic: errors.New("kaboom")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
 	require.NotPanics(t, func() {
-		snap := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+		snap, err := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
+		require.Error(t, err)
 		assert.Nil(t, snap)
 	})
 }
@@ -904,7 +957,7 @@ func TestMirrorCheckOutAt_ClosesLatestOpenSlot(t *testing.T) {
 	open.CheckedInAt = &checkedIn
 	isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{closed, open}}
 
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), open.StudentID, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), open.StudentID, time.Now()))
 
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 	assert.Equal(t, int64(88), isRepo.checkoutID)
@@ -922,7 +975,7 @@ func TestMirrorVisitRevision_ReconcilesExactPreviousInterval(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	syncer.MirrorVisitRevision(context.Background(), previous, &updated)
+	require.NoError(t, syncer.MirrorVisitRevision(context.Background(), previous, &updated))
 
 	require.Equal(t, 1, isRepo.reconcileCalls)
 	assert.Equal(t, previous.EntryTime, isRepo.previousIn)
@@ -938,19 +991,50 @@ func TestMirrorVisitRevision_IgnoresIdentityAndGroupChanges(t *testing.T) {
 	previous := validVisit()
 	tests := []struct {
 		name   string
-		mutate func(*activeModel.Visit)
+		mutate func(*studentpresence.Visit)
 	}{
-		{name: "student", mutate: func(v *activeModel.Visit) { v.StudentID++ }},
-		{name: "group", mutate: func(v *activeModel.Visit) { v.ActiveGroupID++ }},
+		{name: "student", mutate: func(v *studentpresence.Visit) { v.StudentID++ }},
+		{name: "group", mutate: func(v *studentpresence.Visit) { v.ActiveGroupID++ }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			updated := *previous
 			tt.mutate(&updated)
 			isRepo := &fakeInstanceStudentRepo{}
-			newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
-				MirrorVisitRevision(context.Background(), previous, &updated)
+			require.NoError(t, newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+				MirrorVisitRevision(context.Background(), previous, &updated))
 			assert.Zero(t, isRepo.reconcileCalls)
+		})
+	}
+}
+
+func TestMirrorVisitRevision_PropagatesFailures(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("revision failure")
+	for _, stage := range []string{"read", "write", "panic"} {
+		t.Run(stage, func(t *testing.T) {
+			instances := &fakeInstanceRepo{instance: instanceWithID(7)}
+			rows := &fakeInstanceStudentRepo{}
+			switch stage {
+			case "read":
+				instances.findErr = injected
+			case "write":
+				rows.reconcileErr = injected
+			case "panic":
+				instances.findPanic = "unexpected failure"
+			}
+			previous := validVisit()
+			updated := *previous
+			updated.EntryTime = previous.EntryTime.Add(time.Minute)
+			err := newUnitSyncer(instances, rows).MirrorVisitRevision(context.Background(), previous, &updated)
+			if stage == "panic" {
+				require.ErrorContains(t, err, "attendance visit revision panic")
+			} else {
+				require.ErrorIs(t, err, injected)
+			}
+			if stage != "write" {
+				assert.Zero(t, rows.reconcileCalls)
+			}
 		})
 	}
 }
@@ -960,7 +1044,7 @@ func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {
 
 	t.Run("lookup error", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{dateErr: errors.New("lookup failed")}
-		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), 100, time.Now())
+		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), 100, time.Now()))
 		assert.Zero(t, isRepo.checkoutCalls)
 	})
 
@@ -970,14 +1054,14 @@ func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {
 		row.Status = scheduleModel.AttendanceStatusPresent
 		row.CheckedInAt = &checkedIn
 		isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{row}, checkoutErr: errors.New("update failed")}
-		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), row.StudentID, time.Now())
+		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), row.StudentID, time.Now()))
 		assert.Equal(t, 1, isRepo.checkoutCalls)
 	})
 
 	t.Run("panic", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{datePanic: "boom"}
 		require.NotPanics(t, func() {
-			newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), 100, time.Now())
+			require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAt(context.Background(), 100, time.Now()))
 		})
 	})
 }
@@ -997,8 +1081,12 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 		nil,
 	)
 	require.NotPanics(t, func() {
-		assert.Nil(t, svc.MirrorCheckInForVisit(context.Background(), validVisit()))
-		assert.Nil(t, svc.MirrorCheckOutForVisit(context.Background(), validVisit()))
+		checkInSnapshot, checkInErr := svc.MirrorCheckInForVisit(context.Background(), validVisit())
+		require.NoError(t, checkInErr)
+		assert.Nil(t, checkInSnapshot)
+		snapshot, err := svc.MirrorCheckOutForVisit(context.Background(), validVisit())
+		require.NoError(t, err)
+		assert.Nil(t, snapshot)
 	})
 }
 
@@ -1090,25 +1178,25 @@ func TestMirrorCheckInAtBatch_AssignsOnlyUniqueUnpreservedSlots(t *testing.T) {
 		candidates: []*scheduleModel.InstanceStudent{unique, ambiguousA, ambiguousB, preserved},
 	}
 
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100, 200, 300}, at)
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100, 200, 300}, at))
 
 	require.Equal(t, 1, isRepo.checkinBatchCalls)
 	require.Len(t, isRepo.checkinBatchKeys, 1)
 	assert.Equal(t, scheduleModel.InstanceStudentKey{InstanceID: 71, StudentID: 100}, isRepo.checkinBatchKeys[0])
 }
 
-func TestMirrorCheckInAtBatch_SwallowsLookupFailureAndPanic(t *testing.T) {
+func TestMirrorCheckInAtBatch_PropagatesLookupFailureAndPanic(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
 
 	failing := &fakeInstanceStudentRepo{candidateErr: errors.New("lookup failed")}
-	newUnitSyncer(&fakeInstanceRepo{}, failing).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+	require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, failing).MirrorCheckInAtBatch(context.Background(), []int64{100}, at))
 	assert.Zero(t, failing.checkinBatchCalls)
 
 	panicking := &fakeInstanceStudentRepo{candidatePanic: errors.New("kaboom")}
 	require.NotPanics(t, func() {
-		newUnitSyncer(&fakeInstanceRepo{}, panicking).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, panicking).MirrorCheckInAtBatch(context.Background(), []int64{100}, at))
 	})
 	assert.Zero(t, panicking.checkinBatchCalls)
 }
@@ -1145,7 +1233,7 @@ func TestMirrorCheckOutAtBatch_ClosesLatestOpenSlotPerStudent(t *testing.T) {
 		dateRows: []*scheduleModel.InstanceStudent{closed, earlyOpen, lateOpen, otherOpen},
 	}
 
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100, 200}, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100, 200}, time.Now()))
 
 	require.Equal(t, 1, isRepo.checkoutBatchCalls)
 	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
@@ -1168,7 +1256,7 @@ func TestMirrorCheckOutForVisits_ResolvesInstancePerGroupAndSkipsWalkIns(t *test
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	syncer.MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{visitA, visitB, walkIn}, at)
+	require.NoError(t, syncer.MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{visitA, visitB, walkIn}, at))
 
 	require.Equal(t, 1, isRepo.checkoutBatchCalls)
 	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
@@ -1183,7 +1271,7 @@ func TestMirrorCheckOutForVisits_NoInstanceBridgedIsNoop(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
-	syncer.MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+	require.NoError(t, syncer.MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{validVisit()}, time.Now()))
 
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
@@ -1192,7 +1280,7 @@ func TestMirrorCheckInAtBatch_EmptyIDsNoop(t *testing.T) {
 	t.Parallel()
 
 	isRepo := &fakeInstanceStudentRepo{}
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), nil, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), nil, time.Now()))
 	assert.Zero(t, isRepo.checkinBatchCalls)
 }
 
@@ -1208,15 +1296,15 @@ func TestMirrorCheckInAtBatch_AllPreservedSkipsUpdate(t *testing.T) {
 	preserved.CheckedInAt = &checkedIn
 
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{preserved}}
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, at))
 
 	assert.Zero(t, isRepo.checkinBatchCalls)
 }
 
-func TestMirrorCheckInAtBatch_UpdateErrorLogged(t *testing.T) {
+func TestMirrorCheckInAtBatch_UpdateErrorReturned(t *testing.T) {
 	t.Parallel()
 
-	// A failing batch UPDATE degrades gracefully: logged, no panic, no retry.
+	// A failing batch UPDATE returns its error without a panic or retry.
 	row := expectedRow(51)
 	row.InstanceID = 75
 	isRepo := &fakeInstanceStudentRepo{
@@ -1224,7 +1312,7 @@ func TestMirrorCheckInAtBatch_UpdateErrorLogged(t *testing.T) {
 		updateErr:  errors.New("update failed"),
 	}
 	require.NotPanics(t, func() {
-		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, time.Now())
+		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, time.Now()))
 	})
 	assert.Equal(t, 1, isRepo.checkinBatchCalls)
 }
@@ -1233,7 +1321,7 @@ func TestMirrorCheckOutAtBatch_EmptyIDsNoop(t *testing.T) {
 	t.Parallel()
 
 	isRepo := &fakeInstanceStudentRepo{}
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), nil, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), nil, time.Now()))
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
 
@@ -1250,7 +1338,7 @@ func TestMirrorCheckOutAtBatch_NoOpenRowsSkipsUpdate(t *testing.T) {
 	neverIn := expectedRow(53)
 
 	isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{closed, neverIn}}
-	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now()))
 
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
@@ -1260,7 +1348,7 @@ func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
 
 	t.Run("lookup error", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{dateErr: errors.New("lookup failed")}
-		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+		require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now()))
 		assert.Zero(t, isRepo.checkoutBatchCalls)
 	})
 
@@ -1274,7 +1362,7 @@ func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
 			checkoutErr: errors.New("update failed"),
 		}
 		require.NotPanics(t, func() {
-			newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+			require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now()))
 		})
 		assert.Equal(t, 1, isRepo.checkoutBatchCalls)
 	})
@@ -1282,7 +1370,7 @@ func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
 	t.Run("panic", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{datePanic: "boom"}
 		require.NotPanics(t, func() {
-			newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+			require.Error(t, newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now()))
 		})
 	})
 }
@@ -1291,8 +1379,8 @@ func TestMirrorCheckOutForVisits_EmptyVisitsNoop(t *testing.T) {
 	t.Parallel()
 
 	isRepo := &fakeInstanceStudentRepo{}
-	newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
-		MirrorCheckOutForVisits(context.Background(), nil, time.Now())
+	require.NoError(t, newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+		MirrorCheckOutForVisits(context.Background(), nil, time.Now()))
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
 
@@ -1300,20 +1388,19 @@ func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("instance lookup error", func(t *testing.T) {
-		// The group's instance lookup fails: logged, the visit is skipped, and
-		// with no keys left the UPDATE never runs.
+		// A failed instance lookup aborts the batch before its slot update.
 		instRepo := &fakeInstanceRepo{findErr: errors.New("db down")}
 		isRepo := &fakeInstanceStudentRepo{}
-		newUnitSyncer(instRepo, isRepo).
-			MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+		require.Error(t, newUnitSyncer(instRepo, isRepo).
+			MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{validVisit()}, time.Now()))
 		assert.Zero(t, isRepo.checkoutBatchCalls)
 	})
 
 	t.Run("update error", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{checkoutErr: errors.New("update failed")}
 		require.NotPanics(t, func() {
-			newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
-				MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+			require.Error(t, newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+				MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{validVisit()}, time.Now()))
 		})
 		assert.Equal(t, 1, isRepo.checkoutBatchCalls)
 	})
@@ -1322,16 +1409,16 @@ func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
 		instRepo := &fakeInstanceRepo{findPanic: "kaboom"}
 		isRepo := &fakeInstanceStudentRepo{}
 		require.NotPanics(t, func() {
-			newUnitSyncer(instRepo, isRepo).
-				MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+			require.Error(t, newUnitSyncer(instRepo, isRepo).
+				MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{validVisit()}, time.Now()))
 		})
 		assert.Zero(t, isRepo.checkoutBatchCalls)
 	})
 
 	t.Run("nil visit entry skipped", func(t *testing.T) {
 		isRepo := &fakeInstanceStudentRepo{}
-		newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
-			MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{nil}, time.Now())
+		require.NoError(t, newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+			MirrorCheckOutForVisits(context.Background(), []*studentpresence.Visit{nil}, time.Now()))
 		assert.Zero(t, isRepo.checkoutBatchCalls)
 	})
 }

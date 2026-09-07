@@ -106,7 +106,7 @@ func attachCareCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int6
 	svc := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule,
-		f.repos.StudentPickupException, f.repos.Attendance, f.autoExcusal,
+		f.repos.StudentPickupException, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.sf.UserContext, emitter, nil,
 		testpkg.RequestReviewPolicy{UserContext: f.sf.UserContext},
 		nil, slog.Default(), f.sf.StudentAudit,

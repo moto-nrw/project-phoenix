@@ -42,7 +42,7 @@ func TestProcessBinaryModeCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 		response,
 		httptest.NewRequest(http.MethodPost, "/checkin", nil),
 		student,
-		&iot.Device{Model: base.Model{ID: 7}},
+		&iot.Device{ID: 7},
 		time.Now(),
 	)
 	require.Equal(t, http.StatusOK, response.Code)

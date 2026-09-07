@@ -170,6 +170,62 @@ describe("StudentHistorieTab", () => {
     expect(screen.getByText(/Anwesenheits-Historie/i)).toBeInTheDocument();
   });
 
+  it("offers corrections only for completed instances", async () => {
+    mockGetSession.mockResolvedValue({
+      user: { token: "t", permissions: ["schedules:manage"] },
+    });
+    fetchSpy.mockResolvedValueOnce(
+      mockFetchResponse({
+        data: {
+          student_id: "1",
+          days: [
+            {
+              date: "2024-01-15",
+              attendance: {
+                check_in_time: "2024-01-15T08:00:00Z",
+                check_out_time: "2024-01-15T15:30:00Z",
+                duration_minutes: 450,
+              },
+              room_detail_available: false,
+              visits: [],
+              slots: [
+                {
+                  instance_id: "501",
+                  instance_status: "completed",
+                  title: "Abgeschlossene AG",
+                  start_time: "14:00",
+                  end_time: "15:00",
+                  status: "present",
+                  is_unplanned: false,
+                },
+                {
+                  instance_id: "502",
+                  instance_status: "planned",
+                  title: "Geplante AG",
+                  start_time: "15:00",
+                  end_time: "16:00",
+                  status: "expected",
+                  is_unplanned: false,
+                },
+              ],
+            },
+          ],
+          range: { start: "2024-01-15", end: "2024-01-15" },
+          clamped: false,
+          caps: { attendance_days: 30, room_detail_days: 7 },
+        },
+      }),
+    );
+
+    render(<StudentHistorieTab studentId="1" />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Abgeschlossene AG")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("Geplante AG")).toBeInTheDocument();
+    expect(screen.getAllByText("Korrigieren")).toHaveLength(1);
+  });
+
   it("shows 'offen' when no check_out_time and duration 0", async () => {
     fetchSpy.mockResolvedValueOnce(
       mockFetchResponse({

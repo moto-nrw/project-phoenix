@@ -33,15 +33,27 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// database/repositories — the operator device listing (#2676). Three
+	// statements: school summaries, organization summaries, and one device
+	// read through the Device Fleet owner. Flat in the number of devices.
+	"repositories.operator.device_rows": {max: 3},
+	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// capacity and pending-request queue through this bounded service scenario.
+	"api.parent.child_courses": {max: 14},
 	// api/students — #2059: schema capabilities are fixed at startup.
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
 	// api/students — GET /students list, 10 students, page_size=50.
-	"api.students.list": {max: 32},
+	// 33 since #3074 (#2685): schedule.instance_students moved to the
+	// timetable module, so CareExitCleanupRepository.FindOpenPresence reads
+	// the open roster rows through the owner instead of as a third UNION
+	// branch. Flat at 3 and at 10 students — a boundary cost, not an N+1.
+	"api.students.list": {max: 33},
 	// api/students — #2056: aggregated OGS group view, 10 students. Measured
 	// well below; the cap leaves room for benign changes only.
-	"api.students.ogs_group_live": {max: 41},
+	// 42 for the same FindOpenPresence split as api.students.list.
+	"api.students.ogs_group_live": {max: 42},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},

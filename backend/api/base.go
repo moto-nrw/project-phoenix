@@ -32,7 +32,6 @@ import (
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
@@ -75,6 +74,7 @@ import (
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -100,6 +100,10 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
+	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -166,6 +170,10 @@ type moduleServices struct {
 	timetable     *timetableModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
+	// workforce owns the work-time templates and staff schedule versions
+	// in config.work_time_models, config.work_time_model_entries and
+	// config.staff_work_schedules (#2687).
+	workforce *workforceModule.Module
 }
 
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
@@ -182,7 +190,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
 }
 
-func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -255,7 +263,18 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership})
+	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
+		DB:                db,
+		AssignedStaffIDs:  repositories.WorkforceAssignedStaffIDs(membership),
+		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
+		Observe: func(observation workforceCompose.Observation) {
+			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -325,7 +344,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger, publicAPIURL,
+		repoFactory, db, logger, publicAPIURL, tenantRuntime,
 		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 		communicationCapability,
 		func(observation communicationCompose.Observation) {
@@ -345,12 +364,13 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		observability.ObserveAuditAppend,
 		observability.ObserveSynchronousDelivery,
 		observability.ObserveDurableDelivery,
+		observability.ObserveDeviceFleetOperation,
 	)
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -608,7 +628,7 @@ type API struct {
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
-	Display          *displayAPI.Resource
+	Display          *displayHTTPAdapter.Resource
 	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -701,7 +721,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API
 	}
 
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, publicAPIURL, logger)
+	modules, err := initializeModuleServices(db, publicAPIURL, logger, tenantRuntime)
 	if err != nil {
 		return nil, err
 	}
@@ -786,14 +806,15 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger) (result *API
 	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
 	// Setup CORS, security logging, and rate limiting
-	if enableCORS {
-		setupCORS(api.Router)
-	}
+	setupCORSIfEnabled(api.Router, enableCORS)
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db, logger)
+	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+		return nil, err
+	}
+	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
@@ -876,6 +897,12 @@ func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func setupCORSIfEnabled(router chi.Router, enabled bool) {
+	if enabled {
+		setupCORS(router)
+	}
 }
 
 // setupCORS configures CORS middleware with allowed origins from environment.
@@ -1073,7 +1100,7 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) error {
 	deviceLastSeenDebouncer := iotAPI.NewDeviceLastSeenDebouncer()
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
@@ -1163,12 +1190,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
-	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
+	staffResource, staffAdmin, err := newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	if err != nil {
+		return err
+	}
+	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
-	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
-	api.AbsenceTypes.SetActorResolver(api.currentStaffID)
+	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(api.Services.StaffAbsenceType), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -1188,11 +1217,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
-	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
+	// One Device Fleet owner serves every entry point: the services factory
+	// composes it and the IoT service hands it back here (#2676).
+	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), newStudentPresence(db, logger))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
@@ -1228,7 +1259,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"),
 		classdayAPI.WithArrivalExceptions(api.Services.ClassDayArrivalExceptions))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
+	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
 	api.TimeTracking.HolidayService = api.Services.Holidays
@@ -1302,6 +1333,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+	return nil
 }
 
 func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {

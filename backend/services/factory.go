@@ -31,8 +31,10 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -52,7 +54,6 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -210,7 +211,6 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         communication.Capability
 	Schools              platform.SchoolService
-	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
@@ -248,9 +248,6 @@ type Factory struct {
 	EmailOutboxWorker     *deliveryModule.Worker
 	EmailTemplateRegistry *platform.TemplateRegistry
 	Delivery              *deliveryModule.Module
-
-	// Display domain (info-point dashboards, issue #1325)
-	Display display.Service
 
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema      enrollment.FormSchemaService
@@ -400,6 +397,10 @@ func currentFactoryConfig() FactoryConfig {
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
 
 type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
+// DeviceFleetObserver records one Device Fleet operation. The composition
+// root supplies it so this package keeps no metrics dependency.
+type DeviceFleetObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
@@ -432,6 +433,7 @@ func NewFactoryWithModules(
 	db *bun.DB,
 	logger *slog.Logger,
 	publicAPIURL string,
+	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
@@ -449,16 +451,17 @@ func NewFactoryWithModules(
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
+	observeDeviceFleet DeviceFleetObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil {
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, false, clocks...)
 }
 
 func newFactory(
@@ -466,6 +469,7 @@ func newFactory(
 	db *bun.DB,
 	logger *slog.Logger,
 	cfg FactoryConfig,
+	tenantRuntime tenant.UnitOfWork,
 	organizations organizationtenancy.Capability,
 	persons peopledirectory.Capability,
 	groups schoolstructure.Query,
@@ -482,6 +486,7 @@ func newFactory(
 	observeAuditAppend AuditAppendObserver,
 	observeDelivery DeliveryObserver,
 	observeDurableDelivery DurableDeliveryObserver,
+	observeDeviceFleet DeviceFleetObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -679,8 +684,7 @@ func newFactory(
 		TransitionRepo:      repos.GradeTransition,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
-		VisitRepo:           repos.ActiveVisit,
-		AttendanceRepo:      repos.Attendance,
+		Presence:            newStudentPresence(db, logger),
 		ClassTeacherRepo:    repos.ClassTeacher,
 		StaffRepo:           repos.Staff,
 		ClassListEntryRepo:  repos.ClassListEntry,
@@ -1121,13 +1125,13 @@ func newFactory(
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
+		SchoolPresence:           newStudentPresence(db, logger),
+		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
 		SessionStartLock:         repos.SessionStartLock,
-		VisitRepo:                repos.ActiveVisit,
 		SupervisorRepo:           repos.GroupSupervisor,
 		CombinedGroupRepo:        repos.CombinedGroup,
 		GroupMappingRepo:         repos.GroupMapping,
-		AttendanceRepo:           repos.Attendance,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
@@ -1152,19 +1156,10 @@ func newFactory(
 		Now:                      now,
 	})
 
-	// Initialize IoT service
-	iotService := iot.NewService(
-		repos.Device,
-	)
-
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
 	// operations.excused_clear_mode settings.
 	activeService.SetSettingsService(settingsService)
-
-	// Inject settings resolver into the IoT service so the device-online window
-	// (iot.device_online_window_minutes) is resolved per tenant (issue #586).
-	iotService.SetSettingsService(settingsService)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -1353,6 +1348,35 @@ func newFactory(
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
+	// Compose the Device Fleet owner (#2676). It owns iot.devices and
+	// display.displays; the info-point dashboard reads Facilities and Student
+	// Presence through their public capabilities and the remaining
+	// cross-owner facts through this owner's consumer-owned ports.
+	deviceFleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
+		DB:       db,
+		Rooms:    rooms,
+		Presence: newStudentPresence(db, logger),
+		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
+			ActiveGroups:   repos.ActiveGroup,
+			Templates:      repos.ActivityGroup,
+			Instances:      repos.ActivityInstance,
+			PickupSchedule: pickupScheduleService,
+		}),
+		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
+			Schools:  repos.School,
+			Settings: settingsService,
+		}),
+		Now:          timezone.Now,
+		OnlineWindow: devicefleetLegacy.NewOnlineWindowResolver(settingsService, logger.With("module", "device-fleet")),
+		Observe: func(observation devicefleetCompose.Observation) {
+			observeDeviceFleet(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, devicefleetModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	iotService := iot.NewService(deviceFleet)
+
 	partialAbsenceService := schedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
@@ -1377,23 +1401,6 @@ func newFactory(
 		Education:             educationService,
 		Logger:                logger.With("service", "checkin"),
 		DailyCheckoutFallback: cfg.StudentDailyCheckoutTime,
-	})
-
-	// Initialize display service (info-point dashboards, issue #1325).
-	// Aggregates existing data sources; owns no queries beyond its own repo.
-	displayService := display.NewService(display.Dependencies{
-		DisplayRepo:       repos.Display,
-		SchoolRepo:        repos.School,
-		Facilities:        rooms,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		VisitRepo:         repos.ActiveVisit,
-		ActivityGroupRepo: repos.ActivityGroup,
-		InstanceRepo:      repos.ActivityInstance,
-		AttendanceRepo:    repos.Attendance,
-		PickupSchedule:    pickupScheduleService,
-		SettingsService:   settingsService,
-		DB:                db,
-		Logger:            logger.With("service", "display"),
 	})
 
 	// Period updates/deletes use the same tenant recurrence transaction and
@@ -1436,6 +1443,7 @@ func newFactory(
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		Presence:           newStudentPresence(db, logger),
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		IdempotencyRepo:    repos.InstanceIdempotency,
@@ -1444,7 +1452,6 @@ func newFactory(
 		ExceptionRepo:      repos.ActivityException,
 		ActiveGroupRepo:    repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		VisitRepo:          repos.ActiveVisit,
 		RoomRepo:           repos.Room,
 		ActivityGroupRepo:  repos.ActivityGroup,
 		StaffRepo:          repos.Staff,
@@ -1459,9 +1466,9 @@ func newFactory(
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
 		Now:                now,
-		// E2E fixtures start future weekday instances. Dedicated unit tests
-		// construct the service with EnforceTimePolicy: true.
-		EnforceTimePolicy: cfg.AppEnv != "test",
+		// Development and test seed profiles create completed instances at the
+		// current clock time. Lifecycle policy remains covered by dedicated tests.
+		EnforceTimePolicy: enforceInstanceTimePolicy(cfg.AppEnv),
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -1533,7 +1540,7 @@ func newFactory(
 		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		SupervisorRepo:    repos.GroupSupervisor,
-		VisitRepo:         repos.ActiveVisit,
+		Presence:          newStudentPresence(db, logger),
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 	autoEndService := schedule.NewAutoEndService(repos.ActivityInstance, instanceService)
@@ -1563,7 +1570,7 @@ func newFactory(
 		PickupService:      pickupScheduleService,
 		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
-		VisitRepo:          repos.ActiveVisit,
+		Presence:           newStudentPresence(db, logger),
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,
@@ -1833,7 +1840,7 @@ func newFactory(
 		EducationGroupRepo: repos.Group,
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveGroupRepo:    repos.ActiveGroup,
-		VisitsRepo:         repos.ActiveVisit,
+		Presence:           newStudentPresence(db, logger),
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
@@ -1893,8 +1900,7 @@ func newFactory(
 	// Initialize cleanup service
 	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
-		repos.ActiveVisit,
-		repos.Attendance,
+		newStudentPresence(db, logger),
 		repos.GroupSupervisor,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
@@ -2164,14 +2170,15 @@ func newFactory(
 	schedule.WireCareParticipation(careDayService, careLifecycleService)
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
-	pillEmitter := parentmessaging.NewEmitter(
-		db,
-		repos.ParentMessageThread,
-		repos.ParentMessage,
-		settingsService,
-		realtimeHub,
-		logger.With("service", "parent-events"),
-	)
+	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
+		DB:          db,
+		Runtime:     tenantRuntime,
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		Logger:      logger.With("service", "parent-events"),
+	})
 
 	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
 	if waker, ok := activeService.(interface {
@@ -2474,7 +2481,7 @@ func newFactory(
 		arrivalScheduleService,
 		pickupScheduleService,
 		repos.StudentPickupException,
-		repos.Attendance,
+		newStudentPresence(db, logger),
 		pickupAutoExcusal,
 		userContextService,
 		pillEmitter,
@@ -2498,7 +2505,7 @@ func newFactory(
 		Requests:               repos.Enrollment(),
 		Phases:                 repos.Enrollment(),
 		CareOfferingRepo:       repos.CareOffering,
-		ImpactRepo:             manualPlanningReader{db: db},
+		ImpactRepo:             manualPlanningReader{db: db, courseGroups: timetableCapability},
 		StudentRepo:            repos.Student,
 		PersonRepo:             repos.Person,
 		CareWithdrawalRepo:     repos.CareWithdrawal,
@@ -2570,8 +2577,15 @@ func newFactory(
 			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
 		),
 	)
+	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
+		DB:      db,
+		Observe: observeCommunication,
+	})
+	if err != nil {
+		return nil, err
+	}
 	notificationPreferencesService := notifications.NewPreferenceService(
-		repos.NotificationPreference,
+		notificationConsent,
 		settingsService,
 		db,
 		repos.AccountTenant,
@@ -2676,7 +2690,7 @@ func newFactory(
 		EnrollmentSettings:        settingsService,
 		EnrollmentRequestRepo:     repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:       repos.GuardianProfile,
-		AttendanceRepo:            repos.Attendance,
+		Attendance:                newStudentPresence(db, logger),
 		StatusDayRepo:             repos.StudentStatusDay,
 		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
@@ -2697,26 +2711,30 @@ func newFactory(
 		MessageThreadRepo:         repos.ParentMessageThread,
 		MessageRepo:               repos.ParentMessage,
 		MessageReadRepo:           repos.ParentMessageRead,
-		ParentMessageNotifier:     staffParentMessageNotifier,
-		ArrivalSchedules:          arrivalScheduleService,
-		PickupSchedules:           pickupScheduleService,
-		CareRequests:              careRequestService,
-		ExcusedRequests:           excusedRequestService,
-		Emitter:                   pillEmitter,
-		AnnouncementRepo:          repos.ParentAnnouncement,
-		GuardianInvites:           guardianInvitationService,
-		GuardianInviteRepo:        repos.GuardianInvitation,
-		StudentGuardianRepo:       repos.StudentGuardian,
-		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
-		GuardianChangeAuditRepo:   repos.GuardianChange,
-		StudentConsents:           studentConsentService,
-		CarePeriods:               repos.Enrollment(),
-		OfferingHistory:           repos.Enrollment(),
-		CareOfferingRepo:          repos.CareOffering,
-		OfferingChanges:           offeringChangeRequestService,
-		DB:                        db,
-		Logger:                    logger.With("service", "parent"),
-		Now:                       now,
+		Conversations: communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+			ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
+			Broadcaster: realtimeHub, Logger: logger.With("service", "parent"),
+		}),
+		ParentMessageNotifier:   staffParentMessageNotifier,
+		ArrivalSchedules:        arrivalScheduleService,
+		PickupSchedules:         pickupScheduleService,
+		CareRequests:            careRequestService,
+		ExcusedRequests:         excusedRequestService,
+		Emitter:                 pillEmitter,
+		AnnouncementRepo:        repos.ParentAnnouncement,
+		GuardianInvites:         guardianInvitationService,
+		GuardianInviteRepo:      repos.GuardianInvitation,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
+		GuardianChangeAuditRepo: repos.GuardianChange,
+		StudentConsents:         studentConsentService,
+		CarePeriods:             repos.Enrollment(),
+		OfferingHistory:         repos.Enrollment(),
+		CareOfferingRepo:        repos.CareOffering,
+		OfferingChanges:         offeringChangeRequestService,
+		DB:                      db,
+		Logger:                  logger.With("service", "parent"),
+		Now:                     now,
 	})
 
 	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
@@ -2780,10 +2798,21 @@ func newFactory(
 
 	listExportService := listexport.NewService()
 	emergencyService := emergency.NewService(emergency.Dependencies{
-		AttendanceRepo:      repos.Attendance,
-		StudentRepo:         repos.Student,
-		PersonRepo:          repos.Person,
-		VisitRepo:           repos.ActiveVisit,
+		Attendance:  newStudentPresence(db, logger),
+		StudentRepo: repos.Student,
+		PersonRepo:  repos.Person,
+		Visits:      newStudentPresence(db, logger),
+		RoomNames: func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			rows, err := rooms.ListRoomsByID(ctx, ids)
+			if err != nil {
+				return nil, err
+			}
+			names := make(map[int64]string, len(rows))
+			for _, room := range rows {
+				names[room.ID] = room.Name
+			}
+			return names, nil
+		},
 		StudentGuardianRepo: repos.StudentGuardian,
 		ActiveService:       activeService,
 		ListExport:          listExportService,
@@ -2793,8 +2822,7 @@ func newFactory(
 	slotListsService := slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        repos.ActivityInstance,
 		InstanceStudentRepo: repos.InstanceStudent,
-		VisitRepo:           repos.ActiveVisit,
-		AttendanceRepo:      repos.Attendance,
+		Presence:            newStudentPresence(db, logger),
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
 		PickupExceptionRepo: repos.StudentPickupException,
@@ -2864,14 +2892,14 @@ func newFactory(
 		Clock:        reminderClock(),
 		CurrentStaff: reminderStaffIdentity(userContextService),
 		Settings:     reminderSettings{settingsService},
-		Attendance:   reminderAttendanceReader{source: repos.Attendance},
+		Attendance:   newStudentPresence(db, logger),
 		Pickup:       reminderPickupReader{source: pickupScheduleService},
 		Instance:     reminderTimetableReader{source: timetableCapability},
 		Room:         reminderRoomReader{source: rooms},
 		Student:      reminderStudentReader{source: repos.Student},
 		Person:       reminderPersonReader{source: repos.Person},
 		Supervision:  reminderSupervisionReader{source: activeService},
-		Visits:       repos.ActiveVisit,
+		Visits:       reminderVisitReader{source: newStudentPresence(db, logger)},
 		Logger:       logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
@@ -2881,10 +2909,6 @@ func newFactory(
 		BulkInstanceStaff: reminderTimetableReader{source: timetableCapability},
 	})
 
-	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
-	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
-		realtimeevents.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
-	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -2893,6 +2917,7 @@ func newFactory(
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
 		Education:         educationService,
 		Substitutions:     substitutionService,
@@ -2938,7 +2963,7 @@ func newFactory(
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
 		PickupBaselines:            pickupBaselines,
 		PickupExceptionRepo:        repos.StudentPickupException,
-		VisitRepo:                  repos.ActiveVisit,
+		Presence:                   newStudentPresence(db, logger),
 		RoomRepo:                   repos.Room,
 		ActivityCategoryRepo:       repos.ActivityCategory,
 		PlanningTrackRepo:          repos.PlanningTrack,
@@ -2951,6 +2976,8 @@ func newFactory(
 		ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
+		AttendanceCorrectionRepo:   repositories.NewAttendanceCorrectionRepository(auditReadRuntime),
+		PersonRepo:                 repos.Person,
 		ConflictAckRepo:            repos.TimetableConflictAck,
 		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
@@ -3058,7 +3085,6 @@ func newFactory(
 		PlanningTracks:          planningTrackService,
 		PickupSchedule:          pickupScheduleService,
 		PartialAbsence:          partialAbsenceService,
-		Display:                 displayService,
 		ArrivalSchedule:         arrivalScheduleService,
 		CareDay:                 careDayService,
 		TimetableBridge:         timetableBridgeService,
@@ -3121,7 +3147,6 @@ func newFactory(
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              platform.NewSchoolService(repos.School),
-		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
 		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:      studentDeletionService,
@@ -3138,7 +3163,7 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), repos.DataAccessLog, repos.InstanceStudent),
 		Statistics: statistics.NewService(statistics.Config{
 			Statistics:      repos.Statistics,
 			Courses:         repos.CourseStatistics,
@@ -3220,6 +3245,11 @@ func newFactory(
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)
 	return factory, nil
+}
+
+func enforceInstanceTimePolicy(appEnv string) bool {
+	appEnv = strings.ToLower(strings.TrimSpace(appEnv))
+	return appEnv == "production" || appEnv == "staging"
 }
 
 func optionalClock(clocks []func() time.Time) func() time.Time {

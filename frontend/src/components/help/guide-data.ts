@@ -729,6 +729,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
           "Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird. Ebenso fragt die App nach, wenn beim Speichern des Wochenplans eine bereits eingetragene Zeit entfernt würde.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
+          "Bemerkungen, die während der Betreuung zu einem Kind erfasst wurden, stehen im Tab `Historie` beim jeweiligen Zeitslot. So finden Sie eine Bemerkung auch Wochen später wieder. Mit der Berechtigung `Betreuungsplan verwalten` können Sie einen abgeschlossenen Eintrag über `Korrigieren` nachträglich ändern; dabei ist ein Grund Pflicht, und die Änderung wird mit Name und Uhrzeit festgehalten.",
           "Im Tab `Historie` über `Änderungsverlauf` nachvollziehen, wer wann welche Angaben zum Kind geändert hat (Vorher → Nachher). Sichtbar nur für Admins und Gruppenbetreuer. Direkt im Tab `Stammdaten` zeigt ein ⓘ neben einem Feld, wer es zuletzt geändert hat.",
           "Tab `Änderungsprotokoll`: alle entschiedenen Anfragen zu diesem Kind in einer Liste, neueste zuerst. Wer Kinderdaten bearbeiten darf, sieht Stammdaten, Betreuungszeiten, Angebote, Abwesenheiten und Direkt-Korrekturen der OGS. Mit der Berechtigung nur für Abwesenheiten sehen Sie nur Abwesenheiten. Direkt-Korrekturen sind dann nicht sichtbar. Jeder Eintrag zeigt Vorher → Nachher, wer entschieden hat, wann und mit welcher Begründung. So ist am Kind nachvollziehbar, warum es zum Beispiel seit dieser Woche früher geht. Den Reiter sieht, wer Kinderdaten bearbeiten oder Abwesenheiten entscheiden darf.",
           "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Bei bestätigten Kindern können Betreuungsangebote dort nachträglich mit Begründung korrigiert werden, solange `Betreuungsangebote anbieten` unter `Einstellungen` -> `Anmeldung` aktiviert ist. Die Angaben können außerdem exportiert werden.",
@@ -865,6 +866,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Haben Sie sich vertan, öffnen Sie die Zeile in der `Historie` und tippen auf `Entscheidung korrigieren`. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
           "Ob eine Begründung Pflicht ist, legen Sie unter `Einstellungen` > `Elternportal` fest. Ablehnen verlangt immer eine Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
+          "Kursanfragen der Eltern stehen in derselben Liste. In der Zeile steht dann `Kurs`. Sie entscheiden sie wie jede andere Anfrage. Erst mit Ihrer Freigabe ist das Kind im Kurs.",
+          "War der Kurs beim Anfragen voll, steht das Kind in der Eltern-App auf der Warteliste. Die Anfrage bleibt hier offen, bis Sie sie entscheiden. Wird ein Platz frei, geben Sie die Anfrage frei.",
+          "Kursanfragen schalten Sie unter `Einstellungen` > `Anmeldung` frei. Der Schalter heißt `Kursanfragen durch Eltern erlauben` und ist zuerst aus. Er erscheint erst, wenn Anfragen zu Betreuungsangeboten eingeschaltet sind.",
         ],
         callout: {
           title: "Was wird direkt übernommen?",
@@ -1166,6 +1170,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit der Berechtigung `time_tracking:manage` erscheinen unter der Übersicht die Reiter `Status`, `Zeitkonten` und `Änderungsprotokoll`. Wer zusätzlich Personalunterlagen sehen darf, findet dort auch `Personalunterlagen`: Das Verzeichnis führt zur Akte einer Person, auch wenn die Rolle keine Mitarbeiterliste sehen darf. `Zeitkonten` zeigt eine Tabelle mit Soll, Ist, Saldo und Resturlaub pro Person; über die Pfeile neben dem Monatsnamen lassen sich auch vergangene Monate anzeigen. Jede Spalte lässt sich über die Kopfzeile sortieren, die Schaltflächen darüber filtern nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`, und `Eigene Grenze` erlaubt eine eigene Untergrenze in Stunden. Ein Klick auf eine Zeile öffnet das Mitarbeiterprofil.",
           "Über `Exportieren` in der Zeitkonten-Ansicht lassen sich die Zeitkonten aller Mitarbeitenden als Datei ziehen, zum Beispiel für Lohnbuchhaltung oder Träger: wahlweise der angezeigte Monat oder das ganze Jahr, als Monatssummen (mit Übertrag, Gutschriften, Buchungen und Saldo je Person) oder als einzelne Tage, als CSV oder Excel, Zeitangaben in Stunden:Minuten oder Dezimalstunden. Abgeschlossene Monate tragen in der Datei den eingefrorenen Übertrag; jeder Export wird im Zugriffsprotokoll vermerkt.",
           "Im selben Dialog stehen zusätzlich die Formate `DATEV LODAS` und `DATEV Lohn und Gehalt` bereit: Bewegungsdaten für die Lohnabrechnung, immer ein einzelner Monat pro Datei, mit einer Zeile je Person und Lohnart. Voraussetzung ist die vollständige Konfiguration unter `Abrechnung` (Lohnarten, für LODAS auch Berater- und Mandantennummer) sowie Personalnummern an allen Personen. Vor dem Download zeigt der Dialog einen Bericht: wie viele Buchungszeilen entstehen, bei wem eine Personalnummer fehlt und ob der Monat noch offen ist. Fehlende Personalnummern sperren den Export, bis sie im Mitarbeiterprofil ergänzt wurden. Die erste Datei vor dem Echtlauf mit der Lohnbuchhaltung abstimmen; bei Lohn und Gehalt legt das Lohnbüro die Importbeschreibung selbst an.",
+          "Unter `Wohin` steht neben `Herunterladen` die Auswahl `An die Gegenstelle übertragen`, sobald ein Admin die Übertragung unter `Einstellungen` -> `System` -> `Schnittstellen` eingeschaltet hat. Ist sie ausgeschaltet, erscheint die Auswahl gar nicht. Ist sie eingeschaltet, aber noch nicht vollständig ausgefüllt, ist sie grau und der Dialog sagt, was fehlt. Übertragen wird genau dieselbe Datei wie beim Herunterladen; der Dialog nennt vorher Adresse und Zielordner und danach das Ergebnis. Klappt es nicht, steht der Grund im Dialog und es wurde nichts abgelegt. Jeder Versuch wird protokolliert, erfolgreich wie erfolglos, ohne Passwort.",
           "Über `Monat abschließen` wird ein vergangener Monat für alle Mitarbeitenden festgeschrieben (Begründung erforderlich, zum Beispiel für die Lohnabrechnung). Der Saldo zum Monatsende wird eingefroren und alle Folgemonate rechnen mit diesem Übertrag weiter, auch wenn später noch Zeiten im abgeschlossenen Monat geändert werden. Der laufende Monat lässt sich erst ab dem 1. des Folgemonats abschließen. Ein abgeschlossener Monat trägt das Schloss-Symbol mit Datum neben dem Monatsnamen.",
           "Der Reiter `Änderungsprotokoll` (ebenfalls nur mit `time_tracking:manage`) zeigt alle Änderungen an Arbeitszeiten über alle Mitarbeitenden hinweg: korrigierte Zeiterfassungen, entschiedene Abwesenheiten, Stundenkonto-Buchungen, Monatsabschlüsse und -öffnungen sowie gelöschte Einträge — jeweils mit Zeitpunkt, betroffener Person, bearbeitender Person und Begründung. Filtern lässt sich nach Mitarbeiter:in, bearbeitender Person, Bereich und Zeitraum; `Weitere Einträge laden` blättert weiter zurück. Einträge zur Zeiterfassung, die älter als die eingestellte Aufbewahrungsfrist sind, wurden bereits gelöscht; Buchungen und Monatsabschlüsse bleiben vollständig.",
           "Mit Genehmigungsrecht steht oben auf der Seite ein Verweis `Anträge von Mitarbeitenden` mit der Zahl der offenen Anträge. Entschieden wird in der Seitenleiste unter `Anfragen` im Reiter `Mitarbeitende`: Urlaub, Krank, Fortbildung und Sonstige, offen wie Historie, mit Suche nach dem Namen und Filter nach Art. Pro Antrag lässt sich `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen; die Historie zeigt zusätzlich, wer wann mit welcher Begründung entschieden hat.",
@@ -2423,8 +2428,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Damit die ausgewählten Hinweise auch bei geschlossener App ankommen, wird jedes Gerät einmal freigeschaltet. Die Freigabe gilt nur für dieses eine Gerät.",
         steps: [
-          "Zuerst im Profil unter `Benachrichtigungen` auswählen, worüber informiert werden soll (siehe Schritt davor).",
-          "Im selben Profil den Abschnitt `Push-Benachrichtigungen` öffnen.",
+          "Nach dem Anmelden fragt moto einmal von selbst nach. Der Dialog führt durch die fehlenden Schritte: erst installieren, dann erlauben.",
+          "Wer den Dialog weggetippt hat, findet denselben Weg im Profil unter `Benachrichtigungen auf diesem Gerät` über `Einrichtung erneut starten`.",
+          "Die Karte zeigt oben, wie es auf diesem Gerät steht: ob moto als App geöffnet ist und ob moto benachrichtigen darf.",
           "`Aktivieren` antippen und die Browser-Nachfrage mit `Erlauben` bestätigen.",
           "Sobald Push aktiv ist, mit `Testbenachrichtigung senden` prüfen, ob die Benachrichtigung auf diesem Gerät ankommt.",
           "Fertig: Die ausgewählten Hinweise erscheinen jetzt als Benachrichtigung auf diesem Gerät.",
@@ -2523,6 +2529,27 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Einstellungen, Tab Betrieb mit dem Schalter Angebotsabgleich für dauerhafte Gehzeiten.",
+      },
+      {
+        id: "einstellungen-schnittstellen-sftp",
+        title: "Dateien an eine andere Stelle übertragen (SFTP)",
+        icon: PlugZap,
+        summary:
+          "Die Zeitkonten-Exporte lassen sich verschlüsselt an eine feste Gegenstelle senden, zum Beispiel an das Lohnbüro, statt sie herunterzuladen und weiterzuschicken. Die Funktion ist zuerst ausgeschaltet.",
+        steps: [
+          "`Einstellungen` -> `System` öffnen und zur Sektion `Schnittstellen` scrollen.",
+          "`SFTP-Übertragung` einschalten. Erst danach erscheinen die weiteren Felder.",
+          "Adresse, Port (meist 22), Benutzername, Passwort und Zielordner eintragen. Alle Angaben erhalten Sie von der Stelle, die die Dateien entgegennimmt.",
+          "Den Fingerabdruck eintragen. Fragen Sie dort nach dem Wert für den RSA-Schlüssel: Eine Gegenstelle hat oft mehrere Schlüssel, und moto verwendet den RSA-Schlüssel.",
+          "Danach steht im Export-Dialog der Zeitkonten unter `Wohin` die Auswahl `An die Gegenstelle übertragen` bereit.",
+        ],
+        callout: {
+          title: "Ohne vollständige Angaben passiert nichts",
+          body: "Fehlt ein Feld oder passt der Fingerabdruck nicht, bricht moto ab und überträgt nichts. Das ist Absicht: So kann eine Lohndatei nicht bei einer falschen Stelle landen. Die Gegenstelle muss einen RSA-Schlüssel anbieten. Adressen im eigenen Netz der Schule sind nicht möglich.",
+          tone: "orange",
+        },
+        screenshot:
+          "Einstellungen, Tab System mit der Sektion Schnittstellen und dem Schalter SFTP-Übertragung.",
       },
       {
         id: "einstellungen-benachrichtigungen",

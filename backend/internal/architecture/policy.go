@@ -328,11 +328,22 @@ func (p *Policy) validateOwners() (map[string]Owner, error) {
 	return owners, nil
 }
 
-// validateCanonicalOwners pins moto's module map from ADR 0010 and #2580.
+// validateCanonicalOwners pins moto's module map from ADRs 0010/0012 and #2580.
 // Evaluator fixtures use independent module paths and their own small maps.
 func (p *Policy) validateCanonicalOwners() error {
 	if p.ModulePath != "github.com/moto-nrw/project-phoenix" {
 		return nil
+	}
+	platformOwners := []string{
+		"audit-platform", "delivery-platform", "document-rendering", "observability",
+		"scheduler-runtime", "security-runtime", "settings-platform",
+		"tenant-runtime", "transaction-runtime",
+	}
+	decision := "ADR 0010"
+	if p.PolicyEpoch >= 2 {
+		platformOwners = append(platformOwners, "export-transfer")
+		slices.Sort(platformOwners)
+		decision = "ADRs 0010 and 0012"
 	}
 	for _, canonical := range []struct {
 		kind string
@@ -345,11 +356,7 @@ func (p *Policy) validateCanonicalOwners() error {
 			"school-membership", "school-structure", "student-presence",
 			"timetable-activities", "workforce",
 		}},
-		{kind: "platform", ids: []string{
-			"audit-platform", "delivery-platform", "document-rendering", "observability",
-			"scheduler-runtime", "security-runtime", "settings-platform",
-			"tenant-runtime", "transaction-runtime",
-		}},
+		{kind: "platform", ids: platformOwners},
 	} {
 		var actual []string
 		for _, owner := range p.Owners {
@@ -359,7 +366,7 @@ func (p *Policy) validateCanonicalOwners() error {
 		}
 		slices.Sort(actual)
 		if !slices.Equal(actual, canonical.ids) {
-			return fmt.Errorf("canonical %s owners must be exactly %v (ADR 0010); got %v", canonical.kind, canonical.ids, actual)
+			return fmt.Errorf("canonical %s owners must be exactly %v (%s); got %v", canonical.kind, canonical.ids, decision, actual)
 		}
 	}
 	return nil

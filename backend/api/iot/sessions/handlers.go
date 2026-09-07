@@ -196,7 +196,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get active student count for this session
-	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), currentSession.ID)
+	activeCount, err := rs.ActiveService.CountActiveVisitsByActiveGroupID(r.Context(), currentSession.ID)
 	if err != nil {
 		// Log error but don't fail the request - student count is optional info
 		slog.Default().WarnContext(r.Context(), "failed to get active student count",
@@ -204,7 +204,6 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			slog.String("error", err.Error()),
 		)
 	} else {
-		activeCount := countActiveStudents(activeVisits)
 		response.ActiveStudents = &activeCount
 	}
 
