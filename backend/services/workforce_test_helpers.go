@@ -56,11 +56,6 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return WorkforceTestModule{}, err
 	}
 	settingsService := settings.Settings
-	membership, err := repositories.NewSchoolMembership(db)
-	if err != nil {
-		return WorkforceTestModule{}, err
-	}
-	repos.WorkSessionTestRepositories = repos.WithConfigRuntime(newSettingsRuntime(db, &unit).WithSchoolMembership(membership))
 	logger := slog.Default()
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)

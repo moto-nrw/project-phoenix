@@ -33,6 +33,7 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -510,7 +511,7 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
-	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil {
+	if timetableDependencies.Capability == nil || timetableDependencies.Students == nil || timetableDependencies.Groups == nil || timetableDependencies.Rooms == nil || timetableDependencies.Calendar == nil || timetableDependencies.Membership == nil || timetableDependencies.Workforce == nil {
 		panic("repository factory: timetable and projection dependencies are required")
 	}
 	timetableCapability := timetableDependencies.Capability
@@ -692,8 +693,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
 		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(config.NewRuntime(db)),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
+		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(timetableDependencies.Workforce),
+		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(timetableDependencies.Workforce),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(auditRepositoryRuntime),
@@ -853,13 +854,16 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	return factory
 }
 
-// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
-// instances before the service graph captures them.
+// SetConfigRuntime replaces the bootstrap settings repositories with
+// tenant-aware instances before the service graph captures them.
+//
+// The work-time repositories are deliberately not rebound: they are Workforce
+// capability adapters now, and that owner resolves the tenant transaction from
+// the context itself (#2687). Passing a custom runtime here does not, and must
+// not, reach them.
 func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
 	f.SettingValue = config.NewSettingValueRepository(runtime)
 	f.SettingAudit = config.NewSettingAuditRepository(runtime)
-	f.StaffWorkSchedule = config.NewStaffWorkScheduleRepository(runtime)
-	f.WorkTimeModel = config.NewWorkTimeModelRepository(runtime)
 }
 
 func (r *Factory) Enrollment() *enrollmentCapability.Module { return r.SubmissionRateLimit }

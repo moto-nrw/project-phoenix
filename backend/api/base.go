@@ -100,6 +100,9 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -166,6 +169,10 @@ type moduleServices struct {
 	timetable     *timetableModule.Module
 	// membership owns users.staff, users.teachers and users.guests (#2667).
 	membership *schoolMembershipModule.Module
+	// workforce owns the work-time templates and staff schedule versions
+	// in config.work_time_models, config.work_time_model_entries and
+	// config.staff_work_schedules (#2687).
+	workforce *workforceModule.Module
 }
 
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
@@ -255,7 +262,18 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, 
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership})
+	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
+		DB:                db,
+		AssignedStaffIDs:  repositories.WorkforceAssignedStaffIDs(membership),
+		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
+		Observe: func(observation workforceCompose.Observation) {
+			observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
+		},
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime})
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -351,7 +369,7 @@ func initializeModuleServices(db *bun.DB, logger *slog.Logger) (moduleServices, 
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
 }
 
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
@@ -795,6 +813,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
+	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
 	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
 	api.Feedback = newFeedbackResource(modules.feedback, db)
 	api.Users = newUsersResource(modules.persons, repoFactory.Account.FindEmailsByAccountIDs, func(ctx context.Context, tagID string) (bool, error) {
@@ -1165,7 +1184,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff, api.StaffAdmin = newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
-	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))

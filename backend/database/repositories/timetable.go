@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -23,6 +24,7 @@ type TimetableDependencies struct {
 	Rooms      facilities.Capability
 	Calendar   schoolcalendar.Capability
 	Membership schoolmembership.Capability
+	Workforce  workforce.Capability
 }
 
 func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
@@ -54,7 +56,11 @@ func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable membership: %v", err))
 	}
-	return TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		panic(fmt.Sprintf("compose workforce work-time: %v", err))
+	}
+	return TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime}
 }
 
 // NewTimetable composes the owner behind legacy repository adapters for test
