@@ -26,6 +26,7 @@ import {
   type HomeBlockSpan,
 } from "~/lib/home-blocks";
 import { useHomeBlockAccess } from "~/lib/hooks/use-home-block-access";
+import { useReminders } from "~/lib/hooks/use-reminders";
 import { useHomeLayout } from "~/lib/hooks/use-home-layout";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr/hooks";
@@ -83,6 +84,12 @@ function HomeContent() {
   } = useHomeLayout();
 
   const [birthdaysEnabled, setBirthdaysEnabled] = useState(true);
+  // Erinnerungen sind pro Schule abschaltbar und stehen standardmäßig aus
+  // (#1457). Die Abfrage läuft ohnehin für die Glocke in der Kopfzeile und
+  // teilt sich deren SWR-Schlüssel; hier zählt nur, ob die Schule eine Art
+  // eingeschaltet hat. Optimistisch an, solange die Antwort aussteht — sonst
+  // flackerte der Baustein bei jedem Seitenaufruf herein.
+  const remindersEnabled = useReminders().data?.enabled ?? true;
   // Der Entwurf im Anpassen-Modus. `null` heisst: gerade wird nicht angepasst.
   const [draft, setDraft] = useState<HomeBlockPlacement[] | null>(null);
   const [removedInDraft, setRemovedInDraft] = useState<HomeBlockKey[]>([]);
@@ -96,6 +103,7 @@ function HomeContent() {
       nfcEnabled,
       birthdaysEnabled,
       timetableEnabled,
+      remindersEnabled,
       access,
     }),
     [
@@ -104,6 +112,7 @@ function HomeContent() {
       nfcEnabled,
       birthdaysEnabled,
       timetableEnabled,
+      remindersEnabled,
       access,
     ],
   );

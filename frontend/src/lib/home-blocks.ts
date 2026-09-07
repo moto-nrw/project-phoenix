@@ -81,6 +81,12 @@ interface HomeBlockModeContext {
   readonly birthdaysEnabled: boolean;
   /** Der Betreuungsplan ist pro Schule abschaltbar (#2383). */
   readonly timetableEnabled: boolean;
+  /**
+   * Erinnerungen sind pro Schule abschaltbar und stehen standardmäßig aus
+   * (#1457). Ob eine Art eingeschaltet ist, steht erst in der Antwort des
+   * Servers; die Startseite reicht es hierher.
+   */
+  readonly remindersEnabled: boolean;
 }
 
 /** Betriebsmodus plus die Rechte der angemeldeten Person (#2180). */
@@ -273,10 +279,12 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     concept: "pickup",
     spans: SECTION_SPANS,
     // GET /api/reminders (#1457) hängt an users:read wie die
-    // Tagesinformationen. Ob die Schule eine Erinnerungsart eingeschaltet hat,
-    // steht erst in der Antwort; das sagt die Karte selbst.
+    // Tagesinformationen.
     permitted: (access) => access.has(PERMISSION.usersRead),
-    available: always,
+    // Hat die Schule keine Erinnerungsart eingeschaltet, gibt es den Baustein
+    // für sie nicht: eine Karte, die dauerhaft „ist ausgeschaltet" sagt,
+    // belegt nur einen Platz.
+    available: (ctx) => ctx.remindersEnabled,
   },
   {
     key: "section.open_requests",

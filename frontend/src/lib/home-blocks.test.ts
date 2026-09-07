@@ -32,6 +32,7 @@ const fullContext: HomeBlockContext = {
   nfcEnabled: true,
   birthdaysEnabled: true,
   timetableEnabled: true,
+  remindersEnabled: true,
   access: leadAccess,
 };
 
@@ -84,6 +85,24 @@ describe("resolveHomeLayout — Standardansicht", () => {
         expect(known.has(placement.key)).toBe(true);
       }
     }
+  });
+
+  // Eine Karte, die dauerhaft „ist ausgeschaltet" sagt, belegt nur einen Platz.
+  it("lässt die Erinnerungen weg, wenn die Schule keine eingeschaltet hat", () => {
+    const { placements, available, addable } = resolveHomeLayout(
+      { ...fullContext, access: careAccess, remindersEnabled: false },
+      [],
+      {},
+      {},
+    );
+
+    expect(keysOf(placements)).not.toContain("section.reminders");
+    expect(available.map((block) => block.key)).not.toContain(
+      "section.reminders",
+    );
+    expect(addable.map((block) => block.key)).not.toContain(
+      "section.reminders",
+    );
   });
 
   it("lässt Raum- und Aktivitätsbausteine im Modus 'binary' weg", () => {

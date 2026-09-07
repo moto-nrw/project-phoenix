@@ -80,17 +80,6 @@ export function RemindersBlock() {
             </div>
           );
         }
-        // Eine Schule, die keine Erinnerungsart eingeschaltet hat, sieht hier
-        // sonst dauerhaft „nichts anstehend" und hielte es für einen Fehler.
-        if (data && !data.enabled) {
-          return (
-            <EmptyState
-              className="py-8"
-              title="Erinnerungen sind ausgeschaltet"
-              description="Ihre Leitung kann sie in den Einstellungen einschalten."
-            />
-          );
-        }
         if (shown.length === 0) {
           return (
             <EmptyState
