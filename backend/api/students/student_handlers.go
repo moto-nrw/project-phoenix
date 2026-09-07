@@ -78,6 +78,18 @@ func (rs *Resource) parseAndGetStudentIncludingAlumni(w http.ResponseWriter, r *
 
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
+	// The list orchestration resolves these settings in separate downstream
+	// services. Keep them on one immutable request snapshot so adding a
+	// setting-dependent enrichment does not add another database round trip.
+	ctx := common.PrefetchSettings(
+		r.Context(),
+		rs.SettingsService,
+		configModel.KeyEnrollmentBookingsAuthoritative,
+		configModel.KeyPresenceMode,
+		configModel.KeyStudentPhotosEnabled,
+	)
+	r = r.WithContext(ctx)
+
 	// Parse query parameters and determine access
 	params := parseStudentListParams(r)
 	slimView, viewErr := parseStudentListView(r.URL.Query().Get("view"))

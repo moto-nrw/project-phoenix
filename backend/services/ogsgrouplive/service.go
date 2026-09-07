@@ -251,6 +251,7 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 		return ctx, nil
 	}
 	snapshot, err := batch.ResolveMany(ctx, []string{
+		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyPresenceMode,
 		configModel.KeyStudentPhotosEnabled,
