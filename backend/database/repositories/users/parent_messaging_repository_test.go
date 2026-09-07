@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -63,9 +62,9 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	// Messages/reads from staffAccount FK auth.accounts without ON DELETE
 	// CASCADE; clear them before the LIFO-earlier account delete above.
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 	guardian := chain.AccountID
 
@@ -165,9 +164,9 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	// The staff reader records reads that FK auth.accounts without ON DELETE
 	// CASCADE; clear them before the LIFO-earlier account delete above.
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 	reader := staffAccount.ID
 
@@ -214,9 +213,9 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
@@ -248,7 +247,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	repo := parentRepos(t, db).Thread
 	ctx := tenantCtx(t)
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, repo.Create(ctx, thread))
@@ -284,7 +283,7 @@ func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	repo := parentRepos(t, db).Thread
 	ctx := tenantCtx(t)
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, repo.Create(ctx, thread))
@@ -344,9 +343,9 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
@@ -393,8 +392,8 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 
 	first := newThread(t, chain.StudentID, chain.AccountID)
@@ -418,7 +417,7 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 	assert.Empty(t, threads, "an empty conversation must stay hidden until the first message")
 
 	// After the first message it appears — still exactly one conversation.
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
+	msgRepo := parentRepos(t, db).Message
 	require.NoError(t, msgRepo.Create(ctx, newMessage(t, first.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "hallo")))
 	threads, err = readRepo.ListThreadsForGuardianStudent(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -433,7 +432,7 @@ func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	threadRepo := parentRepos(t, db).Thread
 	guardians, err := threadRepo.ListGuardiansForStudent(tenantCtx(t), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
@@ -484,7 +483,7 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 	require.NoError(t, err)
 	// students_guardians for this student is cleaned by CleanupParentGuardianChain.
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	threadRepo := parentRepos(t, db).Thread
 	guardians, err := threadRepo.ListGuardiansForStudent(ctx, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardians, 1, "pickup-only guardian without parent_portal.access must be excluded")
@@ -504,7 +503,7 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembershi
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := tenantCtx(t)
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	threadRepo := parentRepos(t, db).Thread
 
 	// Sanity: with an active membership the primary guardian is offered.
 	guardians, err := threadRepo.ListGuardiansForStudent(ctx, chain.StudentID)
@@ -535,7 +534,7 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := tenantCtx(t)
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	threadRepo := parentRepos(t, db).Thread
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
@@ -585,7 +584,7 @@ func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := tenantCtx(t)
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
+	threadRepo := parentRepos(t, db).Thread
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
@@ -630,9 +629,9 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	threadRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageThread
-	msgRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessage
-	readRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentMessageRead
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)

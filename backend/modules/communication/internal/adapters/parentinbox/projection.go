@@ -390,7 +390,7 @@ func (p *Projection) LatestReadCursorByOtherStaff(ctx context.Context, threadID,
 		OrderExpr("r.last_read_message_id DESC").
 		Limit(1)
 	if args, ok := staffCursorArgs(staffAccounts); ok {
-		query = query.Where(staffCursorPairsForReads, args...)
+		query = query.Where(staffCursorPairsOnCursorRow, args...)
 	} else {
 		query = query.Where(noStaffCursor)
 	}

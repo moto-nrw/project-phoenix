@@ -97,18 +97,22 @@ const (
 		  AND ` + notReaderAuthoredCM + unreadCountSuffix
 )
 
-// staffCursorPairs matches a read cursor against the (school, staff account)
-// pairs the caller resolved. Passing the pairs as two parallel arrays keeps the
+// staffCursorPairsOn* match a read cursor against the (school, staff account)
+// pairs the caller resolved. The two are the same test on a different cursor
+// row: OnCursorRow reads the receipt lookup's own `r` row, OnReceiptRow the
+// `sr` row of the inbox's correlated last-message subquery.
+//
+// Passing the pairs as two parallel arrays keeps the
 // SQL a single constant no matter how many schools are in scope, and keeps the
 // school correlated with its own staff: the cross-tenant guardian queries would
 // otherwise accept a staff account of school A as proof that school B read the
 // message. The staff rows belong to School Membership, so the projection is
 // handed the resolved accounts rather than joining that owner's table.
 const (
-	staffCursorPairsForReads = `(t.tenant_id, r.account_id) IN (
+	staffCursorPairsOnCursorRow = `(t.tenant_id, r.account_id) IN (
 		SELECT * FROM unnest(?::bigint[], ?::bigint[])
 	)`
-	staffCursorPairsForReceipts = `(t.tenant_id, sr.account_id) IN (
+	staffCursorPairsOnReceiptRow = `(t.tenant_id, sr.account_id) IN (
 		SELECT * FROM unnest(?::bigint[], ?::bigint[])
 	)`
 	noStaffCursor = `FALSE`
@@ -154,7 +158,7 @@ const (
 	)
 ) AS last_message_read_by_staff`
 
-	lastMessageReadByStaffWithStaff = lastMessageReadByStaffPrefix + staffCursorPairsForReceipts + lastMessageReadByStaffSuffix
+	lastMessageReadByStaffWithStaff = lastMessageReadByStaffPrefix + staffCursorPairsOnReceiptRow + lastMessageReadByStaffSuffix
 	lastMessageReadByStaffNever     = lastMessageReadByStaffPrefix + noStaffCursor + lastMessageReadByStaffSuffix
 	lastMessageReadByStaffAbsent    = `FALSE AS last_message_read_by_staff`
 )
@@ -203,16 +207,12 @@ const guardianUnreadExists = `EXISTS (
 // withTenant applies the defense-in-depth tenant_id filter that complements
 // RLS. A zero tenant leaves the query untouched, which is what the
 // administrative and cross-tenant guardian paths rely on.
+//
+// It mirrors the filter the repositories this projection replaces applied, and
+// keeps the same shape as its sibling in parentpostgres.
 func withTenant[Q interface{ Where(string, ...any) Q }](query Q, alias string, tenantID int64) Q {
 	if tenantID <= 0 {
 		return query
 	}
-	switch alias {
-	case "t":
-		return query.Where(`"t".tenant_id = ?`, tenantID)
-	case "r":
-		return query.Where(`"r".tenant_id = ?`, tenantID)
-	default:
-		panic("communication parent inbox: unsupported tenant alias " + alias)
-	}
+	return query.Where(`"`+alias+`".tenant_id = ?`, tenantID)
 }

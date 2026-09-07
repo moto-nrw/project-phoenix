@@ -22,7 +22,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// database resolves the caller's ambient transaction and school.
+// resolve returns the caller's ambient transaction and school.
+//
+// It is deliberately a copy of the same resolution in
+// modules/communication/composition: both packages are Communication compose
+// seams, and one compose package may not import another. The two stay in step
+// because they resolve the same two context values; if that resolution ever
+// grows a rule, it has to change in both places.
 //
 // It does not require a transaction: producers and scheduler loops read
 // conversation state outside a request transaction, exactly as the
