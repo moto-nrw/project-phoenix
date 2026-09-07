@@ -7,10 +7,8 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/uptrace/bun"
 )
 
@@ -33,17 +31,6 @@ func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Dura
 		OnlineWindow: onlineWindow,
 		Observe:      func(devicefleetCompose.Observation) {},
 	})
-}
-
-// NewDeviceRepository serves the retained device repository shape from the
-// owner capability, so callers that still hold models/iot.DeviceRepository
-// read and write iot.devices through Device Fleet.
-func NewDeviceRepository(db *bun.DB) (iotModels.DeviceRepository, error) {
-	fleet, err := NewDeviceFleet(db)
-	if err != nil {
-		return nil, err
-	}
-	return devicefleetRepositoryAdapter.NewDeviceRepository(fleet), nil
 }
 
 // activeDeviceDirectory hands the device owner to the session repository that
