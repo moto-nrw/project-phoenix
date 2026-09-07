@@ -20,14 +20,13 @@ import (
 // runs without a .env file.
 func init() { testutil.SeedTestJWTConfig() }
 
-// capabilityStub answers the two write calls /api/work-time-models makes on
-// PUT and records what the handler asked for.
+// capabilityStub answers the one write call /api/work-time-models makes on
+// PUT. The capability rewrites the assigned staff schedules inside that same
+// call, so the handler has nothing left to sequence.
 type capabilityStub struct {
 	workforce.Capability
-	updateErr  error
-	refreshErr error
-	updated    bool
-	refreshed  bool
+	updateErr error
+	updated   bool
 }
 
 func (s *capabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.UpdateWorkTimeModel) (workforce.WorkTimeModel, error) {
@@ -36,11 +35,6 @@ func (s *capabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.
 		return workforce.WorkTimeModel{}, s.updateErr
 	}
 	return workforce.WorkTimeModel{ID: input.ID, Name: input.Name, RotationLength: input.RotationLength, RotationAnchorDate: input.RotationAnchorDate}, nil
-}
-
-func (s *capabilityStub) RefreshAssignedStaffSchedules(context.Context, int64) error {
-	s.refreshed = true
-	return s.refreshErr
 }
 
 // updateRequest drives PUT /{id} straight at the handler, past the
@@ -71,13 +65,13 @@ func updateRequest(t *testing.T, capability workforce.Capability, notify func(co
 
 func passthrough(next http.Handler) http.Handler { return next }
 
-// A template edit rewrites the schedule snapshots of every assigned staff
-// member. The time-account views may only be invalidated once that second
-// write succeeded, or clients would refetch a half-applied Soll.
-func TestUpdateNotifiesTimeTrackingOnlyAfterTheAssignedRefreshSucceeds(t *testing.T) {
+// A template edit also rewrites the schedule snapshots of every assigned
+// staff member. The time-account views may only be invalidated once that
+// whole write committed, or clients would refetch a half-applied Soll.
+func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("notifies after both writes", func(t *testing.T) {
+	t.Run("notifies after the write", func(t *testing.T) {
 		t.Parallel()
 		capability := &capabilityStub{}
 		notified := false
@@ -85,18 +79,17 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheAssignedRefreshSucceeds(t *testin
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.True(t, capability.updated)
-		assert.True(t, capability.refreshed)
 		assert.True(t, notified)
 	})
 
-	t.Run("stays silent when the refresh fails", func(t *testing.T) {
+	t.Run("stays silent when the write fails", func(t *testing.T) {
 		t.Parallel()
-		capability := &capabilityStub{refreshErr: errors.New("refresh failed")}
+		capability := &capabilityStub{updateErr: errors.New("assigned refresh failed")}
 		notified := false
 		recorder := updateRequest(t, capability, func(context.Context) { notified = true })
 
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-		assert.True(t, capability.refreshed)
+		assert.True(t, capability.updated)
 		assert.False(t, notified)
 	})
 }

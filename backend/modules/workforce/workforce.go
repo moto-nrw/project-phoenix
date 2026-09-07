@@ -162,15 +162,15 @@ type Query interface {
 
 type Command interface {
 	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
-	// UpdateWorkTimeModel replaces the template metadata and every entry.
+	// UpdateWorkTimeModel replaces the template metadata and every entry, and
+	// in the same unit of work rewrites the schedule versions of every staff
+	// member bound to it: their running versions are closed at today so a
+	// template edit cannot re-parity a week that is already accounted for.
+	// Both writes commit or roll back together.
 	UpdateWorkTimeModel(context.Context, UpdateWorkTimeModel) (WorkTimeModel, error)
 	// DeleteWorkTimeModel removes a template no staff member is bound to;
 	// an assigned template yields ErrWorkTimeModelAssigned.
 	DeleteWorkTimeModel(context.Context, int64) error
-	// RefreshAssignedStaffSchedules rewrites the schedule versions of every
-	// staff member bound to the template, closing the running ones at today
-	// so a template edit cannot re-parity an accounted week.
-	RefreshAssignedStaffSchedules(context.Context, int64) error
 	ReplaceStaffSchedule(context.Context, ReplaceStaffSchedule) error
 }
 
@@ -186,7 +186,6 @@ type engine interface {
 	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
 	UpdateWorkTimeModel(context.Context, UpdateWorkTimeModel) (WorkTimeModel, error)
 	DeleteWorkTimeModel(context.Context, int64) error
-	RefreshAssignedStaffSchedules(context.Context, int64) error
 
 	ReplaceStaffSchedule(context.Context, ReplaceStaffSchedule) error
 	CurrentStaffSchedule(context.Context, int64) ([]StaffWorkSchedule, error)
@@ -243,13 +242,6 @@ func (m *Module) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 		return invalid("work time model ID is required")
 	}
 	return m.engine.DeleteWorkTimeModel(ctx, id)
-}
-
-func (m *Module) RefreshAssignedStaffSchedules(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return invalid("work time model ID is required")
-	}
-	return m.engine.RefreshAssignedStaffSchedules(ctx, id)
 }
 
 // --- staff schedules ---

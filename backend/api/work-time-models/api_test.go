@@ -62,7 +62,7 @@ func TestBuildFieldsDropsZeroMinuteEntriesAndNormalizesClocks(t *testing.T) {
 func TestToResponseSumsWeeklyTotalsPerRotationWeek(t *testing.T) {
 	t.Parallel()
 
-	response := toResponse(workforce.WorkTimeModel{
+	response, err := toResponse(workforce.WorkTimeModel{
 		ID: 7, Name: "A/B", RotationLength: 2, RotationAnchorDate: "2026-06-01",
 		Entries: []workforce.WorkTimeModelEntry{
 			{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: "08:30:00"},
@@ -71,8 +71,37 @@ func TestToResponseSumsWeeklyTotalsPerRotationWeek(t *testing.T) {
 		},
 	})
 
+	require.NoError(t, err)
 	assert.Equal(t, []int{540, 180}, response.WeeklyTotals)
 	require.NotNil(t, response.Entries[0].StartTime)
 	assert.Equal(t, "08:30", *response.Entries[0].StartTime)
 	assert.Nil(t, response.Entries[1].StartTime)
+}
+
+// A stored clock the capability cannot have produced is reported, not
+// silently rendered as a template without a planned start.
+func TestToResponseReportsAnUnreadableStoredStartTime(t *testing.T) {
+	t.Parallel()
+
+	_, err := toResponse(workforce.WorkTimeModel{
+		ID: 7, Name: "Broken", RotationLength: 1, RotationAnchorDate: "2026-06-01",
+		Entries: []workforce.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300, StartTime: "half past eight"},
+		},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half past eight")
+}
+
+// An omitted anchor is bound as unset and rejected by the capability's own
+// validation, not silently turned into a date here.
+func TestBuildFieldsLeavesAnOmittedAnchorUnset(t *testing.T) {
+	t.Parallel()
+
+	fields, err := buildFields(ModelRequest{Name: "Vollzeit", RotationLength: 1})
+
+	require.NoError(t, err)
+	assert.Empty(t, fields.RotationAnchorDate,
+		"an omitted anchor stays unset so the capability rejects it, rather than being invented here")
 }

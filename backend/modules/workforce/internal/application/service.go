@@ -89,6 +89,11 @@ func (s *Service) CreateWorkTimeModel(ctx context.Context, fields domain.WorkTim
 	return result, err
 }
 
+// UpdateWorkTimeModel replaces the template and, in the same unit of work,
+// rewrites the schedule snapshots of every staff member bound to it. The two
+// writes are inseparable: a template whose entries moved but whose assignees
+// still carry the old Soll is a wrong time account, so they must commit or
+// roll back together.
 func (s *Service) UpdateWorkTimeModel(ctx context.Context, id int64, fields domain.WorkTimeModelFields) (result domain.WorkTimeModel, err error) {
 	if validationErr := domain.ValidateWorkTimeModelFields(fields); validationErr != nil {
 		return domain.WorkTimeModel{}, validationErr
@@ -105,7 +110,7 @@ func (s *Service) UpdateWorkTimeModel(ctx context.Context, id int64, fields doma
 			if !found {
 				return domain.ErrWorkTimeModelNotFound
 			}
-			return nil
+			return s.refreshAssignedSchedules(txCtx, result, stats)
 		})
 	})
 	return result, err
@@ -138,74 +143,62 @@ func (s *Service) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 	})
 }
 
-// RefreshAssignedStaffSchedules rewrites the schedule snapshots of every staff
+// refreshAssignedSchedules rewrites the schedule snapshots of every staff
 // member bound to the template. Running versions are closed at today and the
 // new ones carry the template's own anchor, so a template edit can never
-// re-parity a week that has already been accounted for.
-func (s *Service) RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error {
-	return s.run("refresh_assigned_staff_schedules", func(stats *domain.OperationStats) error {
-		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			model, found, findStats, err := s.store.FindWorkTimeModel(txCtx, modelID)
-			stats.Add(findStats)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return domain.ErrWorkTimeModelNotFound
-			}
-
-			staffIDs, err := s.assignments.AssignedStaffIDs(txCtx, modelID)
-			if err != nil {
-				return err
-			}
-			if len(staffIDs) == 0 {
-				return nil
-			}
-			// Sorted so concurrent refreshes take the per-staff locks in
-			// the same order and cannot deadlock against each other.
-			slices.Sort(staffIDs)
-			for _, staffID := range staffIDs {
-				if err := s.transaction.LockStaffBalance(txCtx, staffID); err != nil {
-					return err
-				}
-			}
-
-			today := s.clock.Today()
-			closeStats, err := s.store.CloseStaffSchedules(txCtx, staffIDs, today)
-			stats.Add(closeStats)
-			if err != nil {
-				return err
-			}
-
-			// The staff rows belong to School Membership: the anchor is
-			// stamped through that capability, never by a foreign join.
-			if _, err := s.assignments.RebaseAnchor(txCtx, modelID, model.RotationAnchorDate); err != nil {
-				return err
-			}
-
-			if len(model.Entries) == 0 {
-				return nil
-			}
-			rows := make([]domain.StaffWorkSchedule, 0, len(staffIDs)*len(model.Entries))
-			for _, staffID := range staffIDs {
-				for _, entry := range model.Entries {
-					rows = append(rows, domain.StaffWorkSchedule{
-						StaffID:            staffID,
-						WeekIndex:          entry.WeekIndex,
-						RotationLength:     model.RotationLength,
-						DayOfWeek:          entry.DayOfWeek,
-						TargetMinutes:      entry.TargetMinutes,
-						StartTime:          entry.StartTime,
-						RotationAnchorDate: model.RotationAnchorDate,
-						ValidFrom:          today,
-					})
-				}
-			}
-			insertStats, err := s.store.InsertStaffSchedules(txCtx, rows)
-			stats.Add(insertStats)
+// re-parity a week that has already been accounted for. It runs inside the
+// caller's write transaction and must never be given its own.
+func (s *Service) refreshAssignedSchedules(ctx context.Context, model domain.WorkTimeModel, stats *domain.OperationStats) error {
+	staffIDs, err := s.assignments.AssignedStaffIDs(ctx, model.ID)
+	if err != nil {
+		return err
+	}
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	// Sorted so concurrent refreshes take the per-staff locks in the same
+	// order and cannot deadlock against each other.
+	slices.Sort(staffIDs)
+	for _, staffID := range staffIDs {
+		if err := s.transaction.LockStaffBalance(ctx, staffID); err != nil {
 			return err
-		})
-	})
+		}
+	}
+
+	today := s.clock.Today()
+	closeStats, err := s.store.CloseStaffSchedules(ctx, staffIDs, today)
+	stats.Add(closeStats)
+	if err != nil {
+		return err
+	}
+
+	// The staff rows belong to School Membership: the anchor is stamped
+	// through that capability, never by a foreign join.
+	if _, err := s.assignments.RebaseAnchor(ctx, model.ID, model.RotationAnchorDate); err != nil {
+		return err
+	}
+
+	if len(model.Entries) == 0 {
+		return nil
+	}
+	rows := make([]domain.StaffWorkSchedule, 0, len(staffIDs)*len(model.Entries))
+	for _, staffID := range staffIDs {
+		for _, entry := range model.Entries {
+			rows = append(rows, domain.StaffWorkSchedule{
+				StaffID:            staffID,
+				WeekIndex:          entry.WeekIndex,
+				RotationLength:     model.RotationLength,
+				DayOfWeek:          entry.DayOfWeek,
+				TargetMinutes:      entry.TargetMinutes,
+				StartTime:          entry.StartTime,
+				RotationAnchorDate: model.RotationAnchorDate,
+				ValidFrom:          today,
+			})
+		}
+	}
+	insertStats, err := s.store.InsertStaffSchedules(ctx, rows)
+	stats.Add(insertStats)
+	return err
 }
 
 // --- staff schedules ---

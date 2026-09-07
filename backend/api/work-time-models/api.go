@@ -10,6 +10,7 @@ package worktimemodels
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -120,9 +121,10 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureInternal, err)
 		return
 	}
-	out := make([]ModelResponse, 0, len(models))
-	for _, m := range models {
-		out = append(out, toResponse(m))
+	out, err := toResponses(models)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err)
+		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, out, "Work time models retrieved")
 }
@@ -138,7 +140,12 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureNotFound, errors.New("model not found"))
 		return
 	}
-	rs.runtime.Success(w, r, http.StatusOK, toResponse(model), "Work time model retrieved")
+	response, err := toResponse(model)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, response, "Work time model retrieved")
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
@@ -157,12 +164,18 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		rs.renderSaveError(w, r, err)
 		return
 	}
-	rs.runtime.Success(w, r, http.StatusCreated, toResponse(saved), "Work time model created")
+	response, err := toResponse(saved)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusCreated, response, "Work time model created")
 }
 
-// update rewrites the template and, in the same transaction, the schedule
-// snapshots of every staff member bound to it. The time-account views are
-// invalidated only once both writes succeeded.
+// update rewrites the template. The capability rewrites the schedule
+// snapshots of every staff member bound to it in the same unit of work, so
+// the time-account views are invalidated only once that whole write
+// committed.
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	id, err := rs.runtime.ParseID(r)
 	if err != nil {
@@ -184,12 +197,13 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		rs.renderSaveError(w, r, err)
 		return
 	}
-	if err := rs.models.RefreshAssignedStaffSchedules(r.Context(), id); err != nil {
-		rs.renderSaveError(w, r, err)
+	response, err := toResponse(saved)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err)
 		return
 	}
 	rs.runtime.NotifyChanged(r.Context())
-	rs.runtime.Success(w, r, http.StatusOK, toResponse(saved), "Work time model updated")
+	rs.runtime.Success(w, r, http.StatusOK, response, "Work time model updated")
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
@@ -221,11 +235,14 @@ func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err 
 func buildFields(req ModelRequest) (workforce.WorkTimeModelFields, error) {
 	anchor := ""
 	if req.RotationAnchorDate != "" {
+		// Parsed and re-rendered rather than compared byte for byte: the
+		// contract has always accepted an unpadded "2026-6-1" and stored the
+		// normalised day.
 		parsed, err := time.Parse(workforce.DateLayout, req.RotationAnchorDate)
-		if err != nil || parsed.Format(workforce.DateLayout) != req.RotationAnchorDate {
+		if err != nil {
 			return workforce.WorkTimeModelFields{}, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 		}
-		anchor = req.RotationAnchorDate
+		anchor = parsed.Format(workforce.DateLayout)
 	}
 	fields := workforce.WorkTimeModelFields{
 		Name:               req.Name,
@@ -262,27 +279,47 @@ func parseOptionalStartTime(raw *string) (string, error) {
 	return parsed.Format(workforce.ClockLayout), nil
 }
 
-func formatOptionalStartTime(value string) *string {
+// formatOptionalStartTime narrows the capability's wall clock to the HH:MM the
+// contract exposes. A value that does not parse is reported rather than
+// dropped: silently omitting start_time would show the client a template
+// without a planned start.
+func formatOptionalStartTime(value string) (*string, error) {
 	if value == "" {
-		return nil
+		return nil, nil
 	}
 	parsed, err := time.Parse(workforce.ClockLayout, value)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("stored start time %q is not a %s wall clock: %w", value, workforce.ClockLayout, err)
 	}
 	formatted := parsed.Format(wireClockLayout)
-	return &formatted
+	return &formatted, nil
 }
 
-func toResponse(m workforce.WorkTimeModel) ModelResponse {
+func toResponses(models []workforce.WorkTimeModel) ([]ModelResponse, error) {
+	out := make([]ModelResponse, 0, len(models))
+	for _, model := range models {
+		response, err := toResponse(model)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, response)
+	}
+	return out, nil
+}
+
+func toResponse(m workforce.WorkTimeModel) (ModelResponse, error) {
 	totals := make([]int, m.RotationLength)
 	entries := make([]EntryResponse, 0, len(m.Entries))
 	for _, e := range m.Entries {
+		startTime, err := formatOptionalStartTime(e.StartTime)
+		if err != nil {
+			return ModelResponse{}, err
+		}
 		entries = append(entries, EntryResponse{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
-			StartTime:     formatOptionalStartTime(e.StartTime),
+			StartTime:     startTime,
 		})
 		if e.WeekIndex >= 0 && e.WeekIndex < m.RotationLength {
 			totals[e.WeekIndex] += e.TargetMinutes
@@ -295,14 +332,17 @@ func toResponse(m workforce.WorkTimeModel) ModelResponse {
 		RotationAnchorDate: rotationAnchor(m.RotationAnchorDate),
 		Entries:            entries,
 		WeeklyTotals:       totals,
-	}
+	}, nil
 }
 
-// rotationAnchor preserves the legacy zero-date rendering of a template whose
-// anchor column is somehow empty.
+// unsetAnchorWireValue is what this contract has always rendered for a
+// template whose anchor column is empty. Clients parse the field
+// unconditionally, so it stays a date-shaped string rather than "".
+const unsetAnchorWireValue = "0000-00-00"
+
 func rotationAnchor(value string) string {
 	if value == "" {
-		return "0000-00-00"
+		return unsetAnchorWireValue
 	}
 	return value
 }

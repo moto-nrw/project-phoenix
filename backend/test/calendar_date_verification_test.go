@@ -24,7 +24,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -111,15 +110,23 @@ func declaredTypeIsString(backendRoot, source, name string) bool {
 	return false
 }
 
-// adapterStorageDateIsString reports whether the calendarDate the field uses
-// is declared as a string inside its own adapter package. The type is
-// package-private, so it is either declared in the field's file or in the
-// package's store.go.
-func adapterStorageDateIsString(backendRoot, source string) bool {
-	directory := path.Dir(source)
-	for _, candidate := range []string{source, path.Join(directory, "store.go")} {
-		if declaredTypeIsString(backendRoot, candidate, "calendarDate") {
-			return true
+// storageDateAdapters is the reviewed list of Postgres adapters that declare
+// their own package-private calendarDate. Each entry names the file that must
+// declare it as a string; a new owner needs a review, not a path pattern.
+// Shrink-only, like every other list in this file.
+var storageDateAdapters = map[string]string{
+	"modules/careplan/internal/adapters/postgres/":  "modules/careplan/internal/adapters/postgres/store.go",
+	"modules/workforce/internal/adapters/postgres/": "modules/workforce/internal/adapters/postgres/store.go",
+}
+
+// storageDateIsString reports whether the field's adapter is a reviewed
+// storage-date owner AND still declares calendarDate as a string. The
+// declaration is verified rather than trusted: a string is what BUN binds
+// verbatim, so the driver cannot shift the day.
+func storageDateIsString(backendRoot, source string) bool {
+	for prefix, declaration := range storageDateAdapters {
+		if strings.HasPrefix(source, prefix) {
+			return declaredTypeIsString(backendRoot, declaration, "calendarDate")
 		}
 	}
 	return false
@@ -158,15 +165,9 @@ func TestDateColumnTypes(t *testing.T) {
 				case "timezone.Date", "*timezone.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
-					// An owner's Postgres adapter may keep its own storage-date
-					// type. The declaration is verified rather than the name: a
-					// string value is what BUN binds verbatim, so the driver
-					// cannot shift the day.
-					if !strings.HasPrefix(f.file, "modules/") ||
-						!strings.Contains(f.file, "/internal/adapters/postgres/") ||
-						!adapterStorageDateIsString(backendRoot, f.file) {
+					if !storageDateIsString(backendRoot, f.file) {
 						violations = append(violations, formatViolation(f.file, f.line,
-							col+" must use a string-backed storage date declared in the owner's Postgres adapter"))
+							col+" must use a reviewed adapter's string-backed storage date (storageDateAdapters)"))
 					}
 				case "enrollment.Date", "*enrollment.Date":
 					// Verify the owner type's representation instead of accepting

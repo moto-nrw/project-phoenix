@@ -65,16 +65,17 @@ func nullableDate(value string) any {
 
 // optionalClock binds a wall clock to a PostgreSQL TIME column. time.Parse
 // anchors the clock at UTC, so the driver's UTC conversion cannot move it to
-// another hour the way a zoned instant would.
-func optionalClock(value string) *time.Time {
+// another hour the way a zoned instant would. A malformed value is an error,
+// never a silently unset start time.
+func optionalClock(value string) (*time.Time, error) {
 	if value == "" {
-		return nil
+		return nil, nil
 	}
 	parsed, err := time.Parse(domain.ClockLayout, value)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("workforce postgres: start time %q is not a %s wall clock: %w", value, domain.ClockLayout, err)
 	}
-	return &parsed
+	return &parsed, nil
 }
 
 // clockString reads the time-of-day components only, discarding whatever date
@@ -327,12 +328,16 @@ func (s *Store) replaceEntries(
 	}
 	rows := make([]workTimeModelEntryRow, 0, len(entries))
 	for _, entry := range entries {
+		startTime, clockErr := optionalClock(entry.StartTime)
+		if clockErr != nil {
+			return stats, clockErr
+		}
 		rows = append(rows, workTimeModelEntryRow{
 			ModelID:       modelID,
 			WeekIndex:     entry.WeekIndex,
 			DayOfWeek:     entry.DayOfWeek,
 			TargetMinutes: entry.TargetMinutes,
-			StartTime:     optionalClock(entry.StartTime),
+			StartTime:     startTime,
 		})
 	}
 	stats.Queries++
@@ -571,6 +576,10 @@ func (s *Store) InsertStaffSchedules(ctx context.Context, values []domain.StaffW
 	now := time.Now()
 	rows := make([]staffWorkScheduleRow, 0, len(values))
 	for _, value := range values {
+		startTime, clockErr := optionalClock(value.StartTime)
+		if clockErr != nil {
+			return domain.OperationStats{}, clockErr
+		}
 		rows = append(rows, staffWorkScheduleRow{
 			TenantID:           tenantID,
 			StaffID:            value.StaffID,
@@ -578,7 +587,7 @@ func (s *Store) InsertStaffSchedules(ctx context.Context, values []domain.StaffW
 			RotationLength:     value.RotationLength,
 			DayOfWeek:          value.DayOfWeek,
 			TargetMinutes:      value.TargetMinutes,
-			StartTime:          optionalClock(value.StartTime),
+			StartTime:          startTime,
 			RotationAnchorDate: optionalCalendarDate(value.RotationAnchorDate),
 			ValidFrom:          calendarDate(value.ValidFrom),
 			CreatedAt:          now,

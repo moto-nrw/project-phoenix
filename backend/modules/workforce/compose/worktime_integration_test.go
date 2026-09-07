@@ -193,20 +193,20 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 		Exec(ctx)
 	require.NoError(t, err)
 
-	updated := &configModel.WorkTimeModel{
-		ID:                 model.ID,
-		Name:               model.Name,
-		RotationLength:     1,
-		RotationAnchorDate: testCalendarDate(2026, time.June, 1),
-	}
-	require.NoError(t, repo.Update(ctx, updated, []*configModel.WorkTimeModelEntry{
-		{
-			WeekIndex:     0,
-			DayOfWeek:     configModel.DayTuesday,
-			TargetMinutes: 420,
+	// One capability call: the template edit and the assigned-staff refresh
+	// are the same unit of work.
+	_, err = buildWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
+		ID: model.ID,
+		WorkTimeModelFields: workforce.WorkTimeModelFields{
+			Name:               model.Name,
+			RotationLength:     1,
+			RotationAnchorDate: "2026-06-01",
+			Entries: []workforce.WorkTimeModelEntry{
+				{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 420},
+			},
 		},
-	}))
-	require.NoError(t, repo.RefreshAssignedStaffSchedules(ctx, model.ID))
+	})
+	require.NoError(t, err)
 
 	currentRows, err := scheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
@@ -247,14 +247,15 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, model, entries))
 	defer func() { _ = repo.Delete(ctx, model.ID) }()
 
-	missing := &configModel.WorkTimeModel{
-		ID:                 model.ID + 100000,
-		Name:               "Missing update",
-		RotationLength:     1,
-		RotationAnchorDate: model.RotationAnchorDate,
-	}
-	err := repo.Update(ctx, missing, nil)
-	require.Error(t, err)
+	_, err := buildWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
+		ID: model.ID + 100000,
+		WorkTimeModelFields: workforce.WorkTimeModelFields{
+			Name:               "Missing update",
+			RotationLength:     1,
+			RotationAnchorDate: string(model.RotationAnchorDate),
+		},
+	})
+	require.ErrorIs(t, err, workforce.ErrWorkTimeModelNotFound)
 
 	found, err := repo.FindByID(ctx, model.ID)
 	require.NoError(t, err)
@@ -411,6 +412,18 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	assert.Len(t, byID[localA.ID].Entries, 2)
 	require.Len(t, byID[localB.ID].Entries, 1)
 	assert.Equal(t, 180, byID[localB.ID].Entries[0].TargetMinutes)
+
+	// config.work_time_model_entries is batch-loaded by model id, so the
+	// tenant boundary of the entries is only as good as the model filter
+	// above. Assert it directly rather than by implication.
+	for _, model := range models {
+		for _, entry := range model.Entries {
+			assert.Equal(t, model.ID, entry.ModelID,
+				"an entry of a foreign tenant's model must never be attached to a visible model")
+			assert.NotEqual(t, 480, entry.TargetMinutes,
+				"the foreign tenant's entry must not cross the tenant boundary")
+		}
+	}
 }
 
 func ptrDate(d configModel.CalendarDate) *configModel.CalendarDate {

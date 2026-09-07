@@ -27,14 +27,6 @@ func NewWorkTimeModelRepository(capability workforce.Capability) configModels.Wo
 	return &WorkTimeModelRepository{workforce: capability}
 }
 
-func (r *WorkTimeModelRepository) List(ctx context.Context) ([]*configModels.WorkTimeModel, error) {
-	models, err := r.workforce.ListWorkTimeModels(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return modelsToLegacy(models), nil
-}
-
 func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
 	model, err := r.workforce.FindWorkTimeModel(ctx, id)
 	if err != nil {
@@ -74,30 +66,6 @@ func (r *WorkTimeModelRepository) Create(ctx context.Context, model *configModel
 		}
 	}
 	return nil
-}
-
-func (r *WorkTimeModelRepository) Update(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {
-	if model == nil {
-		return errors.New("work-time model is required")
-	}
-	updated, err := r.workforce.UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
-		ID:                  model.ID,
-		WorkTimeModelFields: fieldsFromLegacy(model, entries),
-	})
-	if err != nil {
-		return missingAsNoRows(err)
-	}
-	model.TenantID = updated.TenantID
-	for _, entry := range entries {
-		if entry != nil {
-			entry.ModelID = updated.ID
-		}
-	}
-	return nil
-}
-
-func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error {
-	return missingAsNoRows(r.workforce.RefreshAssignedStaffSchedules(ctx, modelID))
 }
 
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {

@@ -861,8 +861,13 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	return factory
 }
 
-// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
-// instances before the service graph captures them.
+// SetConfigRuntime replaces the bootstrap settings repositories with
+// tenant-aware instances before the service graph captures them.
+//
+// The work-time repositories are deliberately not rebound: they are Workforce
+// capability adapters now, and that owner resolves the tenant transaction from
+// the context itself (#2687). Passing a custom runtime here does not, and must
+// not, reach them.
 func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
 	f.SettingValue = config.NewSettingValueRepository(runtime)
 	f.SettingAudit = config.NewSettingAuditRepository(runtime)

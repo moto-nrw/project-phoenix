@@ -150,10 +150,6 @@ func (e engine) DeleteWorkTimeModel(ctx context.Context, id int64) error {
 	return mapError(e.service.DeleteWorkTimeModel(ctx, id))
 }
 
-func (e engine) RefreshAssignedStaffSchedules(ctx context.Context, id int64) error {
-	return mapError(e.service.RefreshAssignedStaffSchedules(ctx, id))
-}
-
 func (e engine) ReplaceStaffSchedule(ctx context.Context, input workforce.ReplaceStaffSchedule) error {
 	entries := make([]domain.StaffWorkScheduleFields, 0, len(input.Entries))
 	for _, entry := range input.Entries {
