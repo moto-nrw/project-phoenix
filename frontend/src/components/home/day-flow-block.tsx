@@ -42,7 +42,8 @@ export function DayFlowBlock() {
     <SectionCard
       title="Ablauf des Tages"
       leading={<MotoConceptIcon concept="carePlan" size={20} />}
-      className="h-full"
+      className="flex h-full flex-col"
+      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
       actions={
         <Link
           href={tenantPath("/tagesplan")}

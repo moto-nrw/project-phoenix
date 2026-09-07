@@ -1,19 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronLeft,
-  ChevronRight,
-  GripVertical,
-  Plus,
-  X,
-} from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { ChoiceTile } from "~/components/ui/choice-tile";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   homeBlockDefinition,
   type HomeBlockDefinition,
@@ -30,16 +23,23 @@ import {
  * Fläche wächst nicht mit dem Inhalt: was nicht hineinpasst, scrollt IN seiner
  * Karte. Die Startseite bleibt so ein Einstieg und wird keine lange Liste.
  *
- * Im Anpassen-Modus liegt über jeder Karte eine Leiste: ziehen zum Umsortieren,
- * schmaler und breiter, vor und zurück (für Tastatur und Vorleseprogramm) und
- * entfernen. Der Inhalt darunter nimmt in diesem Modus keine Klicks an, damit
- * ein Zug an der Karte nicht versehentlich einem Link folgt.
+ * Im Anpassen-Modus zeigt das Brett nicht die Inhalte, sondern die Anordnung:
+ * jede Karte wird zu einer Platzhalter-Kachel mit Symbol, Name und Breite, an
+ * derselben Stelle und in derselben Größe wie die echte Karte. Man ordnet
+ * hier, man liest nicht. Eine Kachel anklicken wählt sie aus; alles Weitere
+ * steht in EINER Leiste darunter, statt in fünf Knöpfen auf jeder Karte.
  */
 
 const SPAN_CLASS: Record<HomeBlockSpan, string> = {
   1: "sm:col-span-1 xl:col-span-1",
   2: "sm:col-span-2 xl:col-span-2",
   4: "sm:col-span-2 xl:col-span-4",
+};
+
+const SPAN_LABEL: Record<HomeBlockSpan, string> = {
+  1: "Schmal",
+  2: "Breit",
+  4: "Volle Breite",
 };
 
 /** Eine Kennzahl ist eine Reihe hoch, eine Liste zwei. */
@@ -68,16 +68,40 @@ export function HomeBoard({
   onAdd,
   children,
 }: HomeBoardProps) {
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [draggedKey, setDraggedKey] = useState<HomeBlockKey | null>(null);
+  const [overKey, setOverKey] = useState<HomeBlockKey | null>(null);
+  const [selectedKey, setSelectedKey] = useState<HomeBlockKey | null>(null);
+  // Ein Zug, der weit genug ging, darf am Ende nicht auch noch als Klick
+  // gelten — sonst wählt das Loslassen die Kachel aus, auf der man landet.
+  const draggedFar = useRef(false);
+
+  // Beim Verlassen des Anpassen-Modus die Auswahl fallen lassen, sonst steht
+  // beim nächsten Öffnen eine Kachel markiert, die niemand angeklickt hat.
+  useEffect(() => {
+    if (!editing) {
+      setSelectedKey(null);
+      setDraggedKey(null);
+      setOverKey(null);
+    }
+  }, [editing]);
+
+  const selectedIndex = placements.findIndex(
+    (placement) => placement.key === selectedKey,
+  );
+  const selected = selectedIndex >= 0 ? placements[selectedIndex] : undefined;
+  const selectedDefinition = selected
+    ? homeBlockDefinition(selected.key)
+    : null;
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= placements.length) return;
+    onReorder(from, to);
+  };
 
   return (
     <div className="space-y-4">
       <ul
         data-testid="home-board"
-        // 7rem je Reihe: eine Kennzahl ist eine Reihe hoch, eine Liste zwei
-        // (15rem inklusive Abstand). Mit dem Kopf der Seite passen so vier
-        // Kennzahlen und vier Listen auf einen 900px-Bildschirm — mehr Höhe
-        // hiesse scrollen, und die Startseite soll ein Einstieg bleiben.
         className="grid auto-rows-[7rem] grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         {placements.map((placement, index) => {
@@ -86,141 +110,260 @@ export function HomeBoard({
             <li
               key={placement.key}
               data-testid={`home-block-${placement.key}`}
+              data-block-key={placement.key}
               data-span={placement.span}
               className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0`}
-              draggable={editing}
-              onDragStart={() => setDraggedIndex(index)}
-              onDragEnd={() => setDraggedIndex(null)}
-              onDragOver={(event) => {
-                if (!editing || draggedIndex === null) return;
-                event.preventDefault();
+              // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt
+              // kein Tablet und lässt sich nicht testen. Der Zug beginnt erst
+              // nach ein paar Pixeln, damit ein Klick ein Klick bleibt.
+              onPointerDown={(event) => {
+                if (!editing || event.pointerType !== "mouse") return;
+                if (event.button !== 0) return;
+                draggedFar.current = false;
+                setDraggedKey(placement.key);
+                setOverKey(null);
+                // Optional: in Testumgebungen ohne Zeiger-Erfassung fehlt sie.
+                event.currentTarget.setPointerCapture?.(event.pointerId);
               }}
-              onDrop={(event) => {
-                if (!editing || draggedIndex === null) return;
-                event.preventDefault();
-                if (draggedIndex !== index) onReorder(draggedIndex, index);
-                setDraggedIndex(null);
+              onPointerMove={(event) => {
+                if (!editing || draggedKey !== placement.key) return;
+                draggedFar.current = true;
+                const element = document.elementFromPoint(
+                  event.clientX,
+                  event.clientY,
+                );
+                const target = element?.closest<HTMLElement>("[data-block-key]");
+                setOverKey(
+                  (target?.dataset.blockKey as HomeBlockKey | undefined) ?? null,
+                );
+              }}
+              onPointerUp={(event) => {
+                if (!editing || draggedKey !== placement.key) return;
+                event.currentTarget.releasePointerCapture?.(event.pointerId);
+                const to = placements.findIndex(
+                  (entry) => entry.key === overKey,
+                );
+                if (draggedFar.current && to >= 0 && to !== index) {
+                  move(index, to);
+                } else if (!draggedFar.current) {
+                  setSelectedKey(placement.key);
+                }
+                setDraggedKey(null);
+                setOverKey(null);
+              }}
+              onPointerCancel={() => {
+                setDraggedKey(null);
+                setOverKey(null);
               }}
             >
-              <div className="relative h-full min-h-0">
-                {editing && definition && (
-                  <BlockToolbar
-                    definition={definition}
-                    placement={placement}
-                    index={index}
-                    count={placements.length}
-                    onReorder={onReorder}
-                    onSpanChange={onSpanChange}
-                    onRemove={onRemove}
-                  />
-                )}
-                <div
-                  className={
-                    editing
-                      ? // Die Leiste liegt über der Karte; der Inhalt rückt um
-                        // ihre Höhe nach unten, damit nicht zwei Überschriften
-                        // übereinander stehen.
-                        "pointer-events-none h-full min-h-0 pt-9 select-none"
-                      : "h-full min-h-0"
+              {editing && definition ? (
+                <ArrangeTile
+                  definition={definition}
+                  placement={placement}
+                  position={index + 1}
+                  total={placements.length}
+                  selected={placement.key === selectedKey}
+                  dragging={placement.key === draggedKey}
+                  dropTarget={
+                    overKey === placement.key && draggedKey !== placement.key
                   }
-                >
-                  {children(placement)}
-                </div>
-              </div>
+                  onSelect={() => {
+                    // Nach einem Zug ist der Klick nur das Loslassen.
+                    if (draggedFar.current) return;
+                    setSelectedKey(placement.key);
+                  }}
+                />
+              ) : (
+                <div className="h-full min-h-0">{children(placement)}</div>
+              )}
             </li>
           );
         })}
       </ul>
 
-      {editing && <AddPanel addable={addable} onAdd={onAdd} />}
+      {editing && (
+        <>
+          <SelectionBar
+            definition={selectedDefinition}
+            placement={selected}
+            index={selectedIndex}
+            total={placements.length}
+            onMove={move}
+            onSpanChange={onSpanChange}
+            onRemove={(key) => {
+              setSelectedKey(null);
+              onRemove(key);
+            }}
+          />
+          <AddPanel addable={addable} onAdd={onAdd} />
+        </>
+      )}
     </div>
   );
 }
 
-function BlockToolbar({
+/**
+ * Die Kachel im Anpassen-Modus: Symbol, Name, Breite und der Platz in der
+ * Reihenfolge. Sie ist ein Knopf, damit sie sich auch mit der Tastatur
+ * auswählen lässt — Ziehen allein wäre nicht bedienbar.
+ */
+function ArrangeTile({
   definition,
   placement,
-  index,
-  count,
-  onReorder,
-  onSpanChange,
-  onRemove,
+  position,
+  total,
+  selected,
+  dragging,
+  dropTarget,
+  onSelect,
 }: {
   readonly definition: HomeBlockDefinition;
   readonly placement: HomeBlockPlacement;
+  readonly position: number;
+  readonly total: number;
+  readonly selected: boolean;
+  readonly dragging: boolean;
+  readonly dropTarget: boolean;
+  readonly onSelect: () => void;
+}) {
+  const frame = selected
+    ? "border-moto-green bg-moto-green/5 ring-moto-green ring-2"
+    : dropTarget
+      ? "border-moto-blue bg-moto-blue/5 border-dashed"
+      : "border-gray-300 bg-white/70 border-dashed hover:border-gray-400 hover:bg-white";
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}`}
+      className={`flex h-full w-full cursor-grab flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-colors ${frame} ${dragging ? "opacity-50" : ""}`}
+    >
+      <span className="flex w-full items-center gap-2">
+        <GripVertical
+          className="h-4 w-4 shrink-0 text-gray-400"
+          aria-hidden="true"
+        />
+        <MotoConceptIcon concept={definition.concept} size={20} />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
+          {definition.label}
+        </span>
+        <span className="shrink-0 text-xs text-gray-500">
+          {SPAN_LABEL[placement.span]}
+        </span>
+      </span>
+      {definition.kind === "section" && (
+        <>
+          <span className="line-clamp-2 text-xs text-gray-500">
+            {definition.description}
+          </span>
+          {/* Angedeuteter Inhalt: ohne ihn wirkt die Kachel im Anpassen-Modus
+              wie ein Loch statt wie die Karte, die dort später steht. */}
+          <span
+            className="mt-auto flex w-full flex-col gap-1.5"
+            aria-hidden="true"
+          >
+            <span className="h-2 w-3/4 rounded-full bg-gray-200/80"></span>
+            <span className="h-2 w-1/2 rounded-full bg-gray-200/80"></span>
+            <span className="h-2 w-2/3 rounded-full bg-gray-200/80"></span>
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Was mit der ausgewählten Kachel passieren kann — an einer Stelle, statt auf
+ * jeder Karte. Ohne Auswahl steht hier, wie man eine trifft.
+ */
+function SelectionBar({
+  definition,
+  placement,
+  index,
+  total,
+  onMove,
+  onSpanChange,
+  onRemove,
+}: {
+  readonly definition: HomeBlockDefinition | null;
+  readonly placement: HomeBlockPlacement | undefined;
   readonly index: number;
-  readonly count: number;
-  readonly onReorder: (from: number, to: number) => void;
+  readonly total: number;
+  readonly onMove: (from: number, to: number) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
 }) {
-  const spans = definition.spans;
-  const spanIndex = spans.indexOf(placement.span);
-  const narrower = spanIndex > 0 ? spans[spanIndex - 1] : undefined;
-  const wider =
-    spanIndex >= 0 && spanIndex < spans.length - 1
-      ? spans[spanIndex + 1]
-      : undefined;
+  if (!definition || !placement) {
+    return (
+      <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-600 shadow-sm">
+        Eine Karte anklicken, um Breite und Platz zu ändern. Zum Umsortieren
+        die Karte an ihren neuen Platz ziehen.
+      </div>
+    );
+  }
 
   return (
-    <div className="absolute inset-x-0 top-0 z-10 flex items-center gap-1 rounded-t-2xl border-b border-gray-200 bg-white/95 px-2 py-1">
-      <GripVertical
-        className="h-4 w-4 shrink-0 cursor-grab text-gray-400"
-        aria-hidden="true"
-      />
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-600">
-        {definition.label}
+    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-sm">
+      <span className="flex items-center gap-2">
+        <MotoConceptIcon concept={definition.concept} size={20} />
+        <span className="text-sm font-semibold text-gray-900">
+          {definition.label}
+        </span>
       </span>
+
+      {definition.spans.length > 1 && (
+        <span className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Breite</span>
+          <SegmentedControl
+            ariaLabel={`Breite von ${definition.label}`}
+            items={definition.spans.map((span) => ({
+              value: String(span),
+              label: SPAN_LABEL[span],
+            }))}
+            value={String(placement.span)}
+            onChange={(next) =>
+              onSpanChange(placement.key, Number(next) as HomeBlockSpan)
+            }
+          />
+        </span>
+      )}
+
+      <span className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="gap-1"
+          disabled={index === 0}
+          onClick={() => onMove(index, index - 1)}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Nach vorne
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="gap-1"
+          disabled={index === total - 1}
+          onClick={() => onMove(index, index + 1)}
+        >
+          Nach hinten
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </span>
+
       <Button
         type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`${definition.label} nach vorne`}
-        disabled={index === 0}
-        onClick={() => onReorder(index, index - 1)}
-      >
-        <ArrowUp className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`${definition.label} nach hinten`}
-        disabled={index === count - 1}
-        onClick={() => onReorder(index, index + 1)}
-      >
-        <ArrowDown className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`${definition.label} schmaler`}
-        disabled={narrower === undefined}
-        onClick={() =>
-          narrower !== undefined && onSpanChange(placement.key, narrower)
-        }
-      >
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`${definition.label} breiter`}
-        disabled={wider === undefined}
-        onClick={() => wider !== undefined && onSpanChange(placement.key, wider)}
-      >
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={`${definition.label} entfernen`}
+        variant="outline_danger"
+        size="md"
+        className="ml-auto gap-1"
         onClick={() => onRemove(placement.key)}
       >
-        <X className="text-moto-red-strong h-4 w-4" aria-hidden="true" />
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
+        Entfernen
       </Button>
     </div>
   );
@@ -245,27 +388,28 @@ function AddPanel({
       {addable.length > 0 && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {addable.map((block) => (
-            <ChoiceTile
+            <button
               key={block.key}
-              as="button"
-              className="p-3 text-left"
+              type="button"
               onClick={() => onAdd(block.key)}
+              className="flex items-start gap-3 rounded-xl border border-dashed border-gray-300 p-3 text-left transition-colors hover:border-gray-400 hover:bg-gray-50"
             >
-              <span className="flex items-start gap-2">
-                <Plus
-                  className="mt-0.5 h-4 w-4 shrink-0 text-gray-400"
-                  aria-hidden="true"
-                />
-                <span className="min-w-0">
-                  <span className="block text-sm font-medium text-gray-900">
-                    {block.label}
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    {block.description}
-                  </span>
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">
+                <MotoConceptIcon concept={block.concept} size={18} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-gray-900">
+                  {block.label}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  {block.description}
                 </span>
               </span>
-            </ChoiceTile>
+              <Plus
+                className="mt-1 h-4 w-4 shrink-0 text-gray-400"
+                aria-hidden="true"
+              />
+            </button>
           ))}
         </div>
       )}

@@ -64,7 +64,8 @@ export function OpenRequestsBlock() {
     <SectionCard
       title="Offene Anfragen"
       leading={<MotoConceptIcon concept="requests" size={20} />}
-      className="h-full"
+      className="flex h-full flex-col"
+      bodyClassName="mt-4 min-h-0 flex-1 overflow-y-auto"
       actions={
         <Link
           href={tenantPath("/anfragen")}

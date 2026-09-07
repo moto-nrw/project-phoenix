@@ -312,7 +312,7 @@ function HomeContent() {
       statsLoading={isLoading}
       stats={
         editing
-          ? "Karten ziehen, breiter oder schmaler machen, entfernen oder unten hinzufügen."
+          ? "Karte anklicken und unten ändern, an ihren neuen Platz ziehen, oder unten einen Baustein hinzufügen."
           : headerStats
       }
       error={
@@ -325,15 +325,6 @@ function HomeContent() {
       actions={
         editing ? (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              disabled={saving}
-              onClick={restoreDefault}
-            >
-              Standard wiederherstellen
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -404,6 +395,22 @@ function HomeContent() {
             <HomeBlockContent blockKey={placement.key} data={blockData} />
           )}
         </HomeBoard>
+      )}
+
+      {/* Der Weg zurück zur Rollenansicht steht am Ende der Fläche, nicht
+          neben „Fertig": er verwirft alles, was jemand je eingerichtet hat. */}
+      {editing && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            disabled={saving}
+            onClick={restoreDefault}
+          >
+            Standardansicht wiederherstellen
+          </Button>
+        </div>
       )}
     </TenantPage>
   );

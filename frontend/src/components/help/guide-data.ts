@@ -647,11 +647,13 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Jede Person stellt sich ihre Startseite selbst zusammen: welche Bausteine, in welcher Reihenfolge, wie breit. Die Anordnung gilt auf allen Geräten.",
         steps: [
-          "Auf der `Startseite` oben rechts `Anpassen` klicken. Über jeder Karte erscheint eine Leiste.",
-          "Eine Karte an eine andere Stelle ziehen. Mit den Pfeilen in der Leiste geht es auch ohne Maus: `nach vorne` und `nach hinten`.",
-          "Mit `<` und `>` wird eine Karte schmaler oder breiter. Kennzahlen haben nur eine Breite.",
-          "Mit `x` verschwindet ein Baustein von Ihrer Startseite. Unter `Bausteine hinzufügen` holen Sie ihn wieder zurück; er erscheint am Ende.",
-          "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standard wiederherstellen` bringt die Ansicht Ihrer Rolle zurück.",
+          "Auf der `Startseite` oben rechts `Anpassen` klicken. Statt der Inhalte zeigt die Fläche jetzt die Anordnung: jede Karte als Kachel mit Name und Breite.",
+          "Eine Kachel an ihren neuen Platz ziehen.",
+          "Eine Kachel anklicken, um sie auszuwählen. Unter der Fläche erscheint eine Leiste mit allem, was mit ihr geht.",
+          "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
+          "`Nach vorne` und `Nach hinten` verschieben die Kachel auch ohne Maus. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
+          "Unter `Bausteine hinzufügen` holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
+          "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` ganz unten bringt die Ansicht Ihrer Rolle zurück.",
           "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter.",
         ],
         callout: {
@@ -660,7 +662,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite im Anpassen-Modus: über jeder Karte eine Leiste zum Ziehen, Verschieben, Breite ändern und Entfernen, darunter die Liste der Bausteine zum Hinzufügen.",
+          "Startseite im Anpassen-Modus: die Bausteine als Kacheln, eine davon ausgewählt, darunter die Leiste mit Breite, Verschieben und Entfernen sowie die Liste der Bausteine zum Hinzufügen.",
         image: "/help/screens/startseite-anpassen.webp",
       },
       {

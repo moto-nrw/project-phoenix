@@ -284,7 +284,6 @@ const HIDDEN_DEFAULTS: HomeLayoutOverrides = {
   "section.active_groups": false,
   "section.day_flow": false,
 };
-
 describe("Startseite anpassen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -313,26 +312,48 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
   };
 
-  it("blendet die Werkzeuge erst im Anpassen-Modus ein", () => {
+  const select = (label: string) =>
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(`^${label} auswählen`) }),
+    );
+
+  it("zeigt im Anpassen-Modus die Anordnung statt der Inhalte", () => {
     render(<HomePage />);
-    expect(
-      screen.queryByRole("button", { name: /entfernen/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("staff-notices-block")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
 
+    // Die Karten weichen Platzhaltern mit Name und Breite; gearbeitet wird
+    // hier an der Anordnung, nicht am Inhalt.
     expect(
-      screen.getByRole("button", { name: "Kinder anwesend entfernen" }),
+      screen.queryByTestId("staff-notices-block"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /^Tagesinformationen auswählen, Platz 2 von 2, Breit/,
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText("Bausteine hinzufügen")).toBeInTheDocument();
   });
 
-  it("macht eine Karte breiter und speichert die neue Breite", async () => {
+  // Ohne Auswahl steht keine Werkzeugleiste da, sondern der Satz, wie man eine
+  // Karte trifft.
+  it("nennt ohne Auswahl den Weg zur Auswahl", () => {
     startEditing();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Tagesinformationen breiter" }),
-    );
+    expect(
+      screen.getByText(/Eine Karte anklicken, um Breite und Platz zu ändern/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ändert die Breite der ausgewählten Karte und speichert sie", async () => {
+    startEditing();
+    select("Tagesinformationen");
+
+    fireEvent.click(screen.getByRole("button", { name: "Volle Breite" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -342,21 +363,58 @@ describe("Startseite anpassen", () => {
     ]);
   });
 
-  // Eine Kennzahl hat nur eine Breite: der Knopf dafür ist da, aber tot.
-  it("lässt eine Kennzahl nicht breiter werden", () => {
+  // Eine Kennzahl hat nur eine Breite; dann steht der Umschalter gar nicht da.
+  it("bietet einer Kennzahl keine Breitenwahl an", () => {
     startEditing();
+    select("Kinder anwesend");
 
     expect(
-      screen.getByRole("button", { name: "Kinder anwesend breiter" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "Volle Breite" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Entfernen" }),
+    ).toBeInTheDocument();
   });
 
-  it("verschiebt eine Karte nach vorne", async () => {
+  // Gezogen wird mit Zeigerereignissen, nicht mit dem nativen HTML5-Ziehen:
+  // das kennt kein Tablet und lässt sich nicht prüfen.
+  it("sortiert eine gezogene Karte an den Platz um, auf dem sie landet", async () => {
     startEditing();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Tagesinformationen nach vorne" }),
-    );
+    const source = screen.getByTestId("home-block-section.staff_notices");
+    const target = screen.getByTestId("home-block-tile.students_present");
+    const elementFromPoint = vi
+      .spyOn(document, "elementFromPoint")
+      .mockReturnValue(target);
+
+    fireEvent.pointerDown(source, {
+      pointerType: "mouse",
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(source, {
+      pointerType: "mouse",
+      pointerId: 1,
+      clientX: 40,
+      clientY: 40,
+    });
+    fireEvent.pointerUp(source, { pointerType: "mouse", pointerId: 1 });
+    elementFromPoint.mockRestore();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2 },
+      { key: "tile.students_present", span: 1 },
+    ]);
+  });
+
+  it("verschiebt die ausgewählte Karte nach vorne", async () => {
+    startEditing();
+    select("Tagesinformationen");
+
+    fireEvent.click(screen.getByRole("button", { name: "Nach vorne" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -370,10 +428,9 @@ describe("Startseite anpassen", () => {
   // Baustein beim nächsten Aufruf zurück.
   it("merkt sich einen entfernten Baustein als Abweichung", async () => {
     startEditing();
+    select("Kinder anwesend");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kinder anwesend entfernen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -401,10 +458,9 @@ describe("Startseite anpassen", () => {
 
   it("verwirft die Änderungen bei Abbrechen", () => {
     startEditing();
+    select("Kinder anwesend");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kinder anwesend entfernen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
 
     expect(save).not.toHaveBeenCalled();
@@ -417,7 +473,7 @@ describe("Startseite anpassen", () => {
     startEditing();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Standard wiederherstellen" }),
+      screen.getByRole("button", { name: "Standardansicht wiederherstellen" }),
     );
 
     await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));

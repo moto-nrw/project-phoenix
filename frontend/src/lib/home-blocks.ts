@@ -29,6 +29,8 @@
  * statt für alle zu verschwinden, die den Dialog je geöffnet haben.
  */
 
+import type { MotoConceptKey } from "~/lib/moto-concepts";
+
 /** Was die Einrichtung für einen Baustein vorgibt. */
 export type HomeBlockPolicy = "optional" | "required" | "disabled";
 
@@ -93,6 +95,8 @@ export interface HomeBlockDefinition {
   readonly label: string;
   /** Ein Satz, was der Baustein zeigt. */
   readonly description: string;
+  /** Symbol aus dem Begriffs-Register; trägt die Karte im Anpassen-Modus. */
+  readonly concept: MotoConceptKey;
   /** Erlaubte Breiten, von schmal nach breit. */
   readonly spans: readonly HomeBlockSpan[];
   /**
@@ -149,6 +153,19 @@ const anyRequestQueue = (access: HomeBlockAccess) => access.canOpenRequestsPage;
 const TILE_SPANS: readonly HomeBlockSpan[] = [1];
 const SECTION_SPANS: readonly HomeBlockSpan[] = [1, 2, 4];
 
+/** Symbol je Kennzahl — dasselbe Vokabular, das die Kachel selbst trägt. */
+const TILE_CONCEPT: Record<string, MotoConceptKey> = {
+  "tile.students_present": "present",
+  "tile.students_in_rooms": "rooms",
+  "tile.students_in_transit": "transit",
+  "tile.students_on_playground": "schoolyard",
+  "tile.students_sick": "sick",
+  "tile.students_excused": "excused",
+  "tile.students_home": "home",
+  "tile.active_activities": "activities",
+  "tile.capacity_utilization": "utilization",
+};
+
 function tile(
   key: HomeBlockKey,
   label: string,
@@ -160,6 +177,7 @@ function tile(
     kind: "tile",
     label,
     description,
+    concept: TILE_CONCEPT[key] ?? "dashboard",
     spans: TILE_SPANS,
     permitted: operationalNumbers,
     available,
@@ -229,6 +247,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Mein Tag",
     description: "Ihre heutigen Einsätze mit Ort, Zeit und Vertretungen.",
+    concept: "carePlan",
     spans: SECTION_SPANS,
     // /api/time-tracking/assignments (#1844) liefert nur die eigenen Blöcke.
     permitted: (access) => access.has(PERMISSION.timeTrackingOwn),
@@ -239,6 +258,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Tagesinformationen",
     description: "Hinweise der Leitung, die heute gelten.",
+    concept: "announcements",
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.usersRead),
     available: always,
@@ -249,6 +269,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Offene Anfragen",
     description:
       "Wünsche von Eltern und Anträge des Teams, die auf eine Entscheidung warten.",
+    concept: "requests",
     spans: SECTION_SPANS,
     permitted: anyRequestQueue,
     available: always,
@@ -261,6 +282,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     label: "Ablauf des Tages",
     description:
       "Die Blöcke des Betreuungsplans, die gerade laufen oder als Nächstes anstehen.",
+    concept: "carePlan",
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.schedulesRead),
     // Ohne Betreuungsplan gibt es keinen Ablauf, und im Anwesenheitsmodus
@@ -272,6 +294,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Aktive Gruppen",
     description: "Welche Gruppen gerade betreut werden und wo.",
+    concept: "groups",
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: (ctx) => !ctx.openCareGroupMode,
@@ -281,6 +304,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Laufende Aktivitäten",
     description: "Welche Aktivitäten gerade stattfinden und wie voll sie sind.",
+    concept: "activities",
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: activitySurfaces,
@@ -290,6 +314,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Letzte Bewegungen",
     description: "Welche Gruppen zuletzt den Raum gewechselt haben.",
+    concept: "changeHistory",
     spans: SECTION_SPANS,
     permitted: operationalNumbers,
     available: roomSurfaces,
@@ -299,6 +324,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Geburtstage",
     description: "Wer heute oder in den nächsten Tagen Geburtstag hat.",
+    concept: "birthdays",
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.usersRead),
     available: (ctx) => ctx.birthdaysEnabled,
