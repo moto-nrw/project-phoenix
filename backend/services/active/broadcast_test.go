@@ -101,8 +101,8 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	// Students before their education group (FK ON DELETE SET NULL nulls
 	// students.tenant_id otherwise — see the edu-batch test below).
 
-	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

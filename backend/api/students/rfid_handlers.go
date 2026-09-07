@@ -8,13 +8,12 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // checkDeviceAuth verifies device authentication and returns the device
 // Returns the device and true if successful, or renders an error and returns nil, false
-func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*iot.Device, bool) {
+func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*device.AuthenticatedDevice, bool) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
 		renderError(w, r, common.ErrorUnauthorized(errors.New("device authentication required")))

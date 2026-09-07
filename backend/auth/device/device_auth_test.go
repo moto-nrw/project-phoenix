@@ -2,33 +2,31 @@ package device
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"net"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// The HTTP status codes the wire contract promises. Spelled out so this
+// package's tests stay free of net/http.
+const (
+	statusUnauthorized = 401
+	statusForbidden    = 403
+)
+
 // =============================================================================
-// Mock IoT Service - implements iot.Service interface
+// Port doubles
 // =============================================================================
 
-type mockIoTService struct {
+type mockDeviceDirectory struct {
 	mu             sync.Mutex
-	devices        map[string]*iot.Device
+	devices        map[string]*AuthenticatedDevice
+	findErr        error
 	updateCalled   bool
 	updateError    error
 	updateCount    int
@@ -37,21 +35,25 @@ type mockIoTService struct {
 	updateBlock    chan struct{}
 }
 
-func newMockIoTService() *mockIoTService {
-	return &mockIoTService{
-		devices: make(map[string]*iot.Device),
-	}
+func newMockDeviceDirectory() *mockDeviceDirectory {
+	return &mockDeviceDirectory{devices: make(map[string]*AuthenticatedDevice)}
 }
 
-func (m *mockIoTService) addDevice(apiKey string, device *iot.Device) {
+// testTenantID is the tenant every device without an explicit tenant belongs
+// to in these tests.
+const testTenantID int64 = 7
+
+func (m *mockDeviceDirectory) addDevice(apiKey string, device *AuthenticatedDevice) {
 	if device.TenantID == 0 {
-		device.TenantID = 7
+		device.TenantID = testTenantID
 	}
 	m.devices[apiKey] = device
 }
 
-// The only methods actually used by DeviceAuthenticator
-func (m *mockIoTService) GetDeviceByAPIKey(_ context.Context, apiKey string) (*iot.Device, error) {
+func (m *mockDeviceDirectory) FindByAPIKey(_ context.Context, apiKey string) (*AuthenticatedDevice, error) {
+	if m.findErr != nil {
+		return nil, m.findErr
+	}
 	device, ok := m.devices[apiKey]
 	if !ok {
 		return nil, errors.New("device not found")
@@ -59,57 +61,7 @@ func (m *mockIoTService) GetDeviceByAPIKey(_ context.Context, apiKey string) (*i
 	return device, nil
 }
 
-func (m *mockIoTService) UpdateDevice(_ context.Context, _ *iot.Device) error {
-	m.updateCalled = true
-	return m.updateError
-}
-
-// Required interface methods (not used in device auth tests)
-func (m *mockIoTService) CreateDevice(_ context.Context, _ *iot.Device) error {
-	return nil
-}
-func (m *mockIoTService) GetDeviceByID(_ context.Context, _ int64) (*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetDeviceByDeviceID(_ context.Context, _ string) (*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) DeleteDevice(_ context.Context, _ int64) error { return nil }
-func (m *mockIoTService) ListDevices(_ context.Context, _ map[string]interface{}) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) UpdateDeviceStatus(_ context.Context, _ string, _ iot.DeviceStatus) error {
-	return nil
-}
-func (m *mockIoTService) PingDevice(_ context.Context, _ string) error { return nil }
-func (m *mockIoTService) GetDevicesByType(_ context.Context, _ string) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetDevicesByStatus(_ context.Context, _ iot.DeviceStatus) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetDevicesByRegisteredBy(_ context.Context, _ int64) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetActiveDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
-func (m *mockIoTService) GetDevicesRequiringMaintenance(_ context.Context) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetOfflineDevices(_ context.Context, _ time.Duration) ([]*iot.Device, error) {
-	return nil, nil
-}
-func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]int, error) {
-	return nil, nil
-}
-func (m *mockIoTService) DeviceOnlineWindow(_ context.Context) time.Duration   { return 5 * time.Minute }
-func (m *mockIoTService) IsDeviceOnline(_ context.Context, _ *iot.Device) bool { return false }
-func (m *mockIoTService) IsDeviceOnlineAt(_ context.Context, _ *iot.Device, _ time.Time) bool {
-	return false
-}
-func (m *mockIoTService) Fleet() devicefleet.Capability                             { return nil }
-func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
-func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
-func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, lastSeen time.Time) error {
+func (m *mockDeviceDirectory) RecordLastSeen(_ context.Context, _ int64, lastSeen time.Time) error {
 	if m.updateStarted != nil {
 		select {
 		case m.updateStarted <- struct{}{}:
@@ -128,585 +80,457 @@ func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, last
 	return m.updateError
 }
 
+func (m *mockDeviceDirectory) wasUpdated() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.updateCalled
+}
+
+func (m *mockDeviceDirectory) resetUpdated() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.updateCalled = false
+}
+
+// nilDeviceDirectory returns a nil device without an error.
+type nilDeviceDirectory struct{ *mockDeviceDirectory }
+
+func (nilDeviceDirectory) FindByAPIKey(_ context.Context, _ string) (*AuthenticatedDevice, error) {
+	return nil, nil
+}
+
+func newNilDeviceDirectory() nilDeviceDirectory {
+	return nilDeviceDirectory{mockDeviceDirectory: newMockDeviceDirectory()}
+}
+
+type stubSchoolLookup struct {
+	deleted bool
+	err     error
+	calls   int
+}
+
+func (s *stubSchoolLookup) IsSchoolDeleted(_ context.Context, _ int64) (bool, error) {
+	s.calls++
+	return s.deleted, s.err
+}
+
+type stubStaffPINAuthenticator struct {
+	staff    *AuthenticatedStaff
+	err      error
+	tenantID int64
+	staffID  int64
+	pin      string
+	calls    int
+}
+
+func (s *stubStaffPINAuthenticator) AuthenticateStaffPIN(_ context.Context, tenantID, staffID int64, pin string) (*AuthenticatedStaff, error) {
+	s.calls++
+	s.tenantID = tenantID
+	s.staffID = staffID
+	s.pin = pin
+	return s.staff, s.err
+}
+
+type tenantKey struct{}
+
+// bindTenant is the test tenant binder: it records the tenant on the context
+// and rejects non-positive ids like the runtime does.
+func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("invalid tenant id %d", tenantID)
+	}
+	return context.WithValue(ctx, tenantKey{}, tenantID), nil
+}
+
+func boundTenant(ctx context.Context) int64 {
+	id, _ := ctx.Value(tenantKey{}).(int64)
+	return id
+}
+
+func activeDevice(deviceID string) *AuthenticatedDevice {
+	return &AuthenticatedDevice{DeviceID: deviceID, DeviceType: "terminal", Status: activeStatus}
+}
+
+func newTestAuthenticator(directory DeviceDirectory, options ...func(*Dependencies)) *Authenticator {
+	deps := Dependencies{Devices: directory, BindTenant: bindTenant}
+	for _, option := range options {
+		option(&deps)
+	}
+	return NewAuthenticator(deps)
+}
+
+func withSchools(schools SchoolLookup) func(*Dependencies) {
+	return func(deps *Dependencies) { deps.Schools = schools }
+}
+
+func withStaffPIN(authenticator StaffPINAuthenticator) func(*Dependencies) {
+	return func(deps *Dependencies) { deps.StaffPIN = authenticator }
+}
+
+func withPIN(resolver PINResolver, fallback string) func(*Dependencies) {
+	return func(deps *Dependencies) {
+		deps.PIN = resolver
+		deps.FallbackPIN = fallback
+	}
+}
+
+func bearer(apiKey string) credentials { return credentials{authorization: "Bearer " + apiKey} }
+
+func pinCredentials(apiKey, pin string) credentials {
+	c := bearer(apiKey)
+	c.devicePIN = pin
+	return c
+}
+
 // =============================================================================
-// Mock Person Service - not actually used by DeviceAuthenticator
+// Context helpers
 // =============================================================================
 
-// mockPersonService is not needed since DeviceAuthenticator doesn't use it
-// The PersonService parameter is unused in the current implementation
-
-// =============================================================================
-// Context Helpers Tests
-// =============================================================================
-
-func TestDeviceFromCtx_ValidDevice(t *testing.T) {
+func TestDeviceFromCtx(t *testing.T) {
 	t.Parallel()
 
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-
-	ctx := context.WithValue(context.Background(), CtxDevice, device)
-
-	result := DeviceFromCtx(ctx)
+	device := &AuthenticatedDevice{DeviceID: "device-001", DeviceType: "terminal", Status: activeStatus}
+	result := DeviceFromCtx(context.WithValue(context.Background(), CtxDevice, device))
 	require.NotNil(t, result)
 	assert.Equal(t, "device-001", result.DeviceID)
 	assert.Equal(t, "terminal", result.DeviceType)
+	assert.True(t, result.IsActive())
+
+	assert.Nil(t, DeviceFromCtx(context.Background()))
+	assert.Nil(t, DeviceFromCtx(context.WithValue(context.Background(), CtxDevice, "not a device")))
 }
 
-func TestDeviceFromCtx_NoDevice(t *testing.T) {
+func TestStaffFromCtx(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	result := DeviceFromCtx(ctx)
-	assert.Nil(t, result)
-}
-
-func TestDeviceFromCtx_WrongType(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.WithValue(context.Background(), CtxDevice, "not a device")
-	result := DeviceFromCtx(ctx)
-	assert.Nil(t, result)
-}
-
-func TestStaffFromCtx_ValidStaff(t *testing.T) {
-	t.Parallel()
-
-	staff := &users.Staff{
-		StaffNotes: "Test staff member",
-	}
-
-	ctx := context.WithValue(context.Background(), CtxStaff, staff)
-
-	result := StaffFromCtx(ctx)
+	staff := &AuthenticatedStaff{ID: 42, TenantID: 7}
+	result := StaffFromCtx(context.WithValue(context.Background(), CtxStaff, staff))
 	require.NotNil(t, result)
-	assert.Equal(t, "Test staff member", result.StaffNotes)
+	assert.Equal(t, int64(42), result.ID)
+
+	assert.Nil(t, StaffFromCtx(context.Background()))
+	assert.Nil(t, StaffFromCtx(context.WithValue(context.Background(), CtxStaff, "not a staff")))
 }
 
-func TestStaffFromCtx_NoStaff(t *testing.T) {
+func TestIsIoTDeviceRequest(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	result := StaffFromCtx(ctx)
-	assert.Nil(t, result)
+	assert.True(t, IsIoTDeviceRequest(context.WithValue(context.Background(), CtxIsIoTDevice, true)))
+	assert.False(t, IsIoTDeviceRequest(context.WithValue(context.Background(), CtxIsIoTDevice, false)))
+	assert.False(t, IsIoTDeviceRequest(context.Background()))
+	assert.False(t, IsIoTDeviceRequest(context.WithValue(context.Background(), CtxIsIoTDevice, "true")))
 }
 
-func TestStaffFromCtx_WrongType(t *testing.T) {
+func TestCtxKey_DistinctValues(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxStaff, "not a staff")
-	result := StaffFromCtx(ctx)
-	assert.Nil(t, result)
+	assert.NotEqual(t, CtxDevice, CtxStaff)
+	assert.NotEqual(t, CtxDevice, CtxIsIoTDevice)
+	assert.NotEqual(t, CtxStaff, CtxIsIoTDevice)
 }
 
-func TestIsIoTDeviceRequest_True(t *testing.T) {
+func TestAuthenticatedDevice_IsActive(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, true)
-	result := IsIoTDeviceRequest(ctx)
-	assert.True(t, result)
-}
-
-func TestIsIoTDeviceRequest_False(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, false)
-	result := IsIoTDeviceRequest(ctx)
-	assert.False(t, result)
-}
-
-func TestIsIoTDeviceRequest_NotSet(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	result := IsIoTDeviceRequest(ctx)
-	assert.False(t, result)
-}
-
-func TestIsIoTDeviceRequest_WrongType(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, "true")
-	result := IsIoTDeviceRequest(ctx)
-	assert.False(t, result)
+	assert.True(t, (&AuthenticatedDevice{Status: "active"}).IsActive())
+	assert.False(t, (&AuthenticatedDevice{Status: "inactive"}).IsActive())
+	assert.False(t, (&AuthenticatedDevice{Status: "offline"}).IsActive())
+	assert.False(t, (&AuthenticatedDevice{Status: "maintenance"}).IsActive())
+	assert.False(t, (*AuthenticatedDevice)(nil).IsActive())
 }
 
 // =============================================================================
-// SecureCompareStrings Tests
+// SecureCompareStrings
 // =============================================================================
 
-func TestSecureCompareStrings_Equal(t *testing.T) {
+func TestSecureCompareStrings(t *testing.T) {
 	t.Parallel()
 
 	assert.True(t, SecureCompareStrings("password", "password"))
 	assert.True(t, SecureCompareStrings("", ""))
 	assert.True(t, SecureCompareStrings("a very long string with special chars!@#$%", "a very long string with special chars!@#$%"))
-}
-
-func TestSecureCompareStrings_NotEqual(t *testing.T) {
-	t.Parallel()
 
 	assert.False(t, SecureCompareStrings("password", "different"))
-	assert.False(t, SecureCompareStrings("password", "Password")) // Case sensitive
+	assert.False(t, SecureCompareStrings("password", "Password"))
 	assert.False(t, SecureCompareStrings("password", "password "))
 	assert.False(t, SecureCompareStrings("", "notempty"))
-}
-
-func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
-	t.Parallel()
-
 	assert.False(t, SecureCompareStrings("short", "muchlongerstring"))
 	assert.False(t, SecureCompareStrings("muchlongerstring", "short"))
+	assert.False(t, SecureCompareStrings("correct-pin-12345", "correct-pin-12346"))
 }
 
 // =============================================================================
-// DeviceOnlyAuthenticator Tests
+// Construction
 // =============================================================================
 
-func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
+func TestNewAuthenticator_RequiresPorts(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockService.addDevice(apiKey, device)
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		// Verify device is in context
-		ctxDevice := DeviceFromCtx(r.Context())
-		require.NotNil(t, ctxDevice)
-		assert.Equal(t, "device-001", ctxDevice.DeviceID)
-
-		// Verify IsIoTDevice is NOT set (only set by DeviceAuthenticator)
-		assert.False(t, IsIoTDeviceRequest(r.Context()))
-
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.True(t, mockService.updateCalled, "Should update device last seen")
+	assert.Panics(t, func() { NewAuthenticator(Dependencies{BindTenant: bindTenant}) })
+	assert.Panics(t, func() { NewAuthenticator(Dependencies{Devices: newMockDeviceDirectory()}) })
+	assert.NotPanics(t, func() { newTestAuthenticator(newMockDeviceDirectory()) })
 }
 
-func TestDeviceAuthenticators_ZeroTenantID_IsReportedAndRejected(t *testing.T) {
+// =============================================================================
+// Device-only authentication
+// =============================================================================
+
+func TestDeviceOnly_ValidAPIKey(t *testing.T) {
 	t.Parallel()
-	const apiKey = "zero-tenant-api-key"
-	for _, tc := range []struct {
-		name       string
-		middleware func(iotSvc.Service, func(context.Context, error)) func(http.Handler) http.Handler
-	}{
-		{
-			name: "device only",
-			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
-				return deviceOnlyAuthenticator(service, nil, newLastSeenDebouncer(), observer)
-			},
-		},
-		{
-			name: "device and PIN",
-			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
-				return deviceAuthenticator(service, nil, nil, nil, "", newLastSeenDebouncer(), observer)
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			mockService := newMockIoTService()
-			mockService.devices[apiKey] = &iot.Device{
-				DeviceID:   "device-zero-tenant",
-				DeviceType: "terminal",
-				Status:     iot.DeviceStatusActive,
-			}
-			var observedErr error
-			handler := tc.middleware(mockService, func(_ context.Context, err error) { observedErr = err })(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				t.Fatal("zero-tenant device must not reach the wrapped handler")
-			}))
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			req.Header.Set("Authorization", "Bearer "+apiKey)
-			recorder := httptest.NewRecorder()
 
-			handler.ServeHTTP(recorder, req)
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-001")
+	device.TenantID = 42
+	directory.addDevice("valid-api-key-123", device)
 
-			assert.Equal(t, http.StatusUnauthorized, recorder.Code)
-			assert.Error(t, observedErr)
-		})
-	}
+	ctx, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
+	require.Nil(t, errResp)
+
+	ctxDevice := DeviceFromCtx(ctx)
+	require.NotNil(t, ctxDevice)
+	assert.Equal(t, "device-001", ctxDevice.DeviceID)
+	assert.Equal(t, int64(42), boundTenant(ctx), "device tenant becomes the ambient tenant")
+	assert.False(t, IsIoTDeviceRequest(ctx), "device-only requests are not IoT-PIN requests")
+	assert.Nil(t, StaffFromCtx(ctx))
+	assert.True(t, directory.wasUpdated(), "should update device last seen")
+	assert.NotNil(t, ctxDevice.LastSeen)
 }
 
-func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {
+func TestDeviceOnly_MissingAuthHeader(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	// No Authorization header
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), credentials{})
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.ErrorText)
 }
 
-func TestDeviceOnlyAuthenticator_InvalidAuthFormat(t *testing.T) {
+func TestDeviceOnly_InvalidAuthFormat(t *testing.T) {
 	t.Parallel()
-
-	mockService := newMockIoTService()
 
 	testCases := []struct {
-		name   string
-		header string
+		name    string
+		header  string
+		wantErr error
 	}{
-		{"No Bearer prefix", "api-key-123"},
-		{"Basic instead of Bearer", "Basic api-key-123"},
-		{"Empty Bearer", "Bearer "},
-		{"Lowercase bearer", "bearer api-key-123"},
+		{"No Bearer prefix", "api-key-123", ErrInvalidAPIKeyFormat},
+		{"Basic instead of Bearer", "Basic api-key-123", ErrInvalidAPIKeyFormat},
+		{"Empty Bearer", "Bearer ", ErrMissingAPIKey},
+		{"Lowercase bearer", "bearer api-key-123", ErrInvalidAPIKeyFormat},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			r := chi.NewRouter()
-			r.Use(DeviceOnlyAuthenticator(mockService, nil))
-			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-
-			req := httptest.NewRequest(http.MethodGet, "/test", nil)
-			req.Header.Set("Authorization", tc.header)
-			rr := httptest.NewRecorder()
-
-			r.ServeHTTP(rr, req)
-			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			t.Parallel()
+			_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), credentials{authorization: tc.header})
+			require.NotNil(t, errResp)
+			assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+			assert.Equal(t, tc.wantErr.Error(), errResp.ErrorText)
 		})
 	}
 }
 
-func TestDeviceOnlyAuthenticator_InvalidAPIKey(t *testing.T) {
+func TestDeviceOnly_InvalidAPIKey(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	// No devices added
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer invalid-api-key")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), bearer("invalid-api-key"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
 }
 
-func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
+func TestDeviceOnly_DirectoryErrorIsInvalidAPIKey(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusInactive, // Not active
-	}
-	mockService.addDevice(apiKey, device)
+	directory := newMockDeviceDirectory()
+	directory.findErr = errors.New("database unavailable")
 
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code)
+	_, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("any-key"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText, "read failures are not distinguishable from unknown keys on the wire")
 }
 
-func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
+func TestDeviceOnly_NilDeviceReturn(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusOffline, // Offline
-	}
-	mockService.addDevice(apiKey, device)
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code)
+	_, errResp := newTestAuthenticator(newNilDeviceDirectory()).authenticateDeviceOnly(context.Background(), bearer("some-key"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 }
 
-func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
+func TestDeviceOnly_InactiveDeviceStates(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusMaintenance, // In maintenance
+	for _, status := range []string{"inactive", "offline", "maintenance"} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+			directory := newMockDeviceDirectory()
+			device := activeDevice("device-001")
+			device.Status = status
+			directory.addDevice("valid-api-key-123", device)
+
+			_, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
+			require.NotNil(t, errResp)
+			assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
+			assert.Equal(t, ErrDeviceInactive.Error(), errResp.ErrorText)
+			assert.False(t, directory.wasUpdated(), "rejected devices are not marked as seen")
+		})
 	}
-	mockService.addDevice(apiKey, device)
+}
 
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+func TestAuthenticators_ZeroTenantID_IsRejected(t *testing.T) {
+	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
+	for _, tc := range []struct {
+		name string
+		run  func(*Authenticator, context.Context, credentials) (context.Context, *ErrResponse)
+	}{
+		{"device only", (*Authenticator).authenticateDeviceOnly},
+		{"device and PIN", (*Authenticator).authenticateDevice},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			directory := newMockDeviceDirectory()
+			directory.devices["zero-tenant-api-key"] = activeDevice("device-zero-tenant")
+			var observedTenant int64 = -1
+			authenticator := newTestAuthenticator(directory, func(deps *Dependencies) {
+				deps.BindTenant = func(ctx context.Context, tenantID int64) (context.Context, error) {
+					observedTenant = tenantID
+					return bindTenant(ctx, tenantID)
+				}
+			})
 
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code)
+			ctx, errResp := tc.run(authenticator, context.Background(), pinCredentials("zero-tenant-api-key", "any"))
+			require.NotNil(t, errResp)
+			assert.Nil(t, ctx)
+			assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+			assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
+			assert.Equal(t, int64(0), observedTenant, "the binder sees the zero tenant and reports it")
+			assert.False(t, directory.wasUpdated())
+		})
+	}
 }
 
 // =============================================================================
-// DeviceAuthenticator Tests (API Key + PIN)
+// Device + PIN authentication
 // =============================================================================
 
-func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
+func TestDevice_ValidAPIKeyAndPIN(t *testing.T) {
 	t.Parallel()
 
-	// Set up environment
-	ogsPin := "test-device-pin-123"
+	directory := newMockDeviceDirectory()
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-device-pin-123"))
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockIoT.addDevice(apiKey, device)
+	ctx, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "test-device-pin-123"))
+	require.Nil(t, errResp)
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, ogsPin))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		// Verify device is in context
-		ctxDevice := DeviceFromCtx(r.Context())
-		require.NotNil(t, ctxDevice)
-		assert.Equal(t, "device-001", ctxDevice.DeviceID)
-
-		// Verify IsIoTDevice is set
-		assert.True(t, IsIoTDeviceRequest(r.Context()))
-
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", ogsPin)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.True(t, mockIoT.updateCalled, "Should update device last seen")
+	ctxDevice := DeviceFromCtx(ctx)
+	require.NotNil(t, ctxDevice)
+	assert.Equal(t, "device-001", ctxDevice.DeviceID)
+	assert.True(t, IsIoTDeviceRequest(ctx))
+	assert.Nil(t, StaffFromCtx(ctx))
+	assert.Equal(t, testTenantID, boundTenant(ctx))
+	assert.True(t, directory.wasUpdated(), "should update device last seen")
 }
 
-func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
+func TestDevice_MissingPIN(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockIoT.addDevice(apiKey, device)
+	directory := newMockDeviceDirectory()
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-pin"))
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	// No X-Staff-PIN header
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	_, errResp := authenticator.authenticateDevice(context.Background(), bearer("valid-api-key-123"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrMissingPIN.Error(), errResp.ErrorText)
 }
 
-func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
+func TestDevice_InvalidPIN(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockIoT.addDevice(apiKey, device)
+	directory := newMockDeviceDirectory()
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+	authenticator := newTestAuthenticator(directory, withPIN(nil, "correct-pin"))
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "correct-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "wrong-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "wrong-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
+	assert.False(t, directory.wasUpdated(), "a rejected PIN must not mark the device as seen")
 }
 
-func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
+func TestDevice_MissingOGSPINConfig(t *testing.T) {
 	t.Parallel()
-	// Ensure OGS_DEVICE_PIN is not set
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockIoT.addDevice(apiKey, device)
+	directory := newMockDeviceDirectory()
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+	authenticator := newTestAuthenticator(directory, withPIN(nil, ""))
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, ""))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "any-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "any-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
 }
 
-func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
+func TestDevice_MissingAPIKey(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	// No Authorization header
-	req.Header.Set("X-Staff-PIN", "test-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(nil, "test-pin"))
+	_, errResp := authenticator.authenticateDevice(context.Background(), credentials{devicePIN: "test-pin"})
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.ErrorText)
 }
 
-func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
+func TestDevice_InvalidAPIKey(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-	// No devices added
-
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer invalid-key")
-	req.Header.Set("X-Staff-PIN", "test-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(nil, "test-pin"))
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("invalid-key", "test-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
 }
 
-func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
+func TestDevice_InactiveDevice(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusInactive,
-	}
-	mockIoT.addDevice(apiKey, device)
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-001")
+	device.Status = "inactive"
+	directory.addDevice("valid-api-key-123", device)
+	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-pin"))
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil, "test-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "test-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrDeviceInactive.Error(), errResp.ErrorText)
+}
 
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "test-pin")
-	rr := httptest.NewRecorder()
+func TestDevice_NilDeviceReturn(t *testing.T) {
+	t.Parallel()
 
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code)
+	authenticator := newTestAuthenticator(newNilDeviceDirectory(), withPIN(nil, "test-pin"))
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("some-key", "test-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 }
 
 // =============================================================================
-// PINResolver Wiring Tests
+// PIN resolver wiring
 // =============================================================================
 
-func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
+func TestDevice_UsesPINResolver(t *testing.T) {
 	t.Parallel()
 
-	// Do NOT set OGS_DEVICE_PIN env var — PIN only available via resolver
-
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-resolver"
-	device := &iot.Device{
-		DeviceID:   "device-resolver",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-resolver")
 	device.TenantID = 42
-	mockIoT.addDevice(apiKey, device)
+	directory.addDevice("valid-api-key-resolver", device)
 
-	// PIN resolver returns a tenant-specific PIN
 	resolverCalled := false
 	resolver := func(_ context.Context, tenantID int64) string {
 		resolverCalled = true
@@ -715,141 +539,231 @@ func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 		}
 		return ""
 	}
+	authenticator := newTestAuthenticator(directory, withPIN(resolver, ""))
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, ""))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "9999")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code, "should authenticate using PIN from resolver")
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-resolver", "9999"))
+	assert.Nil(t, errResp, "should authenticate using PIN from resolver")
 	assert.True(t, resolverCalled, "PIN resolver should have been called")
 }
 
-func TestDeviceAuthenticator_PINResolverFallsBackToConfiguredPIN(t *testing.T) {
+func TestDevice_PINResolverFallsBackToConfiguredPIN(t *testing.T) {
 	t.Parallel()
 
-	// Set env var as fallback
-
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-fallback"
-	device := &iot.Device{
-		DeviceID:   "device-fallback",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-fallback")
 	device.TenantID = 42
-	mockIoT.addDevice(apiKey, device)
+	directory.addDevice("valid-api-key-fallback", device)
+	resolver := func(_ context.Context, _ int64) string { return "" }
+	authenticator := newTestAuthenticator(directory, withPIN(resolver, "env-pin"))
 
-	// Resolver returns empty — should fall back to env var
-	resolver := func(_ context.Context, _ int64) string {
-		return ""
-	}
-
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, "env-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "env-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusOK, rr.Code, "should fall back to OGS_DEVICE_PIN env var")
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-fallback", "env-pin"))
+	assert.Nil(t, errResp, "should fall back to OGS_DEVICE_PIN env var")
 }
 
-func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
+func TestDevice_PINResolverWrongPIN(t *testing.T) {
 	t.Parallel()
 
-	mockIoT := newMockIoTService()
-	apiKey := "valid-api-key-wrong"
-	device := &iot.Device{
-		DeviceID:   "device-wrong",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-wrong")
 	device.TenantID = 42
-	mockIoT.addDevice(apiKey, device)
+	directory.addDevice("valid-api-key-wrong", device)
+	resolver := func(_ context.Context, _ int64) string { return "9999" }
+	authenticator := newTestAuthenticator(directory, withPIN(resolver, "env-pin"))
 
-	resolver := func(_ context.Context, _ int64) string {
-		return "9999"
-	}
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "env-pin"))
+	require.NotNil(t, errResp, "the env PIN is not accepted once the tenant PIN resolves")
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver, ""))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("X-Staff-PIN", "0000") // wrong PIN
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "wrong PIN should be rejected")
+	_, errResp = authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "0000"))
+	require.NotNil(t, errResp, "wrong PIN should be rejected")
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 }
 
 // =============================================================================
-// Error Response Tests
+// Staff PIN binding
+// =============================================================================
+
+func staffCredentials(apiKey, staffID, staffPIN string) credentials {
+	c := pinCredentials(apiKey, "device-pin")
+	c.staffID = staffID
+	c.staffPIN = staffPIN
+	return c
+}
+
+func newStaffPINAuthenticator(authenticator StaffPINAuthenticator) (*Authenticator, string) {
+	directory := newMockDeviceDirectory()
+	const apiKey = "staff-pin-auth-api-key"
+	directory.addDevice(apiKey, activeDevice("test-device"))
+	return newTestAuthenticator(directory, withPIN(nil, "device-pin"), withStaffPIN(authenticator)), apiKey
+}
+
+func TestDevice_SetsCredentialBoundStaffContext(t *testing.T) {
+	t.Parallel()
+
+	staff := &AuthenticatedStaff{ID: 42, TenantID: testTenantID}
+	stub := &stubStaffPINAuthenticator{staff: staff}
+	authenticator, apiKey := newStaffPINAuthenticator(stub)
+
+	ctx, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
+	require.Nil(t, errResp)
+	assert.Same(t, staff, StaffFromCtx(ctx))
+	assert.Equal(t, 1, stub.calls)
+	assert.Equal(t, testTenantID, stub.tenantID)
+	assert.Equal(t, int64(42), stub.staffID)
+	assert.Equal(t, "personal-pin", stub.pin)
+}
+
+func TestDevice_IgnoresLegacyStaffIDWithoutCredential(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubStaffPINAuthenticator{}
+	authenticator, apiKey := newStaffPINAuthenticator(stub)
+
+	ctx, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", ""))
+	require.Nil(t, errResp)
+	assert.Nil(t, StaffFromCtx(ctx))
+	assert.Zero(t, stub.calls)
+}
+
+func TestDevice_RejectsInvalidStaffCredential(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubStaffPINAuthenticator{err: errors.New("invalid credential")}
+	authenticator, apiKey := newStaffPINAuthenticator(stub)
+
+	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "wrong-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
+	assert.Equal(t, 1, stub.calls)
+}
+
+func TestDevice_RejectsCrossTenantStaff(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubStaffPINAuthenticator{staff: &AuthenticatedStaff{ID: 42, TenantID: 8}}
+	authenticator, apiKey := newStaffPINAuthenticator(stub)
+
+	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+}
+
+func TestDevice_RejectsStaffCredentialWithoutAuthenticator(t *testing.T) {
+	t.Parallel()
+
+	authenticator, apiKey := newStaffPINAuthenticator(nil)
+
+	_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, "42", "personal-pin"))
+	require.NotNil(t, errResp, "a personal credential cannot be verified without an authenticator")
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+}
+
+func TestDevice_RejectsMalformedStaffID(t *testing.T) {
+	t.Parallel()
+
+	stub := &stubStaffPINAuthenticator{staff: &AuthenticatedStaff{ID: 42, TenantID: 7}}
+	authenticator, apiKey := newStaffPINAuthenticator(stub)
+
+	for _, staffID := range []string{"", "abc", "0", "-1"} {
+		_, errResp := authenticator.authenticateDevice(context.Background(), staffCredentials(apiKey, staffID, "personal-pin"))
+		require.NotNil(t, errResp, "staff id %q", staffID)
+		assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
+	}
+	assert.Zero(t, stub.calls, "malformed ids never reach the verifier")
+}
+
+// =============================================================================
+// School guard
+// =============================================================================
+
+func TestRejectDeletedSchool(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		schools    SchoolLookup
+		wantReject bool
+	}{
+		{"active school", &stubSchoolLookup{}, false},
+		{"soft-deleted school", &stubSchoolLookup{deleted: true}, true},
+		{"nil lookup fails open", nil, false},
+		{"school not found", &stubSchoolLookup{err: ErrSchoolNotFound}, true},
+		{"wrapped not found", &stubSchoolLookup{err: fmt.Errorf("find: %w", ErrSchoolNotFound)}, true},
+		{"transient lookup failure fails open", &stubSchoolLookup{err: ErrSchoolLookupUnavailable}, false},
+		{"wrapped transient failure fails open", &stubSchoolLookup{err: fmt.Errorf("%w: dial tcp", ErrSchoolLookupUnavailable)}, false},
+		{"other failure fails closed", &stubSchoolLookup{err: errors.New("permission denied")}, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			device := &AuthenticatedDevice{DeviceID: "device-001", TenantID: 100}
+			authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(tc.schools))
+
+			result := authenticator.rejectDeletedSchool(context.Background(), device)
+			if !tc.wantReject {
+				assert.Nil(t, result)
+				return
+			}
+			require.NotNil(t, result)
+			assert.Equal(t, statusForbidden, result.HTTPStatusCode)
+			assert.Equal(t, ErrDeviceInactive.Error(), result.ErrorText)
+		})
+	}
+}
+
+func TestRejectDeletedSchool_SkipsLookupWithoutTenant(t *testing.T) {
+	t.Parallel()
+
+	schools := &stubSchoolLookup{deleted: true}
+	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withSchools(schools))
+
+	assert.Nil(t, authenticator.rejectDeletedSchool(context.Background(), &AuthenticatedDevice{DeviceID: "device-001"}))
+	assert.Zero(t, schools.calls)
+}
+
+func TestDeviceOnly_DeletedSchool_Forbidden(t *testing.T) {
+	t.Parallel()
+
+	directory := newMockDeviceDirectory()
+	device := activeDevice("device-deleted-school")
+	device.TenantID = 100
+	directory.addDevice("valid-api-key-deleted", device)
+	authenticator := newTestAuthenticator(directory, withSchools(&stubSchoolLookup{deleted: true}))
+
+	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer("valid-api-key-deleted"))
+	require.NotNil(t, errResp, "devices belonging to deleted schools must be rejected")
+	assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
+	assert.False(t, directory.wasUpdated())
+}
+
+// =============================================================================
+// Error responses
 // =============================================================================
 
 func TestErrDeviceUnauthorized(t *testing.T) {
 	t.Parallel()
 
-	renderer := ErrDeviceUnauthorized(ErrInvalidAPIKey)
-	assert.NotNil(t, renderer)
-
-	errResp, ok := renderer.(*ErrResponse)
-	require.True(t, ok)
-	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
+	errResp := ErrDeviceUnauthorized(ErrInvalidAPIKey)
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 	assert.Equal(t, "error", errResp.StatusText)
 	assert.Equal(t, "invalid device API key", errResp.ErrorText)
+	assert.Equal(t, ErrInvalidAPIKey, errResp.Err)
 }
 
 func TestErrDeviceForbidden(t *testing.T) {
 	t.Parallel()
 
-	renderer := ErrDeviceForbidden(ErrDeviceInactive)
-	assert.NotNil(t, renderer)
-
-	errResp, ok := renderer.(*ErrResponse)
-	require.True(t, ok)
-	assert.Equal(t, http.StatusForbidden, errResp.HTTPStatusCode)
+	errResp := ErrDeviceForbidden(ErrDeviceInactive)
+	require.NotNil(t, errResp)
+	assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
 	assert.Equal(t, "error", errResp.StatusText)
 	assert.Equal(t, "device is not active", errResp.ErrorText)
 }
 
-func TestErrResponse_Render(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-
-	errResp := &ErrResponse{
-		Err:            ErrMissingAPIKey,
-		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
-		ErrorText:      "device API key is required",
-	}
-
-	err := errResp.Render(rr, req)
-	assert.NoError(t, err)
-}
-
-// =============================================================================
-// Error Types Tests
-// =============================================================================
-
+// TestErrorTypes pins the error strings PyrePortal maps to German UI text.
 func TestErrorTypes(t *testing.T) {
 	t.Parallel()
 
@@ -867,506 +781,78 @@ func TestErrorTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.expected, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tc.expected, tc.err.Error())
 		})
 	}
 }
 
 // =============================================================================
-// Context Key Tests
+// Last-seen recording through the middlewares
 // =============================================================================
 
-func TestCtxKey_DistinctValues(t *testing.T) {
+func TestDeviceOnly_UpdateLastSeenError(t *testing.T) {
 	t.Parallel()
 
-	assert.NotEqual(t, CtxDevice, CtxStaff)
-	assert.NotEqual(t, CtxDevice, CtxIsIoTDevice)
-	assert.NotEqual(t, CtxStaff, CtxIsIoTDevice)
+	directory := newMockDeviceDirectory()
+	directory.updateError = errors.New("database error")
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+
+	_, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
+	assert.Nil(t, errResp, "a failed last-seen write is logged, not blocking")
 }
 
-// =============================================================================
-// Update Last Seen Tests
-// =============================================================================
-
-func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
+func TestDeviceOnly_DebouncesLastSeenWrites(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	mockService.updateError = errors.New("database error")
+	directory := newMockDeviceDirectory()
+	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
+	authenticator := newTestAuthenticator(directory)
 
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockService.addDevice(apiKey, device)
+	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
+	require.Nil(t, errResp)
+	assert.True(t, directory.wasUpdated(), "first request should update last seen")
 
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		// Request should still succeed even if update fails
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	// Should still succeed - update error is logged but not blocking
-	assert.Equal(t, http.StatusOK, rr.Code)
+	directory.resetUpdated()
+	_, errResp = authenticator.authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
+	require.Nil(t, errResp)
+	assert.False(t, directory.wasUpdated(), "second request inside debounce window should skip last seen write")
 }
 
-func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
+func TestAuthenticators_ShareLastSeenDebouncer(t *testing.T) {
 	t.Parallel()
 
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-123"
-	device := &iot.Device{
-		DeviceID:   "device-001",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockService.addDevice(apiKey, device)
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req1.Header.Set("Authorization", "Bearer "+apiKey)
-	rr1 := httptest.NewRecorder()
-	r.ServeHTTP(rr1, req1)
-	assert.Equal(t, http.StatusOK, rr1.Code)
-	assert.True(t, mockService.updateCalled, "first request should update last seen")
-
-	mockService.updateCalled = false
-
-	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req2.Header.Set("Authorization", "Bearer "+apiKey)
-	rr2 := httptest.NewRecorder()
-	r.ServeHTTP(rr2, req2)
-	assert.Equal(t, http.StatusOK, rr2.Code)
-	assert.False(t, mockService.updateCalled, "second request inside debounce window should skip last seen write")
-}
-
-func TestDeviceAuthenticators_ShareLastSeenDebouncer(t *testing.T) {
-	t.Parallel()
-
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	const apiKey = "shared-debouncer-key"
-	mockService.addDevice(apiKey, &iot.Device{
-		ID:         1,
-		DeviceID:   "shared-debouncer-device",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	})
+	device := activeDevice("shared-debouncer-device")
+	device.ID = 1
+	directory.addDevice(apiKey, device)
+	authenticator := newTestAuthenticator(directory, withPIN(nil, "pin"))
 
+	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer(apiKey))
+	require.Nil(t, errResp)
+	assert.True(t, directory.wasUpdated())
+
+	directory.resetUpdated()
+	_, errResp = authenticator.authenticateDevice(context.Background(), pinCredentials(apiKey, "pin"))
+	require.Nil(t, errResp)
+	assert.False(t, directory.wasUpdated(), "both middlewares share one debouncer")
+}
+
+func TestNewAuthenticator_UsesSuppliedDebouncer(t *testing.T) {
+	t.Parallel()
+
+	directory := newMockDeviceDirectory()
+	directory.addDevice("key", activeDevice("device"))
 	debouncer := NewLastSeenDebouncer()
-	deviceOnly := chi.NewRouter()
-	deviceOnly.Use(DeviceOnlyAuthenticatorWithDebouncer(mockService, nil, debouncer))
-	deviceOnly.Get("/test", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	deviceAndPIN := chi.NewRouter()
-	deviceAndPIN.Use(DeviceAuthenticatorWithDebouncer(mockService, nil, nil, nil, "", debouncer))
-	deviceAndPIN.Get("/test", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
-	request := func(router http.Handler) {
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		router.ServeHTTP(httptest.NewRecorder(), req)
-	}
-	request(deviceOnly)
-	assert.True(t, mockService.updateCalled)
-
-	mockService.updateCalled = false
-	request(deviceAndPIN)
-	assert.False(t, mockService.updateCalled, "shared debouncer should suppress the second write")
-}
-
-// =============================================================================
-// PIN Timing Attack Resistance Tests
-// =============================================================================
-
-func TestExtractAndValidateAPIKey_NilDeviceReturn(t *testing.T) {
-	t.Parallel()
-
-	// Test the path where GetDeviceByAPIKey returns nil device with no error
-	mockService := &mockIoTServiceNilDevice{}
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-key-nil-device")
-
-	device, errResp := extractAndValidateAPIKey(req, mockService)
-
-	assert.Nil(t, device)
-	assert.NotNil(t, errResp)
-}
-
-// mockIoTServiceNilDevice returns nil device without error
-type mockIoTServiceNilDevice struct {
-	mockIoTService
-}
-
-func (m *mockIoTServiceNilDevice) GetDeviceByAPIKey(_ context.Context, _ string) (*iot.Device, error) {
-	return nil, nil // nil device, no error
-}
-
-func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
-	t.Parallel()
-	// Test the full middleware path where device is nil
-
-	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
-
-	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil, nil, nil, "test-pin"))
-	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/checkin", nil)
-	req.Header.Set("Authorization", "Bearer some-key")
-	req.Header.Set("X-Staff-PIN", "test-pin")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
-	t.Parallel()
-
-	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, nil))
-	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer some-key")
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-// =============================================================================
-// rejectDeletedSchool Tests
-// =============================================================================
-
-// mockSchoolRepo implements the SchoolLookup interface used by rejectDeletedSchool.
-type mockSchoolRepo struct {
-	school *platform.School
-	err    error
-}
-
-func (m *mockSchoolRepo) GetSchoolByID(_ context.Context, _ int64) (*platform.School, error) {
-	return m.school, m.err
-}
-
-func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
-	t.Parallel()
-
-	repo := &mockSchoolRepo{school: &platform.School{Active: true}}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.Nil(t, result, "active school should not be rejected")
-}
-
-func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now, Active: true}}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "deleted school should be rejected")
-}
-
-func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
-	t.Parallel()
-
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), nil, device)
-	assert.Nil(t, result, "nil repo should fail open")
-}
-
-func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
-	t.Parallel()
-
-	repo := &mockSchoolRepo{school: nil, err: nil}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "non-existent school should be rejected")
-}
-
-func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
-	t.Parallel()
-
-	// Non-transient errors (bad query, permission issue, etc.) must fail closed
-	// to prevent bypassing the soft-delete guard.
-	repo := &mockSchoolRepo{err: errors.New("connection refused")}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "non-transient DB errors should reject device")
-}
-
-func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
-	t.Parallel()
-
-	// Genuine transient connectivity errors should fail open so IoT devices
-	// keep working during brief outages.
-	repo := &mockSchoolRepo{err: &net.OpError{
-		Op:  "dial",
-		Net: "tcp",
-		Err: errors.New("connection refused"),
-	}}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.Nil(t, result, "transient DB errors should fail open")
-}
-
-func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
-	t.Parallel()
-
-	repo := &mockSchoolRepo{err: context.DeadlineExceeded}
-	device := &iot.Device{DeviceID: "device-001", TenantID: 100}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.Nil(t, result, "context deadline errors should fail open")
-}
-
-func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
-	t.Parallel()
-
-	mockService := newMockIoTService()
-	apiKey := "valid-api-key-deleted"
-	device := &iot.Device{
-		TenantID:   100,
-		DeviceID:   "device-deleted-school",
-		DeviceType: "terminal",
-		Status:     iot.DeviceStatusActive,
-	}
-	mockService.addDevice(apiKey, device)
-
-	now := time.Now()
-	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now}}
-
-	r := chi.NewRouter()
-	r.Use(DeviceOnlyAuthenticator(mockService, repo))
-	r.Get("/test", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	rr := httptest.NewRecorder()
-
-	r.ServeHTTP(rr, req)
-	assert.Equal(t, http.StatusForbidden, rr.Code, "devices belonging to deleted schools must be rejected")
-}
-
-func TestSecureCompareStrings_TimingResistance(t *testing.T) {
-	t.Parallel()
-
-	// This test verifies the constant-time comparison is used
-	// We can't easily test timing, but we can verify behavior
-
-	correctPIN := "correct-pin-12345"
-	wrongPIN := "wrong-pin-67890"
-	partialMatchPIN := "correct-pin-12346" // Differs only in last char
-
-	// All comparisons should return consistent results
-	assert.True(t, SecureCompareStrings(correctPIN, correctPIN))
-	assert.False(t, SecureCompareStrings(correctPIN, wrongPIN))
-	assert.False(t, SecureCompareStrings(correctPIN, partialMatchPIN))
-	assert.False(t, SecureCompareStrings(correctPIN, ""))
-	assert.False(t, SecureCompareStrings("", correctPIN))
-}
-
-// =============================================================================
-// isNotFoundErr Tests
-// =============================================================================
-
-func TestIsNotFoundErr(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "nil error",
-			err:  nil,
-			want: false,
-		},
-		{
-			name: "sql.ErrNoRows directly",
-			err:  sql.ErrNoRows,
-			want: true,
-		},
-		{
-			name: "DatabaseError wrapping sql.ErrNoRows",
-			err:  &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
-			want: true,
-		},
-		{
-			name: "DatabaseError wrapping a different error",
-			err:  &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
-			want: false,
-		},
-		{
-			name: "random error",
-			err:  errors.New("something went wrong"),
-			want: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isNotFoundErr(tc.err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// =============================================================================
-// isTransientDBErr Tests
-// =============================================================================
-
-// stubNetError implements net.Error for testing transient error detection.
-type stubNetError struct{}
-
-func (stubNetError) Error() string   { return "network error" }
-func (stubNetError) Timeout() bool   { return true }
-func (stubNetError) Temporary() bool { return true }
-
-func TestIsTransientDBErr(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{
-			name: "nil error",
-			err:  nil,
-			want: false,
-		},
-		{
-			name: "context.DeadlineExceeded",
-			err:  context.DeadlineExceeded,
-			want: true,
-		},
-		{
-			name: "context.Canceled",
-			err:  context.Canceled,
-			want: true,
-		},
-		{
-			name: "net.Error stub",
-			err:  stubNetError{},
-			want: true,
-		},
-		{
-			name: "DatabaseError wrapping context.DeadlineExceeded (recursive unwrap)",
-			err:  &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
-			want: true,
-		},
-		{
-			name: "random error",
-			err:  errors.New("some random error"),
-			want: false,
-		},
-		{
-			name: "sql.ErrNoRows is not transient",
-			err:  sql.ErrNoRows,
-			want: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := isTransientDBErr(tc.err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// =============================================================================
-// rejectDeletedSchool error-path Tests
-// =============================================================================
-
-func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
-	t.Parallel()
-
-	// FindByID returns sql.ErrNoRows wrapped in DatabaseError — should reject.
-	repo := &mockSchoolRepo{
-		err: &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
-	}
-	device := &iot.Device{
-		DeviceID: "device-notfound",
-		TenantID: 100,
-	}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "school not found (DatabaseError wrapping sql.ErrNoRows) should reject device")
-}
-
-func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
-	t.Parallel()
-
-	// FindByID returns context.DeadlineExceeded wrapped in DatabaseError — fail open.
-	repo := &mockSchoolRepo{
-		err: &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
-	}
-	device := &iot.Device{
-		DeviceID: "device-timeout",
-		TenantID: 100,
-	}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.Nil(t, result, "transient DB error (wrapped DeadlineExceeded) should fail open")
-}
-
-func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
-	t.Parallel()
-
-	// FindByID returns a permission error wrapped in DatabaseError — fail closed.
-	repo := &mockSchoolRepo{
-		err: &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
-	}
-	device := &iot.Device{
-		DeviceID: "device-permission",
-		TenantID: 100,
-	}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "non-transient DB error should reject device (fail closed)")
-}
-
-func TestRejectDeletedSchool_NilSchool(t *testing.T) {
-	t.Parallel()
-
-	// FindByID returns (nil, nil) — school doesn't exist, reject.
-	repo := &mockSchoolRepo{school: nil, err: nil}
-	device := &iot.Device{
-		DeviceID: "device-nil-school",
-		TenantID: 100,
-	}
-
-	result := rejectDeletedSchool(context.Background(), repo, device)
-	assert.NotNil(t, result, "nil school (no error) should reject device")
+	first := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, LastSeen: debouncer})
+	second := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, LastSeen: debouncer})
+
+	_, errResp := first.authenticateDeviceOnly(context.Background(), bearer("key"))
+	require.Nil(t, errResp)
+	directory.resetUpdated()
+	_, errResp = second.authenticateDeviceOnly(context.Background(), bearer("key"))
+	require.Nil(t, errResp)
+	assert.False(t, directory.wasUpdated(), "authenticators built over one debouncer share its state")
 }

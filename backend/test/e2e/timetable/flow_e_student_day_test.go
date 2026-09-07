@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -75,8 +76,8 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// --- Visits: B attends X (enrolled); B also attends Y (NOT enrolled) ---
 	// studentA we don't touch — she stays `expected`.
 	dev := testpkg.EnsureWebManualDevice(t, s.db)
-	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, dev)
-	ctx = context.WithValue(ctx, device.CtxStaff, staff)
+	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, testutil.DevicePrincipal(dev))
+	ctx = context.WithValue(ctx, device.CtxStaff, testutil.StaffPrincipal(staff))
 
 	// First visit: B into X (enrolled) → flips instance_students to present.
 	v1 := &studentpresence.Visit{

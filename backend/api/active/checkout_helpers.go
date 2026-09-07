@@ -86,7 +86,7 @@ func (rs *Resource) executeStudentCheckout(
 	checkoutCtx *checkoutContext,
 ) (*checkoutResult, error) {
 	// Embed staff in context for visit-end recording
-	actionCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	actionCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
 
 	// Action-explicit, race-safe checkout (issue #895). The service closes
 	// the attendance row AND ends any open visit in the same request

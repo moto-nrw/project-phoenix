@@ -729,9 +729,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		EntryTime:     now,
 	}
 	visit.TenantID = tenant.FromContext(ctx)
-	staff := &usersModel.Staff{}
-	staff.ID = staffID
-	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	visitCtx := context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: visit.TenantID})
 	var createErr error
 	if _, inTx := tenant.TransactionFromContext(visitCtx); inTx {
 		createErr = tenant.WithSavepoint(visitCtx, func(savepointCtx context.Context) error {
@@ -872,9 +870,7 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 	if visit == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
-	staff := &usersModel.Staff{}
-	staff.ID = staffID
-	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	visitCtx := context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: visit.TenantID})
 	if err := s.deps.ActiveService.EndVisit(visitCtx, visit.ID); err != nil {
 		if errors.Is(err, activeSvc.ErrVisitAlreadyEnded) {
 			return s.buildRoster(ctx, instanceID)

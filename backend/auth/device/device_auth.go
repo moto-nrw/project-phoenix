@@ -1,12 +1,16 @@
+// Package device authenticates kiosk requests by device API key and staff
+// PIN. It is the Device Fleet adapter for the IoT routes: it owns the wire
+// contract (headers, status codes, error strings) and the principal it hands
+// to handlers, while every fact it needs arrives through the ports below. The
+// composition root binds those ports to the Device Fleet capability, the
+// school directory, the staff PIN verification, and the tenant runtime.
 package device
 
 import (
 	"context"
 	"crypto/subtle"
-	"database/sql"
 	"errors"
 	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,13 +18,6 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type CtxKey int
@@ -31,23 +28,406 @@ const (
 	CtxIsIoTDevice
 )
 
-const lastSeenDebounceWindow = 60 * time.Second
+// activeStatus is the one Device Fleet lifecycle state this adapter decides
+// on. The vocabulary belongs to the owner; the composition root copies the
+// owner's status string verbatim into the principal.
+const activeStatus = "active"
 
-type lastSeenDebounceState struct {
-	mu            sync.Mutex
-	lastPersisted time.Time
-	latestSeen    time.Time
-	flushTimer    *time.Timer
-	writeInFlight bool
+// AuthenticatedDevice is the device principal handlers read from the request
+// context. It never carries the API key.
+type AuthenticatedDevice struct {
+	ID         int64
+	TenantID   int64
+	DeviceID   string
+	DeviceType string
+	Name       *string
+	Status     string
+	LastSeen   *time.Time
 }
 
-type LastSeenDebouncer struct{ cache sync.Map }
+// IsActive reports whether the device may serve requests.
+func (d *AuthenticatedDevice) IsActive() bool { return d != nil && d.Status == activeStatus }
 
-func NewLastSeenDebouncer() *LastSeenDebouncer { return &LastSeenDebouncer{} }
+// AuthenticatedStaff is the staff principal bound to a request after the
+// account PIN verified the caller. Only the identity is exposed; device
+// credentials stay separate from the human record behind them.
+type AuthenticatedStaff struct {
+	ID       int64
+	TenantID int64
+}
+
+// DeviceDirectory resolves device credentials and records device activity.
+// The composition root serves it from the public Device Fleet capability.
+type DeviceDirectory interface {
+	// FindByAPIKey returns the device that owns apiKey. Any error, and a nil
+	// device without an error, both reject the request as an invalid key.
+	FindByAPIKey(ctx context.Context, apiKey string) (*AuthenticatedDevice, error)
+	// RecordLastSeen writes the device's last_seen instant. It is addressed
+	// by the globally unique primary key so a ping stays cross-tenant safe.
+	RecordLastSeen(ctx context.Context, deviceID int64, seenAt time.Time) error
+}
+
+// Stable outcomes a SchoolLookup reports. Missing schools reject the device;
+// an unavailable lookup fails open for the duration of the outage.
+var (
+	ErrSchoolNotFound          = errors.New("school not found")
+	ErrSchoolLookupUnavailable = errors.New("school lookup unavailable")
+)
+
+// SchoolLookup answers the pre-tenant question whether the device's school
+// still accepts devices. Devices use long-lived API keys, so a deleted school
+// must be blocked immediately rather than waiting for token expiry.
+//
+// Implementations return ErrSchoolNotFound when the row is missing, wrap
+// ErrSchoolLookupUnavailable for transient connectivity failures, and return
+// any other error for failures that must reject the device.
+type SchoolLookup interface {
+	IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error)
+}
+
+// StaffPINAuthenticator verifies that a staff ID and account PIN belong to
+// the device tenant before the middleware exposes staff identity to handlers.
+type StaffPINAuthenticator interface {
+	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*AuthenticatedStaff, error)
+}
+
+// PINResolver resolves the device PIN for a given tenant.
+// Returns the PIN string, or empty if not configured.
+type PINResolver func(ctx context.Context, tenantID int64) string
+
+// TenantBinder makes the device's school the ambient tenant of the request.
+// Device routes carry no session, so this is where the tenant boundary is
+// established. An error marks the device row as unusable and the request is
+// rejected like an invalid API key.
+type TenantBinder func(ctx context.Context, tenantID int64) (context.Context, error)
+
+// Dependencies are the ports the authenticator needs.
+type Dependencies struct {
+	// Devices resolves API keys and records activity. Required.
+	Devices DeviceDirectory
+	// BindTenant establishes the tenant boundary. Required.
+	BindTenant TenantBinder
+	// Schools rejects devices of deleted schools. A nil lookup skips the
+	// check.
+	Schools SchoolLookup
+	// StaffPIN verifies personal staff credentials. A nil authenticator
+	// rejects requests that present them.
+	StaffPIN StaffPINAuthenticator
+	// PIN resolves the tenant device PIN; FallbackPIN is used when it is nil
+	// or returns an empty PIN.
+	PIN         PINResolver
+	FallbackPIN string
+	// LastSeen debounces last_seen writes. Authenticators built from one
+	// Dependencies value share it; a nil debouncer gets a fresh one.
+	LastSeen *LastSeenDebouncer
+}
+
+// Authenticator builds the device middlewares over one set of ports.
+type Authenticator struct{ deps Dependencies }
+
+// NewAuthenticator validates the required ports and shares one last-seen
+// debouncer between the middlewares it produces.
+func NewAuthenticator(deps Dependencies) *Authenticator {
+	if deps.Devices == nil || deps.BindTenant == nil {
+		panic("device authenticator: device directory and tenant binder are required")
+	}
+	if deps.LastSeen == nil {
+		deps.LastSeen = NewLastSeenDebouncer()
+	}
+	return &Authenticator{deps: deps}
+}
+
+// Device authenticates API key plus device PIN and, when a personal
+// credential is supplied, binds the verified staff identity.
+func (a *Authenticator) Device() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, errResp := a.authenticateDevice(r.Context(), credentialsFromRequest(r))
+			if errResp != nil {
+				renderDeviceAuthError(w, r, errResp)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// DeviceOnly authenticates the API key alone. It sets only the device
+// principal and the tenant; handlers behind it must not attribute actions to
+// a staff member.
+func (a *Authenticator) DeviceOnly() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, errResp := a.authenticateDeviceOnly(r.Context(), credentialsFromRequest(r))
+			if errResp != nil {
+				renderDeviceAuthError(w, r, errResp)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RejectAll is the fail-closed stand-in for a device route group whose
+// authenticator was never composed. Every request receives the missing-key
+// rejection, so a misconfigured graph can never serve kiosk routes
+// unauthenticated.
+func RejectAll() func(http.Handler) http.Handler {
+	return func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			slog.Warn("device authentication failed: no device authenticator configured")
+			renderDeviceAuthError(w, r, ErrDeviceUnauthorized(ErrMissingAPIKey))
+		})
+	}
+}
+
+// Required returns middleware when a composition root supplied it and the
+// fail-closed RejectAll otherwise. Resources call it while mounting their
+// device route groups, so a bare handler test or a broken graph logs the
+// misconfiguration and never serves kiosk routes unauthenticated.
+func Required(name string, middleware func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	if middleware != nil {
+		return middleware
+	}
+	slog.Error("device route group mounted without an authenticator; every request is rejected",
+		slog.String("middleware", name),
+	)
+	return RejectAll()
+}
+
+// credentials are the request headers the authenticator reads.
+type credentials struct {
+	authorization string
+	devicePIN     string
+	staffID       string
+	staffPIN      string
+}
+
+func credentialsFromRequest(r *http.Request) credentials {
+	return credentials{
+		authorization: r.Header.Get("Authorization"),
+		devicePIN:     r.Header.Get("X-Staff-PIN"),
+		staffID:       r.Header.Get("X-Staff-ID"),
+		staffPIN:      r.Header.Get("X-Staff-Auth-PIN"),
+	}
+}
+
+func (a *Authenticator) authenticateDeviceOnly(ctx context.Context, c credentials) (context.Context, *ErrResponse) {
+	device, errResp := a.resolveDevice(ctx, c.authorization)
+	if errResp != nil {
+		return nil, errResp
+	}
+	tenantCtx, err := a.deps.BindTenant(ctx, device.TenantID)
+	if err != nil {
+		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
+	}
+	tenantCtx = context.WithValue(tenantCtx, CtxDevice, device)
+
+	slog.Info("device-only authentication successful",
+		slog.String("device_id", device.DeviceID),
+	)
+	a.deps.LastSeen.updateDeviceLastSeen(ctx, a.deps.Devices, device)
+	return tenantCtx, nil
+}
+
+func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (context.Context, *ErrResponse) {
+	device, errResp := a.resolveDevice(ctx, c.authorization)
+	if errResp != nil {
+		return nil, errResp
+	}
+	tenantCtx, err := a.deps.BindTenant(ctx, device.TenantID)
+	if err != nil {
+		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
+	}
+	if errResp := a.validateDevicePIN(ctx, device, c.devicePIN); errResp != nil {
+		return nil, errResp
+	}
+	staff, errResp := a.authenticateStaff(ctx, device, c.staffID, c.staffPIN)
+	if errResp != nil {
+		return nil, errResp
+	}
+
+	tenantCtx = context.WithValue(tenantCtx, CtxDevice, device)
+	tenantCtx = context.WithValue(tenantCtx, CtxIsIoTDevice, true)
+	if staff != nil {
+		tenantCtx = context.WithValue(tenantCtx, CtxStaff, staff)
+	}
+	slog.Debug("device authentication successful",
+		slog.String("device_id", device.DeviceID),
+	)
+	a.deps.LastSeen.updateDeviceLastSeen(ctx, a.deps.Devices, device)
+	return tenantCtx, nil
+}
+
+// resolveDevice turns the Authorization header into an active device whose
+// school still exists.
+func (a *Authenticator) resolveDevice(ctx context.Context, authorization string) (*AuthenticatedDevice, *ErrResponse) {
+	device, errResp := a.extractAndValidateAPIKey(ctx, authorization)
+	if errResp != nil {
+		return nil, errResp
+	}
+	if errResp := a.rejectDeletedSchool(ctx, device); errResp != nil {
+		return nil, errResp
+	}
+	return device, nil
+}
+
+// extractAndValidateAPIKey parses the bearer token and resolves the device.
+func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorization string) (*AuthenticatedDevice, *ErrResponse) {
+	if authorization == "" {
+		slog.Warn("device authentication failed: missing Authorization header")
+		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
+	}
+
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authorization, bearerPrefix) {
+		slog.Warn("device authentication failed: invalid Authorization header format")
+		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKeyFormat)
+	}
+
+	apiKey := strings.TrimPrefix(authorization, bearerPrefix)
+	if apiKey == "" {
+		slog.Warn("device authentication failed: empty API key")
+		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
+	}
+
+	device, err := a.deps.Devices.FindByAPIKey(ctx, apiKey)
+	if err != nil {
+		slog.Warn("device authentication failed: invalid API key",
+			slog.String("error", err.Error()),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
+	}
+	if device == nil {
+		slog.Warn("device authentication failed: device not found")
+		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
+	}
+	if !device.IsActive() {
+		slog.Warn("device authentication failed: device not active",
+			slog.String("status", device.Status),
+		)
+		return nil, ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	return device, nil
+}
+
+// rejectDeletedSchool blocks devices whose school is gone or soft-deleted.
+// It runs before any tenant transaction exists. Only a transient lookup
+// failure fails open, so a brief outage does not take every kiosk offline;
+// every other failure fails closed so the soft-delete guard cannot be
+// bypassed.
+func (a *Authenticator) rejectDeletedSchool(ctx context.Context, device *AuthenticatedDevice) *ErrResponse {
+	if a.deps.Schools == nil || device.TenantID <= 0 {
+		return nil
+	}
+	deleted, err := a.deps.Schools.IsSchoolDeleted(ctx, device.TenantID)
+	switch {
+	case errors.Is(err, ErrSchoolNotFound):
+		slog.Warn("device authentication rejected: school not found",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	case errors.Is(err, ErrSchoolLookupUnavailable):
+		slog.Warn("school lookup failed during device auth, failing open (transient)",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	case err != nil:
+		slog.Error("school lookup failed during device auth, rejecting device",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+			slog.String("error", err.Error()),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	case deleted:
+		slog.Warn("device authentication rejected: school is soft-deleted",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("tenant_id", device.TenantID),
+		)
+		return ErrDeviceForbidden(ErrDeviceInactive)
+	}
+	return nil
+}
+
+func (a *Authenticator) resolveDevicePIN(ctx context.Context, tenantID int64) string {
+	if a.deps.PIN != nil && tenantID > 0 {
+		if pin := a.deps.PIN(ctx, tenantID); pin != "" {
+			return pin
+		}
+	}
+
+	slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
+		slog.Int64("tenant_id", tenantID),
+	)
+	return a.deps.FallbackPIN
+}
+
+func (a *Authenticator) validateDevicePIN(ctx context.Context, device *AuthenticatedDevice, staffPIN string) *ErrResponse {
+	if staffPIN == "" {
+		slog.Warn("device authentication failed: missing X-Staff-PIN header")
+		return ErrDeviceUnauthorized(ErrMissingPIN)
+	}
+
+	ogsPIN := a.resolveDevicePIN(ctx, device.TenantID)
+	if ogsPIN == "" {
+		slog.Error("OGS_DEVICE_PIN not configured")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	if !SecureCompareStrings(staffPIN, ogsPIN) {
+		slog.Warn("device authentication failed: invalid PIN")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+	return nil
+}
+
+func (a *Authenticator) authenticateStaff(ctx context.Context, device *AuthenticatedDevice, staffIDHeader, staffPIN string) (*AuthenticatedStaff, *ErrResponse) {
+	if staffIDHeader == "" && staffPIN == "" {
+		return nil, nil
+	}
+	// Deployed PyrePortal versions send X-Staff-ID without a personal PIN.
+	// Keep those requests working, but do not trust or expose the ID.
+	if staffPIN == "" {
+		return nil, nil
+	}
+	if staffIDHeader == "" || a.deps.StaffPIN == nil {
+		slog.Warn("device staff authentication failed: incomplete credentials",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staffID, err := strconv.ParseInt(staffIDHeader, 10, 64)
+	if err != nil || staffID <= 0 {
+		slog.Warn("device staff authentication failed: invalid staff ID",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staff, err := a.deps.StaffPIN.AuthenticateStaffPIN(ctx, device.TenantID, staffID, staffPIN)
+	if err != nil || staff == nil || staff.TenantID != device.TenantID {
+		slog.Warn("device staff authentication failed",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("staff_id", staffID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+	return staff, nil
+}
+
+func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp *ErrResponse) {
+	if err := render.Render(w, r, errResp); err != nil {
+		slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+	}
+}
 
 // DeviceFromCtx retrieves the authenticated device from request context.
-func DeviceFromCtx(ctx context.Context) *iot.Device {
-	device, ok := ctx.Value(CtxDevice).(*iot.Device)
+func DeviceFromCtx(ctx context.Context) *AuthenticatedDevice {
+	device, ok := ctx.Value(CtxDevice).(*AuthenticatedDevice)
 	if !ok {
 		return nil
 	}
@@ -55,8 +435,8 @@ func DeviceFromCtx(ctx context.Context) *iot.Device {
 }
 
 // StaffFromCtx retrieves the authenticated staff from request context.
-func StaffFromCtx(ctx context.Context) *users.Staff {
-	staff, ok := ctx.Value(CtxStaff).(*users.Staff)
+func StaffFromCtx(ctx context.Context) *AuthenticatedStaff {
+	staff, ok := ctx.Value(CtxStaff).(*AuthenticatedStaff)
 	if !ok {
 		return nil
 	}
@@ -70,58 +450,35 @@ func IsIoTDeviceRequest(ctx context.Context) bool {
 	return ok && isIoT
 }
 
-// extractAndValidateAPIKey extracts the API key from the Authorization header and validates the device.
-// Returns the device if valid, or an error response to render.
-func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.Device, render.Renderer) {
-	// Extract API key from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		slog.Warn("device authentication failed: missing Authorization header")
-		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
-	}
-
-	// Parse Bearer token
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		slog.Warn("device authentication failed: invalid Authorization header format")
-		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKeyFormat)
-	}
-
-	apiKey := strings.TrimPrefix(authHeader, bearerPrefix)
-	if apiKey == "" {
-		slog.Warn("device authentication failed: empty API key")
-		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
-	}
-
-	// Validate API key and get device
-	device, err := iotService.GetDeviceByAPIKey(r.Context(), apiKey)
-	if err != nil {
-		slog.Warn("device authentication failed: invalid API key",
-			slog.String("error", err.Error()),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
-	}
-
-	if device == nil {
-		slog.Warn("device authentication failed: device not found")
-		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
-	}
-
-	// Check if device is active
-	if !device.IsActive() {
-		slog.Warn("device authentication failed: device not active",
-			slog.String("status", string(device.Status)),
-		)
-		return nil, ErrDeviceForbidden(ErrDeviceInactive)
-	}
-
-	return device, nil
+// SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks
+func SecureCompareStrings(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
+
+// =============================================================================
+// Last-seen debouncing
+// =============================================================================
+
+const lastSeenDebounceWindow = 60 * time.Second
+
+type lastSeenDebounceState struct {
+	mu            sync.Mutex
+	lastPersisted time.Time
+	latestSeen    time.Time
+	flushTimer    *time.Timer
+	writeInFlight bool
+}
+
+// LastSeenDebouncer coalesces last_seen writes per device so a chatty kiosk
+// produces at most one write per debounce window.
+type LastSeenDebouncer struct{ cache sync.Map }
+
+func NewLastSeenDebouncer() *LastSeenDebouncer { return &LastSeenDebouncer{} }
 
 // updateDeviceLastSeen updates the device's last seen timestamp, logging any errors.
 // Uses device.ID (PK, globally unique) for the debounce cache key and DB update
 // to avoid cross-tenant collisions when device_id strings overlap.
-func (d *LastSeenDebouncer) updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
+func (d *LastSeenDebouncer) updateDeviceLastSeen(ctx context.Context, devices DeviceDirectory, device *AuthenticatedDevice) {
 	now := time.Now()
 	device.LastSeen = &now
 
@@ -133,12 +490,12 @@ func (d *LastSeenDebouncer) updateDeviceLastSeen(r *http.Request, iotService iot
 	if shouldWriteNow {
 		state.writeInFlight = true
 		state.mu.Unlock()
-		d.persistLastSeen(r.Context(), iotService, device.ID, now, state)
+		d.persistLastSeen(ctx, devices, device.ID, now, state)
 		return
 	}
 
 	if !state.writeInFlight {
-		d.scheduleDeferredFlushLocked(iotService, device.ID, state, now)
+		d.scheduleDeferredFlushLocked(devices, device.ID, state, now)
 	}
 	state.mu.Unlock()
 }
@@ -156,8 +513,8 @@ func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounce
 	return actualState
 }
 
-func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotSvc.Service, id int64, observedAt time.Time, state *lastSeenDebounceState) {
-	if err := iotService.UpdateDeviceLastSeenAt(ctx, id, observedAt); err != nil {
+func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, devices DeviceDirectory, id int64, observedAt time.Time, state *lastSeenDebounceState) {
+	if err := devices.RecordLastSeen(ctx, id, observedAt); err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.Int64("device_pk", id),
 			slog.String("error", err.Error()),
@@ -167,7 +524,7 @@ func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotS
 		if state.latestSeen.After(observedAt) {
 			state.lastPersisted = observedAt
 		}
-		d.scheduleDeferredFlushLocked(iotService, id, state, time.Now())
+		d.scheduleDeferredFlushLocked(devices, id, state, time.Now())
 		state.mu.Unlock()
 		return
 	}
@@ -175,11 +532,11 @@ func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, iotService iotS
 	state.mu.Lock()
 	state.lastPersisted = observedAt
 	state.writeInFlight = false
-	d.scheduleDeferredFlushLocked(iotService, id, state, time.Now())
+	d.scheduleDeferredFlushLocked(devices, id, state, time.Now())
 	state.mu.Unlock()
 }
 
-func (d *LastSeenDebouncer) flushDeferredLastSeen(iotService iotSvc.Service, id int64, state *lastSeenDebounceState) {
+func (d *LastSeenDebouncer) flushDeferredLastSeen(devices DeviceDirectory, id int64, state *lastSeenDebounceState) {
 	state.mu.Lock()
 	latestSeen := state.latestSeen
 	lastPersisted := state.lastPersisted
@@ -191,10 +548,10 @@ func (d *LastSeenDebouncer) flushDeferredLastSeen(iotService iotSvc.Service, id 
 	state.writeInFlight = true
 	state.mu.Unlock()
 
-	d.persistLastSeen(context.Background(), iotService, id, latestSeen, state)
+	d.persistLastSeen(context.Background(), devices, id, latestSeen, state)
 }
 
-func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *lastSeenDebounceState, now time.Time) {
+func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(devices DeviceDirectory, id int64, state *lastSeenDebounceState, now time.Time) {
 	if state.writeInFlight || state.flushTimer != nil || state.lastPersisted.IsZero() || !state.latestSeen.After(state.lastPersisted) {
 		return
 	}
@@ -205,387 +562,6 @@ func (d *LastSeenDebouncer) scheduleDeferredFlushLocked(iotService iotSvc.Servic
 	}
 
 	state.flushTimer = time.AfterFunc(delay, func() {
-		d.flushDeferredLastSeen(iotService, id, state)
+		d.flushDeferredLastSeen(devices, id, state)
 	})
-}
-
-// PINResolver resolves the device PIN for a given tenant.
-// Returns the PIN string, or empty if not configured.
-type PINResolver func(ctx context.Context, tenantID int64) string
-
-// SchoolLookup is the narrow school read the device authenticators need
-// (issue #584: handlers must not wire repositories; satisfied by
-// services/platform.SchoolService, which returns repository results and
-// errors verbatim).
-type SchoolLookup interface {
-	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
-}
-
-// StaffPINAuthenticator verifies that a staff ID and account PIN belong to
-// the device tenant before the middleware exposes staff identity to handlers.
-type StaffPINAuthenticator interface {
-	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error)
-}
-
-func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp render.Renderer) {
-	if err := render.Render(w, r, errResp); err != nil {
-		slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-	}
-}
-
-func resolveDevicePIN(ctx context.Context, tenantID int64, pinResolver PINResolver, fallbackPIN string) string {
-	if pinResolver != nil && tenantID > 0 {
-		if pin := pinResolver(ctx, tenantID); pin != "" {
-			return pin
-		}
-	}
-
-	slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
-		slog.Int64("tenant_id", tenantID),
-	)
-	return fallbackPIN
-}
-
-func validateDevicePIN(r *http.Request, device *iot.Device, pinResolver PINResolver, fallbackPIN string) render.Renderer {
-	staffPIN := r.Header.Get("X-Staff-PIN")
-	if staffPIN == "" {
-		slog.Warn("device authentication failed: missing X-Staff-PIN header")
-		return ErrDeviceUnauthorized(ErrMissingPIN)
-	}
-
-	ogsPIN := resolveDevicePIN(r.Context(), device.TenantID, pinResolver, fallbackPIN)
-	if ogsPIN == "" {
-		slog.Error("OGS_DEVICE_PIN not configured")
-		return ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	if !SecureCompareStrings(staffPIN, ogsPIN) {
-		slog.Warn("device authentication failed: invalid PIN")
-		return ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	return nil
-}
-
-func authenticateStaffContext(
-	ctx context.Context,
-	authenticator StaffPINAuthenticator,
-	device *iot.Device,
-	staffIDHeader, staffPIN string,
-) (*users.Staff, render.Renderer) {
-	if staffIDHeader == "" && staffPIN == "" {
-		return nil, nil
-	}
-	// Deployed PyrePortal versions send X-Staff-ID without a personal PIN.
-	// Keep those requests working, but do not trust or expose the ID.
-	if staffPIN == "" {
-		return nil, nil
-	}
-	if staffIDHeader == "" || authenticator == nil {
-		slog.Warn("device staff authentication failed: incomplete credentials",
-			slog.String("device_id", device.DeviceID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	staffID, err := strconv.ParseInt(staffIDHeader, 10, 64)
-	if err != nil || staffID <= 0 {
-		slog.Warn("device staff authentication failed: invalid staff ID",
-			slog.String("device_id", device.DeviceID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-
-	staff, err := authenticator.AuthenticateStaffPIN(ctx, device.TenantID, staffID, staffPIN)
-	if err != nil || staff == nil || staff.TenantID != device.TenantID {
-		slog.Warn("device staff authentication failed",
-			slog.String("device_id", device.DeviceID),
-			slog.Int64("staff_id", staffID),
-		)
-		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
-	}
-	return staff, nil
-}
-
-func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *users.Staff, tenantID tenant.TenantID) context.Context {
-	ctx := context.WithValue(r.Context(), CtxDevice, device)
-	ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
-	if staff != nil {
-		ctx = context.WithValue(ctx, CtxStaff, staff)
-	}
-
-	// Device-auth routes don't use jwt.TenantMiddleware.
-	return tenant.WithTenant(ctx, tenantID)
-}
-
-func serveAuthenticatedDeviceRequest(
-	w http.ResponseWriter,
-	r *http.Request,
-	next http.Handler,
-	iotService iotSvc.Service,
-	schools SchoolLookup,
-	staffPINAuthenticator StaffPINAuthenticator,
-	pinResolver PINResolver,
-	fallbackPIN string,
-	debouncer *LastSeenDebouncer,
-	observeMissingTenant func(context.Context, error),
-) {
-	device, errResp := extractAndValidateAPIKey(r, iotService)
-	if errResp != nil {
-		renderDeviceAuthError(w, r, errResp)
-		return
-	}
-
-	// Devices use long-lived API keys, so deleted schools must be blocked
-	// immediately rather than waiting for token expiry.
-	if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
-		renderDeviceAuthError(w, r, errResp)
-		return
-	}
-
-	tenantID, err := tenant.NewTenantID(device.TenantID)
-	if err != nil {
-		observeMissingTenant(r.Context(), err)
-		renderDeviceAuthError(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey))
-		return
-	}
-	if errResp := validateDevicePIN(r, device, pinResolver, fallbackPIN); errResp != nil {
-		renderDeviceAuthError(w, r, errResp)
-		return
-	}
-
-	staff, errResp := authenticateStaffContext(
-		r.Context(),
-		staffPINAuthenticator,
-		device,
-		r.Header.Get("X-Staff-ID"),
-		r.Header.Get("X-Staff-Auth-PIN"),
-	)
-	if errResp != nil {
-		renderDeviceAuthError(w, r, errResp)
-		return
-	}
-
-	ctx := authenticatedDeviceContext(r, device, staff, tenantID)
-	slog.Debug("device authentication successful",
-		slog.String("device_id", device.DeviceID),
-	)
-	debouncer.updateDeviceLastSeen(r, iotService, device)
-	next.ServeHTTP(w, r.WithContext(ctx))
-}
-
-// DeviceAuthenticatorWithDebouncer is DeviceAuthenticator with an injected
-// last-seen debouncer for routes that must share update state.
-func DeviceAuthenticatorWithDebouncer(
-	iotService iotSvc.Service,
-	schools SchoolLookup,
-	staffPINAuthenticator StaffPINAuthenticator,
-	pinResolver PINResolver,
-	fallbackPIN string,
-	debouncer *LastSeenDebouncer,
-) func(http.Handler) http.Handler {
-	if debouncer == nil {
-		debouncer = NewLastSeenDebouncer()
-	}
-	return deviceAuthenticator(iotService, schools, staffPINAuthenticator, pinResolver, fallbackPIN, debouncer, tenant.ObserveMissingTenant)
-}
-
-func deviceAuthenticator(
-	iotService iotSvc.Service,
-	schools SchoolLookup,
-	staffPINAuthenticator StaffPINAuthenticator,
-	pinResolver PINResolver,
-	fallbackPIN string,
-	debouncer *LastSeenDebouncer,
-	observeMissingTenant func(context.Context, error),
-) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serveAuthenticatedDeviceRequest(
-				w,
-				r,
-				next,
-				iotService,
-				schools,
-				staffPINAuthenticator,
-				pinResolver,
-				fallbackPIN,
-				debouncer,
-				observeMissingTenant,
-			)
-		})
-	}
-}
-
-// DeviceOnlyAuthenticatorWithDebouncer is DeviceOnlyAuthenticator with an
-// injected last-seen debouncer for routes that must share update state.
-func DeviceOnlyAuthenticatorWithDebouncer(iotService iotSvc.Service, schools SchoolLookup, debouncer *LastSeenDebouncer) func(http.Handler) http.Handler {
-	if debouncer == nil {
-		debouncer = NewLastSeenDebouncer()
-	}
-	return deviceOnlyAuthenticator(iotService, schools, debouncer, tenant.ObserveMissingTenant)
-}
-
-func deviceOnlyAuthenticator(
-	iotService iotSvc.Service,
-	schools SchoolLookup,
-	debouncer *LastSeenDebouncer,
-	observeMissingTenant func(context.Context, error),
-) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Validate API key and get device
-			device, errResp := extractAndValidateAPIKey(r, iotService)
-			if errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Reject requests for devices belonging to soft-deleted schools.
-			if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			tenantID, err := tenant.NewTenantID(device.TenantID)
-			if err != nil {
-				observeMissingTenant(r.Context(), err)
-				if renderErr := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey)); renderErr != nil {
-					slog.Error("failed to render device auth error", slog.String("error", renderErr.Error()))
-				}
-				return
-			}
-
-			// Authentication successful - set device context only
-			ctx := context.WithValue(r.Context(), CtxDevice, device)
-			ctx = tenant.WithTenant(ctx, tenantID)
-
-			slog.Info("device-only authentication successful",
-				slog.String("device_id", device.DeviceID),
-			)
-			debouncer.updateDeviceLastSeen(r, iotService, device)
-
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
-// rejectDeletedSchool checks if the device's school has been soft-deleted.
-// Returns an error renderer if the school is deleted, nil otherwise.
-// Runs before TenantTxMiddleware, so there is no tenant transaction in
-// context; the underlying repository falls back to the raw *bun.DB connection
-// which is fine because platform.schools is not behind RLS. Fails open only
-// on transient DB errors (connection failures) to avoid breaking all IoT
-// devices during outages. "Not found" errors (school row deleted/missing)
-// are treated as rejection.
-func rejectDeletedSchool(ctx context.Context, schools SchoolLookup, device *iot.Device) render.Renderer {
-	if schools == nil || device.TenantID <= 0 {
-		return nil
-	}
-	school, err := schools.GetSchoolByID(ctx, device.TenantID)
-	if err != nil {
-		// Distinguish "not found" from transient connectivity errors.
-		// The repository wraps sql.ErrNoRows in a DatabaseError — unwrap and
-		// check.
-		if isNotFoundErr(err) {
-			slog.Warn("device authentication rejected: school not found",
-				slog.String("device_id", device.DeviceID),
-				slog.Int64("tenant_id", device.TenantID),
-			)
-			return ErrDeviceForbidden(ErrDeviceInactive)
-		}
-		// Fail open ONLY on transient connectivity errors (net timeouts,
-		// connection resets, driver-level connection failures) to avoid
-		// breaking all IoT devices during brief outages. All other errors
-		// (permission issues, serialization failures, bad queries) fail
-		// closed to prevent bypassing the soft-delete guard.
-		if isTransientDBErr(err) {
-			slog.Warn("school lookup failed during device auth, failing open (transient)",
-				slog.String("device_id", device.DeviceID),
-				slog.Int64("tenant_id", device.TenantID),
-				slog.String("error", err.Error()),
-			)
-			return nil
-		}
-		// Non-transient, non-not-found error — fail closed.
-		slog.Error("school lookup failed during device auth, rejecting device",
-			slog.String("device_id", device.DeviceID),
-			slog.Int64("tenant_id", device.TenantID),
-			slog.String("error", err.Error()),
-		)
-		return ErrDeviceForbidden(ErrDeviceInactive)
-	}
-	if school == nil {
-		// School genuinely doesn't exist — reject the device.
-		return ErrDeviceForbidden(ErrDeviceInactive)
-	}
-	if school.IsDeleted() {
-		slog.Warn("device authentication rejected: school is soft-deleted",
-			slog.String("device_id", device.DeviceID),
-			slog.Int64("tenant_id", device.TenantID),
-		)
-		return ErrDeviceForbidden(ErrDeviceInactive)
-	}
-	return nil
-}
-
-// isTransientDBErr returns true for errors that indicate a temporary
-// connectivity problem (net timeouts, connection resets, context
-// cancellation, PostgreSQL connection-class SQLSTATE 08xxx).
-// Everything else (bad queries, permission errors, serialization
-// failures) returns false so the caller can fail closed.
-func isTransientDBErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Context-level timeouts / cancellations.
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return true
-	}
-
-	// Net-level errors (timeouts, connection resets).
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-
-	// pgdriver connection-class errors (SQLSTATE 08xxx).
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C')
-		if len(code) >= 2 && code[:2] == "08" {
-			return true
-		}
-	}
-
-	// Unwrap DatabaseError and check the inner error.
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		return isTransientDBErr(dbErr.Err)
-	}
-
-	return false
-}
-
-// isNotFoundErr checks if an error represents a "not found" condition,
-// unwrapping DatabaseError if necessary.
-func isNotFoundErr(err error) bool {
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		return errors.Is(dbErr.Err, sql.ErrNoRows)
-	}
-	return false
-}
-
-// SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks
-func SecureCompareStrings(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -103,7 +104,7 @@ func (s personServiceWithTeacherRepo) GetTeacherWithStaffAndPerson(ctx context.C
 func requestWithDeviceContext() *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/teachers", nil)
 	deviceModel := &iotModels.Device{DeviceID: "dev-1"}
-	ctx := context.WithValue(req.Context(), device.CtxDevice, deviceModel)
+	ctx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(deviceModel))
 	return req.WithContext(ctx)
 }
 

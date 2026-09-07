@@ -39,16 +39,11 @@ type Service interface {
 	DeviceOnlineWindow(ctx context.Context) time.Duration
 	IsDeviceOnline(ctx context.Context, device *iot.Device) bool
 	IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now time.Time) bool
+	IsLastSeenOnline(ctx context.Context, lastSeen *time.Time) bool
 
 	// Network operations
 	DetectNewDevices(ctx context.Context) ([]*iot.Device, error)
 	ScanNetwork(ctx context.Context) (map[string]string, error)
-
-	// Authentication operations
-	GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error)
-
-	// Targeted last-seen update by PK (skips existence check and full-model update)
-	UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error
 
 	// Fleet exposes the Device Fleet owner this service delegates to, so the
 	// composition root binds one instance for every entry point (#2676).

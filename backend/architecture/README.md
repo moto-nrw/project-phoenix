@@ -238,6 +238,17 @@ existing imports; it adds no runtime dependency or composition caller.
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
 
+The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
+is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
+permissions for the retained `models/platform` school row, the
+`models/config` setting key, and the `database/sql`/`pgdriver` error
+classification exist only because PR mode cannot record debt for a package
+the candidate creates. They are compatibility permissions for the retained
+school service and settings service, not target dependencies: convert them
+to exact debt with the rule above once the package exists at a base SHA, and
+replace them with an Organisation & Tenancy school query and a Settings
+Platform read when those owners expose them.
+
 PR mode allows a classification when the candidate adds the first Go file in
 that exact package. Rules added with it must be anchored to an owner and role
 used only by candidate-created packages; owner-kind rules remain forbidden.

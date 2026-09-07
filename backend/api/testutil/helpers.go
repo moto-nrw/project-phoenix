@@ -52,6 +52,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -505,13 +506,60 @@ func SeedTestJWTConfig() {
 	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
 }
 
+// NewDeviceAuthenticators composes the production device authentication
+// middleware for handler tests. staffPIN may be nil when a test never
+// presents a personal staff credential; settings may be nil to authenticate
+// with fallbackPIN alone.
+func NewDeviceAuthenticators(
+	devices deviceauth.Fleet,
+	schools deviceauth.SchoolDirectory,
+	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error),
+	settings deviceauth.Settings,
+	fallbackPIN string,
+) *deviceauth.Authenticators {
+	return deviceauth.New(deviceauth.Dependencies{
+		Devices:     devices,
+		Schools:     schools,
+		StaffPIN:    deviceauth.StaffPIN(staffPIN),
+		Settings:    settings,
+		FallbackPIN: fallbackPIN,
+	})
+}
+
+// DevicePrincipal converts a device row into the principal the device auth
+// middleware binds to a request, so handler tests see exactly what
+// production handlers see. It never copies the API key.
+func DevicePrincipal(d *iot.Device) *device.AuthenticatedDevice {
+	if d == nil {
+		return nil
+	}
+	return &device.AuthenticatedDevice{
+		ID:         d.ID,
+		TenantID:   d.TenantID,
+		DeviceID:   d.DeviceID,
+		DeviceType: d.DeviceType,
+		Name:       d.Name,
+		Status:     string(d.Status),
+		LastSeen:   d.LastSeen,
+	}
+}
+
+// StaffPrincipal converts a staff row into the principal the device auth
+// middleware binds after a verified account PIN.
+func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
+	if s == nil {
+		return nil
+	}
+	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
+}
+
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create
 // a tenant-scoped transaction (mirrors production device auth middleware).
 func WithDeviceContext(d *iot.Device) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+		ctx := context.WithValue(req.Context(), device.CtxDevice, DevicePrincipal(d))
 		if tid := d.GetTenantID(); tid != 0 {
 			ctx = tenant.WithTenantID(ctx, tid)
 		}
@@ -523,7 +571,7 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 // This is used for testing endpoints that require staff authentication.
 func WithStaffContext(s *users.Staff) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxStaff, s)
+		ctx := context.WithValue(req.Context(), device.CtxStaff, StaffPrincipal(s))
 		*req = *req.WithContext(ctx)
 	}
 }
