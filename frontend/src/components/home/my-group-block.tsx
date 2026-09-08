@@ -139,7 +139,9 @@ export function MyGroupBlock() {
         return (
           <>
             {stats && (
-              <p className="mb-2 text-sm text-gray-600 sm:truncate">{stats}</p>
+              <p className="mb-1.5 text-sm text-gray-600 sm:truncate">
+                {stats}
+              </p>
             )}
             {rows.length === 0 ? (
               <EmptyState
@@ -148,7 +150,7 @@ export function MyGroupBlock() {
               />
             ) : (
               <>
-                <ul className="space-y-2">
+                <ul className="space-y-1.5">
                   {shown.map((row) => {
                     switch (row.kind) {
                       case "missing":
@@ -188,24 +190,45 @@ export function MyGroupBlock() {
   );
 }
 
-function StudentName({ student }: { readonly student: OgsLiveWireStudent }) {
+/**
+ * Name, Klasse und (wenn vorhanden) die Notiz der Eltern. Auf dem Handy
+ * zwei Zeilen; ab der zweispaltigen Ansicht EINE, damit drei Zeilen in die
+ * feste Kartenhöhe passen — dort ist die Zeile breit genug, und die Notiz
+ * wird am Ende gekürzt statt die Karte zu sprengen.
+ */
+function StudentName({
+  student,
+  note,
+}: {
+  readonly student: OgsLiveWireStudent;
+  readonly note?: string;
+}) {
   return (
-    <span className="block truncate text-sm">
-      <span className="font-medium text-gray-900">
-        {student.first_name} {student.last_name}
-      </span>
-      {student.school_class && (
-        <span className="text-gray-500">
-          {" · "}
-          {student.school_class}
+    <span className="flex min-w-0 flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
+      <span className="truncate text-sm sm:shrink-0">
+        <span className="font-medium text-gray-900">
+          {student.first_name} {student.last_name}
         </span>
+        {student.school_class && (
+          <span className="text-gray-500">
+            {" · "}
+            {student.school_class}
+          </span>
+        )}
+      </span>
+      {note && (
+        <span className="min-w-0 truncate text-xs text-gray-500">{note}</span>
       )}
     </span>
   );
 }
 
 const ROW_CLASS =
-  "flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50";
+  "flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 sm:py-1.5";
+
+/** Rechts in der Zeile: die Uhrzeit und was sie bedeutet, ab `sm` nebeneinander. */
+const ROW_TIME_CLASS =
+  "flex shrink-0 flex-col items-end gap-0.5 sm:flex-row sm:items-baseline sm:gap-1.5";
 
 /**
  * Ein Kind, das längst da sein sollte: die Zeile, die man am Vormittag
@@ -228,13 +251,8 @@ function MissingRow({
         aria-label={`${student.first_name} ${student.last_name}, fehlt seit ${expected}: Gruppe öffnen`}
         className={`${ROW_CLASS} bg-moto-red/5 hover:bg-moto-red/10`}
       >
-        <span className="min-w-0">
-          <StudentName student={student} />
-          {note && (
-            <span className="block truncate text-xs text-gray-500">{note}</span>
-          )}
-        </span>
-        <span className="flex shrink-0 flex-col items-end gap-0.5">
+        <StudentName student={student} note={note} />
+        <span className={ROW_TIME_CLASS}>
           <span className="text-sm font-semibold text-gray-900 tabular-nums">
             {expected}
           </span>
@@ -264,13 +282,8 @@ function PickupRow({
         aria-label={`${student.first_name} ${student.last_name}, Abholung ${time}: Gruppe öffnen`}
         className={ROW_CLASS}
       >
-        <span className="min-w-0">
-          <StudentName student={student} />
-          {note && (
-            <span className="block truncate text-xs text-gray-500">{note}</span>
-          )}
-        </span>
-        <span className="flex shrink-0 flex-col items-end gap-0.5">
+        <StudentName student={student} note={note} />
+        <span className={ROW_TIME_CLASS}>
           <span className="text-sm font-semibold text-gray-900 tabular-nums">
             {time}
           </span>
@@ -299,14 +312,10 @@ function AwayRow({
         aria-label={`${student.first_name} ${student.last_name}: Gruppe öffnen`}
         className={ROW_CLASS}
       >
-        <span className="min-w-0">
-          <StudentName student={student} />
-          {student.arrival_notes && (
-            <span className="block truncate text-xs text-gray-500">
-              {student.arrival_notes}
-            </span>
-          )}
-        </span>
+        <StudentName
+          student={student}
+          note={student.arrival_notes || undefined}
+        />
         <AwayBadge student={student} />
       </Link>
     </li>
