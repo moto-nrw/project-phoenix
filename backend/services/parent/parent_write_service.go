@@ -493,24 +493,7 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 		return nil
 	})
 	if txErr != nil {
-		switch {
-		case errors.Is(txErr, careplan.ErrExcusedRequestNoDates):
-			return nil, ErrNoDates
-		case errors.Is(txErr, careplan.ErrExcusedRequestEmptyNote):
-			return nil, ErrEmptyNote
-		case errors.Is(txErr, careplan.ErrExcusedRequestNoteTooLong):
-			return nil, ErrNoteTooLong
-		case errors.Is(txErr, careplan.ErrExcusedRequestOverlap):
-			return nil, ErrExcusedRequestOverlap
-		// A planned partial-day excusal already owns one of the requested dates
-		// (same refusal as a direct parent status write that hits
-		// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
-		// conflict so the handler returns HTTP 409, not 500.
-		case errors.Is(txErr, careplan.ErrExcusedRequestStatusConflict):
-			return nil, ErrCareExceptionConflict
-		default:
-			return nil, fmt.Errorf("parent: submit absence request: %w", txErr)
-		}
+		return nil, mapExcusedRequestError(txErr, "submit absence request")
 	}
 	s.Logger.Info("parent submitted absence request",
 		slog.Int64("account_id", accountID),
@@ -605,6 +588,20 @@ func (s *service) guardianReasonRequired(ctx context.Context, tenantID int64) bo
 // (stale, reason required).
 func mapExcusedRequestError(err error, op string) error {
 	switch {
+	case errors.Is(err, careplan.ErrExcusedRequestNoDates):
+		return ErrNoDates
+	case errors.Is(err, careplan.ErrExcusedRequestEmptyNote):
+		return ErrEmptyNote
+	case errors.Is(err, careplan.ErrExcusedRequestNoteTooLong):
+		return ErrNoteTooLong
+	case errors.Is(err, careplan.ErrExcusedRequestOverlap):
+		return ErrExcusedRequestOverlap
+	// A planned partial-day excusal already owns one of the requested dates
+	// (same refusal as a direct parent status write that hits
+	// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
+	// conflict so the handler returns HTTP 409, not 500.
+	case errors.Is(err, careplan.ErrExcusedRequestStatusConflict):
+		return ErrCareExceptionConflict
 	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
 		return ErrExcusedRequestNotFound
 	case errors.Is(err, careplan.ErrExcusedRequestNotPending):

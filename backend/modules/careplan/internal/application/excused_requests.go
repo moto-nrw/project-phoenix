@@ -541,34 +541,7 @@ func (w *ExcusedRequests) Decide(ctx context.Context, input careplan.ExcusedRequ
 	}
 
 	if input.Approve {
-		// Approving a request whose days have all passed would write absence
-		// records into a settled past. Staff either reject it or mark it done.
-		if parentRequestIsPast(excusedScopeEnd(&req), today) {
-			return nil, careplan.ErrParentRequestPast
-		}
-		if requestExtendsBeyondCare(&req, &student) {
-			return nil, careplan.ErrExcusedRequestNotFound
-		}
-		if err := w.ensureNoPartialAbsence(ctx, req.StudentID, req.Dates); err != nil {
-			return nil, err
-		}
-		// Refuse to apply when the submitting guardian has lost access to the
-		// child since the request was filed. Approving writes parent-sourced
-		// status days and posts a parent-visible pill for a recipient the
-		// parent APIs now hide; staff wind such a request down by rejecting.
-		if w.messenger != nil {
-			hasAccess, err := w.messenger.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
-			if err != nil {
-				return nil, fmt.Errorf("care plan: absence request guardian link check: %w", err)
-			}
-			if !hasAccess {
-				return nil, careplan.ErrExcusedRequestGuardianAccessRevoked
-			}
-		}
-		// Refuse to apply when the child's absence for a requested date was
-		// created or changed after this request was filed: a blind approve
-		// would silently overwrite that newer decision.
-		if err := w.ensureNoNewerStatus(ctx, &req); err != nil {
+		if err := w.validateAbsenceApproval(ctx, &req, &student); err != nil {
 			return nil, err
 		}
 		// Apply, status update and after-commit hooks all run in the ambient
@@ -761,12 +734,10 @@ func (w *ExcusedRequests) Correct(ctx context.Context, requestID int64, approve 
 	if err := w.requireReviewer(ctx, &student); err != nil {
 		return err
 	}
-	// Correcting into an approval would write absence days into a settled
-	// past, exactly as a fresh approval would.
-	if approve && parentRequestIsPast(excusedScopeEnd(&req), w.today()) {
-		return careplan.ErrParentRequestPast
-	}
 	if approve {
+		if err := w.validateAbsenceApproval(ctx, &req, &student); err != nil {
+			return err
+		}
 		if err := w.applyAbsenceRequest(ctx, &req); err != nil {
 			return err
 		}
@@ -977,6 +948,45 @@ func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *ports.Re
 		return careplan.ErrExcusedRequestForbidden
 	}
 	return nil
+}
+
+// validateAbsenceApproval keeps every path that writes parent-sourced status
+// days behind the same lifecycle, conflict, and guardian-access checks.
+func (w *ExcusedRequests) validateAbsenceApproval(
+	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *ports.ReviewStudent,
+) error {
+	today := w.today()
+	if student.Alumnus || student.CareEndedOn(today) {
+		return careplan.ErrExcusedRequestNotFound
+	}
+	// Approving a request whose days have all passed would write absence
+	// records into a settled past. Staff either reject it or mark it done.
+	if parentRequestIsPast(excusedScopeEnd(req), today) {
+		return careplan.ErrParentRequestPast
+	}
+	if requestExtendsBeyondCare(req, student) {
+		return careplan.ErrExcusedRequestNotFound
+	}
+	if err := w.ensureNoPartialAbsence(ctx, req.StudentID, req.Dates); err != nil {
+		return err
+	}
+	// Refuse to apply when the submitting guardian has lost access to the
+	// child since the request was filed. Approving writes parent-sourced
+	// status days and posts a parent-visible pill for a recipient the parent
+	// APIs now hide; staff wind such a request down by rejecting.
+	if w.messenger != nil {
+		hasAccess, err := w.messenger.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
+		if err != nil {
+			return fmt.Errorf("care plan: absence request guardian link check: %w", err)
+		}
+		if !hasAccess {
+			return careplan.ErrExcusedRequestGuardianAccessRevoked
+		}
+	}
+	// Refuse to apply when the child's absence for a requested date was
+	// created or changed after this request was filed: a blind approve would
+	// silently overwrite that newer decision.
+	return w.ensureNoNewerStatus(ctx, req)
 }
 
 // excusedBulkEligibility answers whether this request can ride a bulk

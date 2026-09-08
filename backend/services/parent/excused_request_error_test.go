@@ -26,6 +26,7 @@ import (
 type stubExcused struct {
 	careplan.ExcusedAbsenceRequests
 	createErr error
+	editErr   error
 	listErr   error
 }
 
@@ -38,6 +39,10 @@ func (s stubExcused) CreateRequest(_ context.Context, _, _ int64, _ []careplan.D
 // error-mapping cases below are unchanged.
 func (s stubExcused) Submit(_ context.Context, _ careplan.ExcusedRequestCreateInput) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, s.createErr
+}
+
+func (s stubExcused) EditRequest(_ context.Context, _ careplan.ExcusedRequestEditInput) (*careplan.ExcusedAbsenceRequest, error) {
+	return nil, s.editErr
 }
 
 func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]*careplan.ExcusedAbsenceRequest, error) {
@@ -96,6 +101,33 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 				// The default branch wraps the raw error rather than mapping it.
 				assert.ErrorContains(t, err, "boom")
 			}
+		})
+	}
+}
+
+func TestEditExcusedRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
+	day := timezone.TodayDate().AddDays(3)
+	cases := []struct {
+		name string
+		in   error
+		want error
+	}{
+		{"no dates", careplan.ErrExcusedRequestNoDates, parentService.ErrNoDates},
+		{"empty note", careplan.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
+		{"note too long", careplan.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", careplan.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", careplan.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, db := buildParentServiceWithExcused(t, stubExcused{editErr: tc.in})
+			chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+			_, err := svc.EditExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()),
+				chain.AccountID, chain.StudentID, 1, []timezone.Date{day}, "Familienfeier", "")
+			assert.ErrorIs(t, err, tc.want)
 		})
 	}
 }

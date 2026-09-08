@@ -867,6 +867,72 @@ func TestCorrectRefusesUndecidedAndRevertsOnlyItsOwnDays(t *testing.T) {
 	assert.Equal(t, "Entscheidung geändert: Abmeldung abgelehnt", h.messenger.emitted[0].Body)
 }
 
+func TestCorrectApprovalKeepsDecideGuards(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		plan     func(careplan.ExcusedAbsenceRequest) *fakeCarePlan
+		students *fakeStudents
+		access   bool
+		want     error
+	}{
+		{
+			name: "newer status",
+			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan {
+				plan := decidablePlan(row)
+				plan.listStatusDays = func(context.Context, careplan.StudentStatusDayFilter) ([]careplan.StudentStatusDay, error) {
+					return []careplan.StudentStatusDay{{Date: fakeTomorrow, ReportedAt: row.CreatedAt.Add(time.Minute)}}, nil
+				}
+				return plan
+			},
+			students: &fakeStudents{}, access: true, want: careplan.ErrExcusedRequestStatusConflict,
+		},
+		{
+			name: "manual partial absence",
+			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan {
+				plan := decidablePlan(row)
+				excusedFrom := time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC)
+				plan.listPickups = func(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
+					return []careplan.PickupException{{ExceptionDate: fakeTomorrow, ExcusedFrom: &excusedFrom}}, nil
+				}
+				return plan
+			},
+			students: &fakeStudents{}, access: true, want: careplan.ErrExcusedRequestStatusConflict,
+		},
+		{
+			name:     "guardian access revoked",
+			plan:     func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan { return decidablePlan(row) },
+			students: &fakeStudents{}, access: false, want: careplan.ErrExcusedRequestGuardianAccessRevoked,
+		},
+		{
+			name: "alumnus",
+			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan { return decidablePlan(row) },
+			students: &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) {
+				return ports.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, Alumnus: true}, nil
+			}},
+			access: true, want: careplan.ErrExcusedRequestNotFound,
+		},
+		{
+			name: "care ended",
+			plan: func(row careplan.ExcusedAbsenceRequest) *fakeCarePlan { return decidablePlan(row) },
+			students: &fakeStudents{lock: func(context.Context, int64) (ports.ReviewStudent, error) {
+				return ports.ReviewStudent{ID: fakeStudentID, PersonID: fakePersonID, EnrolledUntil: fakePast}, nil
+			}},
+			access: true, want: careplan.ErrExcusedRequestNotFound,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			row := pendingRow(5, fakeTomorrow)
+			h := newHarness(t, tc.plan(row), tc.students)
+			h.messenger.hasAccess = tc.access
+
+			err := h.workflow.Correct(context.Background(), row.ID, true, "", "Doch genehmigt", fakeReviewer)
+			assert.ErrorIs(t, err, tc.want)
+		})
+	}
+}
+
 // --- coordinator ports
 
 func TestCoordinatorPortsTranslateTheWorkflowOutcomes(t *testing.T) {
