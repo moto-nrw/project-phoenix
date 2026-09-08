@@ -42,8 +42,10 @@ def classify(metric, baseline, candidate, relative_tolerance, absolute_tolerance
 
 
 def ratio(baseline, candidate):
+    # A zero baseline has no finite ratio; JSON has no infinity literal, so the
+    # delta carries the change and the ratio stays null.
     if baseline == 0:
-        return None if candidate == 0 else float("inf")
+        return None
     return candidate / baseline
 
 
@@ -101,7 +103,11 @@ def compare(baseline, candidate, relative_tolerance=DEFAULT_RELATIVE_TOLERANCE,
     return result
 
 
-def change(metric, statistic):
+def cell(metrics, key, statistic):
+    """Format one table cell; a metric measured on only one side reads as unmeasured."""
+    metric = metrics.get(key)
+    if metric is None:
+        return "unmeasured"
     before = metric["baseline"][statistic]
     after = metric["candidate"][statistic]
     text = f"{before:.3f} → {after:.3f}"
@@ -126,7 +132,7 @@ def markdown(result):
         if scenario["kind"] == "worker":
             row_key = "job_rows_affected" if "job_rows_affected" in metrics else "job_claimed_rows"
         flagged = sorted({item["metric"] for item in result["material"] if item["scenario"] == name})
-        cells = [name] + [change(metrics[key], "median") for key in
+        cells = [name] + [cell(metrics, key, "median") for key in
                           ("latency_p50_ms", "latency_p95_ms", "queries_total", row_key,
                            "pool_wait_ms", "lock_waiting_backend_samples")]
         cells.append(", ".join(flagged) if flagged else "none")
@@ -173,7 +179,7 @@ def main():
     result = compare(json.loads(args.baseline.read_text()), json.loads(args.candidate.read_text()),
                      args.relative_tolerance, args.absolute_tolerance_ms)
     args.output_directory.mkdir(parents=True, exist_ok=True)
-    (args.output_directory / "comparison.json").write_text(json.dumps(result, indent=2) + "\n")
+    (args.output_directory / "comparison.json").write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     (args.output_directory / "comparison.md").write_text(markdown(result))
 
 

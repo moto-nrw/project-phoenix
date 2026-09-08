@@ -2,6 +2,7 @@
 
 import copy
 import importlib.util
+import json
 import pathlib
 import unittest
 
@@ -92,6 +93,25 @@ class ComparisonTests(unittest.TestCase):
     def test_scenario_set_must_match(self):
         with self.assertRaisesRegex(ValueError, "scenario set"):
             compare.compare(summary(a=scenario()), summary(a=scenario(), b=scenario()))
+
+    def test_zero_baseline_yields_strict_json_without_infinity(self):
+        result = compare.compare(summary(a=scenario()), summary(a=scenario(pool_wait_ms=5)))
+        metric = result["scenarios"]["a"]["metrics"]["pool_wait_ms"]
+        self.assertIsNone(metric["ratio"]["median"])
+        self.assertEqual(metric["delta"]["median"], 5)
+        self.assertEqual(result["material"][0]["ratio"], None)
+        text = json.dumps(result, allow_nan=False)
+        self.assertNotIn("Infinity", text)
+        self.assertIn("5.000 (from zero)", compare.markdown(result))
+
+    def test_markdown_survives_a_table_metric_measured_on_one_side_only(self):
+        baseline = summary(a=scenario(kind="worker", job_claimed_rows=30))
+        candidate = summary(a=scenario(kind="worker", job_rows_affected=30))
+        result = compare.compare(baseline, candidate)
+        self.assertEqual(result["scenarios"]["a"]["unmeasured_in_baseline"], ["job_rows_affected"])
+        self.assertEqual(result["scenarios"]["a"]["unmeasured_in_candidate"], ["job_claimed_rows"])
+        self.assertIn("| a | 2.000 → 2.000 (+0.0%) | 3.000 → 3.000 (+0.0%) | 150.000 → 150.000 (+0.0%) | unmeasured |",
+                      compare.markdown(result))
 
     def test_markdown_reports_rows_and_material_changes(self):
         result = compare.compare(summary(a=scenario()), summary(a=scenario(queries_total=180, latency_p50_ms=2.1)))
