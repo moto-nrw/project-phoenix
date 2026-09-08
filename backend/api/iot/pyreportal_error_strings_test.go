@@ -156,7 +156,7 @@ var extraGuardSources = []string{
 	// services/iot/checkin.CheckinService. Its internal-error and
 	// not-found strings (formerly in api/iot/checkin/workflow.go) now live
 	// in this file's message constants; keep it in the guard corpus.
-	"services/iot/checkin/checkin_errors.go",
+	"modules/devicescan/scan.go",
 }
 
 // TestPyrePortalErrorStringsGuard asserts every PyrePortal-mapped substring

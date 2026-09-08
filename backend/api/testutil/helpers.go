@@ -179,10 +179,12 @@ func SetupRoomsModule(t *testing.T) (*bun.DB, services.RoomsTestModule) {
 	return db, module
 }
 
-func SetupCheckinModule(t *testing.T) (*bun.DB, services.CheckinTestModule) {
+// SetupCheckinModule composes the device-scan workflow over the test
+// database. An optional clock pins the instant the kiosk scans are admitted.
+func SetupCheckinModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.CheckinTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewCheckinTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := services.NewCheckinTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	return db, module
 }
@@ -589,6 +591,14 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 			ctx = tenant.WithTenantID(ctx, tid)
 		}
 		*req = *req.WithContext(ctx)
+	}
+}
+
+// WithIoTDeviceRequest marks the request as a kiosk request, the way the
+// device middleware does, so services authorize through the device session.
+func WithIoTDeviceRequest() RequestOption {
+	return func(req *http.Request) {
+		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxIsIoTDevice, true))
 	}
 }
 

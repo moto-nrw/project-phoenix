@@ -2,8 +2,10 @@ package services
 
 import (
 	"log/slog"
+	"time"
 
-	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -22,16 +24,37 @@ func NewRoomsTestModule(db *bun.DB, unit tenant.UnitOfWork) (RoomsTestModule, er
 	return RoomsTestModule{ActiveTestModule: active, ListExport: listexport.NewService()}, nil
 }
 
-type CheckinTestModule struct{ Checkin *iotcheckin.CheckinService }
+// CheckinTestModule composes the device-scan workflow (#2698) over the
+// active test graph, the way the production root does. The process
+// checkout-time fallback stays empty so the daily-checkout gates depend on
+// tenant settings alone, never on the developer's environment.
+type CheckinTestModule struct {
+	ActiveTestModule
+	DeviceScan devicescanCompose.DeviceScan
+}
 
-func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork) (CheckinTestModule, error) {
-	module, err := NewActiveTestModule(db, unit)
+func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (CheckinTestModule, error) {
+	module, err := NewActiveTestModule(db, unit, clocks...)
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
-	return CheckinTestModule{Checkin: iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active: module.Active, Users: module.Users, Facilities: module.Facilities,
-		Activities: module.Activities, Settings: module.Settings, Pickup: module.PickupSchedule,
-		Education: module.Education, Logger: slog.Default(), DailyCheckoutFallback: currentFactoryConfig().StudentDailyCheckoutTime,
-	})}, nil
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return CheckinTestModule{}, err
+	}
+	logger := slog.Default()
+	scan := devicescanCompose.New(devicescanCompose.Dependencies{
+		Fleet:      module.IoT.Fleet(),
+		Presence:   newStudentPresence(db, logger),
+		Rooms:      rooms,
+		Active:     module.Active,
+		Users:      module.Users,
+		Activities: module.Activities,
+		Education:  module.Education,
+		Pickups:    module.PickupSchedule,
+		Settings:   module.Settings,
+		Now:        optionalClock(clocks),
+		Logger:     logger,
+	})
+	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan}, nil
 }

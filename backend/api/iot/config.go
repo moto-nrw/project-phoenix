@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -65,7 +64,7 @@ func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) dev
 	}
 
 	settingsCtx, available := rs.deviceConfigSettingsContext(ctx, tenantID)
-	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(settingsCtx, rs.SettingsService, rs.DailyCheckoutFallback, rs.getLogger()); rawTime != "" {
+	if rawTime := configSvc.ResolveStringOrDefault(settingsCtx, rs.SettingsService, configModel.KeyStudentDailyCheckoutTime, rs.DailyCheckoutFallback, rs.getLogger()); rawTime != "" {
 		response.Checkout.DailyCheckoutTime = &rawTime
 	}
 	if !available {

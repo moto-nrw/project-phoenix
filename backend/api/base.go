@@ -78,6 +78,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -1286,9 +1287,26 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	if err != nil {
 		return err
 	}
+	// The device-scan workflow runs every kiosk scan through one
+	// orchestrator over the public Device Fleet, Student Presence and
+	// Facilities capabilities; the retained services behind its ports are
+	// compatibility bindings (#2698).
+	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
+		Fleet:                 api.Services.IoT.Fleet(),
+		Presence:              presence,
+		Rooms:                 api.rooms,
+		Active:                api.Services.Active,
+		Users:                 api.Services.Users,
+		Activities:            api.Services.Activities,
+		Education:             api.Services.Education,
+		Pickups:               api.Services.PickupSchedule,
+		Settings:              api.Services.Settings,
+		DailyCheckoutFallback: os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
+		Logger:                logger.With("service", "device-scan"),
+	})
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
-		CheckinService:    api.Services.Checkin,
+		DeviceScan:        deviceScan,
 		StaffClock:        api.Services.StaffClock,
 		UsersService:      api.Services.Users,
 		ActiveService:     api.Services.Active,
@@ -1300,11 +1318,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		PickupScheduleService:   api.Services.PickupSchedule,
 		SchoolService:           api.Services.Schools,
 		TimetableDataService:    api.Services.TimetableData,
 		SessionEnd:              sessionEnd,
-		UnregisteredTagScans:    api.Services.UnregisteredTagScans,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "iot"),
 		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),

@@ -158,8 +158,35 @@ func (routerStaffClock) ExecuteStaffClock(context.Context, devicescan.StaffClock
 	return &devicescan.StaffClockState{}, nil
 }
 
+// routerDeviceScan satisfies the kiosk scan contract during route
+// composition; every call answers as an unauthenticated device.
+type routerDeviceScan struct{}
+
+func (routerDeviceScan) Device(context.Context) (devicescan.Device, error) {
+	return devicescan.Device{}, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) Scan(context.Context, devicescan.ScanCommand) (*devicescan.ScanResult, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) PickupInfo(context.Context, string) (*devicescan.PickupInfo, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) Ping(context.Context) (*devicescan.DevicePing, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) Status(context.Context) (*devicescan.DeviceStatus, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) AttendanceStatus(context.Context, string) (*devicescan.AttendanceStatus, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+func (routerDeviceScan) ToggleAttendance(context.Context, devicescan.AttendanceToggleCommand) (*devicescan.AttendanceToggleResult, error) {
+	return nil, devicescan.ErrDeviceUnauthorized
+}
+
 func newRouterTestResource() *Resource {
 	return &Resource{ServiceDependencies: ServiceDependencies{
+		DeviceScan:               routerDeviceScan{},
 		StaffClock:               routerStaffClock{},
 		UsersService:             &userstest.PersonServiceMock{},
 		FeedbackService:          routerFeedback{},
