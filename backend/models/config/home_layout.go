@@ -58,12 +58,17 @@ const MaxHomeBlockEntries = 100
 type HomeBlockPlacement struct {
 	Key  string `json:"key"`
 	Span int    `json:"span"`
-	// Row is the zero-based row of the start page grid the block sits in
-	// (#2180). Rows are the person's own grouping: a block dropped between two
-	// rows gets a row of its own. Arrangements stored before rows existed
-	// carry 0 everywhere; the frontend packs those by width.
+	// Col and Row are the zero-based cell of the block's top-left corner in
+	// the free four-column grid of the start page (#2180). The person places
+	// blocks cell by cell; gaps are allowed and columns and rows are
+	// independent. Arrangements stored before the grid existed carry no
+	// column; the frontend packs those in order.
+	Col int `json:"col"`
 	Row int `json:"row"`
 }
+
+// HomeBoardColumns is the width of the start page grid in cells.
+const HomeBoardColumns = 4
 
 // ValidateHomeBlockPlacements rejects a malformed arrangement: unknown key
 // shapes, spans that are not column counts, duplicates, and unbounded growth.
@@ -82,7 +87,13 @@ func ValidateHomeBlockPlacements(blocks []HomeBlockPlacement) error {
 		if block.Span != 1 && block.Span != 2 && block.Span != 4 {
 			return fmt.Errorf("start page block %q has an invalid width %d", block.Key, block.Span)
 		}
-		if block.Row < 0 || block.Row >= MaxHomeBlockEntries {
+		// A block must fit into the grid: its left edge plus its width may not
+		// reach past the last column. Rows are open-ended, capped only so a
+		// client cannot push a block a million rows down.
+		if block.Col < 0 || block.Col+block.Span > HomeBoardColumns {
+			return fmt.Errorf("start page block %q has an invalid column %d", block.Key, block.Col)
+		}
+		if block.Row < 0 || block.Row >= MaxHomeBlockEntries*2 {
 			return fmt.Errorf("start page block %q has an invalid row %d", block.Key, block.Row)
 		}
 		if _, duplicate := seen[block.Key]; duplicate {

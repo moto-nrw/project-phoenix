@@ -29,7 +29,7 @@ import {
   HOME_BOARD_COLUMNS,
   computeBoardCells,
   homeBlockDefinition,
-  rowsOf,
+  homeBlockHeight,
   type HomeBlockDefinition,
   type HomeBlockKey,
   type HomeBlockPlacement,
@@ -60,26 +60,35 @@ import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
  *
  * ANORDNEN HEISST ZIEHEN, wie auf einem Startbildschirm. Eine Kachel folgt
  * dem Zeiger, sobald man sie ein paar Pixel bewegt (am Handy: kurz halten,
- * dann ziehen), und die anderen gleiten sofort beiseite — nicht erst beim
- * Loslassen. Beim Loslassen federt die Kachel an ihren Platz.
+ * dann ziehen), und was unter ihr liegt, rückt sofort nach unten — nicht
+ * erst beim Loslassen. Beim Loslassen federt die Kachel in ihre Zelle.
+ *
+ * Das Brett ist ein FREIES RASTER: vier Spalten, beliebig viele Zeilen, und
+ * jede Kachel liegt in der Zelle, in die man sie gelegt hat. Spalte und
+ * Zeile sind unabhängig, Lücken sind erlaubt, nichts rutscht von allein
+ * nach. Wer eine Kachel auf eine andere legt, schiebt die andere unter sich.
  *
  * Drei Entscheidungen machen das ruhig statt zappelig:
  *
- * 1. Wo eine Kachel HINGEHÖRT, entscheidet die Geometrie des Rasters
- *    (offsetLeft/offsetTop der Zellen), nicht das Element unter dem Zeiger.
- *    Die Zellen bewegen sich während der Animation per Transform, ihre
- *    Rasterposition steht sofort fest — sonst tauscht die Kachel unter dem
- *    Zeiger im Sekundentakt hin und her, während sie noch gleitet.
- * 2. Die gezogene Kachel bewegt sich über Motion-Werte, ohne Rendern je
- *    Zeigerereignis. Rückt sie beim Umsortieren im Fluss an eine andere
+ * 1. Wohin eine Kachel gehört, entscheidet die Zelle, in der ihre linke
+ *    obere Ecke gerade liegt — gerechnet aus dem Versatz seit dem Anfassen,
+ *    nicht aus dem Element unter dem Zeiger. Die anderen Zellen bewegen sich
+ *    während der Animation per Transform; die Rechnung bleibt davon unberührt.
+ * 2. Jeder Zug rechnet von der Anordnung BEIM ANFASSEN aus. Kacheln, die
+ *    unterwegs ausgewichen sind, kehren so zurück, sobald die gezogene
+ *    weiterzieht; erst das Loslassen macht den Stand endgültig.
+ * 3. Die gezogene Kachel bewegt sich über Motion-Werte, ohne Rendern je
+ *    Zeigerereignis. Rückt sie beim Umsortieren im Raster in eine andere
  *    Zelle, gleicht der Versatz das aus, damit sie unter dem Zeiger bleibt.
- * 3. Das Raster füllt im Anpassen-Modus keine Lücken (kein dense): die
- *    Reihenfolge, die man sieht, ist die, die man baut.
  *
  * Knöpfe „nach vorne / nach hinten" gibt es nicht mehr; die Pfeiltasten
- * verschieben eine Kachel für alle, die keine Maus benutzen. Ein Klick wählt
- * die Kachel aus; alles Weitere (Breite, Entfernen) steht in EINER Leiste über
- * der Fläche, die beim Scrollen stehen bleibt.
+ * verschieben eine Kachel zellenweise für alle, die keine Maus benutzen. Ein
+ * Klick wählt die Kachel aus; alles Weitere (Breite, Entfernen) steht in
+ * EINER Leiste über der Fläche, die beim Scrollen stehen bleibt.
+ *
+ * Nur das breite Raster kennt die Spalten der Person. Auf einem Tablet oder
+ * Handy fließen die Kacheln in Lesereihenfolge nach; dort lässt sich die
+ * Breite ändern und entfernen, angeordnet wird am großen Bildschirm.
  */
 
 // Auch das Handy hat zwei Spalten: eine Kennzahl ist eine Zahl mit einem Wort
@@ -99,6 +108,10 @@ const SPAN_LABEL: Record<HomeBlockSpan, string> = {
 
 /** So weit muss sich der Zeiger bewegen, bevor ein Klick zum Zug wird. */
 const DRAG_THRESHOLD_PX = 6;
+/** Der Abstand zwischen zwei Zellen (`gap-4`). */
+const GRID_GAP_PX = 16;
+/** Ab hier zeichnet das Brett die vier Spalten der Anordnung. */
+const WIDE_BOARD = "(min-width: 1280px)";
 /** So lange hält man am Handy, bevor die Kachel dem Finger folgt. */
 const TOUCH_HOLD_MS = 220;
 
@@ -125,8 +138,15 @@ export interface HomeBoardProps {
   readonly placements: readonly HomeBlockPlacement[];
   readonly addable: readonly HomeBlockDefinition[];
   readonly editing: boolean;
-  /** Versetzt einen Baustein in eine Reihe oder in eine neue Reihe. */
-  readonly onMove: (key: HomeBlockKey, target: HomeMoveTarget) => void;
+  /**
+   * Legt einen Baustein in eine Zelle. `base` ist die Anordnung, von der aus
+   * gerechnet wird: beim Ziehen die vom Anfassen, sonst die aktuelle.
+   */
+  readonly onMove: (
+    key: HomeBlockKey,
+    target: HomeMoveTarget,
+    base: readonly HomeBlockPlacement[],
+  ) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onAdd: (key: HomeBlockKey) => void;
@@ -152,6 +172,16 @@ const ARROW_DIRECTION: Readonly<Record<string, MoveDirection>> = {
   ArrowDown: "down",
 };
 
+/** Um wie viele Zellen eine Pfeiltaste die Kachel rückt. */
+const KEYBOARD_STEP: Readonly<
+  Record<MoveDirection, { readonly col: number; readonly row: number }>
+> = {
+  left: { col: -1, row: 0 },
+  right: { col: 1, row: 0 },
+  up: { col: 0, row: -1 },
+  down: { col: 0, row: 1 },
+};
+
 /** Alles, was ein Zug zwischen zwei Ereignissen wissen muss. */
 interface DragSession {
   key: HomeBlockKey;
@@ -160,9 +190,16 @@ interface DragSession {
   /** Zeiger beim Anfassen. */
   startX: number;
   startY: number;
-  /** Zelle der Kachel im Raster beim Anfassen — unabhängig von Transformationen. */
+  /** Lage der Kachel im Raster beim Anfassen — unabhängig von Transformationen. */
   originLeft: number;
   originTop: number;
+  /** Die Anordnung beim Anfassen; jeder Zug rechnet von ihr aus. */
+  base: readonly HomeBlockPlacement[];
+  /** Maße einer Zelle, an der Kachel selbst gemessen. */
+  colWidth: number;
+  rowHeight: number;
+  /** Die zuletzt gemeldete Zelle; dieselbe wird nicht noch einmal gemeldet. */
+  lastTarget: HomeMoveTarget | null;
   /** Ab hier folgt die Kachel dem Zeiger. */
   active: boolean;
   /** Letzte Zeigerposition — für den Versatz nach einem Umsortieren. */
@@ -255,94 +292,22 @@ export function HomeBoard({
   }, [endDrag]);
 
   /**
-   * Wohin die gezogene Kachel gehört — nach der Geometrie des Rasters, nicht
-   * nach dem Element, das gerade darunter durchgleitet.
-   *
-   * Drei Fälle, in dieser Reihenfolge: der Zeiger steht auf einer anderen
-   * Kachel (deren Platz in deren Reihe), im freien Rest einer Reihe (ans Ende
-   * dieser Reihe), oder in der Lücke zwischen zwei Reihen beziehungsweise
-   * über der ersten und unter der letzten (eine neue Reihe dort). So bekommt
-   * auch eine schmale Kennzahl eine Reihe für sich, wenn man sie unter eine
-   * Karte legt, statt dass das Raster sie daneben spült.
+   * Die Zelle, in der die linke obere Ecke der gezogenen Kachel gerade
+   * liegt: ihr Platz beim Anfassen plus der Weg des Zeigers, auf das Raster
+   * gerundet. Am rechten Rand rückt die Kachel so weit nach links, dass sie
+   * ins Raster passt; über dem Brett gilt die erste Zeile.
    */
-  const targetUnderPointer = (
-    current: DragSession,
-    clientX: number,
-    clientY: number,
-  ): HomeMoveTarget | null => {
-    const container = grid.current;
-    if (!container) return null;
-    const bounds = container.getBoundingClientRect();
-    const px = clientX - bounds.left;
-    const py = clientY - bounds.top;
-    const cellOf = (key: HomeBlockKey) =>
-      container.querySelector<HTMLElement>(`[data-block-key="${key}"]`);
-
-    const bands = rowsOf(order.current).map((entries, row) => {
-      let top = Number.POSITIVE_INFINITY;
-      let bottom = Number.NEGATIVE_INFINITY;
-      for (const entry of entries) {
-        const cell = cellOf(entry.key);
-        if (!cell) continue;
-        top = Math.min(top, cell.offsetTop);
-        bottom = Math.max(bottom, cell.offsetTop + cell.offsetHeight);
-      }
-      return { row, entries, top, bottom };
-    });
-
-    const draggedSpan =
-      order.current.find((entry) => entry.key === current.key)?.span ?? 1;
-    // Hat eine Reihe keinen Platz mehr für die gezogene Kachel, meint der
-    // Zeiger über ihr die Reihe DAVOR oder DANACH — je nachdem, ob er in der
-    // oberen oder unteren Hälfte steht. So legt man eine Kennzahl unter eine
-    // volle Reihe, ohne die schmale Lücke treffen zu müssen.
-    const roomIn = (band: (typeof bands)[number]) =>
-      HOME_BOARD_COLUMNS -
-      band.entries
-        .filter((entry) => entry.key !== current.key)
-        .reduce((sum, entry) => sum + entry.span, 0);
-
-    for (const band of bands) {
-      for (const [index, entry] of band.entries.entries()) {
-        const cell = cellOf(entry.key);
-        if (!cell) continue;
-        if (
-          px >= cell.offsetLeft &&
-          px <= cell.offsetLeft + cell.offsetWidth &&
-          py >= cell.offsetTop &&
-          py <= cell.offsetTop + cell.offsetHeight
-        ) {
-          // Die eigene Zelle: da ist sie schon.
-          if (entry.key === current.key) return null;
-          if (roomIn(band) < draggedSpan) {
-            const below = py > (band.top + band.bottom) / 2;
-            return { kind: "newRow", before: below ? band.row + 1 : band.row };
-          }
-          return { kind: "into", row: band.row, index };
-        }
-      }
-    }
-
-    // Die Lücke zwischen zwei Reihen ist schmal; ein Rand innerhalb der
-    // Reihe zählt mit dazu, damit man sie mit dem Zeiger trifft.
-    const edge = 10;
-    for (const band of bands) {
-      if (py < band.top + edge || py > band.bottom - edge) continue;
-      const first = cellOf(band.entries[0]!.key);
-      const last = cellOf(band.entries[band.entries.length - 1]!.key);
-      if (last && px > last.offsetLeft + last.offsetWidth) {
-        return { kind: "into", row: band.row, index: band.entries.length };
-      }
-      if (first && px < first.offsetLeft) {
-        return { kind: "into", row: band.row, index: 0 };
-      }
-      return null;
-    }
-
-    for (const band of bands) {
-      if (py < band.top + edge) return { kind: "newRow", before: band.row };
-    }
-    return { kind: "newRow", before: bands.length };
+  const cellUnderDrag = (current: DragSession): HomeMoveTarget => {
+    const left = current.originLeft + (current.lastX - current.startX);
+    const top = current.originTop + (current.lastY - current.startY);
+    const span =
+      current.base.find((entry) => entry.key === current.key)?.span ?? 1;
+    const col = Math.round(left / (current.colWidth + GRID_GAP_PX));
+    const row = Math.round(top / (current.rowHeight + GRID_GAP_PX));
+    return {
+      col: Math.max(0, Math.min(col, HOME_BOARD_COLUMNS - span)),
+      row: Math.max(0, row),
+    };
   };
 
   /**
@@ -369,8 +334,11 @@ export function HomeBoard({
     current.lastY = clientY;
     place(current);
 
-    const target = targetUnderPointer(current, clientX, clientY);
-    if (target) onMove(current.key, target);
+    const target = cellUnderDrag(current);
+    const last = current.lastTarget;
+    if (last && last.col === target.col && last.row === target.row) return;
+    current.lastTarget = target;
+    onMove(current.key, target, current.base);
   };
 
   /**
@@ -416,9 +384,14 @@ export function HomeBoard({
     event: ReactPointerEvent<HTMLLIElement>,
     key: HomeBlockKey,
   ) => {
-    if (!editing || session.current) return;
+    if (!editing || !wide || session.current) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const element = event.currentTarget;
+    const placement = order.current.find((entry) => entry.key === key);
+    if (!placement) return;
+    // Die Zelle wird an der Kachel selbst gemessen: ihre Breite sind `span`
+    // Zellen plus die Lücken dazwischen, ihre Höhe entsprechend.
+    const height = homeBlockHeight(key);
     const current: DragSession = {
       key,
       pointerId: event.pointerId,
@@ -427,6 +400,12 @@ export function HomeBoard({
       startY: event.clientY,
       originLeft: element.offsetLeft,
       originTop: element.offsetTop,
+      base: order.current,
+      colWidth:
+        (element.offsetWidth - (placement.span - 1) * GRID_GAP_PX) /
+        placement.span,
+      rowHeight: (element.offsetHeight - (height - 1) * GRID_GAP_PX) / height,
+      lastTarget: null,
       active: false,
       lastX: event.clientX,
       lastY: event.clientY,
@@ -485,54 +464,23 @@ export function HomeBoard({
     endDrag();
   };
 
-  /**
-   * Ohne Maus: links und rechts wandern durch die Reihe und an deren Rand in
-   * die Nachbarreihe; oben und unten geben der Kachel eine eigene Reihe
-   * darüber oder darunter (oder rücken ihre eigene Reihe).
-   */
+  /** Ohne Maus: die Pfeiltasten rücken die Kachel um eine Zelle. */
   const moveByKeyboard = (key: HomeBlockKey, direction: MoveDirection) => {
-    const rows = rowsOf(placements);
-    const row = rows.findIndex((entries) =>
-      entries.some((entry) => entry.key === key),
+    const placement = placements.find((entry) => entry.key === key);
+    if (!placement) return;
+    const step = KEYBOARD_STEP[direction];
+    onMove(
+      key,
+      { col: placement.col + step.col, row: placement.row + step.row },
+      placements,
     );
-    if (row < 0) return;
-    const entries = rows[row]!;
-    const index = entries.findIndex((entry) => entry.key === key);
-    const alone = entries.length === 1;
-    switch (direction) {
-      case "left":
-        if (index > 0) onMove(key, { kind: "into", row, index: index - 1 });
-        else if (row > 0) {
-          onMove(key, {
-            kind: "into",
-            row: row - 1,
-            index: rows[row - 1]!.length,
-          });
-        }
-        return;
-      case "right":
-        if (index < entries.length - 1) {
-          onMove(key, { kind: "into", row, index: index + 1 });
-        } else if (row < rows.length - 1) {
-          onMove(key, { kind: "into", row: row + 1, index: 0 });
-        }
-        return;
-      case "up":
-        if (alone && row === 0) return;
-        onMove(key, { kind: "newRow", before: alone ? row - 1 : row });
-        return;
-      case "down":
-        if (alone && row === rows.length - 1) return;
-        onMove(key, { kind: "newRow", before: alone ? row + 2 : row + 1 });
-        return;
-    }
   };
 
-  // Ab der zweispaltigen Ansicht zeichnet das Brett die Reihen ausdrücklich;
-  // vier Spalten gibt es erst auf einem breiten Bildschirm.
+  // Ab der zweispaltigen Ansicht bekommt jede Kachel ihre Zelle ausdrücklich;
+  // die vier Spalten der Anordnung gibt es erst auf einem breiten Bildschirm.
   const flow = useMediaQuery(BELOW_SM);
-  const wide = useMediaQuery("(min-width: 1280px)");
-  const cells = computeBoardCells(placements, wide ? 4 : 2);
+  const wide = useMediaQuery(WIDE_BOARD);
+  const cells = computeBoardCells(placements, wide ? HOME_BOARD_COLUMNS : 2);
 
   const selectedIndex = placements.findIndex(
     (placement) => placement.key === selectedKey,
@@ -562,6 +510,7 @@ export function HomeBoard({
             restoring={restoring}
             addable={addable}
             onAdd={onAdd}
+            arrangeable={wide}
           />
         </div>
       )}
@@ -570,14 +519,14 @@ export function HomeBoard({
         ref={grid}
         data-testid="home-board"
         // Jede Zelle bekommt ihren Platz ausdrücklich zugewiesen (Spalte und
-        // Rasterzeile aus den Reihen der Person); das Raster verteilt nichts
-        // selbst und füllt keine Lücken. Nur auf dem Handy fließen die
-        // Kacheln in Reihenfolge, dort gibt es keine Reihe, neben der etwas
-        // stehen müsste. `relative`, damit die Zellen ihre Lage relativ zum
-        // Raster kennen.
+        // Zeile der Person); das Raster verteilt nichts selbst und füllt
+        // keine Lücken. Nur auf dem Handy fließen die Kacheln in
+        // Lesereihenfolge, dort gibt es keine Zelle, neben der etwas stehen
+        // müsste. `relative`, damit die Zellen ihre Lage relativ zum Raster
+        // kennen.
         className="relative grid grid-cols-2 gap-4 sm:auto-rows-[7rem] xl:grid-cols-4"
       >
-        {placements.map((placement, index) => {
+        {placements.map((placement) => {
           const definition = homeBlockDefinition(placement.key);
           const dragging = draggedKey === placement.key;
           return (
@@ -599,8 +548,6 @@ export function HomeBoard({
                 <ArrangeTile
                   definition={definition}
                   placement={placement}
-                  position={index + 1}
-                  total={placements.length}
                   selected={placement.key === selectedKey}
                   dragging={dragging}
                   onSelect={() => {
@@ -707,6 +654,7 @@ function BoardItem({
       data-testid={`home-block-${placement.key}`}
       data-block-key={placement.key}
       data-span={placement.span}
+      data-col={placement.col}
       data-row={placement.row}
       className={`min-h-0 ${cell ? "" : `${SPAN_CLASS[placement.span]} ${rowClass(definition)}`} ${
         editing ? "touch-pan-y select-none" : ""
@@ -724,16 +672,13 @@ function BoardItem({
 }
 
 /**
- * Die Kachel im Anpassen-Modus: Symbol, Name, Breite und der Platz in der
- * Reihenfolge. Sie ist ein Knopf, damit sie sich auch mit der Tastatur
- * auswählen und mit den Pfeiltasten verschieben lässt — Ziehen allein wäre
- * nicht bedienbar.
+ * Die Kachel im Anpassen-Modus: Symbol, Name, Breite und ihre Zelle. Sie
+ * ist ein Knopf, damit sie sich auch mit der Tastatur auswählen und mit den
+ * Pfeiltasten verschieben lässt — Ziehen allein wäre nicht bedienbar.
  */
 function ArrangeTile({
   definition,
   placement,
-  position,
-  total,
   selected,
   dragging,
   onSelect,
@@ -741,8 +686,6 @@ function ArrangeTile({
 }: {
   readonly definition: HomeBlockDefinition;
   readonly placement: HomeBlockPlacement;
-  readonly position: number;
-  readonly total: number;
   readonly selected: boolean;
   readonly dragging: boolean;
   readonly onSelect: () => void;
@@ -763,7 +706,7 @@ function ArrangeTile({
       onClick={onSelect}
       onKeyDown={onKeyDown}
       aria-pressed={selected}
-      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}. Pfeiltasten verschieben: links und rechts in der Reihe, oben und unten in eine eigene Reihe.`}
+      aria-label={`${definition.label} auswählen, Spalte ${placement.col + 1}, Zeile ${placement.row + 1}, ${SPAN_LABEL[placement.span]}. Pfeiltasten verschieben die Kachel um eine Zelle.`}
       className={`flex h-full w-full flex-col items-start gap-2 p-4 text-left ${
         dragging
           ? "scale-[1.02] cursor-grabbing shadow-xl"
@@ -822,6 +765,7 @@ function SelectionBar({
   restoring,
   addable,
   onAdd,
+  arrangeable,
 }: {
   readonly definition: HomeBlockDefinition | null;
   readonly placement: HomeBlockPlacement | undefined;
@@ -831,6 +775,8 @@ function SelectionBar({
   readonly restoring: boolean;
   readonly addable: readonly HomeBlockDefinition[];
   readonly onAdd: (key: HomeBlockKey) => void;
+  /** Zeichnet das Brett die vier Spalten? Nur dann lässt sich ziehen. */
+  readonly arrangeable: boolean;
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -881,12 +827,12 @@ function SelectionBar({
         </>
       ) : (
         <span className="min-w-0 flex-1 text-sm text-gray-600">
-          <span className="sm:hidden">
-            Karte halten und ziehen, um sie zu verschieben.
-          </span>
-          <span className="hidden sm:inline">
-            Karte ziehen, um sie zu verschieben.
-          </span>{" "}
+          {arrangeable
+            ? "Karte ziehen, um sie zu verschieben. "
+            : // Ein Tablet oder Handy zeichnet die Spalten nicht; ein Zug
+              // hätte dort kein Ziel. Das steht da, damit niemand vergeblich
+              // zieht.
+              "Verschieben geht am großen Bildschirm. "}
           Anklicken, um die Breite zu ändern.
         </span>
       )}

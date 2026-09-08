@@ -69,6 +69,17 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
   PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
+// Die Testumgebung ist ein breiter Bildschirm: nur dort zeichnet das Brett
+// die vier Spalten der Anordnung, und nur dort lässt sich ziehen.
+vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/hooks/use-media-query")>();
+  return {
+    ...actual,
+    useMediaQuery: (query: string) => query === "(min-width: 1280px)",
+  };
+});
+
 vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));
@@ -380,8 +391,8 @@ describe("Startseite anpassen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     layoutState.blocks = [
-      { key: "tile.students_present", span: 1, row: 0 },
-      { key: "section.staff_notices", span: 2, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 0 },
+      { key: "section.staff_notices", span: 2, col: 1, row: 0 },
     ];
     // Der Rest der Standardansicht ist bereits entfernt, damit diese Fläche
     // genau zwei Karten hat und die Erwartungen unten lesbar bleiben.
@@ -421,7 +432,7 @@ describe("Startseite anpassen", () => {
     expect(screen.queryByTestId("staff-notices-block")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: /^Tagesinformationen auswählen, Platz 2 von 2, Breit/,
+        name: /^Tagesinformationen auswählen, Spalte 2, Zeile 1, Breit/,
       }),
     ).toBeInTheDocument();
     // Der Weg zu allen weiteren Bausteinen steht in der Leiste, nicht unter
@@ -452,9 +463,11 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Über die volle Breite passt die Karte nur ab Spalte 1; die Kennzahl,
+    // die dort lag, rückt unter sie. Gespeichert wird in Lesereihenfolge.
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "tile.students_present", span: 1, row: 0 },
-      { key: "section.staff_notices", span: 4, row: 1 },
+      { key: "section.staff_notices", span: 4, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 
@@ -478,10 +491,11 @@ describe("Startseite anpassen", () => {
 
     const source = screen.getByTestId("home-block-section.staff_notices");
     const target = screen.getByTestId("home-block-tile.students_present");
-    // Wo eine Kachel hingehört, entscheidet die Geometrie des Rasters, nicht
-    // das Element unter dem Zeiger. Die Testumgebung kennt kein Layout, also
-    // bekommen die Zellen ihre Lage hier: die Kennzahl oben links, die
-    // Tagesinformationen darunter.
+    // Wo eine Kachel hingehört, entscheidet die Zelle unter ihrer linken
+    // oberen Ecke, gerechnet aus dem Weg des Zeigers. Die Testumgebung kennt
+    // kein Layout, also bekommen die Zellen ihre Lage hier: die Kennzahl in
+    // Spalte 1, die Tagesinformationen daneben (eine Zelle ist 300 breit,
+    // die Lücke 16).
     const cell = (
       element: HTMLElement,
       box: { left: number; top: number; width: number; height: number },
@@ -492,29 +506,30 @@ describe("Startseite anpassen", () => {
       Object.defineProperty(element, "offsetHeight", { value: box.height });
     };
     cell(target, { left: 0, top: 0, width: 300, height: 100 });
-    cell(source, { left: 0, top: 120, width: 600, height: 200 });
+    cell(source, { left: 316, top: 0, width: 616, height: 216 });
 
     fireEvent.pointerDown(source, {
       pointerType: "mouse",
       button: 0,
       pointerId: 1,
-      clientX: 100,
-      clientY: 200,
+      clientX: 400,
+      clientY: 50,
     });
     fireEvent.pointerMove(source, {
       pointerType: "mouse",
       pointerId: 1,
-      clientX: 100,
-      clientY: 40,
+      clientX: 90,
+      clientY: 50,
     });
     fireEvent.pointerUp(source, { pointerType: "mouse", pointerId: 1 });
 
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Die Karte liegt jetzt auf der Zelle der Kennzahl; die rückt unter sie.
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2, row: 0 },
-      { key: "tile.students_present", span: 1, row: 0 },
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 
@@ -533,9 +548,10 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Eine Zelle nach links: auf die Kennzahl, die darum nach unten rückt.
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2, row: 0 },
-      { key: "tile.students_present", span: 1, row: 0 },
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 
@@ -553,8 +569,9 @@ describe("Startseite anpassen", () => {
       ...HIDDEN_DEFAULTS,
       "tile.students_present": false,
     });
+    // Die Lücke, die die Kennzahl lässt, bleibt: die Karte rückt nicht nach.
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2, row: 0 },
+      { key: "section.staff_notices", span: 2, col: 1, row: 0 },
     ]);
   });
 
@@ -566,12 +583,14 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    // Ans Ende heißt: in die letzte Reihe, wenn dort Platz ist, sonst in eine
-    // neue darunter — hier ist die erste Reihe mit drei Spalten schon zu voll.
+    // Ans Ende heißt: in die freien Zellen der untersten Zeilen, sonst in
+    // eine neue Zeile darunter — hier ist neben den Tagesinformationen kein
+    // Platz für eine breite Karte.
     expect(save.mock.calls[0]?.[1]?.at(-1)).toEqual({
       key: "section.birthdays",
       span: 2,
-      row: 1,
+      col: 0,
+      row: 2,
     });
   });
 

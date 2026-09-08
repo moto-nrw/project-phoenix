@@ -56,11 +56,11 @@ type Operations interface {
 type HomeLayoutOperations interface {
 	HomeLayout(context.Context, int64, int64, []string) (any, error)
 	// SetHomeLayout takes the hidden-block deviations, the arrangement in
-	// display order, the width per block and the row per block. They travel
-	// apart because this boundary speaks primitives only: a shared placement
-	// type would have to live in one of the two packages and be imported by
-	// the other, which the architecture policy does not allow.
-	SetHomeLayout(context.Context, int64, int64, map[string]bool, []string, map[string]int, map[string]int) error
+	// display order, the width per block, and the column and row per block.
+	// They travel apart because this boundary speaks primitives only: a shared
+	// placement type would have to live in one of the two packages and be
+	// imported by the other, which the architecture policy does not allow.
+	SetHomeLayout(context.Context, int64, int64, map[string]bool, []string, map[string]int, map[string]int, map[string]int) error
 	ResetHomeLayout(context.Context, int64, int64) error
 	SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 }

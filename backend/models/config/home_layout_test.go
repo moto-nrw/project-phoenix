@@ -7,26 +7,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Die Reihe gehört seit #2180 zur gespeicherten Anordnung: eine Kachel, die
-// zwischen zwei Reihen abgelegt wird, bekommt eine eigene. Der Server prüft
-// nur die Form, nicht die Bedeutung.
-func TestValidateHomeBlockPlacements_Rows(t *testing.T) {
+// Spalte und Zeile gehören seit #2180 zur gespeicherten Anordnung: das Brett
+// ist ein freies Raster, jede Kachel liegt in ihrer Zelle. Der Server prüft
+// nur die Form, nicht die Bedeutung: Überlappungen löst das Frontend auf.
+func TestValidateHomeBlockPlacements_Cells(t *testing.T) {
 	t.Parallel()
 
 	require.NoError(t, ValidateHomeBlockPlacements([]HomeBlockPlacement{
-		{Key: "tile.students_present", Span: 1, Row: 0},
-		{Key: "section.open_requests", Span: 2, Row: 1},
-		{Key: "section.staff_today", Span: 2, Row: 1},
-	}), "Reihen dürfen sich wiederholen und Lücken haben; sortiert wird im Frontend")
+		{Key: "tile.students_present", Span: 1, Col: 3, Row: 0},
+		{Key: "section.open_requests", Span: 2, Col: 0, Row: 4},
+		{Key: "section.staff_today", Span: 2, Col: 2, Row: 4},
+		{Key: "section.birthdays", Span: 4, Col: 0, Row: 9},
+	}), "Lücken und Zeilen ohne Kachel sind erlaubt")
 
 	err := ValidateHomeBlockPlacements([]HomeBlockPlacement{
-		{Key: "tile.students_present", Span: 1, Row: -1},
+		{Key: "tile.students_present", Span: 1, Col: -1, Row: 0},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid column")
+
+	err = ValidateHomeBlockPlacements([]HomeBlockPlacement{
+		{Key: "section.open_requests", Span: 2, Col: 3, Row: 0},
+	})
+	require.Error(t, err, "eine breite Kachel darf nicht über den rechten Rand ragen")
+	assert.Contains(t, err.Error(), "invalid column")
+
+	err = ValidateHomeBlockPlacements([]HomeBlockPlacement{
+		{Key: "tile.students_present", Span: 1, Col: 0, Row: -1},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid row")
 
 	err = ValidateHomeBlockPlacements([]HomeBlockPlacement{
-		{Key: "tile.students_present", Span: 1, Row: MaxHomeBlockEntries},
+		{Key: "tile.students_present", Span: 1, Col: 0, Row: MaxHomeBlockEntries * 2},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid row")

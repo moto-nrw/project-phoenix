@@ -2,8 +2,8 @@
  * Baustein-Register der Startseite (#2875, modular seit #2180).
  *
  * Die Startseite ist keine feste Bildschirmfläche, sondern ein Brett aus
- * Bausteinen, das jede Person selbst zusammenstellt: welche Bausteine, in
- * welcher Reihenfolge, wie breit. Wer nichts anfasst, sieht die
+ * Bausteinen, das jede Person selbst zusammenstellt: welche Bausteine, an
+ * welcher Stelle, wie breit. Wer nichts anfasst, sieht die
  * Standardansicht ihrer Rolle.
  *
  * Vier Ebenen entscheiden, in dieser Reihenfolge:
@@ -23,7 +23,7 @@
  * Server prüft Schlüssel und Breite nur auf ihre Form.
  *
  * Gespeichert werden ZWEI Dinge, beide als Abweichung vom Standard: die
- * ANORDNUNG (Reihenfolge und Breite dessen, was die Person platziert hat) und
+ * ANORDNUNG (Zelle und Breite dessen, was die Person platziert hat) und
  * die ENTFERNTEN Bausteine. Ein später ergänzter Baustein steht in keinem von
  * beiden — er erscheint deshalb bei bestehenden Konten am Ende der Fläche,
  * statt für alle zu verschwinden, die den Dialog je geöffnet haben.
@@ -435,23 +435,33 @@ const BLOCK_BY_KEY = new Map<HomeBlockKey, HomeBlockDefinition>(
 );
 
 /**
- * Ein Baustein an seinem Platz: welcher, wie breit, in welcher Reihe.
+ * Ein Baustein an seinem Platz: welcher, wie breit, in welcher Zelle.
  *
- * Die REIHE ist die Gruppierung der Person, nicht die Zeile, in die das
- * Raster den Baustein zufällig spült. Eine Kachel, die zwischen zwei Reihen
- * abgelegt wird, bekommt eine eigene — auch eine schmale Kennzahl allein,
- * mit Luft daneben. Ohne dieses Feld entschiede das Raster selbst, und eine
- * Kennzahl rutschte neben die Karte, unter die sie gehören sollte.
+ * Das Brett ist ein freies Raster aus vier Spalten und beliebig vielen
+ * Zeilen. Jede Kachel steht in der Zelle, in die man sie gelegt hat — Spalte
+ * und Zeile unabhängig voneinander, Lücken erlaubt. Nichts rutscht von
+ * allein nach oben oder zur Seite: was die Person baut, bleibt so.
  */
 export interface HomeBlockPlacement {
   readonly key: HomeBlockKey;
   readonly span: HomeBlockSpan;
-  /** Nullbasiert, lückenlos, in Anzeigereihenfolge. */
+  /** Spalte der linken Kante, nullbasiert; höchstens `4 - span`. */
+  readonly col: number;
+  /** Rasterzeile der oberen Kante, nullbasiert. Eine Zeile ist 7rem hoch. */
   readonly row: number;
 }
 
-/** Spalten des Rasters auf dem Desktop; eine Reihe fasst höchstens so viel. */
+/** Spalten des Rasters auf dem Desktop. */
 export const HOME_BOARD_COLUMNS = 4;
+
+/**
+ * Höhe eines Bausteins in Rasterzeilen: eine Kennzahl eine, eine Liste zwei.
+ * Feste Höhen halten die Karten auf einer Linie; was nicht hineinpasst,
+ * zählt die Karte und verlinkt es.
+ */
+export function homeBlockHeight(key: HomeBlockKey): number {
+  return homeBlockDefinition(key)?.kind === "tile" ? 1 : 2;
+}
 
 /**
  * Die Standardansichten, aus denen jemand startet.
@@ -487,138 +497,142 @@ export const DEFAULT_LAYOUTS: Record<
   readonly HomeBlockPlacement[]
 > = {
   care: [
-    { key: "section.my_day", span: 2, row: 0 },
-    { key: "section.my_group", span: 2, row: 0 },
-    { key: "section.staff_notices", span: 2, row: 1 },
-    { key: "section.reminders", span: 2, row: 1 },
-    { key: "section.birthdays", span: 4, row: 2 },
+    { key: "section.my_day", span: 2, col: 0, row: 0 },
+    { key: "section.my_group", span: 2, col: 2, row: 0 },
+    { key: "section.staff_notices", span: 2, col: 0, row: 2 },
+    { key: "section.reminders", span: 2, col: 2, row: 2 },
+    { key: "section.birthdays", span: 4, col: 0, row: 4 },
   ],
   lead: [
-    { key: "tile.students_present", span: 1, row: 0 },
-    { key: "tile.students_sick", span: 1, row: 0 },
-    { key: "tile.students_excused", span: 1, row: 0 },
-    { key: "tile.students_home", span: 1, row: 0 },
-    { key: "section.open_requests", span: 2, row: 1 },
-    { key: "section.staff_today", span: 2, row: 1 },
-    { key: "section.staff_notices", span: 2, row: 2 },
-    { key: "section.day_flow", span: 2, row: 2 },
-    { key: "section.messages", span: 2, row: 3 },
-    { key: "section.active_groups", span: 2, row: 3 },
-    { key: "section.birthdays", span: 4, row: 4 },
+    { key: "tile.students_present", span: 1, col: 0, row: 0 },
+    { key: "tile.students_sick", span: 1, col: 1, row: 0 },
+    { key: "tile.students_excused", span: 1, col: 2, row: 0 },
+    { key: "tile.students_home", span: 1, col: 3, row: 0 },
+    { key: "section.open_requests", span: 2, col: 0, row: 1 },
+    { key: "section.staff_today", span: 2, col: 2, row: 1 },
+    { key: "section.staff_notices", span: 2, col: 0, row: 3 },
+    { key: "section.day_flow", span: 2, col: 2, row: 3 },
+    { key: "section.messages", span: 2, col: 0, row: 5 },
+    { key: "section.active_groups", span: 2, col: 2, row: 5 },
+    { key: "section.birthdays", span: 4, col: 0, row: 7 },
   ],
   // Die Vereinigung: erst der eigene Tag und die eigene Gruppe, dann die
   // Lage der Schule. Die Erinnerungen fehlen hier, weil die Jetzt-Zone und
   // der Ablauf des Tages den Moment schon tragen; sie stehen im Menü.
   lead_care: [
-    { key: "section.my_day", span: 2, row: 0 },
-    { key: "section.my_group", span: 2, row: 0 },
-    { key: "tile.students_present", span: 1, row: 1 },
-    { key: "tile.students_sick", span: 1, row: 1 },
-    { key: "tile.students_excused", span: 1, row: 1 },
-    { key: "tile.students_home", span: 1, row: 1 },
-    { key: "section.open_requests", span: 2, row: 2 },
-    { key: "section.staff_today", span: 2, row: 2 },
-    { key: "section.staff_notices", span: 2, row: 3 },
-    { key: "section.day_flow", span: 2, row: 3 },
-    { key: "section.birthdays", span: 4, row: 4 },
+    { key: "section.my_day", span: 2, col: 0, row: 0 },
+    { key: "section.my_group", span: 2, col: 2, row: 0 },
+    { key: "tile.students_present", span: 1, col: 0, row: 2 },
+    { key: "tile.students_sick", span: 1, col: 1, row: 2 },
+    { key: "tile.students_excused", span: 1, col: 2, row: 2 },
+    { key: "tile.students_home", span: 1, col: 3, row: 2 },
+    { key: "section.open_requests", span: 2, col: 0, row: 3 },
+    { key: "section.staff_today", span: 2, col: 2, row: 3 },
+    { key: "section.staff_notices", span: 2, col: 0, row: 5 },
+    { key: "section.day_flow", span: 2, col: 2, row: 5 },
+    { key: "section.birthdays", span: 4, col: 0, row: 7 },
   ],
 };
 
+/** Die Zelle, in die ein Baustein zieht. */
+export interface HomeMoveTarget {
+  readonly col: number;
+  readonly row: number;
+}
+
+function overlaps(a: HomeBlockPlacement, b: HomeBlockPlacement): boolean {
+  return (
+    a.col < b.col + b.span &&
+    b.col < a.col + a.span &&
+    a.row < b.row + homeBlockHeight(b.key) &&
+    b.row < a.row + homeBlockHeight(a.key)
+  );
+}
+
+function clampCol(col: number, span: HomeBlockSpan): number {
+  return Math.max(0, Math.min(Math.floor(col), HOME_BOARD_COLUMNS - span));
+}
+
+/** Zeilen und Spalten zuerst, dann die Reihenfolge, in der man liest. */
+function byCell(a: HomeBlockPlacement, b: HomeBlockPlacement): number {
+  return a.row - b.row || a.col - b.col;
+}
+
 /**
- * Bringt eine Anordnung in Form: Reihen lückenlos von 0 an, in der
- * Reihenfolge ihres ersten Auftretens, und keine Reihe breiter als das
- * Raster — was überläuft, rückt in eine neue Reihe direkt dahinter. Leere
- * Reihen gibt es danach nicht mehr.
+ * Die Anordnung in Lesereihenfolge (Zeile für Zeile, links nach rechts).
+ * So wird gespeichert, damit dieselbe Anordnung immer gleich aussieht;
+ * während des Ziehens bleibt die Reihenfolge des Bretts unangetastet.
  */
-export function normalizeRows(
+export function sortedPlacements(
   placements: readonly HomeBlockPlacement[],
 ): HomeBlockPlacement[] {
-  const rows = rowsOf(placements);
-  const result: HomeBlockPlacement[] = [];
-  let row = 0;
-  for (const entries of rows) {
-    let width = 0;
-    for (const entry of entries) {
-      if (width > 0 && width + entry.span > HOME_BOARD_COLUMNS) {
-        row += 1;
-        width = 0;
+  return [...placements].sort(byCell);
+}
+
+/**
+ * Löst Überlappungen auf, indem Bausteine nach UNTEN rücken — nie zur Seite
+ * und nie nach oben. Wer eine Kachel auf eine andere legt, schiebt die andere
+ * unter sich; alles Übrige bleibt, wo es war.
+ *
+ * `first` ist die Kachel, die stehen bleibt (die gerade bewegte). Danach
+ * gilt Lesereihenfolge: was weiter oben steht, hat Vorrang vor dem, was
+ * darunter steht. Jede Kachel wird genau einmal so weit nach unten gesetzt,
+ * dass sie keine bereits festgelegte mehr berührt; da sie nur nach unten
+ * rückt, endet das immer.
+ */
+function pushApart(
+  placements: readonly HomeBlockPlacement[],
+  first: HomeBlockKey | null,
+): HomeBlockPlacement[] {
+  const fixed: HomeBlockPlacement[] = [];
+  const ordered = [...placements].sort(byCell);
+  const lead = ordered.find((entry) => entry.key === first);
+  if (lead) fixed.push(lead);
+  for (const entry of ordered) {
+    if (entry.key === first) continue;
+    let placed = entry;
+    let bumped = true;
+    while (bumped) {
+      bumped = false;
+      for (const other of fixed) {
+        if (!overlaps(placed, other)) continue;
+        placed = { ...placed, row: other.row + homeBlockHeight(other.key) };
+        bumped = true;
       }
-      result.push({ key: entry.key, span: entry.span, row });
-      width += entry.span;
     }
-    row += 1;
+    fixed.push(placed);
   }
-  return result;
+  // Die Reihenfolge des Aufrufers bleibt erhalten: das Brett rendert die
+  // Kacheln in dieser Reihenfolge, und ein Umsortieren mitten im Zug würde
+  // den Knoten unter dem Zeiger wandern lassen.
+  const byKey = new Map(fixed.map((entry) => [entry.key, entry]));
+  return placements.map((entry) => byKey.get(entry.key) ?? entry);
 }
 
-/** Die Anordnung als Reihen, jede in Anzeigereihenfolge. */
-export function rowsOf(
-  placements: readonly HomeBlockPlacement[],
-): HomeBlockPlacement[][] {
-  const byRow = new Map<number, HomeBlockPlacement[]>();
-  for (const placement of placements) {
-    const entries = byRow.get(placement.row);
-    if (entries) entries.push(placement);
-    else byRow.set(placement.row, [placement]);
-  }
-  return Array.from(byRow.keys())
-    .sort((a, b) => a - b)
-    .map((row) => byRow.get(row)!);
+/** Rückt das ganze Brett nach oben, wenn die ersten Zeilen leer sind. */
+function trimTop(placements: HomeBlockPlacement[]): HomeBlockPlacement[] {
+  const top = Math.min(...placements.map((entry) => entry.row));
+  if (!Number.isFinite(top) || top === 0) return placements;
+  return placements.map((entry) => ({ ...entry, row: entry.row - top }));
 }
 
 /**
- * Wohin ein Baustein zieht: in eine bestehende Reihe an eine Stelle, oder
- * in eine neue Reihe vor der Reihe `before` (`before` gleich der Zahl der
- * Reihen heißt: ganz unten).
+ * Bringt eine Anordnung in Form: Spalten im Raster, Zeilen ab null, keine
+ * zwei Bausteine auf derselben Zelle. Lücken zwischen Bausteinen bleiben —
+ * sie sind Absicht, nicht Unordnung.
  */
-export type HomeMoveTarget =
-  | { readonly kind: "into"; readonly row: number; readonly index: number }
-  | { readonly kind: "newRow"; readonly before: number };
-
-/**
- * Versetzt einen Baustein. Läuft die Zielreihe dadurch über, teilt sie sich;
- * eine Reihe, die leer wird, verschwindet.
- */
-export function movePlacement(
+export function normalizePlacements(
   placements: readonly HomeBlockPlacement[],
-  key: HomeBlockKey,
-  target: HomeMoveTarget,
 ): HomeBlockPlacement[] {
-  const moving = placements.find((entry) => entry.key === key);
-  if (!moving) return placements as HomeBlockPlacement[];
-  const rows = rowsOf(placements).map((entries) =>
-    entries.filter((entry) => entry.key !== key),
-  );
-
-  if (target.kind === "newRow") {
-    const before = Math.max(0, Math.min(target.before, rows.length));
-    rows.splice(before, 0, [moving]);
-  } else {
-    const row = Math.max(0, Math.min(target.row, rows.length - 1));
-    const entries = rows[row] ?? [];
-    // In eine volle Reihe passt nichts mehr hinein. Sie wird NICHT geteilt:
-    // wer eine Kachel über eine volle Reihe zieht, will sie dort nicht
-    // ablegen, und ein Zug darüber hinweg darf keine Spuren hinterlassen.
-    const width = entries.reduce((sum, entry) => sum + entry.span, 0);
-    if (width + moving.span > HOME_BOARD_COLUMNS) {
-      return placements as HomeBlockPlacement[];
-    }
-    const index = Math.max(0, Math.min(target.index, entries.length));
-    entries.splice(index, 0, moving);
-    rows[row] = entries;
-  }
-
-  const next = normalizeRows(
-    rows.flatMap((entries, row) => entries.map((entry) => ({ ...entry, row }))),
-  );
-  // Ein Zug, der nichts ändert (der Zeiger steht noch in derselben Zelle),
-  // gibt dieselbe Anordnung zurück — sonst rendert jede Zeigerbewegung neu.
-  return sameArrangement(placements, next)
-    ? (placements as HomeBlockPlacement[])
-    : next;
+  const inGrid = placements.map((entry) => ({
+    ...entry,
+    col: clampCol(entry.col, entry.span),
+    row: Math.max(0, Math.floor(entry.row)),
+  }));
+  return trimTop(pushApart(inGrid, null)).sort(byCell);
 }
 
-function sameArrangement(
+function samePlacements(
   a: readonly HomeBlockPlacement[],
   b: readonly HomeBlockPlacement[],
 ): boolean {
@@ -629,48 +643,124 @@ function sameArrangement(
       return (
         entry.key === other.key &&
         entry.span === other.span &&
+        entry.col === other.col &&
         entry.row === other.row
       );
     })
   );
 }
 
-/** Ändert die Breite; eine Reihe, die dadurch überläuft, teilt sich. */
+/**
+ * Legt einen Baustein in eine Zelle. Was dort schon liegt, rückt nach unten.
+ *
+ * Ein Zug, der nichts ändert (die Kachel liegt schon dort), gibt dieselbe
+ * Anordnung zurück — sonst rendert jede Zeigerbewegung neu.
+ */
+export function placePlacement(
+  placements: readonly HomeBlockPlacement[],
+  key: HomeBlockKey,
+  target: HomeMoveTarget,
+): HomeBlockPlacement[] {
+  const moving = placements.find((entry) => entry.key === key);
+  if (!moving) return placements as HomeBlockPlacement[];
+  const col = clampCol(target.col, moving.span);
+  const row = Math.max(0, Math.floor(target.row));
+  if (col === moving.col && row === moving.row) {
+    return placements as HomeBlockPlacement[];
+  }
+  const next = trimTop(
+    pushApart(
+      placements.map((entry) =>
+        entry.key === key ? { ...entry, col, row } : entry,
+      ),
+      key,
+    ),
+  );
+  return samePlacements(placements, next)
+    ? (placements as HomeBlockPlacement[])
+    : next;
+}
+
+/**
+ * Ändert die Breite. Reicht die Kachel damit über den rechten Rand, rückt
+ * sie nach links; was sie dann überdeckt, rückt nach unten.
+ */
 export function placementWithSpan(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
   span: HomeBlockSpan,
 ): HomeBlockPlacement[] {
-  return normalizeRows(
-    placements.map((entry) => (entry.key === key ? { ...entry, span } : entry)),
+  const current = placements.find((entry) => entry.key === key);
+  if (!current || current.span === span) {
+    return placements as HomeBlockPlacement[];
+  }
+  return trimTop(
+    pushApart(
+      placements.map((entry) =>
+        entry.key === key
+          ? { ...entry, span, col: clampCol(entry.col, span) }
+          : entry,
+      ),
+      key,
+    ),
+  );
+}
+
+function isFree(
+  placements: readonly HomeBlockPlacement[],
+  candidate: HomeBlockPlacement,
+): boolean {
+  return placements.every((entry) => !overlaps(entry, candidate));
+}
+
+/** Die unterste belegte Rasterzeile plus eins; 0 auf leerem Brett. */
+function bottomOf(placements: readonly HomeBlockPlacement[]): number {
+  return placements.reduce(
+    (bottom, entry) => Math.max(bottom, entry.row + homeBlockHeight(entry.key)),
+    0,
   );
 }
 
 /**
- * Hängt einen Baustein ans Ende: in die letzte Reihe, wenn er dort noch
- * Platz hat, sonst in eine neue darunter.
+ * Setzt einen Baustein an die erste freie Stelle ab `fromRow`, von links
+ * nach rechts, Zeile für Zeile. Unter dem Brett ist immer Platz.
+ */
+function firstFit(
+  placements: readonly HomeBlockPlacement[],
+  key: HomeBlockKey,
+  span: HomeBlockSpan,
+  fromRow: number,
+  columns = HOME_BOARD_COLUMNS,
+): HomeBlockPlacement {
+  for (let row = fromRow; ; row += 1) {
+    for (let col = 0; col + span <= columns; col += 1) {
+      const candidate = { key, span, col, row };
+      if (isFree(placements, candidate)) return candidate;
+    }
+  }
+}
+
+/**
+ * Hängt einen Baustein ans Ende: in die Lücken der untersten Zeilen, wenn er
+ * dort hineinpasst, sonst in eine neue Zeile darunter. Nicht in eine Lücke
+ * weiter oben — die hat die Person gelassen, und ein neuer Baustein mitten
+ * im Brett fiele niemandem auf.
  */
 export function appendPlacement(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
   span: HomeBlockSpan,
 ): HomeBlockPlacement[] {
-  const rows = rowsOf(placements);
-  const last = rows[rows.length - 1];
-  const lastWidth = last?.reduce((sum, entry) => sum + entry.span, 0) ?? 0;
-  const row =
-    last && lastWidth + span <= HOME_BOARD_COLUMNS
-      ? rows.length - 1
-      : rows.length;
-  return normalizeRows([...placements, { key, span, row }]);
+  const fromRow = Math.max(0, bottomOf(placements) - homeBlockHeight(key));
+  return [...placements, firstFit(placements, key, span, fromRow)];
 }
 
-/** Entfernt einen Baustein; seine Reihe verschwindet, wenn sie leer wird. */
+/** Entfernt einen Baustein. Seine Zelle bleibt frei, bis jemand sie füllt. */
 export function withoutPlacement(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
 ): HomeBlockPlacement[] {
-  return normalizeRows(placements.filter((entry) => entry.key !== key));
+  return trimTop(placements.filter((entry) => entry.key !== key));
 }
 
 /** Eine Zelle des gezeichneten Rasters, einsbasiert wie in CSS. */
@@ -682,43 +772,37 @@ export interface HomeBoardCell {
 }
 
 /**
- * Rechnet die Reihen in Zellen eines Rasters mit `columns` Spalten um.
+ * Rechnet die Anordnung in Zellen eines Rasters mit `columns` Spalten um.
  *
- * Eine Kennzahl ist eine Rasterzeile hoch, eine Liste zwei. Eine Reihe des
- * Modells belegt so viele Rasterzeilen, wie ihr höchster Baustein braucht;
- * ist das Raster schmaler als die Reihe (Tablet: zwei Spalten), bricht die
- * Reihe innerhalb ihres Bandes um. Das Raster zeichnet damit genau die
- * Reihenfolge, die die Person gebaut hat — statt Lücken nach eigenem
- * Ermessen zu füllen.
+ * Auf vier Spalten ist das die Anordnung selbst. Ein schmaleres Raster
+ * (Tablet: zwei Spalten) kann die Spalten der Person nicht zeichnen; dort
+ * fließen die Bausteine in Lesereihenfolge nach und füllen das Raster von
+ * oben, jeder höchstens so breit wie das Raster.
  */
 export function computeBoardCells(
   placements: readonly HomeBlockPlacement[],
   columns: number,
 ): Map<HomeBlockKey, HomeBoardCell> {
   const cells = new Map<HomeBlockKey, HomeBoardCell>();
-  let rowStart = 1;
-  for (const entries of rowsOf(placements)) {
-    let column = 1;
-    let lineStart = rowStart;
-    let lineHeight = 0;
-    for (const entry of entries) {
-      const columnSpan = Math.min(entry.span, columns);
-      const rowSpan = homeBlockDefinition(entry.key)?.kind === "tile" ? 1 : 2;
-      if (column > 1 && column + columnSpan - 1 > columns) {
-        lineStart += lineHeight;
-        column = 1;
-        lineHeight = 0;
-      }
-      cells.set(entry.key, {
-        columnStart: column,
-        columnSpan,
-        rowStart: lineStart,
-        rowSpan,
-      });
-      column += columnSpan;
-      lineHeight = Math.max(lineHeight, rowSpan);
-    }
-    rowStart = lineStart + lineHeight;
+  const laid: HomeBlockPlacement[] = [];
+  for (const entry of [...placements].sort(byCell)) {
+    const placed =
+      columns >= HOME_BOARD_COLUMNS
+        ? entry
+        : firstFit(
+            laid,
+            entry.key,
+            Math.min(entry.span, columns) as HomeBlockSpan,
+            0,
+            columns,
+          );
+    laid.push(placed);
+    cells.set(entry.key, {
+      columnStart: placed.col + 1,
+      columnSpan: placed.span,
+      rowStart: placed.row + 1,
+      rowSpan: homeBlockHeight(entry.key),
+    });
   }
   return cells;
 }
@@ -737,7 +821,7 @@ export function homeProfileFor(access: HomeBlockAccess): HomeProfile {
 }
 
 export interface ResolvedHomeLayout {
-  /** Was gezeigt wird, in dieser Reihenfolge und Breite. */
+  /** Was gezeigt wird, an diesen Zellen und in dieser Breite. */
   readonly placements: readonly HomeBlockPlacement[];
   /** Was die Person noch hinzufügen kann. */
   readonly addable: readonly HomeBlockDefinition[];
@@ -767,7 +851,7 @@ function clampSpan(
  *   1. Was die Person abrufen darf und was es in dieser Schule gibt.
  *   2. Was die Schule abgeschaltet hat, fällt raus; was sie verlangt, bleibt
  *      drin, auch wenn die Person es entfernt hat.
- *   3. Die gespeicherte Anordnung gibt Reihenfolge und Breite.
+ *   3. Die gespeicherte Anordnung gibt Zelle und Breite.
  *   4. Ein Baustein aus der Standardansicht, den die Person weder angeordnet
  *      noch entfernt hat, kommt ans Ende — so erreicht ein später ergänzter
  *      Baustein auch bestehende Konten.
@@ -804,11 +888,12 @@ export function resolveHomeLayout(
     placements.push({
       key: entry.key,
       span: clampSpan(block, entry.span),
+      col: entry.col,
       row: entry.row,
     });
     placed.add(entry.key);
   }
-  placements = normalizeRows(placements);
+  placements = normalizePlacements(placements);
 
   for (const entry of DEFAULT_LAYOUTS[profile]) {
     // Entfernt bleibt entfernt. Alles andere aus der Standardansicht steht am
@@ -820,9 +905,9 @@ export function resolveHomeLayout(
     const span = clampSpan(block, entry.span);
     placements = arranged
       ? appendPlacement(placements, entry.key, span)
-      : normalizeRows([
+      : normalizePlacements([
           ...placements,
-          { key: entry.key, span, row: entry.row },
+          { key: entry.key, span, col: entry.col, row: entry.row },
         ]);
     placed.add(entry.key);
   }
@@ -880,47 +965,47 @@ export function sanitizeHomeBlockPlacements(
   if (!Array.isArray(raw)) return [];
   const result: HomeBlockPlacement[] = [];
   const seen = new Set<HomeBlockKey>();
-  // Anordnungen von vor den Reihen tragen überall Reihe 0 (oder gar keine).
-  // Sie werden nach Breite gepackt, so wie das Raster sie damals gezeichnet
-  // hat — die Person sieht also, was sie kannte, nur jetzt mit fester Reihe.
+  // Anordnungen von vor dem freien Raster kennen keine Spalte. Sie werden
+  // in ihrer Reihenfolge von oben links her gepackt, so wie das Raster sie
+  // damals zeichnete — die Person sieht also, was sie kannte, nur jetzt mit
+  // fester Zelle.
   const legacy = raw.every(
     (entry) =>
       entry === null ||
       typeof entry !== "object" ||
-      typeof (entry as { row?: unknown }).row !== "number" ||
-      (entry as { row: number }).row === 0,
+      typeof (entry as { col?: unknown }).col !== "number",
   );
-  let row = 0;
-  let width = 0;
   for (const entry of raw) {
     if (entry === null || typeof entry !== "object") continue;
     const {
       key,
       span: rawSpan,
+      col: rawCol,
       row: rawRow,
-    } = entry as { key?: unknown; span?: unknown; row?: unknown };
+    } = entry as {
+      key?: unknown;
+      span?: unknown;
+      col?: unknown;
+      row?: unknown;
+    };
     if (!isHomeBlockKey(key) || seen.has(key)) continue;
     const block = BLOCK_BY_KEY.get(key)!;
     const span = clampSpan(
       block,
       typeof rawSpan === "number" ? rawSpan : undefined,
     );
-    if (legacy) {
-      if (width > 0 && width + span > HOME_BOARD_COLUMNS) {
-        row += 1;
-        width = 0;
-      }
-      width += span;
-    } else {
-      row =
-        typeof rawRow === "number" && Number.isInteger(rawRow) && rawRow >= 0
-          ? rawRow
-          : row;
-    }
-    result.push({ key, span, row });
     seen.add(key);
+    if (legacy) {
+      result.push(firstFit(result, key, span, 0));
+      continue;
+    }
+    const cell = (value: unknown) =>
+      typeof value === "number" && Number.isFinite(value) && value >= 0
+        ? Math.floor(value)
+        : 0;
+    result.push({ key, span, col: cell(rawCol), row: cell(rawRow) });
   }
-  return normalizeRows(result);
+  return normalizePlacements(result);
 }
 
 export function sanitizeHomeBlockPolicies(raw: unknown): HomeBlockPolicies {

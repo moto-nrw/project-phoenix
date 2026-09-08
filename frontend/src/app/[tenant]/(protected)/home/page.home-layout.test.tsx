@@ -174,7 +174,9 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   });
 
   it("fragt die Betriebszahlen nicht, wenn kein Baustein daraus lebt", async () => {
-    layoutState.blocks = [{ key: "section.staff_notices", span: 2, row: 0 }];
+    layoutState.blocks = [
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+    ];
     layoutState.overrides = {
       "tile.students_present": false,
       "tile.students_sick": false,
@@ -238,7 +240,9 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   });
 
   it("stellt einen verpflichtenden Baustein auf, auch wenn er entfernt wurde", async () => {
-    layoutState.blocks = [{ key: "section.staff_notices", span: 2, row: 0 }];
+    layoutState.blocks = [
+      { key: "section.staff_notices", span: 2, col: 0, row: 0 },
+    ];
     layoutState.overrides = { "tile.students_sick": false };
     layoutState.policies = { "tile.students_sick": "required" };
 

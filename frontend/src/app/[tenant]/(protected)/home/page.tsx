@@ -22,8 +22,9 @@ import { getTimeBasedGreeting } from "~/lib/greeting";
 import {
   appendPlacement,
   defaultSpanFor,
-  movePlacement,
+  placePlacement,
   placementWithSpan,
+  sortedPlacements,
   resolveHomeLayout,
   withoutPlacement,
   type HomeBlockKey,
@@ -218,13 +219,26 @@ function HomeContent() {
   }, []);
 
   // Jede Änderung am Entwurf läuft durch dieselben Regeln (`home-blocks.ts`):
-  // Reihen bleiben lückenlos, eine Reihe, die überläuft, teilt sich, und
-  // eine leere verschwindet.
-  const move = useCallback((key: HomeBlockKey, target: HomeMoveTarget) => {
-    setDraft((current) =>
-      current ? movePlacement(current, key, target) : current,
-    );
-  }, []);
+  // eine Kachel liegt in ihrer Zelle, was sie überdeckt, rückt nach unten,
+  // und Lücken bleiben, wie die Person sie gelassen hat.
+  //
+  // Beim Ziehen rechnet jeder Zug von der Anordnung beim Anfassen aus
+  // (`base`), nicht vom letzten Zwischenstand: nur so kehren Kacheln, die
+  // unterwegs ausgewichen sind, zurück, sobald die gezogene weiterzieht.
+  const move = useCallback(
+    (
+      key: HomeBlockKey,
+      target: HomeMoveTarget,
+      base: readonly HomeBlockPlacement[],
+    ) => {
+      setDraft((current) => {
+        if (!current) return current;
+        const next = placePlacement(base, key, target);
+        return next === base ? current : next;
+      });
+    },
+    [],
+  );
 
   const changeSpan = useCallback((key: HomeBlockKey, span: HomeBlockSpan) => {
     setDraft((current) =>
@@ -262,7 +276,9 @@ function HomeContent() {
       const overrides = { ...homeLayout.overrides };
       for (const key of removedInDraft) overrides[key] = false;
       for (const placement of draft) delete overrides[placement.key];
-      await saveHomeLayout(overrides, draft);
+      // In Lesereihenfolge, damit dieselbe Anordnung immer gleich gespeichert
+      // wird, egal in welcher Reihenfolge die Kacheln gezogen wurden.
+      await saveHomeLayout(overrides, sortedPlacements(draft));
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {
