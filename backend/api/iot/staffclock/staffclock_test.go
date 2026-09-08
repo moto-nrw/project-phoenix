@@ -1,131 +1,180 @@
-// Package staffclock_test exercises the staff-clock HTTP boundary with real
-// repositories and tenant-scoped transactions.
+// Package staffclock_test exercises the staff-clock HTTP boundary with the
+// real staff-clock workflow, repositories and tenant-scoped transactions. The
+// resource is composed over the test-support envelope, so this package needs
+// neither the shared HTTP package nor the persistence models.
 package staffclock_test
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-type testContext struct {
-	db       *bun.DB
-	resource *staffclockAPI.Resource
-	device   *iotModels.Device
+// staffClockRoute drives the composed resource. The fixture closures capture
+// the test database so the test never has to name the persistence types.
+type staffClockRoute struct {
+	execute         func(t *testing.T, path string, body map[string]any) (int, map[string]any)
+	linkStaffCard   func(t *testing.T, firstName, lastName, tag string) string
+	linkStudentCard func(t *testing.T, firstName, lastName, tag string) string
 }
 
-func setupStaffClockRoute(t *testing.T) *testContext {
+func setupStaffClockRoute(t *testing.T) staffClockRoute {
 	t.Helper()
-	db, serviceFactory := testutil.SetupWorkSessionModule(t)
+	db, module := testutil.SetupWorkSessionModule(t)
 	testDevice := testpkg.CreateTestDevice(t, db, "staff-clock-device")
-	return &testContext{db: db, resource: staffclockAPI.NewResource(serviceFactory.StaffClock), device: testDevice}
+	resource := staffclockAPI.NewResource(module.StaffClock, staffclockAPI.Runtime{
+		Success: testutil.RespondSuccess,
+		Failure: testutil.RespondCoded,
+	})
+	return staffClockRoute{
+		execute: func(t *testing.T, path string, body map[string]any) (int, map[string]any) {
+			t.Helper()
+			router := testutil.NewTenantRouter(db)
+			router.Mount("/", resource.Router())
+			req := testutil.NewAuthenticatedRequest(t, "POST", path, body, testutil.WithDeviceContext(testDevice))
+			response := testutil.ExecuteRequest(router, req)
+			return response.Code, testutil.ParseJSONResponse(t, response.Body.Bytes())
+		},
+		linkStaffCard: func(t *testing.T, firstName, lastName, tag string) string {
+			t.Helper()
+			staff := testpkg.CreateTestStaff(t, db, firstName, lastName)
+			card := testpkg.CreateTestRFIDCard(t, db, tag)
+			testpkg.LinkRFIDToStudent(t, db, staff.PersonID, card.ID)
+			return card.ID
+		},
+		linkStudentCard: func(t *testing.T, firstName, lastName, tag string) string {
+			t.Helper()
+			student := testpkg.CreateTestStudent(t, db, firstName, lastName, "1a")
+			card := testpkg.CreateTestRFIDCard(t, db, tag)
+			testpkg.LinkRFIDToStudent(t, db, student.PersonID, card.ID)
+			return card.ID
+		},
+	}
 }
 
-func (ctx *testContext) execute(t *testing.T, path string, body map[string]any) map[string]any {
+// stamp performs one request that must succeed and returns its data payload.
+func (route staffClockRoute) stamp(t *testing.T, path string, body map[string]any) map[string]any {
 	t.Helper()
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body, testutil.WithDeviceContext(ctx.device))
-	response := testutil.ExecuteRequest(router, req)
-	require.Equal(t, http.StatusOK, response.Code, "response: %s", response.Body.String())
-	return testutil.ParseJSONResponse(t, response.Body.Bytes())
+	code, parsed := route.execute(t, path, body)
+	require.Equal(t, 200, code, "response: %v", parsed)
+	data, ok := parsed["data"].(map[string]any)
+	require.True(t, ok, "response carries a data object: %v", parsed)
+	return data
 }
 
 func TestStaffClock_FullNFCFlow(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupStaffClockRoute(t)
+	route := setupStaffClockRoute(t)
+	tag := route.linkStaffCard(t, "Nora", "Kiosk", "A1654BEEF")
 
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Nora", "Kiosk")
-	card := testpkg.CreateTestRFIDCard(t, ctx.db, "A1654BEEF")
-	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+	initial := route.stamp(t, "/staff-clock/state", map[string]any{"rfid_tag": tag})
+	assert.Equal(t, devicescan.StaffClockStateCheckedOut, initial["state"])
+	assert.Equal(t, "Nora Kiosk", initial["staff_name"])
 
-	initial := ctx.execute(t, "/staff-clock/state", map[string]any{"rfid_tag": card.ID})
-	initialData := initial["data"].(map[string]any)
-	assert.Equal(t, "checked_out", initialData["state"])
-	assert.Equal(t, "Nora Kiosk", initialData["staff_name"])
-
-	checkedIn := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "checkin",
-		"status":   "present",
+	checkedIn := route.stamp(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionCheckIn,
+		"status":   workforce.WorkSessionStatusPresent,
 	})
-	checkedInData := checkedIn["data"].(map[string]any)
-	assert.Equal(t, "checked_in", checkedInData["state"])
-	session := checkedInData["session"].(map[string]any)
-	assert.Equal(t, activeModels.WorkSessionSourceNFC, session["source"])
-	assert.Equal(t, activeModels.WorkSessionStatusPresent, session["status"])
+	assert.Equal(t, devicescan.StaffClockStateCheckedIn, checkedIn["state"])
+	session := checkedIn["session"].(map[string]any)
+	assert.Equal(t, workforce.WorkSessionSourceNFC, session["source"])
+	assert.Equal(t, workforce.WorkSessionStatusPresent, session["status"])
 
-	duplicateRouter := testutil.NewTenantRouter(ctx.db)
-	duplicateRouter.Mount("/", ctx.resource.Router())
-	duplicateReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "checkin",
-		"status":   "present",
-	}, testutil.WithDeviceContext(ctx.device))
-	duplicateResponse := testutil.ExecuteRequest(duplicateRouter, duplicateReq)
-	require.Equal(t, http.StatusConflict, duplicateResponse.Code, "response: %s", duplicateResponse.Body.String())
-	assert.Equal(t, "invalid_staff_clock_state", testutil.ParseJSONResponse(t, duplicateResponse.Body.Bytes())["code"])
-
-	onBreak := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "break_start",
+	// A second check-in while clocked in is a state conflict the kiosk knows
+	// how to recover from, with the stable code PyrePortal maps.
+	duplicateCode, duplicate := route.execute(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionCheckIn,
+		"status":   workforce.WorkSessionStatusPresent,
 	})
-	assert.Equal(t, "on_break", onBreak["data"].(map[string]any)["state"])
+	require.Equal(t, 409, duplicateCode, "response: %v", duplicate)
+	assert.Equal(t, "invalid_staff_clock_state", duplicate["code"])
+	assert.Equal(t, "already checked in", duplicate["error"])
 
-	resumed := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "break_end",
+	onBreak := route.stamp(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionBreakStart,
 	})
-	assert.Equal(t, "checked_in", resumed["data"].(map[string]any)["state"])
+	assert.Equal(t, devicescan.StaffClockStateOnBreak, onBreak["state"])
+	require.NotNil(t, onBreak["active_break"], "a running break is reported")
 
-	checkedOut := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "checkout",
+	resumed := route.stamp(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionBreakEnd,
 	})
-	assert.Equal(t, "checked_out", checkedOut["data"].(map[string]any)["state"])
+	assert.Equal(t, devicescan.StaffClockStateCheckedIn, resumed["state"])
+
+	checkedOut := route.stamp(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionCheckOut,
+	})
+	assert.Equal(t, devicescan.StaffClockStateCheckedOut, checkedOut["state"])
 
 	// Checking in again with a different work location starts a NEW block
 	// carrying that status (#2402): one stamp, no conflict, no reason. The
 	// first block stays closed with its own status.
-	secondBlock := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "checkin",
-		"status":   "home_office",
+	secondBlock := route.stamp(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionCheckIn,
+		"status":   workforce.WorkSessionStatusHomeOffice,
 	})
-	secondBlockData := secondBlock["data"].(map[string]any)
-	assert.Equal(t, "checked_in", secondBlockData["state"])
-	secondBlockSession := secondBlockData["session"].(map[string]any)
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, secondBlockSession["status"])
-	assert.Equal(t, activeModels.WorkSessionSourceNFC, secondBlockSession["source"])
+	assert.Equal(t, devicescan.StaffClockStateCheckedIn, secondBlock["state"])
+	secondBlockSession := secondBlock["session"].(map[string]any)
+	assert.Equal(t, workforce.WorkSessionStatusHomeOffice, secondBlockSession["status"])
+	assert.Equal(t, workforce.WorkSessionSourceNFC, secondBlockSession["source"])
 	assert.NotEqual(t, session["id"], secondBlockSession["id"],
 		"the second check-in must create a new block, not reopen the first")
+
+	// A stamp that does not fit the state answers with the same stable code
+	// whether the workflow or the work session service rejected it.
+	breakEndCode, breakEnd := route.execute(t, "/staff-clock", map[string]any{
+		"rfid_tag": tag,
+		"action":   devicescan.StaffClockActionBreakEnd,
+	})
+	require.Equal(t, 409, breakEndCode, "response: %v", breakEnd)
+	assert.Equal(t, "invalid_staff_clock_state", breakEnd["code"])
+	assert.Equal(t, "no active break found", breakEnd["error"])
 }
 
 func TestStaffClock_RejectsStudentCard(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupStaffClockRoute(t)
+	route := setupStaffClockRoute(t)
+	tag := route.linkStudentCard(t, "Sam", "Schueler", "B1654CAFE")
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Sam", "Schueler", "1a")
-	card := testpkg.CreateTestRFIDCard(t, ctx.db, "B1654CAFE")
-	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff-clock/state", map[string]any{"rfid_tag": card.ID}, testutil.WithDeviceContext(ctx.device))
-	response := testutil.ExecuteRequest(router, req)
-
-	assert.Equal(t, http.StatusConflict, response.Code)
-	parsed := testutil.ParseJSONResponse(t, response.Body.Bytes())
+	code, parsed := route.execute(t, "/staff-clock/state", map[string]any{"rfid_tag": tag})
+	assert.Equal(t, 409, code)
 	assert.Equal(t, "rfid_tag_not_staff", parsed["code"])
+}
+
+func TestStaffClock_ClassifiesCardAndRequestFailures(t *testing.T) {
+	t.Parallel()
+
+	route := setupStaffClockRoute(t)
+
+	code, parsed := route.execute(t, "/staff-clock/state", map[string]any{"rfid_tag": "not a tag"})
+	assert.Equal(t, 400, code)
+	assert.Equal(t, "invalid_rfid_tag", parsed["code"])
+
+	code, parsed = route.execute(t, "/staff-clock/state", map[string]any{"rfid_tag": "C1654FEED"})
+	assert.Equal(t, 404, code)
+	assert.Equal(t, "rfid_tag_not_found", parsed["code"])
+
+	code, parsed = route.execute(t, "/staff-clock", map[string]any{"rfid_tag": "C1654FEED", "action": "dance"})
+	assert.Equal(t, 400, code)
+	assert.Equal(t, "invalid_staff_clock_request", parsed["code"])
+
+	code, parsed = route.execute(t, "/staff-clock", map[string]any{"rfid_tag": "C1654FEED", "action": devicescan.StaffClockActionCheckIn})
+	assert.Equal(t, 400, code)
+	assert.Equal(t, "invalid_staff_clock_request", parsed["code"])
+	assert.Equal(t, "status is required for check-in", parsed["error"])
 }

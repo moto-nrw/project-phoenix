@@ -438,6 +438,13 @@
   ],
   "packages": [
     {
+      "path": "modules/devicescan",
+      "owner": "process-device-scan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/studentpresence",
       "owner": "student-presence",
       "role": "public",
@@ -7219,6 +7226,17 @@
       "source_owner": "staff-clock",
       "source_role": "application",
       "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.process-device-scan",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
       "target_role": "public"
     },
     {

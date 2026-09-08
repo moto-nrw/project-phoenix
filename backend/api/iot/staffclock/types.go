@@ -5,7 +5,8 @@ import (
 	"net/http"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 type StateRequest struct {
@@ -30,15 +31,15 @@ func (req *CommandRequest) Bind(_ *http.Request) error {
 	if err := validation.ValidateStruct(req,
 		validation.Field(&req.RFIDTag, validation.Required),
 		validation.Field(&req.Action, validation.Required, validation.In(
-			staffclockSvc.ActionCheckIn,
-			staffclockSvc.ActionCheckOut,
-			staffclockSvc.ActionBreakStart,
-			staffclockSvc.ActionBreakEnd,
+			devicescan.StaffClockActionCheckIn,
+			devicescan.StaffClockActionCheckOut,
+			devicescan.StaffClockActionBreakStart,
+			devicescan.StaffClockActionBreakEnd,
 		)),
 	); err != nil {
 		return err
 	}
-	if req.Action == staffclockSvc.ActionCheckIn && req.Status == "" {
+	if req.Action == devicescan.StaffClockActionCheckIn && req.Status == "" {
 		return errors.New("status is required for check-in")
 	}
 	return nil

@@ -1271,7 +1271,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		CheckinService:    api.Services.Checkin,
-		StaffClockService: api.Services.StaffClock,
+		StaffClock:        api.Services.StaffClock,
 		UsersService:      api.Services.Users,
 		ActiveService:     api.Services.Active,
 		ActivitiesService: api.Services.Activities,

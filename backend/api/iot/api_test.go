@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -145,8 +146,21 @@ func (routerFeedback) Submit(context.Context, feedbackModule.CreateEntry) (feedb
 	return feedbackModule.Entry{}, nil
 }
 
+// routerStaffClock satisfies the kiosk staff clock contract during route
+// composition; the routes are never exercised here.
+type routerStaffClock struct{}
+
+func (routerStaffClock) StaffClockState(context.Context, string) (*devicescan.StaffClockState, error) {
+	return &devicescan.StaffClockState{}, nil
+}
+
+func (routerStaffClock) ExecuteStaffClock(context.Context, devicescan.StaffClockCommand) (*devicescan.StaffClockState, error) {
+	return &devicescan.StaffClockState{}, nil
+}
+
 func newRouterTestResource() *Resource {
 	return &Resource{ServiceDependencies: ServiceDependencies{
+		StaffClock:               routerStaffClock{},
 		UsersService:             &userstest.PersonServiceMock{},
 		FeedbackService:          routerFeedback{},
 		FeedbackResponseObserver: func(int, string) {},

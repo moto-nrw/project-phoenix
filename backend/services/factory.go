@@ -867,7 +867,7 @@ func newFactory(
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
-	staffClockService := staffclock.NewService(usersService, newRFIDCardLookup(repos.RFIDCard.FindByID), workSessionService)
+	staffClockService := newStaffClockService(usersService, repos.RFIDCard.FindByID, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
