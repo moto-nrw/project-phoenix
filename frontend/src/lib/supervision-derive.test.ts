@@ -1,132 +1,179 @@
 import { describe, expect, it } from "vitest";
-import {
-  deriveSupervision,
-  sameGroups,
-  sameSupervision,
-  sortNavigationGroups,
-  type SchulhofStatus,
-  type SupervisedGroupPayload,
+import type {
+  OpenRoomPayload,
+  SupervisedGroupPayload,
 } from "./supervision-derive";
+import { deriveSupervision, sameSupervision } from "./supervision-derive";
 
-const schulhof: SchulhofStatus = {
-  exists: true,
-  room_id: 9,
-  room_name: "Schulhof",
-  active_group_id: 42,
-  is_user_supervising: false,
-};
+// The navigation contract for released rooms (#3065). It replaces the previous
+// synthetic "schulhof" tab, which could only ever be one room, only appeared
+// when a session existed, and counted as the caller's own supervision.
 
-const room = (
+const supervision = (
   id: number,
   roomId: number,
   roomName: string,
-  groupName?: string,
+  activity?: string,
 ): SupervisedGroupPayload => ({
   id,
-  group_id: id,
   room_id: roomId,
+  group_id: id,
   room: { id: roomId, name: roomName },
-  ...(groupName && { actual_group: { id: id * 10, name: groupName } }),
+  ...(activity ? { actual_group: { id, name: activity } } : {}),
 });
 
-describe("deriveSupervision", () => {
-  it("reports no supervision when the request failed and Schulhof is absent", () => {
-    expect(deriveSupervision(null, null, true)).toEqual({
-      isSupervising: false,
-      supervisedRoomId: undefined,
-      supervisedRoomName: undefined,
-      supervisedRooms: [],
-      overviewEnabled: false,
-    });
-  });
+const openRoom = (id: number, name: string): OpenRoomPayload => ({ id, name });
 
-  it("keeps Schulhof alone supervisable, but never as an enabled overview", () => {
-    const derived = deriveSupervision([], schulhof, true);
-    expect(derived.isSupervising).toBe(true);
-    expect(derived.supervisedRoomId).toBe("schulhof");
-    expect(derived.supervisedRooms).toEqual([
-      { id: "schulhof", name: "Schulhof", groupId: "42", isSchulhof: true },
-    ]);
-    expect(derived.overviewEnabled).toBe(true);
-    expect(deriveSupervision(null, schulhof, true).overviewEnabled).toBe(false);
-  });
-
-  it("sorts rooms by German name, filters Schulhof, appends it last", () => {
-    const derived = deriveSupervision(
-      [room(1, 5, "Zebra"), room(2, 9, "Schulhof"), room(3, 6, "Äpfel")],
-      schulhof,
+describe("deriveSupervision with released rooms", () => {
+  it("lists several released rooms at once, by their real room id", () => {
+    const result = deriveSupervision(
+      null,
+      [openRoom(7, "Turnhalle"), openRoom(3, "Werkraum")],
       false,
     );
-    expect(derived.supervisedRooms.map((r) => r.name)).toEqual([
-      "Äpfel",
-      "Zebra",
-      "Schulhof",
-    ]);
-    expect(derived.supervisedRoomId).toBe("5");
-    expect(derived.supervisedRoomName).toBe("Zebra");
-    expect(derived.overviewEnabled).toBe(false);
+
+    expect(result.supervisedRooms.map((room) => room.id)).toEqual(["7", "3"]);
+    expect(result.supervisedRooms.every((room) => room.isOpenRoom)).toBe(true);
   });
 
-  it("suffixes the activity name when two sessions share a room (#2265)", () => {
-    const derived = deriveSupervision(
-      [room(1, 5, "Aula", "Chor"), room(2, 5, "Aula", "Theater")],
+  it("shows a released room that has nothing running in it", () => {
+    // The previous derivation took its rooms from running supervisions, so an
+    // empty room could not appear at all.
+    const result = deriveSupervision([], [openRoom(7, "Turnhalle")], true);
+
+    expect(result.supervisedRooms).toHaveLength(1);
+    expect(result.supervisedRooms[0]?.name).toBe("Turnhalle");
+  });
+
+  it("does not turn visibility into the caller's own supervision", () => {
+    const result = deriveSupervision(null, [openRoom(7, "Turnhalle")], false);
+
+    expect(result.isSupervising).toBe(false);
+    expect(result.supervisedRoomId).toBeUndefined();
+    expect(result.supervisedRoomName).toBeUndefined();
+  });
+
+  it("keeps own supervisions first and shared rooms after them", () => {
+    const result = deriveSupervision(
+      [supervision(1, 5, "Gruppenraum")],
+      [openRoom(7, "Turnhalle")],
+      true,
+    );
+
+    expect(result.isSupervising).toBe(true);
+    expect(result.supervisedRooms.map((room) => room.name)).toEqual([
+      "Gruppenraum",
+      "Turnhalle",
+    ]);
+    expect(result.supervisedRooms[0]?.isOpenRoom).toBeUndefined();
+    expect(result.supervisedRooms[1]?.isOpenRoom).toBe(true);
+  });
+
+  it("lists a released room once even when the caller supervises there", () => {
+    // Otherwise the same place appears twice: once as an own supervision and
+    // once as a shared room.
+    const result = deriveSupervision(
+      [supervision(1, 7, "Turnhalle")],
+      [openRoom(7, "Turnhalle")],
+      true,
+    );
+
+    const turnhalle = result.supervisedRooms.filter((room) => room.id === "7");
+    expect(turnhalle).toHaveLength(1);
+    expect(turnhalle[0]?.isOpenRoom).toBe(true);
+  });
+
+  it("lists a released room once even with several sessions running there", () => {
+    // Parallel sessions used to produce one navigation entry each, suffixed
+    // with the activity name.
+    const result = deriveSupervision(
+      [
+        supervision(1, 7, "Turnhalle", "Fußball"),
+        supervision(2, 7, "Turnhalle", "Tanzen"),
+      ],
+      [openRoom(7, "Turnhalle")],
+      true,
+    );
+
+    expect(
+      result.supervisedRooms.filter((room) => room.id === "7"),
+    ).toHaveLength(1);
+  });
+
+  it("still distinguishes parallel sessions in a room that is NOT released", () => {
+    // The disambiguation stays where it is still needed.
+    const result = deriveSupervision(
+      [
+        supervision(1, 5, "Gruppenraum", "Fußball"),
+        supervision(2, 5, "Gruppenraum", "Tanzen"),
+      ],
+      [],
+      true,
+    );
+
+    expect(result.supervisedRooms.map((room) => room.name)).toEqual([
+      "Fußball · Gruppenraum",
+      "Tanzen · Gruppenraum",
+    ]);
+  });
+
+  it("treats a failed room load as unknown, not as 'no open rooms'", () => {
+    const failed = deriveSupervision(
+      [supervision(1, 5, "Gruppenraum")],
       null,
       true,
     );
-    expect(derived.supervisedRooms.map((r) => r.name)).toEqual([
-      "Chor · Aula",
-      "Theater · Aula",
-    ]);
-    expect(derived.supervisedRooms.map((r) => r.groupId)).toEqual(["1", "2"]);
+    const empty = deriveSupervision(
+      [supervision(1, 5, "Gruppenraum")],
+      [],
+      true,
+    );
+
+    expect(failed.supervisedRooms).toHaveLength(1);
+    expect(empty.supervisedRooms).toHaveLength(1);
+    // Both render the same navigation here; the distinction that matters is
+    // that a null never fabricates an entry, and never removes the caller's
+    // own supervision either.
+    expect(failed.isSupervising).toBe(true);
   });
 
-  it("falls back to a generic room label without a room object", () => {
-    const derived = deriveSupervision(
-      [{ id: 1, group_id: 1, room_id: 7 }],
+  it("orders released rooms by name", () => {
+    const result = deriveSupervision(
       null,
+      [
+        openRoom(1, "Werkraum"),
+        openRoom(2, "Ästhetikraum"),
+        openRoom(3, "Turnhalle"),
+      ],
       false,
     );
-    expect(derived.supervisedRoomName).toBe("Room 7");
-    expect(derived.supervisedRooms).toEqual([]);
+
+    expect(result.supervisedRooms.map((room) => room.name)).toEqual([
+      "Ästhetikraum",
+      "Turnhalle",
+      "Werkraum",
+    ]);
+  });
+
+  it("reports overviewEnabled only when the overview endpoint answered", () => {
+    expect(deriveSupervision([], [], true).overviewEnabled).toBe(true);
+    expect(deriveSupervision([], [], false).overviewEnabled).toBe(false);
+    expect(deriveSupervision(null, [], true).overviewEnabled).toBe(false);
   });
 });
 
 describe("sameSupervision", () => {
-  it("treats a changed active group in the same room as a change", () => {
-    const a = deriveSupervision([room(1, 5, "Aula")], null, true);
-    const b = deriveSupervision([room(2, 5, "Aula")], null, true);
-    expect(sameSupervision(a, a)).toBe(true);
-    expect(sameSupervision(a, b)).toBe(false);
+  it("treats an added released room as a change", () => {
+    const before = deriveSupervision([], [], true);
+    const after = deriveSupervision([], [openRoom(7, "Turnhalle")], true);
+
+    expect(sameSupervision(before, after)).toBe(false);
   });
 
-  it("treats a changed overview flag as a change", () => {
-    const a = deriveSupervision([room(1, 5, "Aula")], null, true);
-    const b = deriveSupervision([room(1, 5, "Aula")], null, false);
-    expect(sameSupervision(a, b)).toBe(false);
-  });
-});
+  it("treats an unchanged room list as unchanged", () => {
+    const before = deriveSupervision([], [openRoom(7, "Turnhalle")], true);
+    const after = deriveSupervision([], [openRoom(7, "Turnhalle")], true);
 
-describe("groups", () => {
-  it("sorts by German locale without mutating the input", () => {
-    const input = [
-      { id: "1", name: "Zebra" },
-      { id: "2", name: "Äpfel" },
-    ];
-    expect(sortNavigationGroups(input).map((g) => g.name)).toEqual([
-      "Äpfel",
-      "Zebra",
-    ]);
-    expect(input[0]?.name).toBe("Zebra");
-  });
-
-  it("compares the fields the navigation renders", () => {
-    const a = [{ id: "1", name: "A", is_personal: true }];
-    expect(sameGroups(a, [{ id: "1", name: "A", is_personal: true }])).toBe(
-      true,
-    );
-    expect(sameGroups(a, [{ id: "1", name: "A", is_personal: false }])).toBe(
-      false,
-    );
-    expect(sameGroups(a, [])).toBe(false);
+    expect(sameSupervision(before, after)).toBe(true);
   });
 });

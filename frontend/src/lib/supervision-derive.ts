@@ -12,16 +12,22 @@ export interface SupervisedRoom {
   name: string;
   groupId: string;
   groupName?: string;
-  /** Special flag for the permanent Schulhof tab. */
-  isSchulhof?: boolean;
+  /**
+   * True for a permanently released room ("offener Raum", #3065). Such a room
+   * is shared: reachable by every caregiver, empty or not, and seeing it grants
+   * no supervision and no booking right. The flag exists so the UI can keep
+   * shared rooms visibly apart from the caller's own supervisions.
+   */
+  isOpenRoom?: boolean;
 }
 
-export interface SchulhofStatus {
-  exists: boolean;
-  room_id?: number;
-  room_name: string;
-  active_group_id?: number;
-  is_user_supervising: boolean;
+/**
+ * One released room as the rooms endpoint reports it
+ * (GET /api/rooms?is_open_room=true).
+ */
+export interface OpenRoomPayload {
+  id: number;
+  name: string;
 }
 
 /** One entry of /api/active/supervisors/all or /api/me/groups/supervised. */
@@ -40,7 +46,8 @@ export interface SupervisedGroupPayload {
 export interface SupervisionSnapshot {
   groups: NavigationEducationalGroup[] | null;
   supervised: SupervisedGroupPayload[] | null;
-  schulhof: SchulhofStatus | null;
+  /** Released rooms, or null when the request did not succeed. */
+  openRooms: OpenRoomPayload[] | null;
   /** True when `supervised` came from the school-wide overview endpoint. */
   overviewOk: boolean;
 }
@@ -53,51 +60,57 @@ export interface DerivedSupervision {
   overviewEnabled: boolean;
 }
 
-const SCHULHOF_ROOM_NAME = "Schulhof";
-const SCHULHOF_TAB_ID = "schulhof";
-
 export function sortNavigationGroups(
   groups: readonly NavigationEducationalGroup[],
 ): NavigationEducationalGroup[] {
   return [...groups].sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-function schulhofRoom(status: SchulhofStatus | null): SupervisedRoom | null {
-  // Intentionally check `exists` only, NOT `is_user_supervising`. The
-  // Schulhof tab must be visible to ALL staff so anyone can opt in to
-  // supervise; `is_user_supervising` is for UI hints, never tab visibility.
-  if (!status?.exists) return null;
-  return {
-    id: SCHULHOF_TAB_ID,
-    name: SCHULHOF_ROOM_NAME,
-    groupId: status.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
-    isSchulhof: true,
-  };
+/**
+ * Released rooms as navigation entries. Deliberately independent of who
+ * supervises what: a released room is reachable for everyone, including when
+ * nothing runs in it. The room id is the identity — no synthetic tab id and no
+ * name matching — so sidebar, mobile navigation and target page all address
+ * the same thing.
+ */
+function openRoomEntries(rooms: OpenRoomPayload[] | null): SupervisedRoom[] {
+  if (!rooms) return [];
+  return rooms
+    .map((room) => ({
+      id: room.id.toString(),
+      name: room.name,
+      groupId: room.id.toString(),
+      isOpenRoom: true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
 export function deriveSupervision(
   supervised: SupervisedGroupPayload[] | null,
-  schulhof: SchulhofStatus | null,
+  openRooms: OpenRoomPayload[] | null,
   overviewOk: boolean,
 ): DerivedSupervision {
-  const schulhofEntry = schulhofRoom(schulhof);
+  const openEntries = openRoomEntries(openRooms);
+  const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
 
   if (!supervised || !first) {
-    // No regular supervision (or the request failed): Schulhof alone still
-    // counts, so anyone can join it.
+    // No own supervision (or that request failed). Released rooms are still
+    // reachable — that is the point of releasing them — but reaching one is
+    // not supervising it, so isSupervising stays false and no room is
+    // preselected as "mine".
     return {
-      isSupervising: schulhofEntry !== null,
-      supervisedRoomId: schulhofEntry ? SCHULHOF_TAB_ID : undefined,
-      supervisedRoomName: schulhofEntry ? SCHULHOF_ROOM_NAME : undefined,
-      supervisedRooms: schulhofEntry ? [schulhofEntry] : [],
+      isSupervising: false,
+      supervisedRooms: openEntries,
       overviewEnabled: supervised !== null && overviewOk,
     };
   }
 
-  // Schulhof is handled separately, so keep it out of the regular rooms.
+  // Released rooms are contributed once, from the room list. A supervision
+  // that happens to run in one of them must not add a second entry for the
+  // same place — that is the duplicate-tab problem this replaces.
   const eligible = supervised.filter(
-    (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
+    (g) => g.room_id && g.room && !openRoomIDs.has(g.room_id.toString()),
   );
   // Parallel sessions can share one room (#2265): a room-name-only label
   // would render indistinguishable entries, so suffix the activity name
@@ -127,7 +140,10 @@ export function deriveSupervision(
     supervisedRoomId: first.room_id?.toString(),
     supervisedRoomName:
       first.room?.name ?? (first.room_id ? `Room ${first.room_id}` : undefined),
-    supervisedRooms: schulhofEntry ? [...rooms, schulhofEntry] : rooms,
+    // Own supervisions first, shared rooms after them: the order is the
+    // separation the criterion asks for, and isOpenRoom carries it for any
+    // stronger treatment the UI wants.
+    supervisedRooms: [...rooms, ...openEntries],
     overviewEnabled: overviewOk,
   };
 }

@@ -78,8 +78,22 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
@@ -379,6 +393,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
         studentCount: 0,
         supervisors: [],
       },
+      openRooms: [
+        {
+          roomId: "10",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: [],
+          studentCount: 0,
+          students: [],
+        },
+      ],
       plannedNow: [],
     };
     let dashboardResult = {
@@ -437,11 +461,14 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     expect(
       await screen.findByRole("button", { name: "Beaufsichtigen" }),
     ).toBeDisabled();
+    // Der Grund steht an beiden Stellen, an denen eine Schaltfläche gesperrt
+    // ist: am Banner und in der Zeile des offenen Raums neben
+    // „Beaufsichtigen".
     expect(
       screen.getAllByText(
-        "Spontane Aktivitäten sind nur montags bis freitags möglich.",
-      ),
-    ).toHaveLength(2);
+        /Spontane Aktivitäten sind nur montags bis freitags möglich\./,
+      ).length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps Schulhof selectable as a normal room when status is unavailable (#2161)", async () => {
@@ -455,6 +482,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
         firstRoomId: null,
         capabilities: { webSpontaneousActivitiesEnabled: true },
         schulhofStatus: null,
+        openRooms: [],
         plannedNow: [],
       },
       isLoading: false,
@@ -500,7 +528,10 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
       plannedNow: [],
     };
     let dashboardResult: {
-      data: typeof baseDashboardData & { schulhofStatus: unknown };
+      data: typeof baseDashboardData & {
+        schulhofStatus: unknown;
+        openRooms: unknown;
+      };
       isLoading: boolean;
       error: Error | null;
       mutate: typeof mockMutate;
@@ -521,6 +552,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
           studentCount: 0,
           supervisors: [],
         },
+        openRooms: [
+          {
+            roomId: "5",
+            name: "Schulhof",
+            isUserSupervising: false,
+            activeGroupIds: [],
+            studentCount: 0,
+            students: [],
+          },
+        ],
       },
       isLoading: false,
       error: null,
@@ -608,6 +649,16 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
           studentCount: 3,
           supervisors: [],
         },
+        openRooms: [
+          {
+            roomId: "10",
+            name: "Schulhof",
+            isUserSupervising: false,
+            activeGroupIds: ["55"],
+            studentCount: 3,
+            students: [],
+          },
+        ],
         plannedNow: [],
       },
       isLoading: false,

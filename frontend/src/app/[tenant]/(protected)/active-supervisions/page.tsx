@@ -6,7 +6,6 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useLatest } from "~/lib/hooks/use-latest";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
@@ -29,18 +28,17 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
+  OpenRoomNotice,
   ReleaseSupervisionModal,
-  SchulhofNotSupervisingView,
+  SchulhofSuperviseButton,
 } from "~/components/active-supervisions/states";
 import { PastBlocksSection } from "~/components/active-supervisions/past-blocks-section";
 import { PlannedNowSection } from "~/components/active-supervisions/planned-now-section";
 import { SpontaneousActivityStart } from "~/components/active-supervisions/spontaneous-activity-start";
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
-  SCHULHOF_ROOM_NAME,
-  SCHULHOF_TAB_ID,
   additionalSupervisionTarget,
-  roomsOutsideSchulhofStatus,
+  sessionsOutsideOpenRooms,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
@@ -92,9 +90,9 @@ function MeinRaumPageContent() {
     plannedNow,
     currentStaffId,
     schulhofStatus,
-    schulhofTabAvailable,
+    openRooms,
     currentRoom,
-    isSchulhofTabSelected,
+    currentOpenRoom,
     selectedTimetableInstanceId,
     students,
     error,
@@ -138,13 +136,23 @@ function MeinRaumPageContent() {
   const schulhof = useSchulhofActions({
     schulhofStatus,
     currentStaffId,
-    currentRoom,
+    supervisedActiveGroupId:
+      schulhofStatus?.isUserSupervising && schulhofStatus.activeGroupId
+        ? schulhofStatus.activeGroupId
+        : null,
     spontaneousStartBlockedReason: schulhofStatus?.activeGroupId
       ? undefined
       : spontaneousStartBlockedReason,
     refresh,
     setError,
   });
+
+  // The Schulhof's own supervision offer (#2161) belongs to the Schulhof room,
+  // matched by room id — never by the name of the room on screen.
+  const isSchulhofOpenRoom =
+    !!currentOpenRoom &&
+    !!schulhofStatus?.roomId &&
+    schulhofStatus.roomId === currentOpenRoom.roomId;
 
   // Desktop detection — sidebar handles room switching at lg+
   const [isDesktop, setIsDesktop] = useState(false);
@@ -155,56 +163,56 @@ function MeinRaumPageContent() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Ref to always have latest schulhofStatus (prevents stale closure in callbacks)
-  const schulhofStatusRef = useLatest(schulhofStatus);
+  const openRoomIds = useMemo(
+    () => new Set(openRooms.map((room) => room.roomId)),
+    [openRooms],
+  );
 
   const occupiedRoomIds = useMemo(() => {
     const ids = allRooms
       .map((room) => room.room_id)
       .filter((roomId): roomId is string => Boolean(roomId));
-    // Schulhof is tracked separately from allRooms, so keep its live room id
-    // in the occupancy set. The spontaneous modal deliberately treats that
-    // one destination as navigation to the dedicated supervision instead of
-    // disabling it; every normal occupied room remains unavailable to start.
-    if (schulhofStatus?.activeGroupId && schulhofStatus.roomId)
-      ids.push(schulhofStatus.roomId);
+    // A released room that currently holds a session is occupied too, even
+    // though it is not one of the caller's own tabs. The spontaneous modal
+    // treats such a destination as navigation to the running supervision
+    // instead of disabling it; every normal occupied room stays unavailable.
+    for (const room of openRooms) {
+      if (room.activeGroupIds.length > 0) ids.push(room.roomId);
+    }
     return ids;
-  }, [allRooms, schulhofStatus?.activeGroupId, schulhofStatus?.roomId]);
+  }, [allRooms, openRooms]);
 
-  // Set breadcrumb so the header names the session (not just the room —
-  // parallel sessions can share one room, #2265)
+  // Set breadcrumb so the header names what is open — a shared room by its
+  // room name, an own supervision by its session (parallel sessions can share
+  // one room, #2265).
   useSetBreadcrumb({
-    activeSupervisionName: isSchulhofTabSelected
-      ? SCHULHOF_ROOM_NAME
-      : (currentRoom?.name ?? currentRoom?.room_name),
+    activeSupervisionName:
+      currentOpenRoom?.name ?? currentRoom?.name ?? currentRoom?.room_name,
   });
 
-  const handleOpenSchulhofSupervision = useCallback(() => {
-    if (!schulhofStatusRef.current?.exists) {
-      setError(
-        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
-      );
-      return;
-    }
-    dashboard.selectSchulhof({ clearTimetableInstance: true });
-    router.push(`/active-supervisions?session=${SCHULHOF_TAB_ID}`);
-    localStorage.setItem("supervision-last-session", SCHULHOF_TAB_ID);
-    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
-    localStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
-    // The selection reconciliation in useSupervisionDashboard re-runs the
-    // aggregate for the Schulhof session and is the single owner of loading
-    // its visits. A second manual request can land later and overwrite a
-    // fresher SSE revalidation.
-  }, [dashboard, router, schulhofStatusRef, setError]);
+  // Opening a shared room is a pure selection: its occupancy already arrived
+  // with the dashboard, so there is nothing to load and nothing to claim.
+  const handleOpenRoom = useCallback(
+    (roomId: string) => {
+      const room = openRooms.find((candidate) => candidate.roomId === roomId);
+      if (!room) return;
+      dashboard.selectOpenRoom(roomId, { clearTimetableInstance: true });
+      router.push(`/active-supervisions?room=${roomId}`);
+      localStorage.removeItem("supervision-last-session");
+      localStorage.setItem("sidebar-last-room", roomId);
+      localStorage.setItem("sidebar-last-room-name", room.name);
+    },
+    [dashboard, openRooms, router],
+  );
 
   const handleTabChange = (tabId: string) => {
-    if (tabId === SCHULHOF_TAB_ID) {
-      handleOpenSchulhofSupervision();
+    if (openRoomIds.has(tabId)) {
+      handleOpenRoom(tabId);
       return;
     }
     // Switch to the chosen session (keyed by active group, not by room —
     // parallel sessions can share one room, #2265)
-    dashboard.deselectSchulhof();
+    dashboard.clearOpenRoom();
     const room = allRooms.find((r) => r.id === tabId);
     if (room) {
       router.push(`/active-supervisions?session=${tabId}`);
@@ -233,58 +241,53 @@ function MeinRaumPageContent() {
   // Statuszeile unter dem Seitentitel: welche Aufsicht gerade offen ist und
   // wie viele Kinder in ihr geführt werden. Beides steht schon im geladenen
   // Dashboard-Zustand.
-  const supervisionName = isSchulhofTabSelected
-    ? SCHULHOF_ROOM_NAME
-    : (currentRoom?.name ?? currentRoom?.room_name ?? null);
+  const supervisionName =
+    currentOpenRoom?.name ??
+    currentRoom?.name ??
+    currentRoom?.room_name ??
+    null;
   // Die Zahl kommt aus derselben Quelle wie früher der Zähler im Kopf: der
-  // gemeldeten Belegung der Aufsicht, ersatzweise den geladenen Kindern.
-  const supervisionCount = isSchulhofTabSelected
-    ? (schulhofStatus?.studentCount ?? students.length)
-    : (currentRoom?.student_count ?? students.length);
+  // gemeldeten Belegung, ersatzweise den geladenen Kindern.
+  const supervisionCount =
+    currentOpenRoom?.studentCount ??
+    currentRoom?.student_count ??
+    students.length;
   const supervisionSummary = supervisionName
     ? `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`
     : "Keine Aufsicht aktiv";
 
-  // Reiterleiste der einzelnen Aufsichten. Am Desktop wechselt die
-  // Seitenleiste die Aufsicht, deshalb stehen die Reiter nur darunter.
-  const roomsOutsideStatus = roomsOutsideSchulhofStatus(allRooms, {
-    schulhofTabEnabled: dashboard.schulhofTabEnabled,
-    statusActiveGroupId: schulhofStatus?.activeGroupId,
-  });
-  const totalSupervisions =
-    roomsOutsideStatus.length + (schulhofTabAvailable ? 1 : 0);
-  const allSupervisionTabItems = [
-    // Reguläre Aufsichten, einschließlich einer parallelen
-    // Schulhof-Gruppe, die der feste Reiter nicht abbildet.
-    ...roomsOutsideStatus.map((room) => ({
+  // Reiterleiste. Am Desktop wechselt die Seitenleiste, deshalb stehen die
+  // Reiter nur darunter. Offene Räume stehen hinter den eigenen Aufsichten:
+  // sie sind gemeinsam, nicht die eigene Aufsicht der Person (#3065).
+  const ownSessions = sessionsOutsideOpenRooms(allRooms, openRoomIds);
+  const totalSupervisions = ownSessions.length + openRooms.length;
+  const supervisionTabItems = [
+    ...ownSessions.map((room) => ({
       value: room.id,
       label: supervisionTabLabel(
         room,
         dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
       ),
     })),
-    // Fester Schulhof-Reiter, nur mit spontaner Aufsicht (#2161).
-    ...(schulhofTabAvailable
-      ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
-      : []),
+    ...openRooms.map((room) => ({
+      value: room.roomId,
+      label: room.name,
+    })),
   ];
-  const supervisionTabItems = allSupervisionTabItems;
   const supervisionTabs =
     totalSupervisions >= 2 && !isDesktop
       ? {
-          value: isSchulhofTabSelected
-            ? SCHULHOF_TAB_ID
-            : (currentRoom?.id ?? ""),
+          value: currentOpenRoom?.roomId ?? currentRoom?.id ?? "",
           onChange: handleTabChange,
           items: supervisionTabItems,
-          label: "Meine Aufsichten",
+          label: "Aufsichten und offene Räume",
         }
       : undefined;
 
   // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt; im
   // Leerzustand steht dort stattdessen „Beaufsichtigen".
   const releaseAction =
-    isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
+    isSchulhofOpenRoom && schulhofStatus?.isUserSupervising ? (
       <Button
         type="button"
         variant="outline_danger"
@@ -300,7 +303,7 @@ function MeinRaumPageContent() {
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
-      defaultRoomId={currentRoom?.room_id}
+      defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
       disabledReason={spontaneousStartBlockedReason}
       isStarting={actions.isStartingSpontaneous}
@@ -334,11 +337,10 @@ function MeinRaumPageContent() {
   // eigene Icon-Variante braucht es nicht mehr.
   const additionalSupervisionActiveGroupId = additionalSupervisionTarget({
     currentRoom,
-    isSchulhofTabSelected,
-    schulhofStatus,
+    currentOpenRoom,
   });
-  const isCurrentSupervisionOwn = isSchulhofTabSelected
-    ? (schulhofStatus?.isUserSupervising ?? false)
+  const isCurrentSupervisionOwn = currentOpenRoom
+    ? currentOpenRoom.isUserSupervising
     : (currentRoom?.isCurrentUserSupervising ?? false);
 
   const addSupervisorButton = additionalSupervisionActiveGroupId ? (
@@ -358,13 +360,13 @@ function MeinRaumPageContent() {
     </>
   ) : null;
 
-  // Keine eigene Aufsicht, kein Schulhof, nichts geplant: dieselbe Kopfkarte,
-  // nur ein anderer Inhalt — keine zweite Seite.
+  // Keine eigene Aufsicht, kein offener Raum, nichts geplant: dieselbe
+  // Kopfkarte, nur ein anderer Inhalt — keine zweite Seite.
   const showUnclaimedOnly =
     !isPageLoading &&
     !hasNoAccess &&
     allRooms.length === 0 &&
-    !schulhofTabAvailable &&
+    openRooms.length === 0 &&
     plannedNow.length === 0;
 
   // Render helper for student grid content
@@ -553,31 +555,46 @@ function MeinRaumPageContent() {
 
           {spontaneousStartBanner}
 
-          {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
-          {isSchulhofTabSelected &&
-            schulhofStatus &&
-            !schulhofStatus.isUserSupervising && (
-              <SchulhofNotSupervisingView
-                supervisorCount={schulhofStatus.supervisorCount}
-                supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
-                isToggling={schulhof.isTogglingSchulhof}
-                startDisabled={
-                  !schulhofStatus.activeGroupId &&
-                  dashboard.spontaneousStartAvailability?.available === false
-                }
-                startDisabledReason={
-                  schulhofStatus.activeGroupId
-                    ? undefined
-                    : spontaneousStartBlockedReason
-                }
-                onToggle={() =>
-                  schulhof.handleToggleSchulhof().catch(() => undefined)
-                }
-              />
-            )}
+          {/* Ein offener Raum sagt in einer Zeile, was er ist und ob die
+              Person hier die Aufsicht hat. Die Kinder bleiben in jedem Fall
+              sichtbar — genau das unterscheidet ihn von einer Aufsicht. */}
+          {currentOpenRoom ? (
+            <OpenRoomNotice
+              isUserSupervising={currentOpenRoom.isUserSupervising}
+              supervisorNames={
+                isSchulhofOpenRoom
+                  ? schulhofStatus?.supervisors.map((s) => s.name)
+                  : undefined
+              }
+              hint={
+                isSchulhofOpenRoom &&
+                !currentOpenRoom.isUserSupervising &&
+                !schulhofStatus?.activeGroupId
+                  ? spontaneousStartBlockedReason
+                  : undefined
+              }
+              action={
+                isSchulhofOpenRoom && !currentOpenRoom.isUserSupervising ? (
+                  <SchulhofSuperviseButton
+                    isToggling={schulhof.isTogglingSchulhof}
+                    disabled={
+                      !schulhofStatus?.activeGroupId &&
+                      dashboard.spontaneousStartAvailability?.available ===
+                        false
+                    }
+                    onToggle={() =>
+                      schulhof.handleToggleSchulhof().catch(() => undefined)
+                    }
+                  />
+                ) : undefined
+              }
+            />
+          ) : null}
 
-          {currentRoom &&
-          (!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) ? (
+          {/* Kinder in einen Raum setzen ist eine Verwaltungsaktion. Einen
+              offenen Raum zu sehen verleiht sie nicht (#3065); wer dort die
+              Aufsicht hat, behält sie. */}
+          {(currentRoom ?? currentOpenRoom?.isUserSupervising) ? (
             <Suspense fallback={null}>
               <TransitStudentsSection
                 fromReferrer="/active-supervisions"
@@ -587,8 +604,7 @@ function MeinRaumPageContent() {
           ) : null}
 
           {/* Student Grid - Mobile Optimized */}
-          {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
-            renderStudentContent()}
+          {renderStudentContent()}
 
           {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
           <PastBlocksSection />
@@ -630,7 +646,8 @@ function ActiveSupervisionGate({
   // The overview endpoint confirms the backend granted this caller access.
   // That includes effective admins and verified staff under all_staff.
   // Checking supervisedRooms.length would incorrectly let callers through
-  // when the scope is "own" but a synthetic Schulhof entry is present.
+  // when the scope is "own" but a released room is present: that room is
+  // reachable for everyone and grants no supervision (#3065).
   if (overviewEnabled) {
     return <>{children}</>;
   }

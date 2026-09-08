@@ -33,7 +33,7 @@ global.fetch = mockFetch;
 const defaultMockResponses = {
   groups: { groups: [] },
   supervised: { data: [] },
-  schulhof: { data: { data: { exists: false } } }, // Double-wrapped response
+  openRooms: { data: [] },
   adminAll: { data: [] },
 };
 
@@ -41,7 +41,7 @@ const defaultMockResponses = {
 function setupFetchMock(overrides?: {
   groups?: object | Error;
   supervised?: object | Error;
-  schulhof?: object | Error;
+  openRooms?: object | Error;
   adminAll?: object | Error | { status: number };
 }) {
   mockFetch.mockImplementation((url: string) => {
@@ -76,8 +76,8 @@ function setupFetchMock(overrides?: {
         json: async () => response,
       });
     }
-    if (url.includes("/api/active/schulhof/status")) {
-      const response = overrides?.schulhof ?? defaultMockResponses.schulhof;
+    if (url.includes("is_open_room=true")) {
+      const response = overrides?.openRooms ?? defaultMockResponses.openRooms;
       if (response instanceof Error) return Promise.reject(response);
       return Promise.resolve({
         ok: true,
@@ -94,8 +94,8 @@ function setupFetchMock(overrides?: {
 
 // Helper to create wrapper with session
 // Default test subject is a real supervisor, who carries `groups:read` — the
-// permission the backend requires for /schulhof/status. Pass an empty array to
-// model a limited account (e.g. the `guest` role) that must NOT poll Schulhof.
+// permission the overview endpoint requires. Pass an empty array to model a
+// limited account (e.g. the `guest` role).
 function createWrapper(
   token?: string,
   roles?: string[],
@@ -212,7 +212,7 @@ describe("SupervisionProvider", () => {
     setupFetchMock({
       groups: new Error("Network error"),
       supervised: new Error("Network error"),
-      schulhof: new Error("Network error"),
+      openRooms: new Error("Network error"),
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -399,9 +399,9 @@ describe("SupervisionProvider", () => {
     expect(
       refetched.some((url) => url.includes("/api/me/groups/supervised")),
     ).toBe(false);
-    expect(
-      refetched.some((url) => url.includes("/api/active/schulhof/status")),
-    ).toBe(false);
+    expect(refetched.some((url) => url.includes("is_open_room=true"))).toBe(
+      false,
+    );
   });
 
   it("queues a stale-event group refetch while another refresh is active", async () => {
@@ -898,7 +898,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
   });
 });
 
-describe("SupervisionProvider Schulhof handling", () => {
+describe("SupervisionProvider released-room handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -907,7 +907,7 @@ describe("SupervisionProvider Schulhof handling", () => {
     vi.restoreAllMocks();
   });
 
-  it("should include Schulhof in supervised rooms when it exists", async () => {
+  it("lists a released room next to the caller's own supervision", async () => {
     setupFetchMock({
       supervised: {
         data: [
@@ -919,17 +919,7 @@ describe("SupervisionProvider Schulhof handling", () => {
           },
         ],
       },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
-      },
+      openRooms: { data: [{ id: 100, name: "Schulhof" }] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -940,29 +930,17 @@ describe("SupervisionProvider Schulhof handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    // Should have both regular room and Schulhof
-    expect(result.current.supervisedRooms.length).toBeGreaterThanOrEqual(1);
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeDefined();
-    expect(schulhofRoom?.name).toBe("Schulhof");
+    // Both the own supervision and the shared room are reachable.
+    expect(result.current.supervisedRooms.length).toBe(2);
+    const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
+    expect(openRoom).toBeDefined();
+    expect(openRoom?.name).toBe("Schulhof");
   });
 
-  it("should include Schulhof even with no other supervision", async () => {
+  it("reaches a released room without any own supervision, and stays not-supervising", async () => {
     setupFetchMock({
       supervised: { data: [] },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
-      },
+      openRooms: { data: [{ id: 100, name: "Schulhof" }] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -973,31 +951,22 @@ describe("SupervisionProvider Schulhof handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    // isSupervising is true when Schulhof exists, even if the user is not
-    // actively supervising it. The Schulhof tab must be visible to ALL staff
-    // so anyone can opt-in. See supervision-context.tsx lines 226-230.
-    expect(result.current.isSupervising).toBe(true);
+    // The room is reachable, and reaching it is not supervising it: the
+    // previous navigation reported isSupervising for the Schulhof entry, which
+    // made every caregiver look like a supervisor of it (#3065).
     expect(result.current.supervisedRooms).toHaveLength(1);
-    expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
+    expect(result.current.supervisedRooms[0]?.isOpenRoom).toBe(true);
+    expect(result.current.isSupervising).toBe(false);
   });
 
-  it("should NOT poll Schulhof status for accounts without groups:read (issue #846)", async () => {
-    // A limited account (e.g. the `guest` role) lacks groups:read. The backend
-    // gates /schulhof/status on that permission, so polling it only ever 403s
-    // and floods the logs. The provider must skip the fetch entirely.
+  it("asks for the released rooms for every caller, and lets the server decide", async () => {
+    // The previous navigation pre-gated its Schulhof fetch on groups:read
+    // because that endpoint required it. The room list needs rooms:read, which
+    // every caregiver already holds, and the server remains the authority: the
+    // client no longer guesses who may see what.
     setupFetchMock({
       supervised: { data: [] },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
-      },
+      openRooms: { data: [{ id: 100, name: "Turnhalle" }] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -1009,88 +978,42 @@ describe("SupervisionProvider Schulhof handling", () => {
     });
 
     const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
-    expect(fetchCalls).not.toContain("/api/active/schulhof/status");
-
-    // Even though the mock would report an existing Schulhof, no tab appears
-    // because the status was never fetched.
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
+    expect(fetchCalls.some((url) => url.includes("is_open_room=true"))).toBe(
+      true,
     );
-    expect(schulhofRoom).toBeUndefined();
+    expect(result.current.supervisedRooms).toHaveLength(1);
+    expect(result.current.supervisedRooms[0]?.isOpenRoom).toBe(true);
   });
 
-  it("should poll Schulhof status for admins even without an explicit groups:read permission", async () => {
-    // Admins are gated in via the admin wildcard rather than an explicit
-    // grant; the isAdmin guard must keep Schulhof working for them.
+  it("shows no open rooms when the room list could not be loaded", async () => {
+    // A refused or failed list must not look like "this school released
+    // nothing": the navigation stays without shared rooms, and the caller's
+    // own supervisions are unaffected.
     setupFetchMock({
-      supervised: { data: [] },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
+      supervised: {
+        data: [
+          { id: 1, room_id: 5, group_id: 1, room: { id: 5, name: "Room 5" } },
+        ],
       },
+      openRooms: new Error("Forbidden"),
     });
 
     const { result } = renderHook(() => useSupervision(), {
-      wrapper: createWrapper("test-token", ["admin"], []),
+      wrapper: createWrapper("test-token", ["guest"], []),
     });
 
     await waitFor(() => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
-    expect(fetchCalls).toContain("/api/active/schulhof/status");
-
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeDefined();
+    expect(
+      result.current.supervisedRooms.filter((r) => r.isOpenRoom),
+    ).toHaveLength(0);
+    expect(result.current.supervisedRooms).toHaveLength(1);
+    expect(result.current.isSupervising).toBe(true);
   });
 
-  it("should poll Schulhof status for pre-existing staff sessions without a permissions claim", async () => {
-    // Sessions issued before the permissions claim existed still have a valid
-    // backend token. Role-based staff access must continue until refresh adds
-    // the explicit permissions list.
-    setupFetchMock({
-      supervised: { data: [] },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
-      },
-    });
-
-    const { result } = renderHook(() => useSupervision(), {
-      wrapper: createWrapper("test-token", ["teacher"], [], false),
-    });
-
-    await waitFor(() => {
-      expect(result.current.isLoadingSupervision).toBe(false);
-    });
-
-    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
-    expect(fetchCalls).toContain("/api/active/schulhof/status");
-
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeDefined();
-  });
-
-  it("should not include Schulhof when it does not exist", async () => {
+  it("shows no shared rooms when the school released none", async () => {
     setupFetchMock({
       supervised: {
         data: [
@@ -1102,13 +1025,7 @@ describe("SupervisionProvider Schulhof handling", () => {
           },
         ],
       },
-      schulhof: {
-        data: {
-          data: {
-            exists: false,
-          },
-        },
-      },
+      openRooms: { data: [] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -1119,37 +1036,25 @@ describe("SupervisionProvider Schulhof handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeUndefined();
+    const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
+    expect(openRoom).toBeUndefined();
   });
 
-  it("should filter Schulhof from regular supervised rooms", async () => {
-    // If a regular supervised room is named Schulhof, it should be filtered out
-    // and replaced with the special Schulhof tab
+  it("lists a released room once even when the caller supervises there", async () => {
+    // The own session runs in the released room. Both entries would name
+    // the same place, so the shared room is the one that stands.
     setupFetchMock({
       supervised: {
         data: [
           {
             id: 1,
-            room_id: 5,
+            room_id: 100,
             group_id: 1,
-            room: { id: 5, name: "Schulhof" }, // Regular room named Schulhof
+            room: { id: 100, name: "Schulhof" },
           },
         ],
       },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: 200,
-            is_user_supervising: false,
-          },
-        },
-      },
+      openRooms: { data: [{ id: 100, name: "Schulhof" }] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -1160,12 +1065,11 @@ describe("SupervisionProvider Schulhof handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    // Should only have the special Schulhof tab, not the regular one
-    const schulhofRooms = result.current.supervisedRooms.filter(
+    const sharedRooms = result.current.supervisedRooms.filter(
       (r) => r.name === "Schulhof",
     );
-    expect(schulhofRooms.length).toBe(1);
-    expect(schulhofRooms[0]?.isSchulhof).toBe(true);
+    expect(sharedRooms.length).toBe(1);
+    expect(sharedRooms[0]?.isOpenRoom).toBe(true);
   });
 });
 
@@ -1259,7 +1163,7 @@ describe("SupervisionProvider API response handling", () => {
     expect(result.current.groups).toEqual([]);
   });
 
-  it("should handle non-OK response from supervised API but still show Schulhof", async () => {
+  it("keeps released rooms reachable when the supervised API fails", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/api/me/groups/supervised")) {
         return Promise.resolve({
@@ -1268,20 +1172,10 @@ describe("SupervisionProvider API response handling", () => {
           json: async () => ({}),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({
-            data: {
-              data: {
-                exists: true,
-                room_id: 100,
-                room_name: "Schulhof",
-                active_group_id: 200,
-                is_user_supervising: false,
-              },
-            },
-          }),
+          json: async () => ({ data: [{ id: 100, name: "Schulhof" }] }),
         });
       }
       if (url.includes("/api/groups/context")) {
@@ -1304,9 +1198,9 @@ describe("SupervisionProvider API response handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    // Should still have Schulhof even though supervised API failed
+    // A failed own-supervision request does not hide the shared rooms.
     expect(result.current.supervisedRooms).toHaveLength(1);
-    expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
+    expect(result.current.supervisedRooms[0]?.isOpenRoom).toBe(true);
   });
 
   it("should handle groups API with nested data structure", async () => {
@@ -1660,42 +1554,6 @@ describe("SupervisionProvider supervised rooms comparison", () => {
   });
 });
 
-describe("SupervisionProvider Schulhof room creation", () => {
-  it("creates virtual Schulhof room from status", () => {
-    const SCHULHOF_TAB_ID = "schulhof";
-    const SCHULHOF_ROOM_NAME = "Schulhof";
-
-    const schulhofData = {
-      exists: true,
-      active_group_id: 123,
-    };
-
-    const schulhofRoom = schulhofData.exists
-      ? {
-          id: SCHULHOF_TAB_ID,
-          name: SCHULHOF_ROOM_NAME,
-          groupId: schulhofData.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
-          isSchulhof: true,
-        }
-      : null;
-
-    expect(schulhofRoom).not.toBeNull();
-    expect(schulhofRoom?.id).toBe("schulhof");
-    expect(schulhofRoom?.groupId).toBe("123");
-    expect(schulhofRoom?.isSchulhof).toBe(true);
-  });
-
-  it("returns null when Schulhof does not exist", () => {
-    const schulhofData = { exists: false };
-
-    const schulhofRoom = schulhofData.exists
-      ? { id: "schulhof", name: "Schulhof" }
-      : null;
-
-    expect(schulhofRoom).toBeNull();
-  });
-});
-
 describe("SupervisionProvider room name fallback", () => {
   it("uses room name when available", () => {
     const group = {
@@ -1798,7 +1656,7 @@ describe("SupervisionProvider error state change detection", () => {
       if (url.includes("/api/me/groups/supervised")) {
         return Promise.reject(new Error("Network error"));
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.reject(new Error("Network error"));
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
@@ -1835,7 +1693,7 @@ describe("SupervisionProvider error state change detection", () => {
           json: async () => ({ data: [] }),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({ data: { data: { exists: false } } }),
@@ -1868,7 +1726,7 @@ describe("SupervisionProvider error state change detection", () => {
           json: async () => ({ data: [] }),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({ data: { data: { exists: false } } }),
@@ -1890,7 +1748,7 @@ describe("SupervisionProvider error state change detection", () => {
     expect(result.current.groups).toHaveLength(0);
   });
 
-  it("should handle non-OK supervised response but include Schulhof (response not OK branch)", async () => {
+  it("keeps a released room reachable on a non-OK supervised response", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/api/groups/context")) {
         return Promise.resolve({
@@ -1905,20 +1763,10 @@ describe("SupervisionProvider error state change detection", () => {
           json: async () => ({}),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({
-            data: {
-              data: {
-                exists: true,
-                room_id: 42,
-                room_name: "Schulhof",
-                active_group_id: 99,
-                is_user_supervising: false,
-              },
-            },
-          }),
+          json: async () => ({ data: [{ id: 42, name: "Turnhalle" }] }),
         });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
@@ -1932,15 +1780,14 @@ describe("SupervisionProvider error state change detection", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    // Should include Schulhof even though supervised response was not OK
-    expect(result.current.isSupervising).toBe(true);
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeDefined();
-    expect(schulhofRoom?.name).toBe("Schulhof");
-    expect(result.current.supervisedRoomId).toBe("schulhof");
-    expect(result.current.supervisedRoomName).toBe("Schulhof");
+    // The released room stays reachable even though the supervision response
+    // was not OK — but reaching it is not supervising it, so nothing is
+    // preselected as the caller's own room.
+    const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
+    expect(openRoom).toBeDefined();
+    expect(openRoom?.name).toBe("Turnhalle");
+    expect(result.current.isSupervising).toBe(false);
+    expect(result.current.supervisedRoomId).toBeUndefined();
   });
 });
 
@@ -1956,17 +1803,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
   it("should handle Schulhof with null active_group_id (fallback to tab ID)", async () => {
     setupFetchMock({
       supervised: { data: [] },
-      schulhof: {
-        data: {
-          data: {
-            exists: true,
-            room_id: 100,
-            room_name: "Schulhof",
-            active_group_id: null, // null - should fallback to SCHULHOF_TAB_ID
-            is_user_supervising: false,
-          },
-        },
-      },
+      openRooms: { data: [{ id: 100, name: "Turnhalle" }] },
     });
 
     const { result } = renderHook(() => useSupervision(), {
@@ -1977,12 +1814,10 @@ describe("SupervisionProvider uncovered condition coverage", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeDefined();
+    const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
+    expect(openRoom).toBeDefined();
     // When active_group_id is null, groupId should fallback to SCHULHOF_TAB_ID
-    expect(schulhofRoom?.groupId).toBe("schulhof");
+    expect(openRoom?.groupId).toBe(openRoom?.id);
   });
 
   it("should handle supervised group with no room_id (undefined roomName and roomId)", async () => {
@@ -2031,7 +1866,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
           json: async () => ({}),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         return Promise.resolve({
           ok: true,
           json: async () => ({ data: { data: { exists: false } } }),
@@ -2055,7 +1890,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     expect(result.current.supervisedRoomName).toBeUndefined();
   });
 
-  it("should handle Schulhof response that is not OK (null schulhofResponse)", async () => {
+  it("treats a non-OK room list as unknown rather than as no open rooms", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/api/groups/context")) {
         return Promise.resolve({
@@ -2078,7 +1913,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
           }),
         });
       }
-      if (url.includes("/api/active/schulhof/status")) {
+      if (url.includes("is_open_room=true")) {
         // Return non-OK response
         return Promise.resolve({
           ok: false,
@@ -2101,10 +1936,8 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     });
 
     // Schulhof should not be in the rooms since its response was not OK
-    const schulhofRoom = result.current.supervisedRooms.find(
-      (r) => r.isSchulhof,
-    );
-    expect(schulhofRoom).toBeUndefined();
+    const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
+    expect(openRoom).toBeUndefined();
     // But regular supervision should still work
     expect(result.current.isSupervising).toBe(true);
     expect(result.current.supervisedRoomId).toBe("5");

@@ -8,7 +8,8 @@ import {
   EmptyRoomsView,
   NoActiveSupervisionAccessView,
   ReleaseSupervisionModal,
-  SchulhofNotSupervisingView,
+  OpenRoomNotice,
+  SchulhofSuperviseButton,
 } from "./states";
 
 function WithBreadcrumb({ children }: { readonly children: ReactNode }) {
@@ -56,24 +57,20 @@ export const ReleaseModal: Story = {
   ),
 };
 
-export const SchulhofNotSupervising: Story = {
-  render: () => (
-    <SchulhofNotSupervisingView
-      supervisorCount={0}
-      supervisorNames={[]}
-      isToggling={false}
-      onToggle={fn()}
-    />
-  ),
+export const OpenRoomShared: Story = {
+  render: () => <OpenRoomNotice isUserSupervising={false} />,
 };
 
-export const SchulhofNotSupervisingWithSupervisors: Story = {
+export const OpenRoomOwnSupervision: Story = {
+  render: () => <OpenRoomNotice isUserSupervising />,
+};
+
+export const OpenRoomWithSchulhofOffer: Story = {
   render: () => (
-    <SchulhofNotSupervisingView
-      supervisorCount={2}
+    <OpenRoomNotice
+      isUserSupervising={false}
       supervisorNames={["Anna Meier", "Ben Fischer"]}
-      isToggling={false}
-      onToggle={fn()}
+      action={<SchulhofSuperviseButton isToggling={false} onToggle={fn()} />}
     />
   ),
 };

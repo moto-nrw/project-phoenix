@@ -6,7 +6,7 @@ import {
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
-  roomsOutsideSchulhofStatus,
+  sessionsOutsideOpenRooms,
   supervisionTabLabel,
   additionalSupervisionTarget,
   withActiveSupervisionPresence,
@@ -52,19 +52,29 @@ describe("active-supervisions view model", () => {
     ).toBe("timetable-roster-active-group-schulhof-planned-active-group");
   });
 
-  it("keeps parallel Schulhof sessions outside the permanent status tab", () => {
+  it("drops every own session that a released room already stands for", () => {
+    // All sessions of a released room feed its one shared entry, so listing
+    // them again would put the same place on screen once per session (#3065).
     const rooms = [
-      { id: "status-group", name: "Aufsicht 1", room_name: "Schulhof" },
-      { id: "parallel-group", name: "Aufsicht 2", room_name: "Schulhof" },
-      { id: "other-group", name: "Kreativ", room_name: "Atelier" },
+      { id: "yard-1", name: "Aufsicht 1", room_name: "Schulhof", room_id: "7" },
+      { id: "yard-2", name: "Aufsicht 2", room_name: "Schulhof", room_id: "7" },
+      { id: "other", name: "Kreativ", room_name: "Atelier", room_id: "9" },
     ];
 
     expect(
-      roomsOutsideSchulhofStatus(rooms, {
-        schulhofTabEnabled: true,
-        statusActiveGroupId: "status-group",
-      }).map((room) => room.id),
-    ).toEqual(["parallel-group", "other-group"]);
+      sessionsOutsideOpenRooms(rooms, new Set(["7"])).map((room) => room.id),
+    ).toEqual(["other"]);
+  });
+
+  it("keeps every own session when nothing is released", () => {
+    const rooms = [
+      { id: "yard-1", name: "Aufsicht 1", room_id: "7" },
+      { id: "other", name: "Kreativ", room_id: "9" },
+    ];
+
+    expect(
+      sessionsOutsideOpenRooms(rooms, new Set()).map((room) => room.id),
+    ).toEqual(["yard-1", "other"]);
   });
 
   it("maps educational group names to ids", () => {
@@ -233,7 +243,8 @@ describe("resolveSupervisionSelection (#2265)", () => {
     savedRoomId: null,
     rooms,
     currentSessionId: null,
-    schulhofAvailable: false,
+    currentOpenRoomId: null,
+    openRoomIds: new Set<string>(),
   };
 
   it("selects the session named by ?session=", () => {
@@ -264,21 +275,48 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "session", sessionId: "group-a" });
   });
 
-  it("resolves schulhof from either param when available", () => {
+  it("answers a released room with its shared view, by real room id", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
-        sessionParam: "schulhof",
-        schulhofAvailable: true,
+        roomParam: "7",
+        openRoomIds: new Set(["7"]),
       }),
-    ).toEqual({ kind: "schulhof" });
+    ).toEqual({ kind: "open-room", roomId: "7" });
+  });
+
+  it("prefers the shared view over the sessions running in that room", () => {
+    // Room 54 carries the caller's own parallel sessions. Once it is
+    // released, the room is the thing being addressed — picking one of its
+    // sessions would be the old, ambiguous answer.
     expect(
       resolveSupervisionSelection({
         ...base,
-        roomParam: "schulhof",
-        schulhofAvailable: true,
+        roomParam: "54",
+        openRoomIds: new Set(["54"]),
       }),
-    ).toEqual({ kind: "schulhof" });
+    ).toEqual({ kind: "open-room", roomId: "54" });
+  });
+
+  it("keeps the current selection when the shared room is already open", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        roomParam: "7",
+        currentOpenRoomId: "7",
+        openRoomIds: new Set(["7"]),
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("restores a saved released room after a reload", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        savedRoomId: "7",
+        openRoomIds: new Set(["7"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "7" });
   });
 
   it("does NOT switch sessions when a legacy ?room= names the room the current session already runs in", () => {
@@ -400,33 +438,65 @@ describe("supervision tab identity (#2265)", () => {
           canAssign: true,
           isCurrentUserSupervising: true,
         },
-        isSchulhofTabSelected: false,
-        schulhofStatus: null,
+        currentOpenRoom: null,
       }),
     ).toBe("active-1");
     expect(
       additionalSupervisionTarget({
         currentRoom: { id: "active-2", name: "Malen", canAssign: true },
-        isSchulhofTabSelected: false,
-        schulhofStatus: null,
+        currentOpenRoom: null,
       }),
     ).toBe("active-2");
     expect(
       additionalSupervisionTarget({
         currentRoom: { id: "active-3", name: "Basteln", canAssign: false },
-        isSchulhofTabSelected: false,
-        schulhofStatus: null,
+        currentOpenRoom: null,
       }),
     ).toBeNull();
+  });
+
+  it("offers additional supervision in a shared room only for one own session", () => {
+    const room = {
+      roomId: "7",
+      name: "Schulhof",
+      studentCount: 0,
+      students: [],
+    };
+
     expect(
       additionalSupervisionTarget({
         currentRoom: null,
-        isSchulhofTabSelected: true,
-        schulhofStatus: {
-          activeGroupId: "active-yard",
+        currentOpenRoom: {
+          ...room,
           isUserSupervising: true,
+          activeGroupIds: ["active-yard"],
         },
       }),
     ).toBe("active-yard");
+
+    // Two sessions running: none of them is "the" supervision of the room,
+    // so the screen offers nothing rather than picking one.
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: {
+          ...room,
+          isUserSupervising: true,
+          activeGroupIds: ["active-yard", "active-ball"],
+        },
+      }),
+    ).toBeNull();
+
+    // Seeing a shared room is not supervising it.
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: {
+          ...room,
+          isUserSupervising: false,
+          activeGroupIds: ["active-yard"],
+        },
+      }),
+    ).toBeNull();
   });
 });

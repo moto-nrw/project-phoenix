@@ -1716,8 +1716,8 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Schulhof room handling", () => {
-    it("renders Schulhof room with special styling", () => {
+  describe("released rooms in the supervision navigation (#3065)", () => {
+    it("lists a released room next to an own supervision", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1727,10 +1727,10 @@ describe("Sidebar", () => {
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1744,7 +1744,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Raum A")).toBeInTheDocument();
     });
 
-    it("navigates to schulhof param when Schulhof room clicked", () => {
+    it("links a released room by its real room id", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1753,10 +1753,10 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1766,51 +1766,16 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // A released room travels by its real room id, never by a synthetic tab
+      // id: several sessions can run in it, so no session identifies it.
       const schulhofLink = screen.getByText("Schulhof").closest("a");
       expect(schulhofLink).toHaveAttribute(
         "href",
-        "/active-supervisions?session=schulhof",
+        "/active-supervisions?room=7",
       );
     });
 
-    it("uses schulhof string in navigation for Schulhof rooms", () => {
-      // Test the condition: room.isSchulhof ? "schulhof" : room.id
-      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
-      const navParam = room.isSchulhof ? "schulhof" : room.id;
-
-      expect(navParam).toBe("schulhof");
-    });
-
-    it("uses room id in navigation for regular rooms", () => {
-      const room = { id: "10", name: "Raum A", isSchulhof: false };
-      const navParam = room.isSchulhof ? "schulhof" : room.id;
-
-      expect(navParam).toBe("10");
-    });
-
-    it("generates correct href for Schulhof room", () => {
-      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
-      const basePath = "/active-supervisions";
-
-      const href = room.isSchulhof
-        ? `${basePath}?room=schulhof`
-        : `${basePath}?room=${room.id}`;
-
-      expect(href).toBe("/active-supervisions?room=schulhof");
-    });
-
-    it("generates correct href for regular room", () => {
-      const room = { id: "20", name: "Raum B", isSchulhof: false };
-      const basePath = "/active-supervisions";
-
-      const href = room.isSchulhof
-        ? `${basePath}?room=schulhof`
-        : `${basePath}?room=${room.id}`;
-
-      expect(href).toBe("/active-supervisions?room=20");
-    });
-
-    it("includes Schulhof in supervised rooms list", () => {
+    it("lists a released room and an own supervision side by side", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -1820,10 +1785,10 @@ describe("Sidebar", () => {
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
           {
-            id: "schulhof",
+            id: "7",
             name: "Schulhof",
-            groupId: "schulhof",
-            isSchulhof: true,
+            groupId: "7",
+            isOpenRoom: true,
           },
         ],
         groups: [],
@@ -1871,9 +1836,7 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         overviewEnabled: false,
-        supervisedRooms: [
-          { id: "r1", name: "Raum A", groupId: "g1", isSchulhof: false },
-        ],
+        supervisedRooms: [{ id: "r1", name: "Raum A", groupId: "g1" }],
         groups: [{ id: "1", name: "1a" }],
         refresh: vi.fn(),
       });
@@ -2230,9 +2193,7 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         overviewEnabled: false,
-        supervisedRooms: [
-          { id: "7", name: "Raum 1", groupId: "g1", isSchulhof: false },
-        ],
+        supervisedRooms: [{ id: "7", name: "Raum 1", groupId: "g1" }],
         groups: [],
         refresh: vi.fn(),
       });

@@ -27,6 +27,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   hasEffectiveAdminScope,
@@ -430,22 +431,40 @@ function isGroupSubItemActive(
  * Sessions are keyed by active-group ID (`?session=`, #2265); the legacy
  * room key still resolves for old links and stored state.
  */
+// A released room ("offener Raum", #3065) has no session of its own: several
+// sessions can run in it and none of them is the entry. It is addressed by its
+// room id alone, so `sessionId` is null for it and the session comparisons are
+// skipped — a session id that happens to equal a room id must not light up the
+// wrong entry.
 function isRoomSubItemActive(
   childSessionId: string | null,
   childRoomId: string | null,
-  sessionId: string,
+  sessionId: string | null,
   roomId: string,
   pathname: string,
   currentSessionParam: string | null,
   currentRoomParam: string | null,
   index: number,
 ): boolean {
-  if (childSessionId) return childSessionId === sessionId;
+  if (childSessionId) return sessionId !== null && childSessionId === sessionId;
   if (childRoomId) return childRoomId === roomId;
   if (!pathname.startsWith("/active-supervisions")) return false;
-  if (currentSessionParam) return currentSessionParam === sessionId;
+  if (currentSessionParam) {
+    return sessionId !== null && currentSessionParam === sessionId;
+  }
   if (currentRoomParam) return currentRoomParam === roomId;
   return index === 0;
+}
+
+/**
+ * The link that opens one navigation entry. Released rooms travel by room id
+ * (`?room=`), own supervisions by session id (`?session=`) — the same two keys
+ * the target page resolves, so sidebar, mobile navigation and page agree.
+ */
+function supervisionHref(room: SupervisedRoom): string {
+  return room.isOpenRoom
+    ? `/active-supervisions?room=${room.id}`
+    : `/active-supervisions?session=${room.groupId}`;
 }
 
 interface SidebarProps {
@@ -1197,10 +1216,8 @@ function SidebarContent({
       const savedRoomId = localStorage.getItem("sidebar-last-room");
       const targetRoom =
         (savedSessionId
-          ? supervisedRooms.find((r) =>
-              r.isSchulhof
-                ? savedSessionId === "schulhof"
-                : r.groupId === savedSessionId,
+          ? supervisedRooms.find(
+              (r) => !r.isOpenRoom && r.groupId === savedSessionId,
             )
           : undefined) ??
         (savedRoomId
@@ -1208,10 +1225,7 @@ function SidebarContent({
           : undefined) ??
         supervisedRooms[0];
       if (targetRoom) {
-        const sessionId = targetRoom.isSchulhof
-          ? "schulhof"
-          : targetRoom.groupId;
-        router.push(`/active-supervisions?session=${sessionId}`);
+        router.push(supervisionHref(targetRoom));
       } else {
         router.push("/active-supervisions");
       }
@@ -1252,8 +1266,9 @@ function SidebarContent({
 
   // Caregivers see their own supervision. A successful overview request also
   // covers effective admins and verified staff under all_staff (#2380).
-  // overviewEnabled avoids the synthetic Schulhof entry triggering the
-  // accordion when the school keeps everyone on their own supervisions.
+  // overviewEnabled keeps a released room (#3065) from opening the accordion:
+  // it is reachable for everyone and grants no supervision, so it must not
+  // stand for one when the school keeps everyone on their own supervisions.
   const showStaffAccordions = userIsCaregiver || overviewEnabled;
   const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
@@ -1480,17 +1495,13 @@ function SidebarContent({
         {supervisedRooms.map((room, index) => (
           <SidebarSubItem
             key={`${room.id}-${room.groupId ?? index}`}
-            href={
-              room.isSchulhof
-                ? `/active-supervisions?session=schulhof`
-                : `/active-supervisions?session=${room.groupId}`
-            }
+            href={supervisionHref(room)}
             label={room.name}
             isActive={isRoomSubItemActive(
               childSessionId,
               childRoomId,
-              room.isSchulhof ? "schulhof" : room.groupId,
-              room.isSchulhof ? "schulhof" : room.id,
+              room.isOpenRoom ? null : room.groupId,
+              room.id,
               pathname,
               currentSessionParam,
               currentRoomParam,

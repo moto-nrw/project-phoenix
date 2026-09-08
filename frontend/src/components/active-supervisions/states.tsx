@@ -6,6 +6,7 @@ import {
   CardGridSkeleton,
 } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -27,12 +28,22 @@ interface EmptyRoomsViewProps {
   readonly currentStaffId: string | undefined;
 }
 
-interface SchulhofNotSupervisingViewProps {
-  readonly supervisorCount: number;
-  readonly supervisorNames: string[];
+interface OpenRoomNoticeProps {
+  readonly isUserSupervising: boolean;
+  /** Known supervisors of the room, where the screen has their names. */
+  readonly supervisorNames?: readonly string[];
+  /** Why the offered action cannot be taken right now, if it cannot. */
+  readonly hint?: string;
+  readonly action?: React.ReactNode;
+}
+
+// Stable empty default: a fresh array literal would break referential
+// equality on every render.
+const NO_SUPERVISOR_NAMES: readonly string[] = [];
+
+interface SchulhofSuperviseButtonProps {
   readonly isToggling: boolean;
-  readonly startDisabled?: boolean;
-  readonly startDisabledReason?: string;
+  readonly disabled?: boolean;
   readonly onToggle: () => void;
 }
 
@@ -154,9 +165,9 @@ export function ReleaseSupervisionModal({
             />
             <div className="flex-1">
               <p className="text-sm text-gray-600">
-                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof wird
-                dann als &bdquo;ohne Aufsicht&ldquo; angezeigt, bis eine andere
-                Lehrkraft die Aufsicht übernimmt.
+                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof
+                bleibt für alle Betreuungskräfte offen. Dort steht dann, dass
+                niemand die Aufsicht hat.
               </p>
             </div>
           </div>
@@ -166,37 +177,63 @@ export function ReleaseSupervisionModal({
   );
 }
 
-export function SchulhofNotSupervisingView({
-  supervisorCount,
-  supervisorNames,
-  isToggling,
-  startDisabled = false,
-  startDisabledReason,
-  onToggle,
-}: SchulhofNotSupervisingViewProps) {
+/**
+ * The one line a shared room needs (#3065): what this place is, and whether
+ * the reader has the supervision here.
+ *
+ * It replaces the former "Schulhof ohne Aufsicht" empty state, which hid the
+ * children from everyone who was not supervising. A released room is open to
+ * all caregivers, so the occupancy stays visible and only the supervision
+ * statement changes.
+ */
+export function OpenRoomNotice({
+  isUserSupervising,
+  supervisorNames = NO_SUPERVISOR_NAMES,
+  hint,
+  action,
+}: OpenRoomNoticeProps) {
+  const supervision = (() => {
+    if (isUserSupervising) return "Sie haben hier die Aufsicht.";
+    if (supervisorNames.length > 0) {
+      return `Die Aufsicht hat: ${supervisorNames.join(", ")}.`;
+    }
+    return "Sie haben hier keine Aufsicht.";
+  })();
+
   return (
-    <SectionCard>
-      <EmptyState
-        icon={<MotoConceptIcon concept="schoolyard" size={48} />}
-        title="Schulhof ohne Aufsicht"
-        description={
-          startDisabledReason ??
-          (supervisorCount > 0
-            ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen.")
-        }
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onToggle}
-            disabled={isToggling || startDisabled}
-          >
-            {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
-          </Button>
-        }
-      />
-    </SectionCard>
+    <Alert
+      type="info"
+      message={[
+        "Offener Raum. Diesen Raum sehen alle Betreuungskräfte.",
+        supervision,
+        hint,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      action={action}
+    />
+  );
+}
+
+/**
+ * The Schulhof's one-tap "Beaufsichtigen" (#2161). It is a supervision action,
+ * not a room-release one: releasing a room makes it visible, taking the
+ * supervision is a separate decision the person makes here.
+ */
+export function SchulhofSuperviseButton({
+  isToggling,
+  disabled = false,
+  onToggle,
+}: SchulhofSuperviseButtonProps) {
+  return (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={onToggle}
+      disabled={isToggling || disabled}
+    >
+      {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
+    </Button>
   );
 }
