@@ -121,7 +121,7 @@ export const DAY_LOG_STATUS_COLORS: Record<DayLogStatus, string> = {
   class_trip: LOCATION_COLORS.CLASS_TRIP,
   excused: LOCATION_COLORS.EXCUSED,
   not_scheduled: LOCATION_COLORS.UNKNOWN,
-  // Every status in this map drives a StatusDotBadge in the same list, so all
+  // Every status in this map drives a StatusColorBadge in the same list, so all
   // six hues have to differ. HOME is grey and would clash with not_scheduled;
   // DANGER is the same red as sick. Amber carries the meaning anyway: an
   // unexplained absence is the one row that needs following up.

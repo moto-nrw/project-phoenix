@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -365,7 +365,7 @@ function AbsenceRequestItem({
           )}
         </div>
         <div className="flex items-center gap-3">
-          <StatusDotBadge label={meta.label} color={meta.color} />
+          <StatusColorBadge label={meta.label} color={meta.color} />
           {cancelable && (
             <Button
               type="button"

@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   TimetableRosterContent,
   type RosterAction,
@@ -100,7 +100,7 @@ function SupervisionIntro({
           </p>
         </div>
         {cancelled ? (
-          <StatusDotBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
+          <StatusColorBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
         ) : null}
       </div>
 

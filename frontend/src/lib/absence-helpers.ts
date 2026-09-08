@@ -12,8 +12,8 @@ export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   comp_time: "Freizeitausgleich",
 };
 
-// Brand hex per absence type, rendered via StatusDotBadge (colored dot +
-// tinted label on a gray-50 pill) — never generic Tailwind hues.
+// Brand hex per absence type, rendered via StatusColorBadge as a tinted
+// gray-50 pill — never generic Tailwind hues.
 export const ABSENCE_TYPE_HEX: Record<string, string> = {
   vacation: LOCATION_COLORS.OTHER_ROOM,
   sick: LOCATION_COLORS.SICK,
@@ -148,7 +148,7 @@ export interface AbsenceStatusMeta {
   readonly color: string;
 }
 
-// Status pill meta (label + LOCATION_COLORS hex, rendered via StatusDotBadge).
+// Status pill meta (label + LOCATION_COLORS hex, rendered via StatusColorBadge).
 // `requestedLabel` lets the MA self-service card keep its "Wartet auf
 // Antwort" wording while admin views show the shorter "Wartet".
 export function absenceStatusMeta(

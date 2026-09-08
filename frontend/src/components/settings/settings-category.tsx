@@ -83,15 +83,9 @@ export function SettingsCategory({
       titleBadge={
         tabLabel || changed > 0 ? (
           <>
-            {tabLabel && (
-              <StatusBadge tone="blue" showDot={false} label={tabLabel} />
-            )}
+            {tabLabel && <StatusBadge tone="blue" label={tabLabel} />}
             {changed > 0 && (
-              <StatusBadge
-                tone="gray"
-                showDot={false}
-                label={`${changed} geändert`}
-              />
+              <StatusBadge tone="gray" label={`${changed} geändert`} />
             )}
           </>
         ) : undefined

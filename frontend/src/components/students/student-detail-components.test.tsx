@@ -297,15 +297,16 @@ describe("Kopf der Kindakte", () => {
         />,
       );
 
-      // The badge keeps custom room colors on its dot while the wrapper uses
-      // the shared neutral surface for unknown legacy colors.
+      // The badge paints the custom room color's tone: the shared neutral
+      // surface for unknown legacy colors, the darkened hue in the label.
+      // No dot carries the raw hex any more (#2476).
+      const tone = getLocationBadgeTone("#A3D977");
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone("#A3D977").backgroundColor,
+        backgroundColor: tone.backgroundColor,
+        color: tone.textColor,
       });
-      expect(badgeContainer?.querySelector("span")).toHaveStyle({
-        backgroundColor: "#A3D977",
-      });
+      expect(badgeContainer?.querySelector("span")).toBeNull();
     });
 
     it("falls back to the default room color when current_room_color is null", () => {

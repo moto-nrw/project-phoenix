@@ -26,7 +26,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -230,7 +230,7 @@ function StudentRow({ student }: { readonly student: DayLogStudent }) {
             {detail ? ` · ${detail}` : ""}
           </p>
         </div>
-        <StatusDotBadge
+        <StatusColorBadge
           label={student.label}
           color={DAY_LOG_STATUS_COLORS[student.status]}
         />
