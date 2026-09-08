@@ -37,41 +37,22 @@ type openRoomSessions struct{ groups activeModel.GroupRepository }
 func (s openRoomSessions) ListRunningSessionsInRooms(
 	ctx context.Context, roomIDs []int64,
 ) ([]supervisiondashboard.RunningSession, error) {
-	groups, err := s.groups.FindActiveByRoomIDs(ctx, roomIDs)
+	sessions, err := s.groups.FindOpenSessionsInRooms(ctx, roomIDs)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]supervisiondashboard.RunningSession, 0, len(groups))
-	for _, group := range groups {
-		if group == nil {
-			continue
-		}
-		session := supervisiondashboard.RunningSession{
-			ActiveGroupID: group.ID,
-			RoomID:        group.RoomID,
-			StartTime:     group.StartTime,
-		}
+	result := make([]supervisiondashboard.RunningSession, 0, len(sessions))
+	for _, session := range sessions {
 		// A session without a template runs without an offering. That is a
 		// fact the view displays as such; it is never filled in with a
-		// placeholder (#3062).
-		if group.ActualGroup != nil {
-			session.ActivityName = group.ActualGroup.Name
-		}
-		session.SupervisorStaffIDs = activeSupervisorStaffIDs(group.Supervisors)
-		result = append(result, session)
+		// placeholder (#3062), so an empty name is carried through as is.
+		result = append(result, supervisiondashboard.RunningSession{
+			ActiveGroupID:      session.ActiveGroupID,
+			RoomID:             session.RoomID,
+			ActivityName:       session.ActivityName,
+			StartTime:          session.StartTime,
+			SupervisorStaffIDs: session.SupervisorStaffIDs,
+		})
 	}
 	return result, nil
-}
-
-// activeSupervisorStaffIDs keeps only supervisions that have not ended. A
-// closed supervision must not make the room read as the caller's own.
-func activeSupervisorStaffIDs(supervisors []*activeModel.GroupSupervisor) []int64 {
-	ids := make([]int64, 0, len(supervisors))
-	for _, supervisor := range supervisors {
-		if supervisor == nil || supervisor.EndDate != nil {
-			continue
-		}
-		ids = append(ids, supervisor.StaffID)
-	}
-	return ids
 }

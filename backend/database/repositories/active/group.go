@@ -79,34 +79,105 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
-// FindActiveByRoomIDs is the batch form of FindActiveByRoomID, with the
-// activity template and current supervisors preloaded. The shared open-room
-// view (#3065) aggregates several released rooms at once; asking per room
-// would make the query count grow with the school's configuration and the
-// per-session template lookups grow with its timetable.
-func (r *GroupRepository) FindActiveByRoomIDs(ctx context.Context, roomIDs []int64) ([]*active.Group, error) {
+// FindOpenSessionsInRooms answers what is running in a set of rooms, with the
+// offering each session runs under and its current supervisors, in two
+// statements regardless of how many rooms or sessions are involved.
+//
+// It returns a read projection rather than *Group with preloaded relations.
+// The offering name lives in Timetable & Activities, so it is read through the
+// named tenant-safe projection this package already uses for that
+// (timetableprojection.GroupNames) instead of a join into another owner's
+// table; the relation loader would have produced exactly such a join.
+func (r *GroupRepository) FindOpenSessionsInRooms(ctx context.Context, roomIDs []int64) ([]active.RoomSession, error) {
 	if len(roomIDs) == 0 {
-		return []*active.Group{}, nil
+		return []active.RoomSession{}, nil
 	}
 
-	var groups []*active.Group
+	var rows []struct {
+		ActiveGroupID   int64     `bun:"active_group_id"`
+		RoomID          int64     `bun:"room_id"`
+		ActivityGroupID *int64    `bun:"activity_group_id"`
+		StartTime       time.Time `bun:"start_time"`
+	}
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Relation("ActualGroup").
-		Relation("Supervisors").
+		ColumnExpr(`"group".id AS active_group_id`).
+		ColumnExpr(`"group".room_id AS room_id`).
+		ColumnExpr(`"group".group_id AS activity_group_id`).
+		ColumnExpr(`"group".start_time AS start_time`).
+		TableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id IN (?) AND "group".end_time IS NULL`, bun.List(roomIDs))
-
 	query = base.WithTenantFilter(ctx, query, "group")
 
-	if err := query.Scan(ctx); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find active by room IDs",
+			Op:  "find open sessions in rooms",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+	if len(rows) == 0 {
+		return []active.RoomSession{}, nil
+	}
+
+	sessionIDs := make([]int64, 0, len(rows))
+	activityGroupIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		sessionIDs = append(sessionIDs, row.ActiveGroupID)
+		if row.ActivityGroupID != nil {
+			activityGroupIDs = append(activityGroupIDs, *row.ActivityGroupID)
+		}
+	}
+
+	activityNames, err := timetableprojection.GroupNames(
+		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), activityGroupIDs,
+	)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find open session offerings",
+			Err: err,
+		}
+	}
+
+	var supervisorRows []struct {
+		GroupID int64 `bun:"group_id"`
+		StaffID int64 `bun:"staff_id"`
+	}
+	supervisorQuery := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr(`"group_supervisor".group_id AS group_id`).
+		ColumnExpr(`"group_supervisor".staff_id AS staff_id`).
+		TableExpr(`active.group_supervisors AS "group_supervisor"`).
+		// A supervision that has ended must not make the room read as
+		// somebody's own.
+		Where(`"group_supervisor".group_id IN (?) AND "group_supervisor".end_date IS NULL`, bun.List(sessionIDs))
+	supervisorQuery = base.WithTenantFilter(ctx, supervisorQuery, "group_supervisor")
+
+	if err := supervisorQuery.Scan(ctx, &supervisorRows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find open session supervisors",
 			Err: base.TranslateNotFound(err),
 		}
 	}
 
-	return groups, nil
+	staffBySession := make(map[int64][]int64, len(sessionIDs))
+	for _, row := range supervisorRows {
+		staffBySession[row.GroupID] = append(staffBySession[row.GroupID], row.StaffID)
+	}
+
+	sessions := make([]active.RoomSession, 0, len(rows))
+	for _, row := range rows {
+		session := active.RoomSession{
+			ActiveGroupID:      row.ActiveGroupID,
+			RoomID:             row.RoomID,
+			StartTime:          row.StartTime,
+			SupervisorStaffIDs: staffBySession[row.ActiveGroupID],
+		}
+		// A session without a template has no offering. The empty name is the
+		// fact, never a placeholder (#3062).
+		if row.ActivityGroupID != nil {
+			session.ActivityName = activityNames[*row.ActivityGroupID]
+		}
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
 }
 
 // LockRoomSessionWrites serializes active session changes for one tenant room.

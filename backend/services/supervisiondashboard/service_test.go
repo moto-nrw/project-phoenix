@@ -72,7 +72,11 @@ func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
 		Sick: &sick, SickSince: &checkedIn, Excused: &excused, ExcusedSince: &checkedOut, PhotoPath: &storedPhoto,
 	}}
 
-	visits := buildVisits(rows, map[int64]*activeService.AttendanceStatus{1: {CheckInTime: &checkedIn, CheckOutTime: &checkedOut}}, true, true)
+	visits := buildVisits(rows, visitDisplay{
+		attendance:    map[int64]*activeService.AttendanceStatus{1: {CheckInTime: &checkedIn, CheckOutTime: &checkedOut}},
+		fullAccess:    true,
+		photosEnabled: true,
+	})
 	require.Len(t, visits, 1)
 	assert.Equal(t, "Erika Mustermann", visits[0].StudentName)
 	assert.True(t, visits[0].Sick)
@@ -81,7 +85,7 @@ func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
 	assert.Equal(t, timezone.FormatBerlinClock(&checkedIn), visits[0].ActualArrivalTime)
 	assert.Equal(t, timezone.FormatBerlinClock(&checkedOut), visits[0].ActualPickupTime)
 
-	privateVisits := buildVisits(rows, nil, false, true)
+	privateVisits := buildVisits(rows, visitDisplay{photosEnabled: true})
 	assert.Nil(t, privateVisits[0].ActualArrivalTime)
 	assert.Empty(t, privateVisits[0].PhotoURL)
 

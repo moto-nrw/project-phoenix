@@ -221,6 +221,29 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	return room
 }
 
+// CreateTestOpenRoom creates a room the OGS administration has permanently
+// released ("offener Raum", #3064/#3065): reachable for every caregiver,
+// whether or not anything runs in it.
+func CreateTestOpenRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
+	tb.Helper()
+
+	room := CreateTestRoom(tb, db, name)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
+		Set("is_open_room = TRUE").
+		Where(whereIDEquals, room.ID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to release test room")
+
+	room.IsOpenRoom = true
+	return room
+}
+
 // CreateTestDevice creates a real IoT device in the database
 func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	tb.Helper()
@@ -1829,6 +1852,29 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test room for tenant")
 
+	return room
+}
+
+// CreateTestOpenRoomForTenant creates a released room owned by a specific
+// tenant — the fixture that lets a test prove the shared view stops at the
+// tenant boundary.
+func CreateTestOpenRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *facilities.Room {
+	tb.Helper()
+
+	room := CreateTestRoomForTenant(tb, db, tenantID, name)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
+		Set("is_open_room = TRUE").
+		Where(whereIDEquals, room.ID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to release test room for tenant")
+
+	room.IsOpenRoom = true
 	return room
 }
 

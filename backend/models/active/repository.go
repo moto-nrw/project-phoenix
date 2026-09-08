@@ -25,9 +25,12 @@ type GroupRepository interface {
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
-	// FindActiveByRoomIDs is the batch form, with the activity template and
-	// current supervisors preloaded, for callers aggregating several rooms.
-	FindActiveByRoomIDs(ctx context.Context, roomIDs []int64) ([]*Group, error)
+	// FindOpenSessionsInRooms answers "what is running in these rooms right
+	// now, under which offering, supervised by whom" for a set of rooms at
+	// once. A caller aggregating several rooms (the shared open-room view,
+	// #3065) would otherwise pay a template and supervisor lookup per session,
+	// which grows with the school's timetable instead of its configuration.
+	FindOpenSessionsInRooms(ctx context.Context, roomIDs []int64) ([]RoomSession, error)
 
 	// LockRoomSessionWrites serializes active session writes for one room until
 	// the current transaction completes.

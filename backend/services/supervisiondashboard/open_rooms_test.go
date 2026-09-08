@@ -30,19 +30,34 @@ func visit(studentID, activeGroupID int64, first, last string, entry time.Time) 
 	}
 }
 
-func sessionIndex(sessions []RunningSession) map[int64]RunningSession {
+// inputs joins the three port results the way loadOpenRoomInputs does, so the
+// assembly tests below state room/session/visit facts and nothing else.
+func inputs(
+	rooms []ReleasedRoom,
+	sessions []RunningSession,
+	visits []*activeService.VisitWithStudentDisplay,
+) openRoomInputs {
 	byID := make(map[int64]RunningSession, len(sessions))
 	for _, session := range sessions {
 		byID[session.ActiveGroupID] = session
 	}
-	return byID
+	return openRoomInputs{
+		rooms:        rooms,
+		sessions:     sessions,
+		sessionByID:  byID,
+		visitsByRoom: groupOpenRoomVisits(byID, visits),
+	}
 }
+
+// visible is the display context of a caller who may see everything; the
+// access and photo gates themselves are exercised separately.
+var visible = visitDisplay{fullAccess: true, photosEnabled: true}
 
 func TestOpenRoomsIncludeReleasedRoomsWithNothingRunning(t *testing.T) {
 	t.Parallel()
 
 	rooms := []ReleasedRoom{{ID: 1, Name: "Turnhalle"}, {ID: 2, Name: "Werkraum"}}
-	result := assembleOpenRooms(rooms, nil, nil, nil, nil)
+	result := assembleOpenRooms(inputs(rooms, nil, nil), visible, nil)
 
 	require.Len(t, result, 2, "several released rooms are reachable at once")
 	for _, room := range result {
@@ -68,11 +83,11 @@ func TestOpenRoomMergesEveryRunningSessionOfThatRoom(t *testing.T) {
 		visit(101, 11, "Bea", "Berg", at(35)),
 	}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), visits, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, visits), visible, nil)
 
 	require.Len(t, result, 1, "two sessions in one room stay one room")
 	room := result[0]
-	assert.Equal(t, []int64{10, 11}, room.ActiveGroupIDs, "both sessions feed the view, oldest first")
+	assert.Equal(t, []string{"10", "11"}, room.ActiveGroupIDs, "both sessions feed the view, oldest first")
 	assert.Equal(t, 2, room.StudentCount)
 	require.Len(t, room.Students, 2)
 	assert.Equal(t, "Fußball", room.Students[0].ActivityName)
@@ -95,7 +110,7 @@ func TestChildAppearsOnceEvenWithSeveralAttributableSessions(t *testing.T) {
 		visit(100, 10, "Ada", "Adler", at(5)),
 	}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), visits, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, visits), visible, nil)
 
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Students, 1, "the child is listed once, not once per session")
@@ -114,7 +129,7 @@ func TestSessionWithoutATemplateReportsNoOffering(t *testing.T) {
 	sessions := []RunningSession{{ActiveGroupID: 10, RoomID: 1, ActivityName: "", StartTime: at(0)}}
 	visits := []*activeService.VisitWithStudentDisplay{visit(100, 10, "Ada", "Adler", at(5))}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), visits, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, visits), visible, nil)
 
 	require.Len(t, result[0].Students, 1)
 	assert.Empty(t, result[0].Students[0].ActivityName)
@@ -130,7 +145,7 @@ func TestSupervisionFlagReportsOnlyTheCallersOwnSupervision(t *testing.T) {
 	}
 	caller := int64(7)
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), nil, &caller)
+	result := assembleOpenRooms(inputs(rooms, sessions, nil), visible, &caller)
 
 	byName := map[string]OpenRoom{}
 	for _, room := range result {
@@ -149,7 +164,7 @@ func TestSupervisionFlagIsFalseWithoutAStaffIdentity(t *testing.T) {
 		{ActiveGroupID: 10, RoomID: 1, StartTime: at(0), SupervisorStaffIDs: []int64{7}},
 	}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), nil, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, nil), visible, nil)
 
 	assert.False(t, result[0].IsUserSupervising,
 		"a caller with no staff identity supervises nothing, and still sees the room")
@@ -169,7 +184,7 @@ func TestVisitsOfUnknownSessionsAreIgnored(t *testing.T) {
 		nil, // defensive: a nil row never panics
 	}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), visits, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, visits), visible, nil)
 
 	require.Len(t, result[0].Students, 1)
 	assert.Equal(t, int64(100), result[0].Students[0].StudentID)
@@ -185,7 +200,7 @@ func TestOpenRoomsAndStudentsAreOrderedStably(t *testing.T) {
 		visit(100, 10, "Ada", "Adler", at(5)),
 	}
 
-	result := assembleOpenRooms(rooms, sessions, sessionIndex(sessions), visits, nil)
+	result := assembleOpenRooms(inputs(rooms, sessions, visits), visible, nil)
 
 	assert.Equal(t, []string{"Turnhalle", "Werkraum"}, []string{result[0].Name, result[1].Name})
 	assert.Equal(t, "Ada Adler", result[0].Students[0].StudentName)
@@ -220,16 +235,16 @@ func (c *countingOpenRoomSource) GetActiveGroupVisitsWithDisplayForGroups(
 	return c.visits, nil
 }
 
-func loadWith(t *testing.T, source *countingOpenRoomSource) *Projection {
+func loadWith(t *testing.T, source *countingOpenRoomSource) []OpenRoom {
 	t.Helper()
 	svc := &service{deps: Dependencies{
 		OpenRoomDirectory: source,
 		OpenRoomSessions:  source,
 		OpenRoomVisits:    source,
 	}}
-	projection := emptyProjection()
-	require.NoError(t, svc.loadOpenRooms(t.Context(), projection, nil))
-	return projection
+	loaded, err := svc.loadOpenRoomInputs(t.Context())
+	require.NoError(t, err)
+	return assembleOpenRooms(loaded, visible, nil)
 }
 
 // TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions is the query-budget
@@ -262,11 +277,11 @@ func TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions(t *testing.T) {
 		},
 	}
 
-	smallProjection := loadWith(t, small)
-	largeProjection := loadWith(t, large)
+	smallRooms := loadWith(t, small)
+	largeRooms := loadWith(t, large)
 
-	require.Len(t, smallProjection.OpenRooms, 1)
-	require.Len(t, largeProjection.OpenRooms, 4)
+	require.Len(t, smallRooms, 1)
+	require.Len(t, largeRooms, 4)
 
 	assert.Equal(t, 1, small.roomCalls)
 	assert.Equal(t, 1, small.sessionCalls)
@@ -285,9 +300,9 @@ func TestOpenRoomLoadSkipsSessionsAndVisitsWithoutReleasedRooms(t *testing.T) {
 	t.Parallel()
 
 	source := &countingOpenRoomSource{}
-	projection := loadWith(t, source)
+	rooms := loadWith(t, source)
 
-	assert.Empty(t, projection.OpenRooms)
+	assert.Empty(t, rooms)
 	assert.Equal(t, 1, source.roomCalls)
 	assert.Zero(t, source.sessionCalls)
 	assert.Zero(t, source.visitCalls)
@@ -299,9 +314,108 @@ func TestOpenRoomLoadSkipsVisitsWhenNothingRuns(t *testing.T) {
 	t.Parallel()
 
 	source := &countingOpenRoomSource{rooms: []ReleasedRoom{{ID: 1, Name: "Turnhalle"}}}
-	projection := loadWith(t, source)
+	rooms := loadWith(t, source)
 
-	require.Len(t, projection.OpenRooms, 1, "the empty room is still reachable")
+	require.Len(t, rooms, 1, "the empty room is still reachable")
 	assert.Equal(t, 1, source.sessionCalls)
 	assert.Zero(t, source.visitCalls)
+}
+
+// TestOpenRoomStudentsCarryTheSameDisplayAsASessionRoster is why the released
+// room is not a second, poorer student shape: the page renders it with the
+// roster it already has, so photo, illness and the recorded arrival/pickup
+// must survive — under the same access gates.
+func TestOpenRoomStudentsCarryTheSameDisplayAsASessionRoster(t *testing.T) {
+	t.Parallel()
+
+	sick := true
+	photo := studentPhotoStoredURLPrefix + "portrait.jpg"
+	arrival := at(0)
+	row := visit(100, 10, "Ada", "Adler", at(5))
+	row.OGSGroupName = "Bären"
+	row.Sick = &sick
+	row.PhotoPath = &photo
+
+	in := inputs(
+		[]ReleasedRoom{{ID: 1, Name: "Turnhalle"}},
+		[]RunningSession{{ActiveGroupID: 10, RoomID: 1, ActivityName: "Fußball", StartTime: at(0)}},
+		[]*activeService.VisitWithStudentDisplay{row},
+	)
+	display := visitDisplay{
+		attendance:    map[int64]*activeService.AttendanceStatus{100: {CheckInTime: &arrival}},
+		fullAccess:    true,
+		photosEnabled: true,
+	}
+
+	student := assembleOpenRooms(in, display, nil)[0].Students[0]
+	assert.Equal(t, "Ada Adler", student.StudentName)
+	assert.Equal(t, "Bären", student.GroupName, "the child's OGS group travels with them")
+	assert.Equal(t, "Fußball", student.ActivityName, "and so does the offering they are recorded under")
+	assert.True(t, student.Sick)
+	assert.Equal(t, "/api/students/100/photo/portrait.jpg", student.PhotoURL)
+	assert.NotEmpty(t, student.ActualArrivalTime)
+}
+
+// TestOpenRoomStudentsObeyTheAccessGates: a released room is reachable for
+// everyone, which is exactly why it must not become a way around the redaction
+// that applies to the same child in a session roster.
+func TestOpenRoomStudentsObeyTheAccessGates(t *testing.T) {
+	t.Parallel()
+
+	photo := studentPhotoStoredURLPrefix + "portrait.jpg"
+	arrival := at(0)
+	row := visit(100, 10, "Ada", "Adler", at(5))
+	row.PhotoPath = &photo
+
+	in := inputs(
+		[]ReleasedRoom{{ID: 1, Name: "Turnhalle"}},
+		[]RunningSession{{ActiveGroupID: 10, RoomID: 1, StartTime: at(0)}},
+		[]*activeService.VisitWithStudentDisplay{row},
+	)
+	restricted := visitDisplay{
+		attendance:    map[int64]*activeService.AttendanceStatus{100: {CheckInTime: &arrival}},
+		photosEnabled: true,
+	}
+
+	student := assembleOpenRooms(in, restricted, nil)[0].Students[0]
+	assert.Empty(t, student.PhotoURL, "no photo without full access")
+	assert.Nil(t, student.ActualArrivalTime, "no recorded arrival without full access")
+	assert.Equal(t, "Ada Adler", student.StudentName, "the child is still visible in the room")
+}
+
+// TestOpenRoomChildrenTakePartInTheSharedPerStudentLoads is the reason the
+// dedup result is kept as an input instead of being rendered immediately:
+// tracking indicators and pickup/arrival times are loaded once for the union,
+// so a released room's children are not silently left out of them.
+func TestOpenRoomChildrenTakePartInTheSharedPerStudentLoads(t *testing.T) {
+	t.Parallel()
+
+	in := inputs(
+		[]ReleasedRoom{{ID: 1, Name: "Turnhalle"}, {ID: 2, Name: "Werkraum"}},
+		[]RunningSession{
+			{ActiveGroupID: 10, RoomID: 1, StartTime: at(0)},
+			{ActiveGroupID: 11, RoomID: 2, StartTime: at(0)},
+		},
+		[]*activeService.VisitWithStudentDisplay{
+			visit(100, 10, "Ada", "Adler", at(5)),
+			visit(101, 11, "Bea", "Berg", at(5)),
+			// Also present in the selected session below — counted once.
+			visit(102, 10, "Cem", "Celik", at(5)),
+		},
+	)
+	selected := []*activeService.VisitWithStudentDisplay{
+		visit(102, 20, "Cem", "Celik", at(1)),
+		visit(103, 20, "Dana", "Daum", at(1)),
+	}
+
+	assert.Equal(t, []int64{100, 101, 102}, in.studentIDs())
+	assert.Equal(t, []int64{102, 103, 100, 101}, unionStudentIDs(selected, in.studentIDs()),
+		"the selected session keeps its order, released rooms add what it does not already have")
+}
+
+func TestUnionStudentIDsIsEmptyWithoutAnySource(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, unionStudentIDs(nil, nil))
+	assert.Empty(t, openRoomInputs{}.studentIDs())
 }

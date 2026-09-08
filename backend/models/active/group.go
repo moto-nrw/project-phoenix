@@ -32,6 +32,21 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
+// RoomSession is one open session located in a room, joined with the offering
+// it runs under and the staff supervising it right now. It is a read
+// projection, not a persisted row: the shared open-room view (#3065) needs
+// exactly these four facts per session and nothing else.
+type RoomSession struct {
+	ActiveGroupID int64
+	RoomID        int64
+	// ActivityName is empty when the session runs without a template. That is
+	// a fact about the session, never a placeholder.
+	ActivityName string
+	StartTime    time.Time
+	// SupervisorStaffIDs are the staff whose supervision has not ended.
+	SupervisorStaffIDs []int64
+}
+
 // Validate ensures active group data is valid
 func (g *Group) Validate() error {
 	if g.StartTime.IsZero() {

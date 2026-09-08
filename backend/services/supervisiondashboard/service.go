@@ -250,7 +250,8 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 		projection.Schulhof = schulhof
 	}
 
-	if err := s.loadOpenRooms(ctx, projection, staffID); err != nil {
+	openRooms, err := s.loadOpenRoomInputs(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -266,10 +267,8 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.loadScheduleSections(ctx, projection, snapshot); err != nil {
 		return nil, err
 	}
-	if selected != nil {
-		if err := s.loadSelectedGroupSections(ctx, projection, *selected, snapshot.businessDay); err != nil {
-			return nil, err
-		}
+	if err := s.loadPresenceSections(ctx, projection, selected, openRooms, staffID, snapshot.businessDay); err != nil {
+		return nil, err
 	}
 	return projection, nil
 }
@@ -623,47 +622,58 @@ func (s *service) resolveCapabilities(ctx context.Context) (Capabilities, error)
 	return Capabilities{WebSpontaneousActivitiesEnabled: enabled}, nil
 }
 
-// loadSelectedGroupSections fills visits, tracking indicators, and pickup /
-// arrival times for the selected session's students.
-func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Projection, selectedGroupID int64, businessDay timezone.Date) error {
-	rows, err := s.deps.Active.GetActiveGroupVisitsWithDisplay(ctx, selectedGroupID)
-	if err != nil {
-		return fmt.Errorf("load group visits: %w", err)
+// loadPresenceSections fills the visit roster of the selected session, the
+// shared view of every released room, and the tracking indicators and pickup /
+// arrival times of all children in either.
+//
+// Those per-student loads run ONCE over the union. A released room is not a
+// second selection the client has to fetch: it arrives complete with the same
+// dashboard response, which is what lets the page open an empty or foreign
+// room without a round trip — and what keeps the cost independent of how many
+// rooms a school released.
+func (s *service) loadPresenceSections(
+	ctx context.Context,
+	projection *Projection,
+	selectedGroupID *int64,
+	openRooms openRoomInputs,
+	staffID *int64,
+	businessDay timezone.Date,
+) error {
+	var selectedRows []*activeService.VisitWithStudentDisplay
+	if selectedGroupID != nil {
+		rows, err := s.deps.Active.GetActiveGroupVisitsWithDisplay(ctx, *selectedGroupID)
+		if err != nil {
+			return fmt.Errorf("load group visits: %w", err)
+		}
+		for _, row := range rows {
+			if row.ExitTime != nil {
+				continue
+			}
+			selectedRows = append(selectedRows, row)
+		}
 	}
+
+	studentIDs := unionStudentIDs(selectedRows, openRooms.studentIDs())
 
 	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext)
-	fullAccess := access.HasFullAccess()
+	display := visitDisplay{fullAccess: access.HasFullAccess()}
 
-	openVisits := make([]*activeService.VisitWithStudentDisplay, 0, len(rows))
-	studentIDs := make([]int64, 0, len(rows))
-	seen := map[int64]struct{}{}
-	for _, row := range rows {
-		if row.ExitTime != nil {
-			continue
-		}
-		openVisits = append(openVisits, row)
-		if _, ok := seen[row.StudentID]; !ok {
-			seen[row.StudentID] = struct{}{}
-			studentIDs = append(studentIDs, row.StudentID)
-		}
-	}
-
-	attendance := map[int64]*activeService.AttendanceStatus{}
-	if fullAccess && len(studentIDs) > 0 {
+	if display.fullAccess && len(studentIDs) > 0 {
 		loaded, err := s.deps.Active.GetStudentsAttendanceStatuses(ctx, studentIDs)
 		if err != nil {
 			return fmt.Errorf("load attendance statuses: %w", err)
 		}
-		if loaded != nil {
-			attendance = loaded
-		}
+		display.attendance = loaded
 	}
 
 	photosEnabled, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyStudentPhotosEnabled)
 	if err != nil {
 		return fmt.Errorf("resolve student photos setting: %w", err)
 	}
-	projection.Visits = buildVisits(openVisits, attendance, fullAccess, photosEnabled)
+	display.photosEnabled = photosEnabled
+
+	projection.Visits = buildVisits(selectedRows, display)
+	projection.OpenRooms = assembleOpenRooms(openRooms, display, staffID)
 
 	tracking, err := s.loadTracking(ctx, studentIDs)
 	if err != nil {
@@ -671,42 +681,79 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	}
 	projection.TrackingIndicators = tracking
 
-	return s.loadPlanningTimes(ctx, projection, studentIDs, fullAccess, businessDay)
+	return s.loadPlanningTimes(ctx, projection, studentIDs, display.fullAccess, businessDay)
 }
 
-func buildVisits(rows []*activeService.VisitWithStudentDisplay, attendance map[int64]*activeService.AttendanceStatus, fullAccess, photosEnabled bool) []Visit {
+// unionStudentIDs is every child of the selected session plus every child in a
+// released room, each one once, in a stable order.
+func unionStudentIDs(selected []*activeService.VisitWithStudentDisplay, openRoomStudents []int64) []int64 {
+	seen := make(map[int64]struct{}, len(selected)+len(openRoomStudents))
+	ids := make([]int64, 0, len(selected)+len(openRoomStudents))
+	add := func(id int64) {
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	for _, row := range selected {
+		add(row.StudentID)
+	}
+	for _, id := range openRoomStudents {
+		add(id)
+	}
+	return ids
+}
+
+// visitDisplay carries the three decisions every rendered visit depends on, so
+// the selected session and the released rooms cannot drift apart on them.
+type visitDisplay struct {
+	attendance    map[int64]*activeService.AttendanceStatus
+	fullAccess    bool
+	photosEnabled bool
+}
+
+func displayName(row *activeService.VisitWithStudentDisplay) string {
+	return strings.TrimSpace(row.FirstName + " " + row.LastName)
+}
+
+func buildVisits(rows []*activeService.VisitWithStudentDisplay, display visitDisplay) []Visit {
 	result := make([]Visit, 0, len(rows))
 	for _, row := range rows {
-		visit := Visit{
-			StudentID:     row.StudentID,
-			StudentName:   strings.TrimSpace(row.FirstName + " " + row.LastName),
-			SchoolClass:   row.SchoolClass,
-			GroupName:     row.OGSGroupName,
-			ActiveGroupID: row.ActiveGroupID,
-			CheckInTime:   row.EntryTime,
-		}
-		if row.Sick != nil {
-			visit.Sick = *row.Sick
-		}
-		visit.SickSince = row.SickSince
-		if row.Excused != nil {
-			visit.Excused = *row.Excused
-		}
-		visit.ExcusedSince = row.ExcusedSince
-		if fullAccess {
-			if status := attendance[row.StudentID]; status != nil {
-				visit.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
-				visit.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
-			}
-		}
-		// Same full-access gate the single endpoint used: without it, avatar
-		// requests for out-of-scope students would 403 in the byte-serve path.
-		if photosEnabled && fullAccess && row.PhotoPath != nil {
-			visit.PhotoURL = buildPhotoURL(row.StudentID, *row.PhotoPath)
-		}
-		result = append(result, visit)
+		result = append(result, buildVisit(row, display))
 	}
 	return result
+}
+
+func buildVisit(row *activeService.VisitWithStudentDisplay, display visitDisplay) Visit {
+	visit := Visit{
+		StudentID:     row.StudentID,
+		StudentName:   displayName(row),
+		SchoolClass:   row.SchoolClass,
+		GroupName:     row.OGSGroupName,
+		ActiveGroupID: row.ActiveGroupID,
+		CheckInTime:   row.EntryTime,
+	}
+	if row.Sick != nil {
+		visit.Sick = *row.Sick
+	}
+	visit.SickSince = row.SickSince
+	if row.Excused != nil {
+		visit.Excused = *row.Excused
+	}
+	visit.ExcusedSince = row.ExcusedSince
+	if display.fullAccess {
+		if status := display.attendance[row.StudentID]; status != nil {
+			visit.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
+			visit.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+		}
+	}
+	// Same full-access gate the single endpoint used: without it, avatar
+	// requests for out-of-scope students would 403 in the byte-serve path.
+	if display.photosEnabled && display.fullAccess && row.PhotoPath != nil {
+		visit.PhotoURL = buildPhotoURL(row.StudentID, *row.PhotoPath)
+	}
+	return visit
 }
 
 func buildPhotoURL(studentID int64, storedURL string) string {

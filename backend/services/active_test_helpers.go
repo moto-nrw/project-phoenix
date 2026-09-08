@@ -112,8 +112,19 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
+	// The shared open-room view's ports (#3065) are bound here too: without
+	// them a test module would silently report no released rooms at all, and
+	// every assertion about them would pass for the wrong reason.
+	facilitiesCapability, err := repositories.NewFacilities(db)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	dashboard := supervisiondashboard.NewService(supervisiondashboard.Dependencies{Active: presence, UserContext: groups.UserContext, Education: groups.Education,
-		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals})
+		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals,
+		OpenRoomDirectory: openRoomDirectory{rooms: facilitiesCapability},
+		OpenRoomSessions:  openRoomSessions{groups: r.ActiveGroup},
+		OpenRoomVisits:    active.NewVisitDisplayBatchReader(active.ServiceDependencies{StudentDisplay: studentDisplayProjection{students: students, groups: displayGroups}, SchoolPresence: newStudentPresence(db, logger)}),
+	})
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: yard,
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance}, nil
 }

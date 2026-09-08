@@ -123,7 +123,7 @@ func (m *mockGroupRepository) FindActiveByRoomID(ctx context.Context, roomID int
 	return nil, nil
 }
 
-func (m *mockGroupRepository) FindActiveByRoomIDs(context.Context, []int64) ([]*active.Group, error) {
+func (m *mockGroupRepository) FindOpenSessionsInRooms(context.Context, []int64) ([]active.RoomSession, error) {
 	return nil, nil
 }
 
