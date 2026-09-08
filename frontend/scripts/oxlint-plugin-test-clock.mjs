@@ -14,10 +14,10 @@
 //       `useRealClock("reason")` for a reviewed real-time exception.
 //     - `useRealClock()` without a non-empty string-literal reason.
 //     - `vi.getRealSystemTime()`, `vi.stubGlobal("Date", …)`, direct global
-//       `Date = …` assignments, and assignments to `globalThis.Date` /
+//       `Date = …` assignments, assignments to `globalThis.Date` /
 //       `global.Date` / `window.Date` (including computed `["Date"]`
-//       properties), which read or replace the real clock behind the setup's
-//       back.
+//       properties), and reflective `Object` / `Reflect` writes to global
+//       `Date`, which read or replace the real clock behind the setup's back.
 //
 // There is no baseline and no allowlist: an exception is `useRealClock` with
 // its reason in the call, not a disable comment.
@@ -45,6 +45,18 @@ function isViMember(callee, name) {
     callee.object.name === "vi" &&
     callee.property.type === "Identifier" &&
     callee.property.name === name
+  );
+}
+
+function isStaticMember(callee, objectName, propertyName) {
+  return (
+    callee.type === "MemberExpression" &&
+    callee.object.type === "Identifier" &&
+    callee.object.name === objectName &&
+    ((callee.property.type === "Identifier" &&
+      callee.property.name === propertyName) ||
+      (isStringLiteral(callee.property) &&
+        literalText(callee.property) === propertyName))
   );
 }
 
@@ -106,6 +118,26 @@ function isDateGlobalMember(node) {
   );
 }
 
+function isGlobalDateObject(node) {
+  return node?.type === "Identifier" && DATE_GLOBAL_OBJECTS.has(node.name);
+}
+
+function isGlobalDateWrite(callee, arguments_) {
+  if (
+    !isGlobalDateObject(arguments_[0]) ||
+    !isStringLiteral(arguments_[1]) ||
+    literalText(arguments_[1]) !== "Date"
+  ) {
+    return false;
+  }
+
+  return (
+    isStaticMember(callee, "Object", "defineProperty") ||
+    isStaticMember(callee, "Reflect", "defineProperty") ||
+    isStaticMember(callee, "Reflect", "set")
+  );
+}
+
 const noRealClock = {
   meta: {
     type: "problem",
@@ -150,6 +182,11 @@ const noRealClock = {
           isStringLiteral(node.arguments[0]) &&
           literalText(node.arguments[0]) === "Date"
         ) {
+          context.report({ node, messageId: "dateReplaced" });
+          return;
+        }
+
+        if (isGlobalDateWrite(callee, node.arguments)) {
           context.report({ node, messageId: "dateReplaced" });
           return;
         }

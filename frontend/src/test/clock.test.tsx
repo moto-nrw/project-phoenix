@@ -158,25 +158,32 @@ describe("isolation between tests", () => {
   });
 });
 
-describe("isolation with file-scoped fake timers", () => {
-  beforeAll(() => {
-    vi.useFakeTimers();
+describe("isolation with nested fake-timer scopes", () => {
+  describe("with file-scoped fake timers", () => {
+    beforeAll(() => {
+      vi.useFakeTimers();
+    });
+
+    afterAll(() => {
+      vi.useRealTimers();
+    });
+
+    it("can release the file's fake-timer mode after changing time", () => {
+      expect(vi.isFakeTimers()).toBe(true);
+      setTestClock("2031-06-15T10:00:00+02:00");
+      expect(Date.now()).toBe(new Date("2031-06-15T10:00:00+02:00").getTime());
+      releaseFakeTimers();
+      expect(vi.isFakeTimers()).toBe(false);
+    });
+
+    it("restores fake timers and the clock for the next scoped test", () => {
+      expect(vi.isFakeTimers()).toBe(true);
+      expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
+    });
   });
 
-  afterAll(() => {
-    vi.useRealTimers();
-  });
-
-  it("can release the file's fake-timer mode after changing time", () => {
-    expect(vi.isFakeTimers()).toBe(true);
-    setTestClock("2031-06-15T10:00:00+02:00");
-    expect(Date.now()).toBe(new Date("2031-06-15T10:00:00+02:00").getTime());
-    releaseFakeTimers();
+  it("leaves fake timers disabled outside the nested scope", () => {
     expect(vi.isFakeTimers()).toBe(false);
-  });
-
-  it("reinstalls fake timers and resets the clock before the next test", () => {
-    expect(vi.isFakeTimers()).toBe(true);
     expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
   });
 });

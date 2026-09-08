@@ -116,12 +116,15 @@ describe("test-clock/no-real-clock", () => {
         window.Date = RealDate;
         globalThis["Date"] = RealDate;
         window["Date"] = RealDate;
+        Object.defineProperty(globalThis, "Date", { value: RealDate });
+        Reflect.defineProperty(global, "Date", { value: RealDate });
+        Reflect.set(window, "Date", RealDate);
         vi.stubGlobal("fetch", () => now);
       });
     `);
 
     expect(result.status).toBe(1);
-    expect(countReports(result.output)).toBe(8);
+    expect(countReports(result.output)).toBe(11);
   });
 
   it("allows assignments to a locally scoped Date binding", () => {

@@ -10,8 +10,9 @@ deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
 `TEST_CLOCK_INSTANT` before each test and normally restores the real clock
 afterwards. If a file enables fake timers in module scope or `beforeAll`, the
 setup preserves that mode while resetting its system time before each test. If
-a test releases fake timers, the setup reinstalls them before the next test;
-the file restores real timers in `afterAll`.
+a test releases fake timers, the setup restores them after that test so the
+scope's `afterAll` can release them. The file restores real timers in
+`afterAll`.
 `vitest.config.ts` pins the zone to `Europe/Berlin`, so the frozen instant is
 always Wednesday, 9 September 2026, 12:00 Berlin time (`TEST_CLOCK_TODAY` =
 `2026-09-09`).
@@ -57,7 +58,9 @@ valid: fixture and product code see the same frozen instant. Fixtures that use
   `scripts/oxlint-plugin-test-clock.test.ts`) runs in `pnpm run check` and CI.
   It rejects `vi.useRealTimers()` outside `afterEach`/`afterAll`,
   `useRealClock()` without a non-empty literal reason, `vi.getRealSystemTime()`
-  and any replacement of the global `Date`. There is no baseline and no
-  allowlist; the exception is the reason inside the `useRealClock` call.
+  and statically identifiable replacement of the global `Date`, including
+  direct assignments and `Object.defineProperty` / `Reflect` writes. There is
+  no baseline and no allowlist; the exception is the reason inside the
+  `useRealClock` call.
 - `.claude/rules/no-test-modifications.md` applies: a date-dependent failure is
   fixed by pinning the clock, not by loosening the assertion.
