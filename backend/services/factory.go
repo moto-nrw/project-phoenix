@@ -1912,7 +1912,6 @@ func newFactory(
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
 		repos.UnregisteredTagScan,
-		auditCommand,
 		organizations,
 		auditService.UnregisteredTagScanRuntime{
 			TenantID: tenant.FromContext,

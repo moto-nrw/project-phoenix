@@ -38,6 +38,19 @@ type DisplayStore interface {
 	FindByTokenHash(context.Context, string) (domain.Display, bool, domain.OperationStats, error)
 }
 
+// UnregisteredTagScanStore is the owner's persistence port over
+// audit.unregistered_tag_scans.
+type UnregisteredTagScanStore interface {
+	Insert(context.Context, domain.RecordUnregisteredTagScan) (domain.UnregisteredTagScan, domain.OperationStats, error)
+	FindByID(context.Context, int64) (domain.UnregisteredTagScan, bool, domain.OperationStats, error)
+	List(context.Context, domain.UnregisteredTagScanFilter) ([]domain.UnregisteredTagScan, domain.OperationStats, error)
+	// Resolve stamps one still-open scan and reports how many rows matched.
+	Resolve(context.Context, domain.ResolveUnregisteredTagScan) (int64, domain.OperationStats, error)
+	// DeleteExpired removes the caller tenant's scans older than cutoff through
+	// the audit retention function and reports the deleted count.
+	DeleteExpired(context.Context, time.Time) (int64, domain.OperationStats, error)
+}
+
 // DashboardSources supplies the cross-owner facts the info-point aggregate
 // renders and cannot read through a public capability of its own. Every
 // method runs inside the display's tenant transaction; the composition root
