@@ -102,3 +102,26 @@ func ActiveGroupEnded(tb testing.TB, db *bun.DB, ended EndedActiveGroup) (groupE
 	require.NoError(tb, db.NewSelect().TableExpr("active.group_supervisors").ColumnExpr("end_date IS NOT NULL").Where("id = ?", ended.SupervisorID).Scan(ctx, &supervisorEnded))
 	return groupEnded, supervisorEnded
 }
+
+// CreateTestScheduledCheckout records a pending scheduled checkout for the
+// fixture tenant and returns its row ID. Student and staff must already exist.
+func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID int64, scheduledFor time.Time) int64 {
+	tb.Helper()
+	return CreateTestScheduledCheckoutForTenant(tb, db, Tenant(tb), studentID, staffID, scheduledFor)
+}
+
+// CreateTestScheduledCheckoutForTenant records a pending scheduled checkout in
+// an explicit fixture tenant and returns its row ID.
+func CreateTestScheduledCheckoutForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, staffID int64, scheduledFor time.Time) int64 {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO active.scheduled_checkouts (tenant_id, student_id, scheduled_by, scheduled_for, status)
+		VALUES (?, ?, ?, ?, 'pending')
+		RETURNING id
+	`, tenantID, studentID, staffID, scheduledFor).Scan(ctx, &id)
+	require.NoError(tb, err, "Failed to create test scheduled checkout")
+	return id
+}

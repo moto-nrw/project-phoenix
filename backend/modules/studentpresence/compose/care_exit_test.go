@@ -86,6 +86,10 @@ func TestPresenceHistoryUsesBerlinVisitDateAndPreservesReadFailures(t *testing.T
 	count, err := module.CountAttendanceRecords(ctx, student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
+	testpkg.CreateTestScheduledCheckout(t, db, student.ID, staff.ID, at.Add(2*time.Hour))
+	count, err = module.CountAttendanceRecords(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, count, "scheduled checkouts count as attendance records for deletion")
 	require.Error(t, module.LockOpenPresence(ctx, []int64{student.ID}), "row locks require a transaction")
 	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		return module.LockOpenPresence(txCtx, []int64{student.ID})

@@ -30,6 +30,8 @@ func (m *Module) LatestPresenceDate(ctx context.Context, studentID int64) (*stri
 	return m.engine.LatestPresenceDate(ctx, studentID)
 }
 
+// CountAttendanceRecords counts the student's attendance rows plus scheduled
+// checkouts; the deletion preview reports both as attendance records.
 func (m *Module) CountAttendanceRecords(ctx context.Context, studentID int64) (int, error) {
 	return m.engine.CountAttendanceRecords(ctx, studentID)
 }

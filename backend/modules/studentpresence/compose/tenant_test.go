@@ -69,6 +69,7 @@ func TestPresenceQueriesAndCommandsRespectTwoTenantRLS(t *testing.T) {
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, at.Add(-time.Hour), nil)
 		testpkg.CreateTestVisit(t, db, student.ID, group.ID, at.Add(-time.Hour), nil)
+		testpkg.CreateTestScheduledCheckout(t, db, student.ID, staff.ID, at.Add(time.Hour))
 		studentID, groupID = student.ID, group.ID
 	})
 	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
@@ -80,7 +81,7 @@ func TestPresenceQueriesAndCommandsRespectTwoTenantRLS(t *testing.T) {
 		assert.Nil(t, day)
 		count, err := module.CountAttendanceRecords(txCtx, studentID)
 		require.NoError(t, err)
-		assert.Zero(t, count)
+		assert.Zero(t, count, "foreign attendance and scheduled checkouts stay invisible")
 		require.NoError(t, module.LockOpenPresence(txCtx, []int64{studentID}))
 		require.NoError(t, module.LockOpenVisits(txCtx, groupID))
 		rows, err := module.CloseOpenPresence(txCtx, []int64{studentID}, at)
