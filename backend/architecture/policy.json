@@ -2107,10 +2107,17 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "services/ogsgrouplive",
+      "path": "modules/grouplive",
       "owner": "group-live-view",
-      "role": "application",
+      "role": "public",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/legacy",
+      "owner": "group-live-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -4850,6 +4857,182 @@
       "target_role": "public"
     },
     {
+      "id": "legacy-composition.compose.to.group-live-view.public",
+      "description": "The legacy root constructs the live-group projection and adapts its consumer-owned ports from the retained owner services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "group-live-view",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.to.group-live-view.adapter",
+      "description": "The legacy root constructs the live-group compatibility adapters over the retained owner services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "group-live-view",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.public",
+      "description": "The live-group compatibility adapters implement the projection's consumer-owned ports and return its public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "group-live-view",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.adapter.security-runtime-application",
+      "description": "The live-group compatibility adapter resolves the operational-overview gate and the excused-request review rule through the shared authorize helpers (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.security-runtime-contract",
+      "description": "The live-group compatibility adapter reads the request principal and the groups:read permission constant (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "group-live-view.adapter.identity-access-adapter",
+      "description": "The live-group compatibility adapter reads the caller's JWT permissions while the request principal still travels through the JWT context (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.identity-access-application",
+      "description": "The live-group compatibility adapter resolves supervised groups, substitutions, and student access through the retained user-context service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.settings-platform-application",
+      "description": "The live-group compatibility adapter prefetches and reads tenant settings through the retained settings service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.settings-platform-domain",
+      "description": "The live-group compatibility adapter names the setting keys it prefetches (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-public",
+      "description": "The live-group compatibility adapter reads attendance rows and open visits through the Student Presence facade (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-application",
+      "description": "The live-group compatibility adapter delegates location resolution, presence mode, status-day precedence, and tracking indicators to the retained presence service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-domain",
+      "description": "The live-group compatibility adapter groups the retained status-day rows before the owner resolves their precedence (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "group-live-view.adapter.timetable-activities-application",
+      "description": "The live-group compatibility adapter reads effective arrival and pickup plans, planned instances, care days, and the shared day-planning precedence from the retained schedule service (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.people-directory-application",
+      "description": "The live-group compatibility adapter reads group members, person names, and care participation from the retained people services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.school-structure-application",
+      "description": "The live-group compatibility adapter lists tenant groups, group rooms, and the substitution overview through the retained education services (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "group-live-view.adapter.legacy-shared-domain",
+      "description": "The live-group compatibility adapter translates calendar dates, Berlin wall clocks, and German collation for the retained signatures (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
       "id": "legacy-composition.compose.to.enrollment.compose",
       "description": "legacy-composition compose uses the Enrollment cutover's enrollment compose boundary.",
       "scopes": [
@@ -6014,13 +6197,15 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.internal-test.student-presence",
-      "description": "Group live-view fixtures use public visit DTOs in location snapshots.",
-      "scopes": ["internal_test"],
+      "id": "group-live-view.internal-test.care-plan-contract",
+      "description": "Projection tests fake the Care Plan pending-request reader the planning badge consumes (#2702).",
+      "scopes": [
+        "internal_test"
+      ],
       "source_owner": "group-live-view",
       "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
+      "target_owner": "care-plan",
+      "target_role": "contract"
     },
     {
       "id": "group-live-view.from.school-structure",
@@ -6029,7 +6214,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "school-structure",
       "target_role": "public"
     },
@@ -6040,7 +6225,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "student-presence",
       "target_role": "public"
     },
@@ -6141,6 +6326,17 @@
       "source_owner": "inbound-classday",
       "source_role": "http",
       "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.to.group-live-view",
+      "description": "The students HTTP surface reads the live-group projection through its one public capability (#2702).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "group-live-view",
       "target_role": "public"
     },
     {
@@ -6718,7 +6914,7 @@
         "production"
       ],
       "source_owner": "group-live-view",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "care-plan",
       "target_role": "contract"
     },

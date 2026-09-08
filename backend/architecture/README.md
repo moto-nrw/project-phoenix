@@ -291,6 +291,18 @@ middleware takes), to the `inbound-school.identity-application` and
 and to the retained-repository and retained-service permissions of the
 projection's integration and adapter tests.
 
+The live-group read projection (`modules/grouplive`, `group-live-view`/`public`)
+reads every foreign fact through consumer-owned ports and the Care Plan
+excused-request contract; it persists nothing and never writes. Its
+compatibility adapter (`modules/grouplive/legacy`, `group-live-view`/`adapter`)
+binds those ports to the retained identity, settings, presence, schedule,
+people, and education services and to the shared authorize rules. Every
+`group-live-view.adapter.*` rule is a compatibility permission that exists
+only because PR mode cannot record debt for a package the candidate creates
+(#2702): convert them to exact debt with the rule above once the package
+exists at a base SHA, rebind each port to its owner's public capability as it
+appears, and delete the adapter with the last legacy source.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

@@ -40,6 +40,8 @@ import (
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -66,7 +68,6 @@ import (
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
@@ -235,7 +236,7 @@ type Factory struct {
 	StudentHistory      active.StudentHistoryService
 	// Statistics is the Statistik report (#2606).
 	Statistics              statistics.Service
-	OGSGroupLive            ogsgrouplive.Getter
+	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
@@ -2924,7 +2925,7 @@ func newFactory(
 		now,
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
-	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
+	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
 		Education:         educationService,
@@ -2942,6 +2943,9 @@ func newFactory(
 		Logger:            logger.With("service", "ogs-group-live"),
 		Now:               now,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
+	}
 
 	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
 		Active:      activeService,
