@@ -159,6 +159,53 @@ func (e engine) Dashboard(ctx context.Context, rawToken string) (devicefleet.Das
 	return toPublicDashboard(value), nil
 }
 
+func (e engine) FindUnregisteredTagScan(ctx context.Context, id int64) (devicefleet.UnregisteredTagScan, error) {
+	value, err := e.service.FindUnregisteredTagScan(ctx, id)
+	return toPublicUnregisteredTagScan(value), mapError(err)
+}
+
+func (e engine) ListUnregisteredTagScans(ctx context.Context, filter devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, error) {
+	values, err := e.service.ListUnregisteredTagScans(ctx, domain.UnregisteredTagScanFilter{
+		TenantIDs: filter.TenantIDs, UnresolvedOnly: filter.UnresolvedOnly, Limit: filter.Limit,
+	})
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]devicefleet.UnregisteredTagScan, 0, len(values))
+	for _, value := range values {
+		result = append(result, toPublicUnregisteredTagScan(value))
+	}
+	return result, nil
+}
+
+func (e engine) RecordUnregisteredTagScan(ctx context.Context, input devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+	value, err := e.service.RecordUnregisteredTagScan(ctx, domain.RecordUnregisteredTagScan{
+		TagUID: input.TagUID, DeviceID: input.DeviceID, ScannedAt: input.ScannedAt,
+	})
+	return toPublicUnregisteredTagScan(value), mapError(err)
+}
+
+func (e engine) ResolveUnregisteredTagScan(ctx context.Context, input devicefleet.ResolveUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+	value, err := e.service.ResolveUnregisteredTagScan(ctx, domain.ResolveUnregisteredTagScan{
+		ID: input.ID, OperatorID: input.OperatorID, Note: input.Note,
+	})
+	return toPublicUnregisteredTagScan(value), mapError(err)
+}
+
+func (e engine) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {
+	deleted, err := e.service.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	return deleted, mapError(err)
+}
+
+func toPublicUnregisteredTagScan(value domain.UnregisteredTagScan) devicefleet.UnregisteredTagScan {
+	return devicefleet.UnregisteredTagScan{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		TagUID: value.TagUID, DeviceID: value.DeviceID, ScannedAt: value.ScannedAt, ResolvedAt: value.ResolvedAt,
+		ResolvedByOperatorID: value.ResolvedByOperatorID, ResolutionNote: value.ResolutionNote,
+		DeviceIdentifier: value.DeviceIdentifier, DeviceName: value.DeviceName,
+	}
+}
+
 func toDomainFilter(filter devicefleet.DeviceFilter) domain.DeviceFilter {
 	result := domain.DeviceFilter{
 		DeviceIDContains: filter.DeviceIDContains, NameContains: filter.NameContains,
@@ -268,6 +315,14 @@ func mapError(err error) error {
 			return &devicefleet.InvalidDisplayError{Reason: invalid.Reason}
 		}
 		return devicefleet.ErrInvalidDisplayInput
+	case errors.Is(err, domain.ErrUnregisteredTagScanNotFound):
+		return devicefleet.ErrUnregisteredTagScanNotFound
+	case errors.Is(err, domain.ErrUnregisteredTagScanResolved):
+		return devicefleet.ErrUnregisteredTagScanResolved
+	case errors.Is(err, domain.ErrUnregisteredTagScanInvalid):
+		return devicefleet.ErrInvalidUnregisteredTagScan
+	case errors.Is(err, domain.ErrTenantRequired):
+		return devicefleet.ErrTenantRequired
 	default:
 		return err
 	}

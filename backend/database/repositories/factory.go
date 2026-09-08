@@ -346,7 +346,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.DataImport = audit.NewDataImportRepository(runtime)
 	f.WorkSessionEdit = audit.NewWorkSessionEditRepository(runtime)
 	f.StudentFieldEdit = audit.NewStudentFieldEditRepository(runtime)
-	f.UnregisteredTagScan = audit.NewUnregisteredTagScanRepository(runtime, auditDeviceDirectory{devices: mustNewDeviceFleet(f.db)})
+	f.UnregisteredTagScan = NewUnregisteredTagScanRepository(mustNewDeviceFleet(f.db))
 	f.TimeTrackingDeletion = audit.NewTimeTrackingDeletionRepository(runtime)
 	f.PersonnelNumberChange = audit.NewPersonnelNumberChangeRepository(runtime)
 	f.StaffMasterDataChange = audit.NewStaffMasterDataChangeRepository(runtime)
@@ -708,7 +708,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(auditRepositoryRuntime),
 		StudentFieldEdit:             audit.NewStudentFieldEditRepository(auditRepositoryRuntime),
-		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(auditRepositoryRuntime, auditDeviceDirectory{devices: deviceFleet}),
+		UnregisteredTagScan:          NewUnregisteredTagScanRepository(deviceFleet),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(auditRepositoryRuntime),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(auditRepositoryRuntime),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(auditRepositoryRuntime),

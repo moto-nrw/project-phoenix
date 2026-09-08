@@ -123,6 +123,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 	service := application.New(application.Dependencies{
 		Devices:   postgres.NewDeviceStore(runtime),
 		Displays:  postgres.NewDisplayStore(runtime),
+		Scans:     postgres.NewUnregisteredTagScanStore(runtime),
 		Rooms:     roomDirectory{rooms: dependencies.Rooms},
 		Presence:  presence,
 		Dashboard: dashboard,
