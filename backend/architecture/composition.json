@@ -3500,18 +3500,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/room_directory_test.go",
-      "declaration": "TestFindUnclaimedKeepsOnlySchulhofGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        88
-      ],
-      "tables": [
-        "facilities.rooms"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/activity_exception_repo_test.go",
       "declaration": "activityExceptionRepository",
       "target": "database/repositories.NewFactory",

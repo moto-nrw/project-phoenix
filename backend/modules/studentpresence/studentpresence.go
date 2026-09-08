@@ -7,6 +7,7 @@ import (
 )
 
 type Query interface {
+	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
 	AttendanceQuery
 	VisitQuery
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
@@ -15,6 +16,7 @@ type Query interface {
 }
 
 type Command interface {
+	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
 	AttendanceCommand
 	VisitCommand
 	GroupRecovery
