@@ -1,4 +1,9 @@
-package calendar
+// Package staffcalendarhttp serves the personal staff calendar (#2703): the
+// staff member's own events, appointment management, invitation responses,
+// the subscription feed credentials and the read-only CalDAV protocol
+// surface. The handlers know exactly one capability, the retained staff
+// calendar service, and render its error contract.
+package staffcalendarhttp
 
 import (
 	"encoding/json"
@@ -16,18 +21,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
-	"github.com/uptrace/bun"
 )
 
 type Resource struct {
 	service       calendarService.FullService
-	db            *bun.DB
 	logger        *slog.Logger
 	calDAVHandler http.Handler
 }
 
-func NewResource(service calendarService.FullService, db *bun.DB, logger *slog.Logger) *Resource {
-	resource := &Resource{service: service, db: db, logger: logger}
+func NewResource(service calendarService.FullService, logger *slog.Logger) *Resource {
+	resource := &Resource{service: service, logger: logger}
 	resource.calDAVHandler = mustNewStaffCalDAVHandler(service, logger)
 	return resource
 }

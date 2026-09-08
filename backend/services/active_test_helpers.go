@@ -1,17 +1,19 @@
 package services
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -26,7 +28,7 @@ type ActiveTestModule struct {
 	TimetableOperations  schedule.TimetableOperationsService
 	CareDay              schedule.CareDayService
 	Instance             schedule.InstanceService
-	SupervisionDashboard supervisiondashboard.Getter
+	SupervisionDashboard supervisiondashboard.Query
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
@@ -112,8 +114,11 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: r.Student, EducationGroupRepo: r.Group, RoomRepo: r.Room, PersonService: data.Users, PlanningTrackRepo: r.PlanningTrack,
 		Settings: settings.Settings, Broadcaster: hub, DB: db, Logger: logger, Now: optionalClock(clocks), RecoveryRepo: repositories.NewActivityRecoveryRepository(db, r.InstanceStudent),
 	})
-	dashboard := supervisiondashboard.NewService(supervisiondashboard.Dependencies{Active: presence, UserContext: groups.UserContext, Education: groups.Education,
-		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals})
+	dashboard, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{Active: presence, UserContext: groups.UserContext, Education: groups.Education,
+		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: optionalClock(clocks)})
+	if err != nil {
+		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
+	}
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: yard,
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance}, nil
 }

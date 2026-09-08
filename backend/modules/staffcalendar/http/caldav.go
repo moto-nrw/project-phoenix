@@ -1,4 +1,4 @@
-package calendar
+package staffcalendarhttp
 
 import (
 	"bytes"

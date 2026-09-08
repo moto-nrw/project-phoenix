@@ -466,7 +466,7 @@ func inspectImportedSelectorUntyped(source routeBuilderFile, selector *ast.Selec
 }
 
 func isHTTPResourceImport(path string) bool {
-	return strings.Contains(path, "/api/") || strings.Contains(path, "/http/") || strings.Contains(path, "/compose/httpadapter")
+	return strings.Contains(path, "/api/") || strings.Contains(path, "/http/") || strings.HasSuffix(path, "/http") || strings.Contains(path, "/compose/httpadapter")
 }
 
 func importedInterfaceIsUntyped(source routeBuilderFile, typed *ast.InterfaceType, visited map[string]bool) bool {
