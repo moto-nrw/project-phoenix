@@ -1,4 +1,4 @@
-package statistics_test
+package statisticshttp_test
 
 import (
 	"testing"

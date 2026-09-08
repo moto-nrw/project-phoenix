@@ -1,7 +1,7 @@
-// Package statistics exposes the Statistik report (#2606): attendance and
+// Package statisticshttp exposes the Statistik report (#2606): attendance and
 // absence quotas per child, group and period plus room utilization, as JSON
 // and as PDF / Excel / Word export through the shared listexport pipeline.
-package statistics
+package statisticshttp
 
 import (
 	"errors"

@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +28,7 @@ func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 	db, factory := testutil.SetupCalendarModule(t)
 
-	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
+	staffResource := calendarAPI.NewResource(factory.Calendar, slog.Default())
 	parentResource := parentAPI.NewResource(
 		nil, nil, nil, nil, nil,
 		db,

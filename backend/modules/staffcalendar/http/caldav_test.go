@@ -1,4 +1,4 @@
-package calendar
+package staffcalendarhttp
 
 import (
 	"log/slog"
@@ -41,7 +41,7 @@ func calDAVTestResource() (*Resource, *fakeCalendarService) {
 			}},
 		},
 	}
-	return NewResource(service, nil, slog.Default()), service
+	return NewResource(service, slog.Default()), service
 }
 
 func performCalDAVRequest(t *testing.T, resource *Resource, method, target, body string, authenticated bool) *httptest.ResponseRecorder {
