@@ -27,6 +27,8 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -70,7 +72,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -189,7 +190,7 @@ type Factory struct {
 	OpeningBalanceImport      importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
 	ListExport                *listexport.RendererService
 	Emergency                 *emergency.Service
-	SlotLists                 slotlists.Service
+	SlotLists                 classday.SlotLists
 	PlanExport                planexport.Service
 	Reminders                 reminder.Capability
 	Notifications             notifications.Notifier
@@ -2834,24 +2835,24 @@ func newFactory(
 		Settings:            settingsService,
 		Logger:              logger,
 	})
-	slotListsService := slotlists.NewService(slotlists.Dependencies{
-		InstanceRepo:        repos.ActivityInstance,
-		InstanceStudentRepo: repos.InstanceStudent,
-		Presence:            newStudentPresence(db, logger),
-		StatusDayRepo:       repos.StudentStatusDay,
-		CareDayService:      careDayService,
-		PickupExceptionRepo: repos.StudentPickupException,
-		PickupBaselines:     pickupBaselines,
-		StudentRepo:         repos.Student,
-		PersonRepo:          repos.Person,
-		EducationGroupRepo:  repos.Group,
-		RoomRepo:            repos.Room,
-		PickupService:       pickupScheduleService,
-		ArrivalService:      arrivalScheduleService,
-		ListExport:          listExportService,
-		Settings:            settingsService,
-		UserContext:         userContextService,
-		Logger:              logger.With("service", "slot_lists"),
+	// The slot lists are the class-day read projection (#2701): the owner
+	// facades are its tenant-safe reads, the retained schedule services its
+	// compatibility bindings.
+	slotListsService := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
+		Timetable:       timetableCapability,
+		Presence:        newStudentPresence(db, logger),
+		CarePlan:        repos.CarePlan(),
+		Students:        persons,
+		Persons:         persons,
+		Groups:          groups,
+		Rooms:           rooms,
+		CareDays:        careDayService,
+		PickupTimes:     pickupScheduleService,
+		ArrivalTimes:    arrivalScheduleService,
+		PickupBaselines: pickupBaselines,
+		Settings:        settingsService,
+		UserContext:     userContextService,
+		ListExport:      listExportService,
 	})
 
 	// Printable weekly plans (#2079). A pure projection over the same reads

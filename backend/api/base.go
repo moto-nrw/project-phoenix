@@ -29,17 +29,17 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
-	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	schoolAPI "github.com/moto-nrw/project-phoenix/api/school"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
@@ -50,6 +50,7 @@ import (
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
+	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
@@ -643,9 +644,9 @@ type API struct {
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
-	ClassDay         *classdayAPI.Resource
+	ClassDay         *classdayHTTP.Resource
 	ClassListEntries *classListHTTP.Resource
-	School           *schoolAPI.Resource
+	School           *schoolPortal.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
@@ -1300,8 +1301,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, workfor
 	api.SSE.SetSchoolAccess(api.Services.Auth)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
-	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"),
-		classdayAPI.WithArrivalExceptions(api.Services.ClassDayArrivalExceptions))
+	// The school portal's class-day surface reads the class-day projection
+	// (#2701); the projection binds the retained enrollment report and the
+	// arrival-exception write seam (#2970) behind its one public capability.
+	api.ClassDay = classdayHTTP.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
+		Reports:           api.Services.EnrollmentReport,
+		Caller:            api.Services.UserContext,
+		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
+	}), db, logger.With("handler", "class-day"))
 	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -1331,7 +1338,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, workfor
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
-	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
+	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
@@ -1573,10 +1580,11 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// /parent. Public /school/auth/* (login + school-scope MFA exchange)
 	// plus the school-scope class-day surface. Token refresh and logout go
 	// through the shared scope-preserving /auth/refresh and /auth/logout.
+	var schoolAuthRateLimiter func(http.Handler) http.Handler
 	if limiters.auth != nil {
-		a.School.SetAuthRateLimiter(limiters.auth.Middleware())
+		schoolAuthRateLimiter = limiters.auth.Middleware()
 	}
-	a.Router.Mount("/school", a.School.Router())
+	a.Router.Mount("/school", a.School.RouterWithAuthRateLimiter(schoolAuthRateLimiter))
 
 	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
 	// catch-all mount) and authenticated with ParentMiddleware. Delivers only
