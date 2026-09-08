@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +26,9 @@ import { MealParticipantList } from "./meal-participant-list";
 
 describe("MealParticipantList", () => {
   beforeEach(() => {
+    // Keep the calendar's "today" label independent of the actual CI date.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-07T12:00:00+02:00"));
     vi.clearAllMocks();
     mocks.today = "2026-09-07";
     mocks.getDailyMealParticipants.mockResolvedValue({
@@ -40,6 +43,10 @@ describe("MealParticipantList", () => {
         },
       ],
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("starts on Monday and disables weekends when opened on a weekend", async () => {
