@@ -3,7 +3,7 @@ package schedule_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +18,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
@@ -41,10 +41,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, expired))
 	require.NoError(t, repo.Create(ctx, future))
 
-	// Leserart "staff" = OGS-Portal (users.StaffNoticeAudienceStaff); die
-	// Zeichenkette steht hier, weil dieser Behavior-Test die Modelle nicht
-	// importiert.
-	rows, err := repo.ListValidOn(ctx, day("2026-08-06"), "staff")
+	rows, err := repo.ListValidOn(ctx, day("2026-08-06"), "staff") // Leserart "staff" = OGS-Portal; Behavior-Test ohne Modell-Import
 	require.NoError(t, err)
 
 	titles := make([]string, 0, len(rows))
@@ -78,7 +75,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")
@@ -120,7 +117,7 @@ func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-audience@test.local")
@@ -165,7 +162,7 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	author := testpkg.CreateTestAccount(t, db, "notice-ack-author@test.local")

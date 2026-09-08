@@ -3384,26 +3384,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/schedule/staff_notice_repository_test.go",
-      "declaration": "TestStaffNoticeRepository_Acknowledge",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        78
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_notice_repository_test.go",
-      "declaration": "TestStaffNoticeRepository_ListValidOn",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        21
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/timeframe_repository_test.go",
       "declaration": "timeframeRepository",
       "target": "database/repositories.NewFactory",
