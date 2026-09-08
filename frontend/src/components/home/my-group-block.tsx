@@ -164,7 +164,12 @@ export function MyGroupBlock() {
                     }
                   })}
                 </ul>
-                <HomeMoreRow hidden={hidden} href={href} label="Kinder" />
+                <HomeMoreRow
+                  hidden={hidden}
+                  href={href}
+                  label="Kinder"
+                  singular="Kind"
+                />
               </>
             )}
           </>

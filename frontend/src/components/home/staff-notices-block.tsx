@@ -25,10 +25,11 @@ import {
  * hier genauso zählt wie dort.
  */
 /**
- * Ein Hinweis ist ein Text, kein Listeneintrag: mehr als einer passt in eine
- * Karte dieser Höhe nicht ganz hinein.
+ * Ein Hinweis ist ein Text mit Knopf, kein Listeneintrag: schon der zweite
+ * ragt aus einer Karte dieser Höhe heraus (gemessen: ein Hinweis ~96 px,
+ * Körper 142 px). Also einer ganz, der Rest als Zahl mit Weg.
  */
-const MAX_NOTICES = 2;
+const MAX_NOTICES = 1;
 
 export function StaffNoticesBlock() {
   const tenantPath = useTenantAwarePath();
@@ -96,6 +97,7 @@ export function StaffNoticesBlock() {
               hidden={hidden}
               href={tenantPath("/tagesinformationen")}
               label="Hinweise"
+              singular="Hinweis"
             />
           </>
         );

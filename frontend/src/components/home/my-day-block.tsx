@@ -186,6 +186,7 @@ export function MyDayBlock() {
               hidden={hidden}
               href={dayPlanHref}
               label="Einsätze im Tagesplan"
+              singular="Einsatz im Tagesplan"
             />
           </>
         );

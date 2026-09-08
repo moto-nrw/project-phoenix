@@ -124,6 +124,29 @@ describe("resolveHomeLayout — Standardansicht", () => {
     expect(keys).toContain("tile.students_present");
   });
 
+  // Fehlt ein Baustein der Standardansicht, bleibt kein Loch: der nächste
+  // rückt in Lesereihenfolge nach. Sonst stünde „Meine Gruppe" allein links
+  // und rechts daneben nichts, nur weil die Schule die Erinnerungen aus hat.
+  it("packt die Standardansicht lückenlos, wenn ein Baustein fehlt", () => {
+    const { placements } = resolveHomeLayout(
+      { ...fullContext, access: careAccess, remindersEnabled: false },
+      [],
+      {},
+      {},
+    );
+
+    const cell = (key: HomeBlockKey) => {
+      const entry = placements.find((p) => p.key === key)!;
+      return [entry.col, entry.row];
+    };
+    expect(keysOf(placements)).not.toContain("section.reminders");
+    expect(cell("section.my_day")).toEqual([0, 0]);
+    expect(cell("section.my_group")).toEqual([0, 3]);
+    // Die Tagesinformationen nehmen den Platz der Erinnerungen.
+    expect(cell("section.staff_notices")).toEqual([2, 3]);
+    expect(cell("section.birthdays")).toEqual([0, 5]);
+  });
+
   // Ohne eigene Gruppe wäre „Meine Gruppe" eine Karte, die nur sagt, dass sie
   // leer ist.
   it("lässt Meine Gruppe weg, wer heute keine Gruppe hat", () => {

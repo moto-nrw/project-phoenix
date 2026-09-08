@@ -154,7 +154,12 @@ export function DayFlowBlock() {
                 </li>
               ))}
             </ul>
-            <HomeMoreRow hidden={hidden} href={dayPlanHref} label="Blöcke" />
+            <HomeMoreRow
+              hidden={hidden}
+              href={dayPlanHref}
+              label="Blöcke"
+              singular="Block"
+            />
           </>
         );
       })()}

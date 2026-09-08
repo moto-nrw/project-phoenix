@@ -236,6 +236,7 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
             hidden={hidden}
             href={data.tenantPath("/activities")}
             label="Aktivitäten"
+            singular="Aktivität"
           />
         </div>
       )}
@@ -299,6 +300,7 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
             hidden={hidden}
             href={data.tenantPath("/ogs-groups")}
             label="Gruppen"
+            singular="Gruppe"
           />
         </div>
       )}

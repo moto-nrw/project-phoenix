@@ -151,6 +151,7 @@ export function RemindersBlock() {
               hidden={hidden}
               href={tenantPath("/reminders")}
               label="Erinnerungen"
+              singular="Erinnerung"
             />
           </>
         );

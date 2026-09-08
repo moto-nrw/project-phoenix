@@ -502,8 +502,12 @@ export function homeBlockHeight(key: HomeBlockKey): number {
  * Betreuung.
  *
  * Geburtstage stehen in JEDER Standardansicht: wer heute Geburtstag hat,
- * betrifft die Betreuungskraft am Tisch genauso wie die Leitung. Über die
- * volle Breite, weil die Karte mehrere Kinder nebeneinander zeigt.
+ * betrifft die Betreuungskraft am Tisch genauso wie die Leitung.
+ *
+ * Die Zellen hier sind das Bild, wenn ALLE Bausteine da sind. Beim Aufbau
+ * wird in dieser Reihenfolge gepackt (`resolveHomeLayout`): fehlt ein
+ * Baustein, weil das Recht, der Betriebsmodus oder die Vorgabe der Schule
+ * ihn ausschließt, rückt der nächste nach, statt ein Loch zu lassen.
  */
 export const DEFAULT_LAYOUTS: Record<
   HomeProfile,
@@ -918,23 +922,28 @@ export function resolveHomeLayout(
     const block = allowed(entry.key);
     if (!block) continue;
     const span = clampSpan(block, entry.span);
+    // Die Standardansicht wird in Lesereihenfolge GEPACKT, nicht an ihre
+    // Zellen gesetzt: fehlt ein Baustein (Recht, Betriebsmodus, Vorgabe der
+    // Schule), rückt der nächste in seine Zelle nach, statt dass ein Loch
+    // bleibt. Die Zellen in DEFAULT_LAYOUTS sind das Bild, das entsteht, wenn
+    // alles da ist. Eine eigene Anordnung dagegen behält ihre Löcher — die
+    // hat die Person so gebaut.
     placements = arranged
       ? appendPlacement(placements, entry.key, span)
-      : normalizePlacements([
-          ...placements,
-          { key: entry.key, span, col: entry.col, row: entry.row },
-        ]);
+      : [...placements, firstFit(placements, entry.key, span, 0)];
     placed.add(entry.key);
   }
 
   // Was die Schule verlangt, steht auf jeder Startseite, die es sehen darf.
+  // In der Standardansicht rückt es in die erste freie Zelle (sonst hinge
+  // eine einzelne Kennzahl unten rechts neben der letzten Karte); eine
+  // eigene Anordnung bekommt es hinten angehängt.
   for (const block of available) {
     if (policyOf(block.key) !== "required" || !allowed(block.key)) continue;
-    placements = appendPlacement(
-      placements,
-      block.key,
-      clampSpan(block, undefined),
-    );
+    const span = clampSpan(block, undefined);
+    placements = arranged
+      ? appendPlacement(placements, block.key, span)
+      : [...placements, firstFit(placements, block.key, span, 0)];
     placed.add(block.key);
   }
 

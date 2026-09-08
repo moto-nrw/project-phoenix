@@ -117,11 +117,14 @@ export function HomeMoreRow({
   hidden,
   href,
   label,
+  singular,
 }: {
   readonly hidden: number;
   readonly href: string;
   /** Was gezählt wird, im Plural — „Einsätze", „Hinweise", „Gruppen". */
   readonly label: string;
+  /** Dasselbe in der Einzahl — „Noch 1 Hinweis", nicht „Noch 1 Hinweise". */
+  readonly singular?: string;
 }) {
   if (hidden <= 0) return null;
   return (
@@ -129,7 +132,7 @@ export function HomeMoreRow({
       href={href}
       className="mt-2 block shrink-0 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
     >
-      Noch {hidden} {label} ansehen
+      Noch {hidden} {hidden === 1 && singular ? singular : label} ansehen
     </Link>
   );
 }
