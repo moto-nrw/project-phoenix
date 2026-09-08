@@ -200,7 +200,7 @@ describe("NowStrip (#2180)", () => {
     );
   });
 
-  // Die Leitung sieht die Lage der Schule: Blöcke, Kinder, Kräfte.
+  // Die Leitung sieht die Lage der Schule: Blöcke, Kinder, Team.
   it("zeigt der Leitung die Lage der Schule", () => {
     sources.school = [
       block({ id: "1", status: "active", title: "Lernzeit" }),
@@ -216,7 +216,7 @@ describe("NowStrip (#2180)", () => {
     expect(screen.getByText("1 nicht gestartet")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "84 Kinder da · 7 Kräfte in Aufsicht · als Nächstes 12:00 Mittagessen (in 1 Std 40 Min)",
+        "84 Kinder da · 7 vom Team in Aufsicht · als Nächstes 12:00 Mittagessen (in 1 Std 40 Min)",
       ),
     ).toBeInTheDocument();
     // Ein reines Adminkonto hat keine Einsätze; die Abfrage bleibt aus.

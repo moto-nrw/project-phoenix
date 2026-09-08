@@ -34,15 +34,32 @@ import Link from "~/components/ui/navigation-link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import { Skeleton } from "~/components/ui/skeleton";
 
-export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
+/**
+ * `gray` ist die Farbe „unbekannt" aus dem Standort-Vokabular — ein mittleres
+ * Steingrau, das eine Zahl blass wirken lässt. `neutral` ist die Textfarbe
+ * der Seite (Dunkelgrau): für eine Kennzahl, die nichts einfärben soll, weil
+ * das Symbol daneben die Bedeutung schon trägt (Startseite, #2180).
+ */
+export type StatCardTone =
+  "blue" | "green" | "orange" | "red" | "gray" | "neutral";
 
-const TONE_COLOR: Record<StatCardTone, string> = {
+const TONE_COLOR: Record<Exclude<StatCardTone, "neutral">, string> = {
   blue: LOCATION_COLORS.OTHER_ROOM,
   green: LOCATION_COLORS.GROUP_ROOM,
   orange: LOCATION_COLORS.SCHOOLYARD,
   red: LOCATION_COLORS.DANGER,
   gray: LOCATION_COLORS.UNKNOWN,
 };
+
+/** Textfarbe der Zahl; `undefined` lässt die Klasse (Dunkelgrau) gelten. */
+function figureStyle(tone: StatCardTone): { color: string } | undefined {
+  if (tone === "neutral") return undefined;
+  return { color: getAccessibleTextColor(TONE_COLOR[tone]) };
+}
+
+function barColor(tone: StatCardTone): string {
+  return tone === "neutral" ? LOCATION_COLORS.UNKNOWN : TONE_COLOR[tone];
+}
 
 type StatCardProps = {
   readonly variant?: "card";
@@ -94,11 +111,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
       <div className="rounded-xl bg-gray-50 px-3 py-2">
         <span
           className="block text-sm font-semibold text-gray-900"
-          style={
-            props.tone === undefined
-              ? undefined
-              : { color: getAccessibleTextColor(TONE_COLOR[props.tone]) }
-          }
+          style={props.tone === undefined ? undefined : figureStyle(props.tone)}
         >
           {props.value}
         </span>
@@ -148,12 +161,12 @@ export function StatCard(props: StatCardProps | StatTileProps) {
             <Skeleton className="mt-2 h-8 w-16" />
           ) : (
             <p
-              className={`mt-2 font-bold max-sm:mt-1 ${
+              className={`mt-2 font-bold text-gray-900 max-sm:mt-1 ${
                 compactValue
                   ? "text-xl whitespace-nowrap"
                   : "text-2xl max-sm:text-lg"
               }`}
-              style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
+              style={figureStyle(tone)}
             >
               {value}
             </p>
@@ -174,7 +187,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
             className="h-full rounded-full transition-all"
             style={{
               width: `${Math.min(100, Math.max(0, progressPct))}%`,
-              backgroundColor: TONE_COLOR[tone],
+              backgroundColor: barColor(tone),
             }}
           />
         </div>

@@ -285,7 +285,9 @@ function childrenPresent(count: number): string {
 }
 
 function staffOnDuty(count: number): string {
-  return count === 1 ? "1 Kraft in Aufsicht" : `${count} Kräfte in Aufsicht`;
+  // „vom Team" statt „Kräfte": dasselbe Wort wie der Baustein „Personal
+  // heute" und die Seitenleiste, und es liest sich wie gesprochen.
+  return `${count} vom Team in Aufsicht`;
 }
 
 function Lines({

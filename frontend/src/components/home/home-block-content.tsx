@@ -331,6 +331,9 @@ function StatBlock({
     <StatCard
       label={label}
       value={value}
+      // Die Zahl in der Textfarbe der Seite: das Symbol daneben trägt die
+      // Bedeutung, und ein Steingrau ließ die Kennzahlen blass aussehen.
+      tone="neutral"
       icon={
         <MotoDuotoneIcon
           icon={MOTO_CONCEPTS[concept].icon}
