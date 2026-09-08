@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { DatePicker } from "~/components/ui/date-picker";
@@ -154,6 +154,27 @@ describe("isolation between tests", () => {
 
   it("re-freezes the clock after a real-clock exception", () => {
     expect(isTestClockFrozen()).toBe(true);
+    expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
+  });
+});
+
+describe("isolation with file-scoped fake timers", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  it("can change time while keeping the file's fake-timer mode", () => {
+    expect(vi.isFakeTimers()).toBe(true);
+    setTestClock("2031-06-15T10:00:00+02:00");
+    expect(Date.now()).toBe(new Date("2031-06-15T10:00:00+02:00").getTime());
+  });
+
+  it("resets the clock before the next test without uninstalling fake timers", () => {
+    expect(vi.isFakeTimers()).toBe(true);
     expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
   });
 });

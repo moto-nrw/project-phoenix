@@ -10,8 +10,9 @@ process.env.API_URL = "http://server:8080";
 // promises stay real, so `waitFor` and debounce tests keep their behaviour.
 // A test that installs `vi.useFakeTimers()` starts its fake clock at the
 // frozen instant; the hook uninstalls it after the test unless the file
-// installed it before the test (beforeAll / module scope), which stays the
-// file's responsibility.
+// installed it before the test (beforeAll / module scope). In that case it
+// preserves the file's fake-timer mode while resetting its system time before
+// each test; uninstalling it remains the file's responsibility.
 //
 // The module-scope freeze covers collection time: a `vi.useFakeTimers()` at
 // the top of a test file also starts at the shared instant.
@@ -21,7 +22,6 @@ let fakeTimersInstalledBeforeTest = false;
 
 beforeEach(() => {
   fakeTimersInstalledBeforeTest = vi.isFakeTimers();
-  if (fakeTimersInstalledBeforeTest) return;
   freezeTestClock();
 });
 

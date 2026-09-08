@@ -7,7 +7,10 @@ Paths start at `frontend/`; commands run from `frontend/`.
 
 Every Vitest test in both projects (`app-dom` and `api-node`) runs on a
 deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
-`TEST_CLOCK_INSTANT` before each test and restores the real clock afterwards.
+`TEST_CLOCK_INSTANT` before each test and normally restores the real clock
+afterwards. If a file enables fake timers in module scope or `beforeAll`, the
+setup preserves that mode while resetting its system time before each test;
+the file restores real timers in `afterAll`.
 `vitest.config.ts` pins the zone to `Europe/Berlin`, so the frozen instant is
 always Wednesday, 9 September 2026, 12:00 Berlin time (`TEST_CLOCK_TODAY` =
 `2026-09-09`).
@@ -30,7 +33,7 @@ Helpers live in `src/test/clock.ts` (`~/test/clock`).
 | Another point in time (Berlin midnight, week change, DST switch) | `setTestClock("2026-03-29T01:30:00+01:00")` in the test or `beforeEach` | `vi.useFakeTimers({ toFake: ["Date"] })` boilerplate; the setup already freezes `Date` |
 | Control timers (`setInterval`, debounce) | `vi.useFakeTimers()`; it starts at the frozen instant, `vi.advanceTimersByTime` moves clock and timers | assuming fake timers start at the host time |
 | Real event loop again mid-test | `releaseFakeTimers()`: timers become real, the clock stays where the fake timers left it | `vi.useRealTimers()` in a test body or `before*` hook |
-| Cleanup | nothing; the setup restores the clock and uninstalls fake timers after every test. `afterEach(() => vi.useRealTimers())` stays allowed | `vi.useRealTimers()` inside `try … finally` |
+| Cleanup | nothing; the setup restores the clock and uninstalls fake timers after every test, except file-scoped fake timers, which the file restores in `afterAll`. `afterEach(() => vi.useRealTimers())` stays allowed | `vi.useRealTimers()` inside `try … finally` |
 | Wall-clock time on purpose | `useRealClock("reason")` with the reviewed reason as a string literal | `vi.getRealSystemTime()`, `vi.stubGlobal("Date", …)`, `globalThis.Date = …` |
 
 A test that mocks a domain hook to one day while the component tree reads
