@@ -118,25 +118,39 @@ def cell(metrics, key, statistic):
     return text
 
 
-def markdown(result):
-    tolerance = result["tolerance"]
-    lines = [f"# Runtime workload {result['workload_version']}: baseline versus candidate", "",
-             "Each cell shows baseline → candidate for the median of three runs. Latency uses nearest-rank percentiles.",
-             f"Latency changes count as material only beyond relative {tolerance['relative']:.1%} and "
-             f"absolute {tolerance['absolute_ms']:.3f} ms; any change to another metric is material.", "",
-             "| Scenario | p50 ms | p95 ms | Queries/run | Rows/run¹ | Pool wait ms | Lock observations | Material |",
+TABLE_COLUMNS = ("latency_p50_ms", "latency_p95_ms", "queries_total", "rows", "pool_wait_ms",
+                 "lock_waiting_backend_samples")
+
+
+def table(result, statistic):
+    """One row per scenario for the given statistic; Material lists that statistic's verdicts only."""
+    lines = ["| Scenario | p50 ms | p95 ms | Queries/run | Rows/run¹ | Pool wait ms | Lock observations | Material |",
              "|---|---:|---:|---:|---:|---:|---:|---|"]
     for name, scenario in result["scenarios"].items():
         metrics = scenario["metrics"]
         row_key = "driver_rows_returned_or_changed"
         if scenario["kind"] == "worker":
             row_key = "job_rows_affected" if "job_rows_affected" in metrics else "job_claimed_rows"
-        flagged = sorted({item["metric"] for item in result["material"] if item["scenario"] == name})
-        cells = [name] + [cell(metrics, key, "median") for key in
-                          ("latency_p50_ms", "latency_p95_ms", "queries_total", row_key,
-                           "pool_wait_ms", "lock_waiting_backend_samples")]
+        flagged = sorted({item["metric"] for item in result["material"]
+                          if item["scenario"] == name and item["statistic"] in (statistic, "contract")})
+        cells = [name] + [cell(metrics, row_key if key == "rows" else key, statistic) for key in TABLE_COLUMNS]
         cells.append(", ".join(flagged) if flagged else "none")
         lines.append("| " + " | ".join(cells) + " |")
+    return lines
+
+
+def markdown(result):
+    tolerance = result["tolerance"]
+    lines = [f"# Runtime workload {result['workload_version']}: baseline versus candidate", "",
+             "Each cell shows baseline → candidate. Latency uses nearest-rank percentiles.",
+             f"Latency changes count as material only beyond relative {tolerance['relative']:.1%} and "
+             f"absolute {tolerance['absolute_ms']:.3f} ms; any change to another metric is material. "
+             "The Material column of each table lists only that table's statistic.", "",
+             "## Median of three runs", ""]
+    lines.extend(table(result, "median"))
+    lines.extend(["", "## Worst of three runs", "",
+                  "The worst run is the maximum of each metric across runs, chosen per metric.", ""])
+    lines.extend(table(result, "worst"))
     lines.extend(["", "¹ HTTP: driver-reported rows returned or changed, not distinct database rows. "
                   "Worker: outbox rows claimed or timetable instances created.", "",
                   "## Material changes", ""])

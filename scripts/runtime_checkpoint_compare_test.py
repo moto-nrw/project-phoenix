@@ -113,6 +113,17 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn("| a | 2.000 → 2.000 (+0.0%) | 3.000 → 3.000 (+0.0%) | 150.000 → 150.000 (+0.0%) | unmeasured |",
                       compare.markdown(result))
 
+    def test_markdown_separates_median_and_worst_verdicts(self):
+        candidate = summary(a=scenario())
+        candidate["scenarios"]["a"]["worst"]["latency_p95_ms"] = 9.0
+        text = compare.markdown(compare.compare(summary(a=scenario()), candidate))
+        median, worst = text.split("## Worst of three runs")
+        self.assertIn("| a | 2.000 → 2.000 (+0.0%) | 3.000 → 3.000 (+0.0%) |", median)
+        self.assertIn("| 0.000 → 0.000 | none |", median)
+        self.assertNotIn("latency_p95_ms", median.split("## Median of three runs")[1])
+        self.assertIn("| 3.000 → 9.000 (+200.0%) |", worst)
+        self.assertIn("| latency_p95_ms |", worst)
+
     def test_markdown_reports_rows_and_material_changes(self):
         result = compare.compare(summary(a=scenario()), summary(a=scenario(queries_total=180, latency_p50_ms=2.1)))
         text = compare.markdown(result)
