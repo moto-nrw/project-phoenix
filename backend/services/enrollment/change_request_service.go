@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -181,6 +182,9 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		lockedReq, err := intakeRequestByToken(txCtx, s.Requests, strings.TrimSpace(token), true)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		children, err := listIntakeChildren(txCtx, s.Children, lockedReq.ID, true)
@@ -293,6 +297,9 @@ func (s *changeRequestService) ParentReply(ctx context.Context, token string, ch
 	}
 	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		row, err := readChangeRequestByIDForUpdate(txCtx, s.Requests, changeRequestID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		if err != nil || row == nil || row.RequestID != req.ID {
 			return ErrChangeRequestNotFound
 		}
@@ -350,6 +357,9 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 	}
 
 	req, err := intakeRequestByID(ctx, s.Requests, input.RequestID, true)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
 	if err != nil || req == nil {
 		return nil, ErrRequestNotFound
 	}
@@ -638,6 +648,9 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 		}
 		loadedReq, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		req = loadedReq
@@ -700,6 +713,9 @@ func (s *changeRequestService) review(ctx context.Context, changeRequestID int64
 		}
 		loadedReq, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		req = loadedReq
@@ -738,6 +754,9 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		loaded, err := intakeRequestByToken(adminCtx, s.Requests, token, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		if loaded.StatusTokenExpires != nil && time.Now().After(*loaded.StatusTokenExpires) {
@@ -777,6 +796,9 @@ func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollm
 		return ErrChangeRequestNotAllowed
 	}
 	phase, err := s.intakePhase(ctx, req.PhaseID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 	if err != nil || phase == nil || !phase.IsActive {
 		return ErrChangeRequestNotAllowed
 	}
@@ -875,6 +897,9 @@ func (s *changeRequestService) prepareProposed(
 		}
 	}
 	phase, err := s.intakePhase(ctx, req.PhaseID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return editReq, nil, nil, nil, err
+	}
 	if err != nil || phase == nil || !phase.IsActive {
 		return editReq, nil, nil, nil, ErrEnrollmentDisabled
 	}
@@ -1363,6 +1388,9 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 	}
 	req, err := intakeRequestByID(ctx, s.Requests, row.RequestID, true)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		return ErrRequestNotFound
 	}
 	children, err := listIntakeChildren(ctx, s.Children, req.ID, true)
@@ -2133,6 +2161,9 @@ func optionalLowerEmail(value *string) string {
 
 func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *ChangeRequest) error) error {
 	row, err := readChangeRequestByID(ctx, s.Requests, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 	if err != nil || row == nil {
 		return ErrChangeRequestNotFound
 	}
@@ -2142,9 +2173,15 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 		// row as well: cleanup's cascading delete eventually locks this row, so
 		// the reverse order would create a parent/change-request deadlock.
 		if _, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, true); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		locked, err := readChangeRequestByIDForUpdate(txCtx, s.Requests, id)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		if err != nil || locked == nil {
 			return ErrChangeRequestNotFound
 		}
@@ -2154,6 +2191,9 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 
 func (s *changeRequestService) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*ChangeRequestAggregate, error) {
 	row, err := readChangeRequestByID(ctx, s.Requests, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
 	if err != nil || row == nil {
 		return nil, ErrChangeRequestNotFound
 	}
@@ -2173,6 +2213,9 @@ func (s *changeRequestService) loadAggregateForTenant(ctx context.Context, tenan
 func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *ChangeRequest, includeInternal bool) (*ChangeRequestAggregate, error) {
 	req, err := intakeRequestByID(ctx, s.Requests, row.RequestID, false)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 		return nil, ErrRequestNotFound
 	}
 	children, err := listIntakeChildren(ctx, s.Children, req.ID, false)
@@ -2185,7 +2228,10 @@ func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *Change
 	}
 	var phase *capability.Phase
 	if s.Catalog != nil {
-		phase, _ = s.intakePhase(ctx, req.PhaseID)
+		phase, err = s.intakePhase(ctx, req.PhaseID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 	}
 	return &ChangeRequestAggregate{
 		ChangeRequest: row,

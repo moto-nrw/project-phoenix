@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -1731,4 +1732,91 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 	require.Len(t, rows, 1, "failed replacement sync must roll back the schedule delete")
 	assert.Equal(t, 14, rows[0].PickupTime.Hour())
 	assert.Equal(t, 45, rows[0].PickupTime.Minute())
+}
+
+// Inject failures at the consumer port, after real tenant/aggregate setup.
+type failingChangeRequestReader struct {
+	enrollmentService.ChangeRequestIntakeRequests
+	fail string
+}
+
+func (r failingChangeRequestReader) ChangeRequestByID(ctx context.Context, id int64) (*capability.ChangeRequest, error) {
+	if r.fail == "read" {
+		return nil, fmt.Errorf("change request read: %w", context.Canceled)
+	}
+	return r.ChangeRequestIntakeRequests.ChangeRequestByID(ctx, id)
+}
+
+func (r failingChangeRequestReader) ChangeRequestByIDForUpdate(ctx context.Context, id int64) (*capability.ChangeRequest, error) {
+	if r.fail == "lock" {
+		return nil, fmt.Errorf("change request lock: %w", context.Canceled)
+	}
+	return r.ChangeRequestIntakeRequests.ChangeRequestByIDForUpdate(ctx, id)
+}
+
+func (r failingChangeRequestReader) RequestByID(ctx context.Context, id int64, lock bool) (*capability.Request, error) {
+	if r.fail == "parent" {
+		return nil, fmt.Errorf("parent request read: %w", context.Canceled)
+	}
+	return r.ChangeRequestIntakeRequests.RequestByID(ctx, id, lock)
+}
+
+func (r failingChangeRequestReader) RequestByToken(ctx context.Context, token string, lock bool) (*capability.Request, error) {
+	if r.fail == "token" {
+		return nil, fmt.Errorf("request token read: %w", context.Canceled)
+	}
+	return r.ChangeRequestIntakeRequests.RequestByToken(ctx, token, lock)
+}
+
+type failingChangeRequestCatalog struct {
+	enrollmentService.IntakeCatalog
+}
+
+func (r failingChangeRequestCatalog) Phase(context.Context, int64) (*capability.Phase, error) {
+	return nil, fmt.Errorf("phase read: %w", context.Canceled)
+}
+
+func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+	healthy := newChangeRequestServiceForTest(env)
+	proposed := proposedChangeSubmission(t, env, result)
+	proposed.Children[0].FirstName = "Changed"
+	created, err := healthy.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{Submission: proposed})
+	require.NoError(t, err)
+	for _, tc := range []struct{ operation, fail string }{
+		{"detail", "read"}, {"detail", "parent"}, {"question", "read"}, {"question", "lock"}, {"question", "parent"}, {"reply", "lock"}, {"reply", "token"}, {"detail", "phase"}, {"create", "phase"},
+	} {
+		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
+			svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+				Requests: failingChangeRequestReader{ChangeRequestIntakeRequests: env.config.Requests.(enrollmentService.ChangeRequestIntakeRequests), fail: tc.fail},
+				Children: env.config.Children, Settings: env.settings,
+				Catalog: failingChangeRequestCatalog{IntakeCatalog: env.config.Catalog},
+				DB:      env.db, ParentsURL: "http://parents.localhost:3000",
+			})
+			var readErr error
+			switch tc.operation {
+			case "create":
+				_, readErr = svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{Submission: proposed})
+			case "detail":
+				_, readErr = svc.GetAdmin(ctx, created.ChangeRequest.ID)
+			case "question":
+				_, readErr = svc.AskQuestion(ctx, created.ChangeRequest.ID, enrollmentService.ChangeRequestMessageInput{Body: "Question"})
+			case "reply":
+				_, readErr = svc.ParentReply(ctx, result.Request.StatusToken, created.ChangeRequest.ID, enrollmentService.ChangeRequestMessageInput{Body: "Reply"})
+			}
+			require.ErrorIs(t, readErr, context.Canceled)
+			require.NotErrorIs(t, readErr, enrollmentService.ErrChangeRequestNotFound)
+			require.NotErrorIs(t, readErr, enrollmentService.ErrRequestNotFound)
+		})
+	}
+	stored, err := healthy.GetAdmin(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+	require.Equal(t, capability.ChangeRequestStatusPendingReview, stored.ChangeRequest.Status)
+	require.Len(t, stored.Messages, len(created.Messages))
 }
