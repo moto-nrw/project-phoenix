@@ -19,7 +19,7 @@ import { schoolPath } from "~/lib/school-url";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
 
-export const SCHOOL_NOTICES_ROUTE = "/school/tagesinformationen";
+const SCHOOL_NOTICES_ROUTE = "/school/tagesinformationen";
 
 export function TodayNoticesCard() {
   const { data: session } = useSession();

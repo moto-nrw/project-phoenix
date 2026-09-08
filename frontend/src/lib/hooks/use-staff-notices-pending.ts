@@ -11,9 +11,6 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
-/** Event, mit dem eine Kenntnisnahme das Badge sofort nachziehen lässt. */
-export { STAFF_NOTICES_REFRESH_EVENT };
-
 /**
  * Badge der Tagesinformationen (#2180): heutige Hinweise, deren Kenntnisnahme
  * verlangt ist und noch fehlt. Hinweise ohne Pflicht-Kenntnisnahme zählen
