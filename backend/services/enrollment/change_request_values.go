@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	legacy "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-func createChangeRequest(ctx context.Context, owner ChangeRequestIntakeRequests, row *legacy.ChangeRequest) error {
+func createChangeRequest(ctx context.Context, owner ChangeRequestIntakeRequests, row *ChangeRequest) error {
 	encoded := make([]json.RawMessage, 0, 3)
 	for _, snapshot := range []map[string]any{row.BaseSnapshot, row.ProposedSnapshot, row.Diff} {
 		if snapshot == nil {

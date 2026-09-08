@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -44,19 +44,19 @@ var errInvalidReviewListQuery = errors.New("invalid change request list query")
 // openReviewStatuses are the rows the open list displays. A request awaiting a
 // parent response remains visible, but cannot be decided by staff yet.
 var openReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusPendingReview,
-	enrollmentModels.ChangeRequestStatusNeedsParentResponse,
+	capability.ChangeRequestStatusPendingReview,
+	capability.ChangeRequestStatusNeedsParentResponse,
 }
 
 var actionableReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusPendingReview,
+	capability.ChangeRequestStatusPendingReview,
 }
 
 // historyReviewStatuses are the terminal ones.
 var historyReviewStatuses = []string{
-	enrollmentModels.ChangeRequestStatusApproved,
-	enrollmentModels.ChangeRequestStatusRejected,
-	enrollmentModels.ChangeRequestStatusCancelled,
+	capability.ChangeRequestStatusApproved,
+	capability.ChangeRequestStatusRejected,
+	capability.ChangeRequestStatusCancelled,
 }
 
 // ChangeRequestReviewEntry is one Anmeldungsänderung in the shared display
@@ -205,13 +205,13 @@ func parseReviewListStatuses(raw string) ([]string, error) {
 	for _, part := range strings.Split(raw, ",") {
 		switch strings.TrimSpace(part) {
 		case "approved":
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusApproved)
+			statuses = append(statuses, capability.ChangeRequestStatusApproved)
 		case "rejected":
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusRejected)
+			statuses = append(statuses, capability.ChangeRequestStatusRejected)
 		case "withdrawn":
 			// A cancelled change request is one the family took back — the
 			// shared filter's "zurückgezogen".
-			statuses = append(statuses, enrollmentModels.ChangeRequestStatusCancelled)
+			statuses = append(statuses, capability.ChangeRequestStatusCancelled)
 		default:
 			return nil, errInvalidReviewListQuery
 		}
