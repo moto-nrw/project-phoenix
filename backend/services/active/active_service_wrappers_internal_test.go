@@ -355,44 +355,43 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 	})
 }
 
-func TestClaimActiveGroupLocksLifecycleThroughSupervisorInsert(t *testing.T) {
+type claimOwnerForActiveWrapperTest struct {
+	StudentPresence
+	claim studentpresence.GroupClaim
+	err   error
+}
+
+func (r *claimOwnerForActiveWrapperTest) ClaimGroup(_ context.Context, claim studentpresence.GroupClaim) (studentpresence.ClaimedSupervision, error) {
+	r.claim = claim
+	return studentpresence.ClaimedSupervision{GroupID: claim.GroupID, StaffID: claim.StaffID, Role: claim.Role, StartDate: claim.Date}, r.err
+}
+
+// The real lock/insert/rollback contract is verified in the Presence owner
+// integration test. This caller must use that command, not legacy repositories.
+func TestClaimActiveGroupUsesPresenceOwner(t *testing.T) {
 	t.Parallel()
-
-	ctx := context.Background()
-	const (
-		groupID int64 = 42
-		staffID int64 = 84
-	)
-	group := &activeModels.Group{Model: modelBase.Model{ID: groupID}}
-	groupLocked := false
-	groupRepo := &groupRepoForActiveWrapperTest{
-		group: group,
-		onRowLocked: func() {
-			groupLocked = true
-		},
-	}
-	staffRepo := &staffRepoForActiveWrapperTest{
-		staff: &userModels.Staff{Model: modelBase.Model{ID: staffID}},
-	}
-	supervisorRepo := &mockGroupSupervisorRepository{
-		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
-			assert.True(t, groupLocked, "group lifecycle must be locked before supervisor insert")
-			assert.Equal(t, groupID, supervisor.GroupID)
-			assert.Equal(t, staffID, supervisor.StaffID)
-			return nil
-		},
-	}
+	owner := &claimOwnerForActiveWrapperTest{}
 	svc := &service{ServiceDependencies: ServiceDependencies{
-		GroupRepo:      groupRepo,
-		StaffRepo:      staffRepo,
-		SupervisorRepo: supervisorRepo,
+		StaffRepo:      &staffRepoForActiveWrapperTest{staff: &userModels.Staff{Model: modelBase.Model{ID: 84}}},
+		SchoolPresence: owner,
 	}}
-
-	supervisor, err := svc.ClaimActiveGroup(ctx, groupID, staffID, "supervisor")
-
+	row, err := svc.ClaimActiveGroup(context.Background(), 42, 84, "")
 	require.NoError(t, err)
-	require.NotNil(t, supervisor)
-	assert.Equal(t, groupID, groupRepo.lockedID)
+	require.Equal(t, int64(42), row.GroupID)
+	require.Equal(t, int64(84), row.StaffID)
+	require.Equal(t, "supervisor", owner.claim.Role)
+	owner.err = errors.New("insert supervision: internal database detail")
+	_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+	require.ErrorIs(t, err, ErrDatabaseOperation)
+	require.NotContains(t, err.Error(), "internal database detail")
+	for _, domainErr := range []error{studentpresence.ErrGroupNotFound, studentpresence.ErrGroupEnded} {
+		owner.err = domainErr
+		_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+		require.ErrorIs(t, err, domainErr)
+	}
+	owner.err = studentpresence.ErrAlreadySupervising
+	_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+	require.ErrorIs(t, err, ErrStaffAlreadySupervising)
 }
 
 func TestGetCrossTenantStudents_Branches(t *testing.T) {

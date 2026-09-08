@@ -101,6 +101,14 @@ type StaffNoticeServiceConfig struct {
 // Die Kenntnisnahme bleibt trotzdem sichtbar: sie ist passiert.
 const StaffNoticeUnknownAcknowledgerName = "Unbekannte Person"
 
+// Leserarten für Today und Acknowledge (#2208). Der HTTP-Adapter leitet sie aus
+// der Route ab und darf das Personenmodell nicht importieren; deshalb reicht
+// der Dienst die Werte des Modells hier durch.
+const (
+	StaffNoticeReaderStaff     = usersModels.StaffNoticeAudienceStaff
+	StaffNoticeReaderLehrkraft = usersModels.StaffNoticeAudienceLehrkraft
+)
+
 type staffNoticeService struct {
 	repo        usersModels.StaffNoticeRepository
 	periods     StaffNoticePeriodLookup

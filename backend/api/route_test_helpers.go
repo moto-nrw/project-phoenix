@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
-	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -16,7 +15,9 @@ import (
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
 func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
-	admin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, nil, db, logger)
+	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
+		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
+	admin := newStaffAdminResource(capabilities, nil, nil, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, db, logger)

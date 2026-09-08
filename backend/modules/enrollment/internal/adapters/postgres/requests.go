@@ -165,7 +165,7 @@ func (r *Store) RequestByToken(ctx context.Context, token string, forUpdate bool
 	err = q.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("enrollment request with token not found")
+			return nil, fmt.Errorf("enrollment request with token not found: %w", sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find enrollment request by token: %w", err)
 	}

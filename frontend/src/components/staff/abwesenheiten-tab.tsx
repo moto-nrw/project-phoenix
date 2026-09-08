@@ -58,7 +58,7 @@ import {
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -833,7 +833,7 @@ function PendingAbsences({
           Eingehende Anfragen
         </h3>
         {/* Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe
-            Tripel auf wie StatusDotBadge(LOCATION_COLORS.SICK), und direkt
+            Tripel auf wie StatusColorBadge(LOCATION_COLORS.SICK), und direkt
             darunter stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler
             offener Anfragen ist ausserdem keine Fehlermeldung. */}
         <StatusBadge tone="gray" label={String(rows.length)} />
@@ -934,7 +934,7 @@ function AbsenceRow({
     <li className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-sm">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusDotBadge
+          <StatusColorBadge
             label={absenceRowLabel(row)}
             color={
               ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
@@ -958,7 +958,7 @@ function AbsenceRow({
         )}
       </div>
       <div className="flex items-center gap-2">
-        <StatusDotBadge label={meta.label} color={meta.color} />
+        <StatusColorBadge label={meta.label} color={meta.color} />
         {canDelete && (
           <Button
             type="button"

@@ -163,11 +163,11 @@ func TestEnrollmentDeletion_DeleteChildFromMixedRequestPreservesSharedData(t *te
 	change := &capability.ChangeRequest{
 		RequestID:      request.ID,
 		RequestChildID: &target.ID,
-		Origin:         enrollmentModels.ChangeRequestOriginParent,
+		Origin:         capability.ChangeRequestOriginParent,
 		BaseSnapshot:   json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}"),
 	}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
-	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentModels.ChangeRequestMessageAuthorParent, Body: "remove with child"}
+	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: capability.ChangeRequestMessageAuthorParent, Body: "remove with child"}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
 	guardian := &capability.RequestGuardian{RequestID: request.ID, FirstName: "Other", LastName: "Guardian"}
 	require.NoError(t, f.repos.Enrollment().CreateRequestGuardian(f.scope.Context(), guardian))
@@ -233,9 +233,9 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	require.NoError(t, f.repos.CareOffering.Create(f.scope.Context(), offering))
 	childOffering := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
 	require.NoError(t, f.repos.Enrollment().InsertRequestChildOffering(f.scope.Context(), childOffering))
-	change := &capability.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: enrollmentModels.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
+	change := &capability.ChangeRequest{RequestID: request.ID, RequestChildID: &child.ID, Origin: capability.ChangeRequestOriginParent, BaseSnapshot: json.RawMessage("{}"), ProposedSnapshot: json.RawMessage("{}"), Diff: json.RawMessage("{}")}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequest(f.scope.Context(), change))
-	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: enrollmentModels.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
+	message := &capability.ChangeRequestMessage{ChangeRequestID: change.ID, AuthorType: capability.ChangeRequestMessageAuthorStaff, AuthorAccountID: &f.actor, Body: "dependent message"}
 	require.NoError(t, f.repos.Enrollment().InsertChangeRequestMessage(f.scope.Context(), message))
 	invite := &capability.LateInvite{PhaseID: f.phase, TokenHash: fmt.Sprintf("invite-%d", f.scope.TenantID), GuardianEmail: request.GuardianEmail, ExpiresAt: time.Now().Add(time.Hour), CreatedBy: f.actor}
 	require.NoError(t, f.repos.Enrollment().InsertLateInvite(f.scope.Context(), invite))

@@ -15,7 +15,7 @@ import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   berlinTodayISO,
   formatDate,
@@ -100,7 +100,7 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     key: "status",
     header: "Status",
     render: (row) => (
-      <StatusDotBadge label={row.label} color={STATUS_COLORS[row.status]} />
+      <StatusColorBadge label={row.label} color={STATUS_COLORS[row.status]} />
     ),
   },
   {

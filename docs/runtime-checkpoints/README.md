@@ -167,6 +167,43 @@ refresh, existing-child re-enrollment permissions, or captcha-provider behavior.
 The fresh tenant still has captcha disabled. The route resolves a school from
 its subdomain; the anonymous routes retain their separate slug contract.
 
+### Enrollment change-request workload (`enrollment-2696-change-requests-v1`)
+
+For #2696, add `-runtime-checkpoint-enrollment-change-requests` to the
+command above instead of the read or write option. It measures the enrollment
+change-request capability and the parent/OGS dialogue on
+`enrollment.change_requests` and `enrollment.change_request_messages` through
+the production router: the family's public list, the admin list, detail,
+open and history review lists, the pending count, a staff question, a parent
+reply, a parent reply in the wrong state (400), filing a change request,
+rejecting one, approving one, an unknown change request (404), and an unknown
+status token (404). Three runs, five warmups, 30 measured requests per
+scenario, concurrency one, as in the baseline.
+
+Setup enables Enrollment, submits two public enrollments, and moves both
+children onto the waitlist through the admin decision route, because only a
+decided child moves a request into change-request mode. The dialogue request
+keeps exactly one change request open for the whole run; the decision request
+is filed and decided repeatedly. Stateful scenarios prepare their state outside
+the timed window: a question first replies when the family is still asked, a
+reply first asks when nothing is pending, a create first rejects the still-open
+proposal, and reject/approve first file a proposal when none is open. Each
+proposal changes the guardian last name to a unique value, so approval always
+applies a real diff against the current data. Preparation requests are outside
+latency and query counts but inside the lock-sampling window.
+
+Scenario definitions keep `{{open_change_request}}` and
+`{{decision_change_request}}` placeholders; the resolved IDs vary per request
+while the recorded operation stays identical across runs. The final database
+check compares every persisted change request, terminal status, dialogue
+message, and the applied guardian name against the counts the workload tracked
+from successful responses. No worker runs are part of this workload.
+
+This is not evidence for parent-portal authentication, e-mail delivery of the
+dialogue notifications, concurrent decisions on one change request, or an
+injected database failure; the module integration tests cover rollback and
+failure propagation separately.
+
 ### Checkpoint baseline
 
 One process performs exactly three measured runs, in the same scenario order.

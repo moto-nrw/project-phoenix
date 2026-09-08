@@ -2,11 +2,12 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/uptrace/bun"
@@ -53,23 +54,109 @@ func (d activeDeviceDirectory) ListDevicesByID(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// auditDeviceDirectory hands the device owner to the audit repository that
-// used to join iot.devices itself (#2676). Operator listings run without an
-// ambient tenant, exactly as the retired cross-tenant join did.
-type auditDeviceDirectory struct{ devices devicefleet.Query }
+// unregisteredTagScanRepository serves the retained audit repository shape
+// from the Device Fleet owner, which owns audit.unregistered_tag_scans
+// (#2678). The retained service keeps its port; every read and write below
+// goes through the public capability, and the owner's stable errors are
+// returned unchanged so callers can match them.
+type unregisteredTagScanRepository struct{ scans devicefleet.Capability }
 
-func (d auditDeviceDirectory) ListDevicesByID(ctx context.Context, ids []int64) ([]auditRepo.DirectoryDevice, error) {
-	devices, err := d.devices.ListDevicesByID(ctx, ids)
+// NewUnregisteredTagScanRepository binds the retained repository contract to
+// the owner capability.
+func NewUnregisteredTagScanRepository(scans devicefleet.Capability) auditModels.UnregisteredTagScanRepository {
+	if scans == nil {
+		panic("repository factory: device fleet is required for unregistered tag scans")
+	}
+	return unregisteredTagScanRepository{scans: scans}
+}
+
+func (r unregisteredTagScanRepository) Create(ctx context.Context, scan *auditModels.UnregisteredTagScan) error {
+	if scan == nil {
+		return errors.New("unregistered tag scan is required")
+	}
+	recorded, err := r.scans.RecordUnregisteredTagScan(ctx, devicefleet.RecordUnregisteredTagScan{
+		TagUID: scan.TagUID, DeviceID: scan.DeviceID, ScannedAt: scan.ScannedAt,
+	})
+	if err != nil {
+		return err
+	}
+	*scan = toAuditUnregisteredTagScan(recorded)
+	return nil
+}
+
+func (r unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) (*auditModels.UnregisteredTagScan, error) {
+	scan, err := r.scans.FindUnregisteredTagScan(ctx, id)
+	if errors.Is(err, devicefleet.ErrUnregisteredTagScanNotFound) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	result := make([]auditRepo.DirectoryDevice, 0, len(devices))
-	for _, device := range devices {
-		result = append(result, auditRepo.DirectoryDevice{
-			ID: device.ID, TenantID: device.TenantID, DeviceID: device.DeviceID, Name: device.Name,
-		})
+	result := toAuditUnregisteredTagScan(scan)
+	return &result, nil
+}
+
+func (r unregisteredTagScanRepository) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
+	tenantIDs := filter.SchoolIDs
+	if filter.SchoolID != nil {
+		if tenantIDs == nil {
+			tenantIDs = []int64{*filter.SchoolID}
+		} else {
+			// The retired query applied both predicates, so a school outside
+			// the organization's schools matches nothing.
+			narrowed := make([]int64, 0, 1)
+			for _, id := range tenantIDs {
+				if id == *filter.SchoolID {
+					narrowed = append(narrowed, id)
+				}
+			}
+			tenantIDs = narrowed
+		}
+	}
+	scans, err := r.scans.ListUnregisteredTagScans(ctx, devicefleet.UnregisteredTagScanFilter{
+		TenantIDs: tenantIDs, UnresolvedOnly: filter.UnresolvedOnly,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*auditModels.UnregisteredTagScan, 0, len(scans))
+	for _, scan := range scans {
+		mapped := toAuditUnregisteredTagScan(scan)
+		result = append(result, &mapped)
 	}
 	return result, nil
+}
+
+func (r unregisteredTagScanRepository) Resolve(ctx context.Context, id, operatorID int64, note *string) (*auditModels.UnregisteredTagScan, error) {
+	scan, err := r.scans.ResolveUnregisteredTagScan(ctx, devicefleet.ResolveUnregisteredTagScan{
+		ID: id, OperatorID: operatorID, Note: note,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := toAuditUnregisteredTagScan(scan)
+	return &result, nil
+}
+
+func (r unregisteredTagScanRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
+	deleted, err := r.scans.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(deleted), nil
+}
+
+func toAuditUnregisteredTagScan(scan devicefleet.UnregisteredTagScan) auditModels.UnregisteredTagScan {
+	result := auditModels.UnregisteredTagScan{
+		TagUID: scan.TagUID, DeviceID: scan.DeviceID, ScannedAt: scan.ScannedAt, ResolvedAt: scan.ResolvedAt,
+		ResolvedByOperatorID: scan.ResolvedByOperatorID, ResolutionNote: scan.ResolutionNote,
+		SchoolID: scan.TenantID, DeviceIdentifier: scan.DeviceIdentifier, DeviceName: scan.DeviceName,
+	}
+	result.ID = scan.ID
+	result.CreatedAt = scan.CreatedAt
+	result.UpdatedAt = scan.UpdatedAt
+	result.SetTenantID(scan.TenantID)
+	return result
 }
 
 func mustNewDeviceFleet(db *bun.DB) devicefleet.Capability {

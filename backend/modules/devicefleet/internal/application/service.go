@@ -16,6 +16,7 @@ import (
 type Dependencies struct {
 	Devices   ports.DeviceStore
 	Displays  ports.DisplayStore
+	Scans     ports.UnregisteredTagScanStore
 	Rooms     ports.RoomDirectory
 	Presence  ports.PresenceReader
 	Dashboard ports.DashboardSources
@@ -33,7 +34,7 @@ type Service struct{ deps Dependencies }
 
 // New validates and freezes the owner's dependency graph.
 func New(deps Dependencies) *Service {
-	if deps.Devices == nil || deps.Displays == nil || deps.Rooms == nil || deps.Presence == nil ||
+	if deps.Devices == nil || deps.Displays == nil || deps.Scans == nil || deps.Rooms == nil || deps.Presence == nil ||
 		deps.Dashboard == nil || deps.Tenants == nil || deps.Tx == nil || deps.Tokens == nil ||
 		deps.APIKeys == nil || deps.Now == nil || deps.Observe == nil {
 		panic("devicefleet application: all dependencies are required")

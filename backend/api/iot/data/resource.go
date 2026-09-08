@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -19,7 +20,7 @@ type Resource struct {
 	UsersService         usersSvc.PersonService
 	ActivitiesService    activitiesSvc.ActivityService
 	FacilityService      facilitiesSvc.Service
-	UnregisteredTagScans auditSvc.UnregisteredTagScanService
+	UnregisteredTagScans shared.UnregisteredTagScanRecorder
 	Logger               *slog.Logger
 }
 

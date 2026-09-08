@@ -3,6 +3,7 @@ package checkin
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -16,7 +17,7 @@ type AttendanceResource struct {
 	ActiveService        activeSvc.Service
 	EducationService     educationSvc.Service
 	SettingsService      configSvc.SettingsService
-	UnregisteredTagScans auditSvc.UnregisteredTagScanService
+	UnregisteredTagScans shared.UnregisteredTagScanRecorder
 }
 
 // NewAttendanceResource creates a new Attendance resource

@@ -131,9 +131,9 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Eine Bedeutung, eine Farbe, quer über alle Listen: grün ist anwesend,
     grau ist nicht da, rot ist krank oder ein Fehler, lila ist genehmigt
     abwesend, orange braucht Aufmerksamkeit ohne Fehler zu sein. Statuspillen
-    sind hell mit farbigem Punkt (`StatusDotBadge`/`StatusBadge`), nie
-    vollflächig in der Signalfarbe: zwanzig davon nebeneinander sind eine
-    Wand, kein Status.
+    sind hell mit farbiger, ausreichend kontrastreicher Beschriftung
+    (`StatusColorBadge`/`StatusBadge`), nie vollflächig in der Signalfarbe:
+    zwanzig davon nebeneinander sind eine Wand, kein Status.
 
 11. **Kacheln einer Liste sehen überall gleich aus.** Ein Name in einer
     Zeile (Vor- und Nachname zusammen, gekürzt statt umgebrochen),

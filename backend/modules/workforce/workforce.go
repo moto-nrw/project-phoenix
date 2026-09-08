@@ -3,9 +3,14 @@
 // config.staff_work_schedules, active.staff_absences,
 // active.staff_absence_types, active.staff_absence_audit,
 // education.group_substitution, schedule.staff_shifts,
-// schedule.staff_shift_series, schedule.staff_shift_series_exceptions and
-// schedule.shift_types: every read or write of those rows by another owner
-// goes through Query or Command instead of a foreign SQL join.
+// schedule.staff_shift_series, schedule.staff_shift_series_exceptions,
+// schedule.shift_types, active.work_sessions, active.work_session_breaks,
+// active.staff_balance_adjustments, active.staff_vacation_openings,
+// active.staff_vacation_quota, users.staff_master_data,
+// users.staff_qualifications, users.staff_financial_data,
+// users.staff_documents and users.staff_document_file_cleanup: every read or
+// write of those rows by another owner goes through Query or Command instead
+// of a foreign SQL join.
 //
 // The capability stops at the rows themselves. Which staff member is bound to
 // a template, and who a staff member or a group is, lives with School
@@ -56,14 +61,18 @@ func ErrorCode(err error) string {
 		return "conflict"
 	case errors.Is(err, ErrInvalidWorkTime), errors.Is(err, ErrInvalidStaffAbsence), errors.Is(err, ErrInvalidGroupSubstitution),
 		errors.Is(err, ErrAbsenceTypeInvalid), errors.Is(err, ErrAbsenceTypeAllowanceInvalid),
-		errors.Is(err, ErrInvalidStaffShift), errors.Is(err, ErrInvalidShiftSeries), errors.Is(err, ErrInvalidShiftType):
+		errors.Is(err, ErrInvalidStaffShift), errors.Is(err, ErrInvalidShiftSeries), errors.Is(err, ErrInvalidShiftType),
+		errors.Is(err, ErrInvalidWorkSession), errors.Is(err, ErrInvalidStaffRecord):
 		return "invalid"
 	case errors.Is(err, ErrStaffAbsenceNotFound), errors.Is(err, ErrAbsenceTypeNotFound), errors.Is(err, ErrGroupSubstitutionNotFound),
-		errors.Is(err, ErrStaffShiftNotFound), errors.Is(err, ErrShiftSeriesNotFound), errors.Is(err, ErrShiftTypeNotFound):
+		errors.Is(err, ErrStaffShiftNotFound), errors.Is(err, ErrShiftSeriesNotFound), errors.Is(err, ErrShiftTypeNotFound),
+		errors.Is(err, ErrWorkSessionNotFound), errors.Is(err, ErrWorkSessionBreakNotFound), errors.Is(err, ErrStaffBalanceAdjustmentNotFound),
+		errors.Is(err, ErrStaffVacationOpeningNotFound), errors.Is(err, ErrStaffVacationQuotaNotFound),
+		errors.Is(err, ErrStaffMasterDataNotFound), errors.Is(err, ErrStaffFinancialDataNotFound), errors.Is(err, ErrStaffDocumentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrAbsenceTypeNameTaken), errors.Is(err, ErrAbsenceTypeNameReserved), errors.Is(err, ErrAbsenceTypeInUse),
 		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrGroupSubstitutionExists),
-		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken):
+		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken), errors.Is(err, ErrWorkSessionAlreadyOpen):
 		return "conflict"
 	default:
 		return "internal_error"
@@ -149,6 +158,8 @@ type Query interface {
 	AbsenceQuery
 	SubstitutionQuery
 	ShiftQuery
+	WorkSessionQuery
+	StaffRecordQuery
 
 	// ListWorkTimeModels returns every template of the caller's tenant with
 	// its entries, ordered by name.
@@ -181,6 +192,8 @@ type Command interface {
 	AbsenceCommand
 	SubstitutionCommand
 	ShiftCommand
+	WorkSessionCommand
+	StaffRecordCommand
 
 	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
 	// UpdateWorkTimeModel replaces the template metadata and every entry, and
@@ -204,6 +217,8 @@ type engine interface {
 	absenceEngine
 	substitutionEngine
 	shiftEngine
+	workSessionEngine
+	staffRecordEngine
 
 	ListWorkTimeModels(context.Context) ([]WorkTimeModel, error)
 	FindWorkTimeModel(context.Context, int64) (WorkTimeModel, error)

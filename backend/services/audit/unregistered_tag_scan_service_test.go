@@ -55,13 +55,6 @@ func (r *fakeUnregisteredTagScanRepo) DeleteOlderThan(_ context.Context, cutoff 
 
 type testTenantKey struct{}
 
-type fakeAuditCommand struct{ repo *fakeUnregisteredTagScanRepo }
-
-func (c fakeAuditCommand) Append(_ context.Context, event any) error {
-	c.repo.created = event.(*auditModels.UnregisteredTagScan)
-	return c.repo.createErr
-}
-
 type fakeOrganizationQuery struct {
 	listByIDsFn                 func(context.Context, []int64) ([]organizationtenancy.Organization, error)
 	listSchoolsByIDsFn          func(context.Context, []int64) ([]organizationtenancy.School, error)
@@ -103,7 +96,7 @@ func newUnregisteredTagScanService(t *testing.T, repo *fakeUnregisteredTagScanRe
 
 func newUnregisteredTagScanServiceWithOrganizations(t *testing.T, repo *fakeUnregisteredTagScanRepo, organizations OrganizationNameQuery) UnregisteredTagScanService {
 	t.Helper()
-	service, err := NewUnregisteredTagScanService(repo, fakeAuditCommand{repo: repo}, organizations, UnregisteredTagScanRuntime{
+	service, err := NewUnregisteredTagScanService(repo, organizations, UnregisteredTagScanRuntime{
 		TenantID: func(ctx context.Context) int64 {
 			id, _ := ctx.Value(testTenantKey{}).(int64)
 			return id

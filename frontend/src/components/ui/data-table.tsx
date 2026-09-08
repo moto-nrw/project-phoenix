@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor, LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 
@@ -600,14 +600,13 @@ export function DataTableStatusBadge({
     : active
       ? LOCATION_COLORS.GROUP_ROOM
       : LOCATION_COLORS.DANGER;
+  const textColor = getAccessibleTextColor(color, "#F9FAFB");
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span style={{ color }}>{label}</span>
+    <span
+      className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1 text-xs font-medium"
+      style={{ color: textColor }}
+    >
+      {label}
     </span>
   );
 }

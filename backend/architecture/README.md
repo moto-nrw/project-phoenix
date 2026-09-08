@@ -245,6 +245,20 @@ The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
 
+The Workforce time-tracking HTTP composition
+(`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
+under the same compatibility permissions (#2690). It replaced
+`api/time-tracking` and serves the public work-session, absence, month,
+ledger, month-close, overview, audit-log, export and personnel-record
+contracts of `modules/workforce`, which the root composition adapts from the
+retained `services/active` and `services/users` services. Its remaining
+`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
+shifts and assignments) go with the shift services' move. The kiosk staff
+clock consumes the public device-scan contract in `modules/devicescan`
+(`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
+one rule anchored to that new point, and the staff-clock workflow reaches the
+Workforce time clock only through its own port.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to
@@ -253,6 +267,29 @@ existing imports; it adds no runtime dependency or composition caller.
 `target.svg` has no compatibility-rule edges. `migration.svg` renders these
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
+
+The class-day read projection (`modules/classday`, #2701) is the `class-day-view`
+projection owner: `modules/classday` is its public contract, `internal/application`
+builds the slot lists and the school-portal day view, `internal/ports` declares
+the consumer-owned read seams, and `compose` binds them. The projection reads
+`schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
+`active.attendance`, `users.students`, `users.persons`, `education.groups`, the
+rooms and the Care Plan status days and pickup exceptions only through the public
+owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+permissions for the retained schedule services (care-day derivation, effective
+times, pickup baselines), the enrollment report and class-day write seam, the
+settings service, the user context and the JWT permission check exist only
+because PR mode cannot record debt for a package the candidate creates. They are
+compatibility bindings, not target dependencies: convert them to exact debt with
+the rule above once the packages exist at a base SHA, and remove each binding
+when its owner exposes the read publicly. The same applies to the
+`inbound-classday.*` permissions of the class-day HTTP adapter
+(`modules/classday/http`: common HTTP rendering, the permission contract, the
+JWT claims, the calendar-date type and the Bun database the shared school-scope
+middleware takes), to the `inbound-school.identity-application` and
+`inbound-school.orm-sql` permissions of the school portal (`modules/schoolportal`),
+and to the retained-repository and retained-service permissions of the
+projection's integration and adapter tests.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`

@@ -77,17 +77,14 @@ const SIZE_MAP = {
   sm: {
     modern: "px-2 py-0.5 text-[11px]",
     simple: "px-2 py-0.5 text-[11px]",
-    dot: "mr-1.5 h-1 w-1",
   },
   md: {
     modern: "px-3 py-1.5 text-xs",
     simple: "px-2.5 py-0.5 text-xs",
-    dot: "mr-2 h-1.5 w-1.5",
   },
   lg: {
     modern: "px-4 py-2 text-sm",
     simple: "px-3 py-1 text-sm",
-    dot: "mr-2.5 h-2 w-2",
   },
 } as const;
 
@@ -115,10 +112,6 @@ function renderOverlayBadge({
       }}
       {...{ [dataAttr]: "true" }}
     >
-      <span
-        className={`${sizeConfig.dot} rounded-full`}
-        style={{ backgroundColor: tone.dotColor }}
-      />
       {overlayLabel}
     </span>
   );
@@ -244,10 +237,6 @@ export function PresenceBadge({
         data-location-status={dataStatus}
         data-presence-state={state}
       >
-        <span
-          className={`${sizeConfig.dot} rounded-full`}
-          style={{ backgroundColor: tone.dotColor }}
-        />
         {label}
       </span>
     );

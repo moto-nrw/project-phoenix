@@ -43,7 +43,7 @@ func (r *Store) findChangeRequestByID(ctx context.Context, id int64, lockClause 
 	err = q.Scan(ctx, row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("enrollment change request %d not found", id)
+			return nil, fmt.Errorf("enrollment change request %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find enrollment change request: %w", err)
 	}

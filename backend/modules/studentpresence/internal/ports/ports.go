@@ -19,6 +19,7 @@ type Observation struct {
 }
 
 type Store interface {
+	UnclaimedStore
 	AttendanceStore
 	VisitStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)

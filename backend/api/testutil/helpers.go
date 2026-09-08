@@ -453,6 +453,31 @@ func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
 	RespondError(w, r, http.StatusBadRequest, err)
 }
 
+// RespondCoded renders the shared error envelope with a stable code and the
+// optional structured details, the way api/common does for the kiosk. It
+// stands in for a composition root's failure renderer in HTTP adapter tests
+// that must not import the shared HTTP package themselves.
+func RespondCoded(w http.ResponseWriter, r *http.Request, status int, code string, err error, details map[string]string, clientMessage string) {
+	message := clientMessage
+	if message == "" && err != nil {
+		message = err.Error()
+	}
+	var payload map[string]any
+	if len(details) > 0 {
+		payload = make(map[string]any, len(details))
+		for key, value := range details {
+			payload[key] = value
+		}
+	}
+	render.Status(r, status)
+	render.JSON(w, r, struct {
+		Status  string         `json:"status"`
+		Error   string         `json:"error,omitempty"`
+		Code    string         `json:"code,omitempty"`
+		Details map[string]any `json:"details,omitempty"`
+	}{Status: "error", Error: message, Code: code, Details: payload})
+}
+
 func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, *http.Request, error, string) {
 	return func(w http.ResponseWriter, r *http.Request, err error, _ string) {
 		status, responseErr := resolve(err)
