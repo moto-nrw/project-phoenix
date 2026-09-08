@@ -16,34 +16,70 @@ import {
   useBerlinClock,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
-import { useHomeGroup } from "~/lib/hooks/use-home-group";
+import {
+  isExpectedToday,
+  useHomeGroup,
+  type HomeMissingArrival,
+  type HomePickup,
+} from "~/lib/hooks/use-home-group";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
-/** So viele fehlende Kinder passen namentlich in eine Karte dieser Höhe. */
+/** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
 const MAX_ROWS = 3;
 
 /**
+ * Eine Zeile der Karte: ein Kind, das längst da sein sollte, eine Abholung,
+ * die kommt, oder ein Kind, das heute fehlt.
+ */
+type GroupRow =
+  | { readonly kind: "missing"; readonly arrival: HomeMissingArrival }
+  | { readonly kind: "pickup"; readonly pickup: HomePickup }
+  | { readonly kind: "away"; readonly student: OgsLiveWireStudent };
+
+/**
  * Baustein „Meine Gruppe heute" (#2180): der Stand der eigenen Gruppe auf
- * einen Blick — wie viele da sind, wann die nächste Abholung ist, und wer
- * heute fehlt. Anwesende werden bewusst nicht aufgezählt: die Abweichung ist
- * die Nachricht, nicht der Normalfall. Gearbeitet wird weiterhin auf „Meine
- * Gruppen", dorthin führt jede Zeile.
+ * einen Blick, für die Kraft am Tisch und am Handy.
+ *
+ * Die Reihenfolge ist die Dringlichkeit: zuerst, wer längst da sein sollte
+ * und fehlt (die Frage des Vormittags), dann, was auf einen zukommt — die
+ * nächsten Abholungen mit dem, was die Eltern dazu gesagt haben („Oma holt
+ * ab", „Musikunterricht danach") —, zuletzt, wer heute fehlt und warum.
+ * Anwesende werden nicht aufgezählt: die Abweichung ist die Nachricht, nicht
+ * der Normalfall. Gearbeitet wird weiterhin auf „Meine Gruppen", dorthin
+ * führt jede Zeile.
  */
 export function MyGroupBlock() {
   const tenantPath = useTenantAwarePath();
   const now = useBerlinClock();
   const snapshot = useHomeGroup(true, now);
-  const { group, present, total, away, nextPickup, isLoading, error } =
-    snapshot;
-  const { shown, hidden } = useHomeCardRows(away, MAX_ROWS);
+  const {
+    group,
+    present,
+    total,
+    elsewhere,
+    away,
+    missing,
+    pickups,
+    isLoading,
+    error,
+  } = snapshot;
+  const missingIds = new Set(missing.map((entry) => entry.student.id));
+  const rows: GroupRow[] = [
+    ...missing.map((arrival): GroupRow => ({ kind: "missing", arrival })),
+    ...pickups.map((pickup): GroupRow => ({ kind: "pickup", pickup })),
+    ...away
+      .filter((student) => !missingIds.has(student.id))
+      .map((student): GroupRow => ({ kind: "away", student })),
+  ];
+  const { shown, hidden } = useHomeCardRows(rows, MAX_ROWS);
   const href = tenantPath("/ogs-groups");
 
   const stats = group
     ? [
         group.viaSubstitution ? `${group.name} (Vertretung)` : group.name,
         `${present} von ${total} da`,
-        nextPickup ? `nächste Abholung ${nextPickup}` : null,
+        elsewhere > 0 ? `${elsewhere} außerhalb des Gruppenraums` : null,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -105,36 +141,42 @@ export function MyGroupBlock() {
             {stats && (
               <p className="mb-2 text-sm text-gray-600 sm:truncate">{stats}</p>
             )}
-            {away.length === 0 ? (
+            {rows.length === 0 ? (
               <EmptyState
                 className="py-3"
-                title="Alle Kinder Ihrer Gruppe sind da"
+                title="Alle da, keine Abholung mehr heute"
               />
             ) : (
               <>
                 <ul className="space-y-2">
-                  {shown.map((student) => (
-                    <li key={student.id}>
-                      <Link
-                        href={href}
-                        aria-label={`${student.first_name} ${student.last_name}: Gruppe öffnen`}
-                        className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
-                      >
-                        <span className="min-w-0 truncate text-sm">
-                          <span className="font-medium text-gray-900">
-                            {student.first_name} {student.last_name}
-                          </span>
-                          {student.school_class && (
-                            <span className="text-gray-500">
-                              {" · "}
-                              {student.school_class}
-                            </span>
-                          )}
-                        </span>
-                        <AwayBadge student={student} />
-                      </Link>
-                    </li>
-                  ))}
+                  {shown.map((row) => {
+                    switch (row.kind) {
+                      case "missing":
+                        return (
+                          <MissingRow
+                            key={`missing-${row.arrival.student.id}`}
+                            arrival={row.arrival}
+                            href={href}
+                          />
+                        );
+                      case "pickup":
+                        return (
+                          <PickupRow
+                            key={`pickup-${row.pickup.student.id}`}
+                            pickup={row.pickup}
+                            href={href}
+                          />
+                        );
+                      case "away":
+                        return (
+                          <AwayRow
+                            key={`away-${row.student.id}`}
+                            student={row.student}
+                            href={href}
+                          />
+                        );
+                    }
+                  })}
                 </ul>
                 <HomeMoreRow hidden={hidden} href={href} label="Kinder" />
               </>
@@ -146,9 +188,138 @@ export function MyGroupBlock() {
   );
 }
 
+function StudentName({ student }: { readonly student: OgsLiveWireStudent }) {
+  return (
+    <span className="block truncate text-sm">
+      <span className="font-medium text-gray-900">
+        {student.first_name} {student.last_name}
+      </span>
+      {student.school_class && (
+        <span className="text-gray-500">
+          {" · "}
+          {student.school_class}
+        </span>
+      )}
+    </span>
+  );
+}
+
+const ROW_CLASS =
+  "flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50";
+
+/**
+ * Ein Kind, das längst da sein sollte: die Zeile, die man am Vormittag
+ * sucht. Getönt wie eine überfällige Erinnerung, damit sie aus der Liste
+ * heraussticht; die Notiz der Eltern („Arzttermin, kommt danach") nimmt ihr
+ * oft schon den Schrecken.
+ */
+function MissingRow({
+  arrival,
+  href,
+}: {
+  readonly arrival: HomeMissingArrival;
+  readonly href: string;
+}) {
+  const { student, expected, note } = arrival;
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-label={`${student.first_name} ${student.last_name}, fehlt seit ${expected}: Gruppe öffnen`}
+        className={`${ROW_CLASS} bg-moto-red/5 hover:bg-moto-red/10`}
+      >
+        <span className="min-w-0">
+          <StudentName student={student} />
+          {note && (
+            <span className="block truncate text-xs text-gray-500">{note}</span>
+          )}
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="text-sm font-semibold text-gray-900 tabular-nums">
+            {expected}
+          </span>
+          <span className="text-moto-red-strong text-xs">Fehlt noch</span>
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * Eine Abholung: wer, wann, und was die Eltern dazu gesagt haben. Die Notiz
+ * steht unter dem Namen, weil sie das ist, was man am Tisch wissen muss.
+ */
+function PickupRow({
+  pickup,
+  href,
+}: {
+  readonly pickup: HomePickup;
+  readonly href: string;
+}) {
+  const { student, time, note, isException } = pickup;
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-label={`${student.first_name} ${student.last_name}, Abholung ${time}: Gruppe öffnen`}
+        className={ROW_CLASS}
+      >
+        <span className="min-w-0">
+          <StudentName student={student} />
+          {note && (
+            <span className="block truncate text-xs text-gray-500">{note}</span>
+          )}
+        </span>
+        <span className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="text-sm font-semibold text-gray-900 tabular-nums">
+            {time}
+          </span>
+          {isException ? (
+            <StatusBadge tone="orange" label="Ausnahme" />
+          ) : (
+            <span className="text-xs text-gray-500">Abholung</span>
+          )}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function AwayRow({
+  student,
+  href,
+}: {
+  readonly student: OgsLiveWireStudent;
+  readonly href: string;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        aria-label={`${student.first_name} ${student.last_name}: Gruppe öffnen`}
+        className={ROW_CLASS}
+      >
+        <span className="min-w-0">
+          <StudentName student={student} />
+          {student.arrival_notes && (
+            <span className="block truncate text-xs text-gray-500">
+              {student.arrival_notes}
+            </span>
+          )}
+        </span>
+        <AwayBadge student={student} />
+      </Link>
+    </li>
+  );
+}
+
 /** Warum das Kind fehlt — dieselben Wörter wie auf „Meine Gruppen". */
 function AwayBadge({ student }: { readonly student: OgsLiveWireStudent }) {
   if (student.sick) return <StatusBadge tone="red" label="Krank" />;
+  // Noch nicht da, aber angekündigt: das ist kein Fehlen, das ist Warten.
+  if (isExpectedToday(student)) {
+    return <StatusBadge tone="gray" label={`Kommt ${student.arrival_time}`} />;
+  }
   if (student.class_trip)
     return <StatusBadge tone="blue" label="Klassenfahrt" />;
   if (student.excused) return <StatusBadge tone="gray" label="Entschuldigt" />;

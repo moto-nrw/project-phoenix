@@ -60,14 +60,16 @@ export interface HomeBlockData {
 }
 
 /**
- * Der scrollende Körper jeder Karte der Startseite.
+ * Der Körper jeder Karte der Startseite.
  *
- * `-mx-1 px-1` gibt dem Schatten von Knöpfen und Zeilen den Platz, den ihm
- * `overflow-y-auto` sonst am Rand abschneidet — daher sah der Knopf „Zur
- * Kenntnis nehmen" aus, als wäre er angeschnitten.
+ * Er scrollt nicht und blendet nichts aus: jede Karte zeigt so viele Zeilen,
+ * wie ganz hineinpassen, und nennt den Rest als Zahl mit Weg
+ * (`useHomeCardRows`). Ein Verlauf am unteren Rand sah aus, als liefe der
+ * Inhalt unter der Karte weiter, auch wo nichts fehlte. `-mx-1 px-1` gibt
+ * dem Schatten von Knöpfen und Zeilen den Platz, den ihm `overflow-hidden`
+ * sonst am Rand abschneidet.
  */
-export const HOME_CARD_BODY =
-  "moto-scroll-fade mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto px-1";
+export const HOME_CARD_BODY = "mt-4 -mx-1 min-h-0 flex-1 overflow-hidden px-1";
 
 /**
  * Symbolfläche aller Karten der Startseite: ein Kasten, eine Größe. Vorher

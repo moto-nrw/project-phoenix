@@ -51,6 +51,9 @@ export function upcomingFirst<T>(
   return items.slice(firstRelevant);
 }
 
+/** So viele Zeilen zeigt eine Karte auf dem Handy, bevor sie den Rest zählt. */
+const PHONE_MAX_ROWS = 6;
+
 /**
  * Wie viele Zeilen eine Karte der Startseite zeigt (#2180).
  *
@@ -61,18 +64,21 @@ export function upcomingFirst<T>(
  * hineinpassen, und darunter der Rest als eine Zeile mit Zahl und Weg.
  *
  * Auf einem Handy gibt es keine feste Zellenhöhe — dort wächst jede Karte mit
- * ihrem Inhalt, und gekappt wird nichts.
+ * ihrem Inhalt. Aber auch dort bleibt die Startseite ein Einstieg: ab einer
+ * Handvoll Zeilen zählt die Karte den Rest, statt zur Liste zu werden, die
+ * die nächste Karte unter den Rand schiebt.
  */
 export function useHomeCardRows<T>(
   items: readonly T[],
   maxRows: number,
 ): { shown: readonly T[]; hidden: number } {
   const isPhone = useMediaQuery(BELOW_SM);
-  if (isPhone || items.length <= maxRows) {
+  const limit = isPhone ? PHONE_MAX_ROWS : maxRows;
+  if (items.length <= limit) {
     return { shown: items, hidden: 0 };
   }
   // Der Hinweis auf den Rest kostet selbst eine Zeile Platz.
-  const shown = items.slice(0, Math.max(maxRows - 1, 1));
+  const shown = items.slice(0, Math.max(limit - 1, 1));
   return { shown, hidden: items.length - shown.length };
 }
 

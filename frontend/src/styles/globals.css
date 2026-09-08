@@ -624,14 +624,6 @@
    letzten Pixel weich aus, statt sie zu zerschneiden. Endet der Inhalt vorher,
    ist nichts zu sehen: es gibt dann nichts auszublenden. Ohne JavaScript und
    deshalb auch beim ersten Bild richtig, nicht erst nach dem Scrollen. */
-.moto-scroll-fade {
-  mask-image: linear-gradient(
-    to bottom,
-    black calc(100% - 1.5rem),
-    transparent 100%
-  );
-}
-
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot
    override, then add a dedicated guide background for PDF exports. */
 @media print {
