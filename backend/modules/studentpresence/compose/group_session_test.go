@@ -239,3 +239,53 @@ func TestEndGroupSessionsClosesOpenGroupsOnly(t *testing.T) {
 	_, err = module.EndGroupSessions(ctx, []int64{first.ID}, at)
 	require.ErrorContains(t, err, "transaction is required")
 }
+
+// EndGroup releases a group for a takeover: the group ends, its visits and
+// supervisions stay where they are for the caller to move, and the usual
+// lifecycle errors apply.
+func TestEndGroupEndsTheGroupRowOnly(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Takeover")
+	room := testpkg.CreateTestRoom(t, db, "Takeover")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Takeover", "Staff")
+	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
+	student := testpkg.CreateTestStudent(t, db, "Takeover", "Student", "1a")
+	visit := testpkg.CreateTestVisit(t, db, student.ID, group.ID, time.Now().Add(-time.Hour), nil)
+	at := time.Now().Truncate(time.Microsecond)
+
+	require.Error(t, module.EndGroup(ctx, 0, at))
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return module.EndGroup(txCtx, group.ID, at)
+	}))
+
+	groupEnded, supervisorEnded := testpkg.ActiveGroupEnded(t, db, testpkg.EndedActiveGroup{GroupID: group.ID, SupervisorID: supervisor.ID})
+	assert.True(t, groupEnded)
+	assert.False(t, supervisorEnded, "the supervision is left for the caller to move")
+	visits, err := module.ListVisits(ctx, studentpresence.VisitFilter{IDs: []int64{visit.ID}})
+	require.NoError(t, err)
+	require.Len(t, visits, 1)
+	assert.Nil(t, visits[0].ExitTime, "the visit is left for the caller to move")
+
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return module.EndGroup(txCtx, group.ID, at) })
+	require.ErrorIs(t, err, studentpresence.ErrGroupEnded)
+
+	var foreign testpkg.EndedActiveGroup
+	t.Run("foreign fixture", func(t *testing.T) {
+		testpkg.OwnTenant(t)
+		activity := testpkg.CreateTestActivityGroup(t, db, "Foreign takeover")
+		room := testpkg.CreateTestRoom(t, db, "Foreign takeover")
+		staff := testpkg.CreateTestStaff(t, db, "Foreign", "Takeover")
+		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		foreign = testpkg.EndedActiveGroup{GroupID: group.ID, SupervisorID: testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor").ID}
+	})
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error { return module.EndGroup(txCtx, foreign.GroupID, at) })
+	require.ErrorIs(t, err, studentpresence.ErrGroupNotFound)
+	foreignEnded, _ := testpkg.ActiveGroupEnded(t, db, foreign)
+	assert.False(t, foreignEnded)
+}

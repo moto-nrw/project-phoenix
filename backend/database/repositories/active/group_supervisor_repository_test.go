@@ -895,7 +895,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 		// the count assertions below. EndAllActiveByStaffID filters only on
 		// staff_id + the supervision date range, so an ended session changes nothing
 		// about what this test exercises.
-		require.NoError(t, factory.ActiveGroup.EndSession(ctx, data.ActiveGroup.ID))
+		testpkg.EndTestActiveGroup(t, db, testpkg.EndedActiveGroup{GroupID: data.ActiveGroup.ID})
 		today := timezone.NewDate(2026, 8, 24)
 		// Create multiple active supervisions for same staff
 		supervisor1 := &active.GroupSupervisor{

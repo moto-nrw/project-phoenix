@@ -23,6 +23,19 @@ func (s *Service) LockGroup(ctx context.Context, groupID int64) (result ports.Li
 	return result, err
 }
 
+// EndGroup joins the caller's transaction when there is one and otherwise
+// runs in its own, like the visit commands the takeover paths call next to it.
+func (s *Service) EndGroup(ctx context.Context, groupID int64, at time.Time) error {
+	if groupID <= 0 || at.IsZero() {
+		return s.run("end_group", func() (ports.Stats, error) {
+			return ports.Stats{}, errors.New("student presence: invalid group end")
+		})
+	}
+	return s.runWrite(ctx, "end_group", func(txCtx context.Context) (ports.Stats, error) {
+		return s.store.EndGroup(txCtx, groupID, at)
+	})
+}
+
 func (s *Service) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time, endDate ports.Date) (result ports.EndedGroupSessions, err error) {
 	err = s.run("end_group_sessions", func() (ports.Stats, error) {
 		if !validIDs(groupIDs) || at.IsZero() || endDate.IsZero() {

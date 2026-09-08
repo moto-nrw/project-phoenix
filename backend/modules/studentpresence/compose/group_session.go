@@ -36,6 +36,10 @@ func (e engine) LockGroup(ctx context.Context, groupID int64) (studentpresence.L
 	return liveGroupToPublic(row), nil
 }
 
+func (e engine) EndGroup(ctx context.Context, groupID int64, at time.Time) error {
+	return groupSessionError(e.Service.EndGroup(ctx, groupID, at))
+}
+
 func (e engine) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time) (studentpresence.EndedGroupSessions, error) {
 	row, err := e.Service.EndGroupSessions(ctx, groupIDs, at, timezone.DateFromTime(at))
 	if err != nil {

@@ -528,7 +528,9 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		if locked == nil || !locked.IsActive() {
 			continue
 		}
-		if err := s.GroupRepo.EndSession(ctx, session.ID); err != nil {
+		// The Student Presence owner releases the group; its visits and
+		// supervisors move to the new session afterwards (#2697).
+		if err := s.SchoolPresence.EndGroup(ctx, session.ID, s.now()); err != nil {
 			return nil, err
 		}
 		endedIDs = append(endedIDs, session.ID)
@@ -554,7 +556,7 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 		return 0, nil
 	}
 
-	if err := s.GroupRepo.EndSession(ctx, existingSession.ID); err != nil {
+	if err := s.SchoolPresence.EndGroup(ctx, existingSession.ID, s.now()); err != nil {
 		return 0, err
 	}
 

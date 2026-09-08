@@ -375,8 +375,11 @@ active service itself. The other session-ending paths of the retained active
 service (the manual group end, the instance Complete and Cancel transitions
 through `EndActivitySession`, the timeout, and the nightly bulk end) write
 their presence rows through the same owner commands (`EndGroupSession`,
-`EndGroupSessions`); the legacy bulk group and supervision end methods are
-deleted. Those paths still complete the mirrored instance through the
+`EndGroupSessions`). The two takeover paths that end a group and move its
+visits and supervisors to a replacement (force start, absorption of an
+unsupervised group into a started instance) release the group through the
+owner's `EndGroup`. The legacy group end and bulk end repository methods
+are deleted. Those paths still complete the mirrored instance through the
 retained bridge inside the active service; moving them onto the workflow is
 the remaining #2762 work. The workflow owns no data object: policy validation
 refuses a write owner of kind `workflow`. Under ADR 0013, this registration

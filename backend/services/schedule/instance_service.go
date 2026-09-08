@@ -711,7 +711,7 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 			return fmt.Errorf("move open visits from group %d to group %d: %w", group.ID, newGroupID, err)
 		}
 
-		if err := s.deps.ActiveGroupRepo.EndSession(ctx, group.ID); err != nil {
+		if err := s.deps.Presence.EndGroup(ctx, group.ID, s.now()); err != nil {
 			return fmt.Errorf("end absorbed group %d: %w", group.ID, err)
 		}
 		movedTotal += moved

@@ -1176,7 +1176,8 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 					{Model: modelBase.Model{ID: 30}},
 				}, nil
 			},
-			endSessionFunc: func(_ context.Context, id int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(_ context.Context, id int64, _ time.Time) error {
 				ended = append(ended, id)
 				return nil
 			},
@@ -1211,7 +1212,8 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 			findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{{Model: modelBase.Model{ID: 31}}}, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(context.Context, int64, time.Time) error {
 				return expectedErr
 			},
 		}},
@@ -1444,7 +1446,8 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 302}}, nil
 			},
-			endSessionFunc: func(context.Context, int64) error {
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(context.Context, int64, time.Time) error {
 				return expectedErr
 			},
 		}},
@@ -1457,9 +1460,15 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 	})
 
 	t.Run("returns ended session id", func(t *testing.T) {
+		var released []int64
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
 				return &activeModels.Group{Model: modelBase.Model{ID: 303}}, nil
+			},
+		}, SchoolPresence: &mockVisitRepository{
+			endGroupFunc: func(_ context.Context, id int64, _ time.Time) error {
+				released = append(released, id)
+				return nil
 			},
 		}},
 		}
@@ -1468,6 +1477,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(303), endedID)
+		assert.Equal(t, []int64{303}, released, "the presence owner releases the replaced group")
 	})
 }
 

@@ -27,6 +27,9 @@ type StudentPresence interface {
 	// visits, supervisions, and the group itself writes through them.
 	EndGroupSession(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error)
 	EndGroupSessions(context.Context, []int64, time.Time) (studentpresence.EndedGroupSessions, error)
+	// EndGroup releases a group for a force-start takeover; the visits and
+	// supervisions are moved to the replacing group afterwards.
+	EndGroup(context.Context, int64, time.Time) error
 	ListSchoolStatuses(context.Context, []int64, string) ([]studentpresence.SchoolStatus, error)
 	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
 	EnsureAttendance(context.Context, studentpresence.Attendance) (studentpresence.Attendance, bool, error)

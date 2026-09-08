@@ -42,9 +42,6 @@ type GroupRepository interface {
 	// FindByTimeRange finds all groups active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
 
-	// EndSession marks a group session as ended at the current time
-	EndSession(ctx context.Context, id int64) error
-
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)

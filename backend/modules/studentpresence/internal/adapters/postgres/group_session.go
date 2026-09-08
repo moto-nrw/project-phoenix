@@ -186,3 +186,42 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	stats.Rows = result.VisitsClosed + result.SessionsEnded + result.SupervisorsEnded
 	return result, stats, nil
 }
+
+// EndGroup stamps the end time of one still-open group and touches nothing
+// else. The lifecycle lock distinguishes a missing group from an ended one so
+// the caller sees the same errors as for a full session end.
+func (s *Store) EndGroup(ctx context.Context, groupID int64, at time.Time) (stats ports.Stats, err error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return stats, err
+	}
+	started := time.Now()
+	defer func() { stats.StatementDuration = time.Since(started) }()
+
+	var endTime *time.Time
+	stats.Queries++
+	err = db.NewRaw(`SELECT end_time FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, groupID).Scan(ctx, &endTime)
+	if errors.Is(err, sql.ErrNoRows) {
+		return stats, ports.ErrGroupNotFound
+	}
+	if err != nil {
+		return stats, fmt.Errorf("end group: lock lifecycle: %w", err)
+	}
+	if endTime != nil {
+		return stats, ports.ErrGroupEnded
+	}
+
+	stats.Queries++
+	ended, err := db.NewUpdate().Table("active.groups").Set("end_time = ?", at).Set("updated_at = ?", at).
+		Where("tenant_id = ?", tenantID).Where("id = ? AND end_time IS NULL", groupID).Exec(ctx)
+	if err != nil {
+		return stats, fmt.Errorf("end group: %w", err)
+	}
+	if stats.Rows, err = ended.RowsAffected(); err != nil {
+		return stats, fmt.Errorf("end group: %w", err)
+	}
+	if stats.Rows != 1 {
+		return stats, fmt.Errorf("end group: expected 1 group row, updated %d", stats.Rows)
+	}
+	return stats, nil
+}

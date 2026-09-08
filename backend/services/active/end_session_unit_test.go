@@ -69,7 +69,6 @@ type mockGroupRepository struct {
 	listFunc                        func(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*active.Group, error)
 	findActiveByGroupIDFunc         func(ctx context.Context, groupID int64) ([]*active.Group, error)
-	endSessionFunc                  func(ctx context.Context, id int64) error
 	updateLastActivityFunc          func(ctx context.Context, id int64, lastActivity time.Time) error
 	findActiveSessionsOlderThanFunc func(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error)
 	checkRoomConflictFunc           func(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error)
@@ -147,13 +146,6 @@ func (m *mockGroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs
 
 func (m *mockGroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
 	return nil, nil
-}
-
-func (m *mockGroupRepository) EndSession(ctx context.Context, id int64) error {
-	if m.endSessionFunc != nil {
-		return m.endSessionFunc(ctx, id)
-	}
-	return nil
 }
 
 func (m *mockGroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
@@ -249,6 +241,7 @@ type mockVisitRepository struct {
 	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
 	endGroupSessionFunc                   func(ctx context.Context, activeGroupID int64, at time.Time) (studentpresence.EndedGroupSession, error)
 	endGroupSessionsFunc                  func(ctx context.Context, activeGroupIDs []int64, at time.Time) (studentpresence.EndedGroupSessions, error)
+	endGroupFunc                          func(ctx context.Context, activeGroupID int64, at time.Time) error
 	endVisitsByIDsFunc                    func(ctx context.Context, ids []int64, at time.Time) ([]*studentpresence.Visit, error)
 	transferVisitsFromRecentSessionsFunc  func(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
@@ -538,10 +531,6 @@ func TestEndActivitySessionLocksGroupBeforeEnding(t *testing.T) {
 			locked = true
 			return &active.Group{Model: base.Model{ID: 1}}, nil
 		},
-		endSessionFunc: func(context.Context, int64) error {
-			t.Fatal("the legacy group end must not run: the presence owner ends the session")
-			return nil
-		},
 	}
 	visitRepo := &mockVisitRepository{
 		findByActiveGroupIDFunc: func(context.Context, int64) ([]*studentpresence.Visit, error) {
@@ -574,10 +563,6 @@ func TestProcessSessionTimeoutLocksGroupBeforeEnding(t *testing.T) {
 		findByIDForUpdateFunc: func(context.Context, int64) (*active.Group, error) {
 			locked = true
 			return &active.Group{Model: base.Model{ID: 1}}, nil
-		},
-		endSessionFunc: func(context.Context, int64) error {
-			t.Fatal("the legacy group end must not run: the presence owner ends the session")
-			return nil
 		},
 	}
 	svc := &service{ServiceDependencies: ServiceDependencies{
@@ -790,9 +775,6 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 				Model: base.Model{ID: 1},
 			}, nil
 		},
-		endSessionFunc: func(ctx context.Context, id int64) error {
-			return nil // Should not be reached
-		},
 	}
 
 	// The owner's close fails while ending the supervisions.
@@ -905,6 +887,14 @@ func (m *mockVisitRepository) EndGroupSession(ctx context.Context, activeGroupID
 		result.ClosedVisits = append(result.ClosedVisits, closed)
 	}
 	return result, nil
+}
+
+// EndGroup releases a group for a takeover.
+func (m *mockVisitRepository) EndGroup(ctx context.Context, activeGroupID int64, at time.Time) error {
+	if m.endGroupFunc != nil {
+		return m.endGroupFunc(ctx, activeGroupID, at)
+	}
+	return nil
 }
 
 // EndGroupSessions is the owner's bulk session end. Without a hook it closes

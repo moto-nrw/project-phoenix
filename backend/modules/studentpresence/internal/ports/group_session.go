@@ -38,4 +38,5 @@ type GroupSessionStore interface {
 	LockGroup(context.Context, int64) (LiveGroup, Stats, error)
 	EndGroupSession(context.Context, int64, time.Time, Date) (EndedGroupSession, Stats, error)
 	EndGroupSessions(context.Context, []int64, time.Time, Date) (EndedGroupSessions, Stats, error)
+	EndGroup(context.Context, int64, time.Time) (Stats, error)
 }

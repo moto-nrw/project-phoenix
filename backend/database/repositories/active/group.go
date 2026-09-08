@@ -188,27 +188,6 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	return groups, nil
 }
 
-// EndSession marks a group session as ended at the current time
-func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*active.Group)(nil)).
-		ModelTableExpr(`active.groups AS "group"`).
-		Set("end_time = ?", time.Now()).
-		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "end session",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "end session")
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
 	return r.ListWithOptions(ctx, options)

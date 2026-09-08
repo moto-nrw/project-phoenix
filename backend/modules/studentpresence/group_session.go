@@ -55,6 +55,17 @@ type GroupSessionCommand interface {
 	// time, as the nightly job always did. Groups already ended are skipped,
 	// not rejected.
 	EndGroupSessions(context.Context, []int64, time.Time) (EndedGroupSessions, error)
+	// EndGroup releases a live group for a takeover: it stamps the group's
+	// end time and nothing else, so the caller can move the still-open
+	// visits and supervisions to the group that replaces it (force start,
+	// absorption into a started instance). It joins the caller's transaction
+	// or runs in its own, like the visit transfer beside it. An already ended
+	// group fails with ErrGroupEnded; a missing one with ErrGroupNotFound.
+	EndGroup(context.Context, int64, time.Time) error
+}
+
+func (m *Module) EndGroup(ctx context.Context, activeGroupID int64, at time.Time) error {
+	return m.engine.EndGroup(ctx, activeGroupID, at)
 }
 
 func (m *Module) LockGroup(ctx context.Context, activeGroupID int64) (LiveGroup, error) {
