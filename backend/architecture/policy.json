@@ -2090,6 +2090,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce/inbound/shiftplanning",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
@@ -13332,6 +13339,137 @@
       "source_owner": "workforce",
       "source_role": "adapter-test",
       "target_owner": "inbound-substitutions",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.http.public",
+      "description": "The Workforce shift-planning HTTP composition serves and calls the public Workforce contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.http.staff-shifts",
+      "description": "The Workforce shift-planning HTTP composition constructs the staff-shift route adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.http.shift-types",
+      "description": "The Workforce shift-planning HTTP composition constructs the shift-type route adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "inbound-shift-types",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.http.inbound-common",
+      "description": "The Workforce shift-planning HTTP composition binds shared tenant middleware, response rendering and the plan export permission check.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "workforce.http.security-contract",
+      "description": "The Workforce shift-planning HTTP composition supplies the established time-tracking, schedule and user permissions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.http.tenant-runtime",
+      "description": "The Workforce shift-planning HTTP composition marks the request transaction for rollback after a rejected plan change.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.http.legacy-shared-domain",
+      "description": "The Workforce shift-planning composition translates the retained calendar-date and wall-clock signatures while the schedule services migrate (#2689).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.http.timetable-domain",
+      "description": "The Workforce shift-planning composition maps the retained models/schedule Dienstplan rows and the category-link rejection while their services migrate (#2689).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.http.timetable-application",
+      "description": "The Workforce shift-planning composition serves the public planning contracts from the retained schedule services while they migrate (#2689).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.http.document-rendering-application",
+      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the retained plan export service (#2689).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.http.orm-sql",
+      "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "root-composition.to.workforce-http",
+      "description": "The production root constructs the Workforce HTTP composition for the staff-shift and shift-type routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
       "target_role": "http"
     },
     {

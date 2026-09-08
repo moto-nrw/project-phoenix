@@ -35,6 +35,62 @@ type Store interface {
 
 	AbsenceStore
 	SubstitutionStore
+	ShiftStore
+}
+
+// ShiftStore is the persistence port over schedule.staff_shifts,
+// schedule.staff_shift_series, schedule.staff_shift_series_exceptions and
+// schedule.shift_types. A missing row reports found=false; a duplicate
+// reports domain.ConflictError.
+type ShiftStore interface {
+	FindStaffShift(context.Context, int64) (domain.StaffShift, bool, domain.OperationStats, error)
+	ListStaffShifts(context.Context, domain.StaffShiftFilter) ([]domain.StaffShift, domain.OperationStats, error)
+	// UsedStaffShiftWeeks returns the Monday of every ISO week holding at
+	// least one non-cancelled shift in the inclusive range.
+	UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, domain.OperationStats, error)
+	CreateStaffShift(context.Context, domain.StaffShift) (domain.StaffShift, domain.OperationStats, error)
+	// CreateStaffShifts inserts every row in one statement and returns them
+	// with their identities.
+	CreateStaffShifts(context.Context, []domain.StaffShift) ([]domain.StaffShift, domain.OperationStats, error)
+	UpdateStaffShift(context.Context, domain.StaffShift) (domain.StaffShift, bool, domain.OperationStats, error)
+	// UpdateStaffShiftColumns stamps only the named columns of the row.
+	UpdateStaffShiftColumns(ctx context.Context, shift domain.StaffShift, columns []string) (int64, domain.OperationStats, error)
+	DeleteStaffShift(context.Context, int64) (domain.OperationStats, error)
+	DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error)
+	// DeleteRegenerableSeriesShifts removes a series' non-detached rows on or
+	// after from.
+	DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, domain.OperationStats, error)
+	// RepointDetachedSeriesShifts moves a series' detached rows whose source
+	// slot is on or after from to the successor series.
+	RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, domain.OperationStats, error)
+
+	FindStaffShiftSeries(context.Context, int64) (domain.StaffShiftSeries, bool, domain.OperationStats, error)
+	// FindOverlappingSeriesInLineage returns the chronologically first other
+	// segment of a split lineage still active on or after from.
+	FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (domain.StaffShiftSeries, bool, domain.OperationStats, error)
+	CreateStaffShiftSeries(context.Context, domain.StaffShiftSeries) (domain.StaffShiftSeries, domain.OperationStats, error)
+	UpdateStaffShiftSeries(context.Context, domain.StaffShiftSeries) (domain.StaffShiftSeries, bool, domain.OperationStats, error)
+	DeleteStaffShiftSeries(context.Context, int64) (domain.OperationStats, error)
+	// CapStaffShiftSeries bounds one segment at the exclusive date, keeping
+	// an already tighter bound and never moving below valid_from.
+	CapStaffShiftSeries(ctx context.Context, id int64, until string) (domain.OperationStats, error)
+	// CapStaffShiftSeriesForStaff bounds every segment of one staff member.
+	CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, until string) (int64, domain.OperationStats, error)
+
+	// RecordSeriesException stores the removed occurrence; recording the same
+	// slot again is a successful no-op.
+	RecordSeriesException(context.Context, domain.StaffShiftSeriesException) (domain.OperationStats, error)
+	SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, domain.OperationStats, error)
+	RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, domain.OperationStats, error)
+
+	ListShiftTypes(context.Context) ([]domain.ShiftType, domain.OperationStats, error)
+	FindShiftType(context.Context, int64) (domain.ShiftType, bool, domain.OperationStats, error)
+	CreateShiftType(context.Context, domain.ShiftType) (domain.ShiftType, domain.OperationStats, error)
+	// CreateShiftTypeIfAbsent inserts unless a type with the same name exists
+	// in the tenant; created reports whether a row was written.
+	CreateShiftTypeIfAbsent(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
+	UpdateShiftType(context.Context, domain.ShiftType) (domain.ShiftType, bool, domain.OperationStats, error)
+	DeleteShiftType(context.Context, int64) (domain.OperationStats, error)
 }
 
 // AbsenceStore is the persistence port over active.staff_absences,

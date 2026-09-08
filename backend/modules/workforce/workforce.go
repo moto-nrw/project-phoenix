@@ -1,9 +1,11 @@
 // Package workforce is the public Workforce capability. It owns
 // config.work_time_models, config.work_time_model_entries,
 // config.staff_work_schedules, active.staff_absences,
-// active.staff_absence_types, active.staff_absence_audit and
-// education.group_substitution: every read or write of those rows by another
-// owner goes through Query or Command instead of a foreign SQL join.
+// active.staff_absence_types, active.staff_absence_audit,
+// education.group_substitution, schedule.staff_shifts,
+// schedule.staff_shift_series, schedule.staff_shift_series_exceptions and
+// schedule.shift_types: every read or write of those rows by another owner
+// goes through Query or Command instead of a foreign SQL join.
 //
 // The capability stops at the rows themselves. Which staff member is bound to
 // a template, and who a staff member or a group is, lives with School
@@ -53,12 +55,15 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrWorkTimeModelAssigned):
 		return "conflict"
 	case errors.Is(err, ErrInvalidWorkTime), errors.Is(err, ErrInvalidStaffAbsence), errors.Is(err, ErrInvalidGroupSubstitution),
-		errors.Is(err, ErrAbsenceTypeInvalid), errors.Is(err, ErrAbsenceTypeAllowanceInvalid):
+		errors.Is(err, ErrAbsenceTypeInvalid), errors.Is(err, ErrAbsenceTypeAllowanceInvalid),
+		errors.Is(err, ErrInvalidStaffShift), errors.Is(err, ErrInvalidShiftSeries), errors.Is(err, ErrInvalidShiftType):
 		return "invalid"
-	case errors.Is(err, ErrStaffAbsenceNotFound), errors.Is(err, ErrAbsenceTypeNotFound), errors.Is(err, ErrGroupSubstitutionNotFound):
+	case errors.Is(err, ErrStaffAbsenceNotFound), errors.Is(err, ErrAbsenceTypeNotFound), errors.Is(err, ErrGroupSubstitutionNotFound),
+		errors.Is(err, ErrStaffShiftNotFound), errors.Is(err, ErrShiftSeriesNotFound), errors.Is(err, ErrShiftTypeNotFound):
 		return "not_found"
 	case errors.Is(err, ErrAbsenceTypeNameTaken), errors.Is(err, ErrAbsenceTypeNameReserved), errors.Is(err, ErrAbsenceTypeInUse),
-		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrGroupSubstitutionExists):
+		errors.Is(err, ErrAbsenceTypeInactive), errors.Is(err, ErrAbsenceTypeAllowanceExceeded), errors.Is(err, ErrGroupSubstitutionExists),
+		errors.Is(err, ErrStaffShiftDuplicate), errors.Is(err, ErrShiftTypeNameTaken):
 		return "conflict"
 	default:
 		return "internal_error"
@@ -143,6 +148,7 @@ type ReplaceStaffSchedule struct {
 type Query interface {
 	AbsenceQuery
 	SubstitutionQuery
+	ShiftQuery
 
 	// ListWorkTimeModels returns every template of the caller's tenant with
 	// its entries, ordered by name.
@@ -174,6 +180,7 @@ type Query interface {
 type Command interface {
 	AbsenceCommand
 	SubstitutionCommand
+	ShiftCommand
 
 	CreateWorkTimeModel(context.Context, CreateWorkTimeModel) (WorkTimeModel, error)
 	// UpdateWorkTimeModel replaces the template metadata and every entry, and
@@ -196,6 +203,7 @@ type Capability interface {
 type engine interface {
 	absenceEngine
 	substitutionEngine
+	shiftEngine
 
 	ListWorkTimeModels(context.Context) ([]WorkTimeModel, error)
 	FindWorkTimeModel(context.Context, int64) (WorkTimeModel, error)

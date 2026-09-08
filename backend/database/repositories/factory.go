@@ -639,10 +639,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentArrivalException:   nil, // bound to Care Plan below
 		StudentArrivalNote:        nil, // bound to Care Plan below
 		CareScheduleChangeRequest: nil, // bound to Care Plan below
-		StaffShift:                schedule.NewStaffShiftRepository(db),
-		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
-		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
-		ShiftType:                 schedule.NewShiftTypeRepository(db),
+		// Dienstplan rows belong to Workforce (#2689): the retained contracts
+		// are served by the adapters over the one facade.
+		StaffShift:                newWorkforceStaffShiftRepository(timetableDependencies.Workforce),
+		StaffShiftSeries:          newWorkforceStaffShiftSeriesRepository(timetableDependencies.Workforce),
+		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(timetableDependencies.Workforce),
+		ShiftType:                 newWorkforceShiftTypeRepository(timetableDependencies.Workforce),
 		PlanningTrack:             nil, // bound to Timetable below
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below

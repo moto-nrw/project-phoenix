@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        280
+        281
       ],
       "tables": []
     },
@@ -3642,76 +3642,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_CreateIfAbsent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        122
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_CreateNormalizesColorAndListsSorted",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_GuardBranches",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        192
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_ListWithOptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        215
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_TenantIsolation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        160
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_UniqueNamePerTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        105
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/shift_type_repo_test.go",
-      "declaration": "TestShiftTypeRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/schedule/staff_notice_repository_test.go",
       "declaration": "TestStaffNoticeRepository_Acknowledge",
       "target": "database/repositories.NewFactory",
@@ -3727,86 +3657,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         21
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        125
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_CreateFindNormalizesWallClock",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        35
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_DeleteUpcomingByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        167
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_DuplicateStartRejected",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        206
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_FindByStaffIDsAndDate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        93
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_RejectsCrossTenantStaffReference",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        253
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_TenantIsolation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        225
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/staff_shift_repo_test.go",
-      "declaration": "TestStaffShiftRepository_UpdateDeleteUseTenantAlias",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        63
       ],
       "tables": []
     },
@@ -27936,27 +27786,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 166,
+          "line": 167,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 443,
+          "line": 444,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 606,
+          "line": 607,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 844,
+          "line": 845,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1130,
+          "line": 1131,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27966,7 +27816,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 280,
+          "line": 281,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -27976,12 +27826,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 167,
+          "line": 168,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 603,
+          "line": 604,
           "declaration": "type API"
         },
         {

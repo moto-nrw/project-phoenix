@@ -97,14 +97,18 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
 		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}, newStudentPresence(db)),
-		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
-		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
-		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
+		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
+		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
+		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
 		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
 		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
@@ -123,10 +127,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	}
 	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		return TimetableTestRepositories{}, err
-	}
 	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)

@@ -4,9 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 const staffScheduleOverviewLoadErrorMessage = "staff schedule overview could not be loaded"
@@ -59,20 +57,15 @@ type OverviewResponse struct {
 	WeeklySummaries []WeeklySummaryResponse `json:"weekly_summaries"`
 }
 
-func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewResponse {
+func toOverviewResponse(overview workforce.StaffScheduleOverview) OverviewResponse {
 	usedWeeks := make([]string, 0, len(overview.UsedWeeks))
-	for _, week := range overview.UsedWeeks {
-		usedWeeks = append(usedWeeks, week.String())
-	}
+	usedWeeks = append(usedWeeks, overview.UsedWeeks...)
 	staff := make([]OverviewStaffResponse, 0, len(overview.Staff))
 	for _, member := range overview.Staff {
-		if member == nil || member.Person == nil {
-			continue
-		}
 		staff = append(staff, OverviewStaffResponse{
 			ID:        member.ID,
-			FirstName: member.Person.FirstName,
-			LastName:  member.Person.LastName,
+			FirstName: member.FirstName,
+			LastName:  member.LastName,
 		})
 	}
 
@@ -81,16 +74,16 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 		intervals := make([]CoverageIntervalResponse, 0, len(assignment.UncoveredIntervals))
 		for _, interval := range assignment.UncoveredIntervals {
 			intervals = append(intervals, CoverageIntervalResponse{
-				StartTime: timezone.NormalizeWallClock(interval.StartTime).Format("15:04"),
-				EndTime:   timezone.NormalizeWallClock(interval.EndTime).Format("15:04"),
+				StartTime: FormatWallClock(interval.StartTime),
+				EndTime:   FormatWallClock(interval.EndTime),
 			})
 		}
 		assignments = append(assignments, AssignmentResponse{
 			InstanceID:         assignment.InstanceID,
 			StaffID:            assignment.StaffID,
-			Date:               assignment.Date.String(),
-			StartTime:          timezone.NormalizeWallClock(assignment.StartTime).Format("15:04"),
-			EndTime:            timezone.NormalizeWallClock(assignment.EndTime).Format("15:04"),
+			Date:               assignment.Date,
+			StartTime:          FormatWallClock(assignment.StartTime),
+			EndTime:            FormatWallClock(assignment.EndTime),
 			ActivityTitle:      assignment.ActivityTitle,
 			RoomID:             assignment.RoomID,
 			RoomName:           assignment.RoomName,
@@ -108,7 +101,7 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 	for _, summary := range overview.WeeklySummaries {
 		weeklySummaries = append(weeklySummaries, WeeklySummaryResponse{
 			StaffID:        summary.StaffID,
-			WeekStart:      summary.WeekStart.String(),
+			WeekStart:      summary.WeekStart,
 			PlannedMinutes: summary.PlannedMinutes,
 			TargetMinutes:  summary.TargetMinutes,
 			DeltaMinutes:   summary.DeltaMinutes,
@@ -116,8 +109,8 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 	}
 
 	return OverviewResponse{
-		From:            overview.From.String(),
-		To:              overview.To.String(),
+		From:            overview.From,
+		To:              overview.To,
 		DienstplanInUse: overview.DienstplanInUse,
 		UsedWeeks:       usedWeeks,
 		Staff:           staff,
@@ -128,25 +121,18 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 }
 
 func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
-	if rs.Overview == nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			staffScheduleOverviewLoadErrorMessage,
-			errors.New("staff schedule overview not wired"),
-		))
-		return
-	}
-	from, to, ok := parseDateRange(w, r)
+	from, to, ok := rs.parseDateRange(w, r)
 	if !ok {
 		return
 	}
-	overview, err := rs.Overview.GetOverview(r.Context(), from, to)
+	overview, err := rs.planning.Overview(r.Context(), from, to)
 	if err != nil {
-		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
-			renderServiceError(w, r, err)
+		if errors.Is(err, workforce.ErrInvalidStaffShift) || errors.Is(err, workforce.ErrStaffShiftRangeTooLarge) {
+			rs.renderError(w, r, err)
 			return
 		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap(staffScheduleOverviewLoadErrorMessage, err))
+		rs.runtime.Failure(w, r, FailureInternal, &ClientMessageError{Message: staffScheduleOverviewLoadErrorMessage, Cause: err})
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toOverviewResponse(overview), "Staff schedule overview retrieved")
+	rs.runtime.Success(w, r, http.StatusOK, toOverviewResponse(overview), "Staff schedule overview retrieved")
 }
