@@ -492,7 +492,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateModule(t, mat)
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	defer s.cleanupFn()
 
 	// Tenant-override ratio of 1 child per staff member, exercised via the

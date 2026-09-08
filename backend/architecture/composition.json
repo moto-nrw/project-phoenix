@@ -7635,7 +7635,7 @@
       "declaration": "TestPhaseDelete_RetiresSourcedRosterRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1416
+        1417
       ],
       "tables": []
     },
@@ -7657,7 +7657,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2320
+        2323
       ],
       "tables": []
     },
@@ -7687,7 +7687,7 @@
       "declaration": "createSourcedTemplateSegment",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1485
+        1486
       ],
       "tables": []
     },
@@ -8651,7 +8651,7 @@
       "declaration": "buildParentServiceWithExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        52
+        57
       ],
       "tables": []
     },
