@@ -1232,6 +1232,18 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen mit Schaltfläche zur Namensliste) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
+        gallery: [
+          {
+            image: "/help/screens/tagesinformationen-anlegen.webp",
+            caption:
+              "Formular für eine neue Tagesinformation. Bei `Für wen` wählen Sie, wer den Hinweis sieht.",
+          },
+          {
+            image: "/help/screens/tagesinformationen-bestaetigungen.webp",
+            caption:
+              "Die Bestätigungsliste zeigt Namen und Zeitpunkt der Kenntnisnahme.",
+          },
+        ],
       },
       {
         id: "mitarbeiter-admin-profil",
@@ -1401,6 +1413,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Tagesinformationen in moto schule mit einem Hinweis der OGS-Leitung und der Schaltfläche zur Kenntnisnahme, daneben die Karte oben auf der Klassenansicht.",
+        image: "/help/screens/lehrkraft-tagesinformationen.webp",
         printCompact: true,
       },
       {
