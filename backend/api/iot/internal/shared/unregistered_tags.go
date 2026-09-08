@@ -5,14 +5,18 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 )
+
+// UnregisteredTagScanRecorder records failed scans without exposing operator administration.
+type UnregisteredTagScanRecorder interface {
+	Record(context.Context, string, *int64) error
+}
 
 // RecordUnregisteredTagScan best-effort persists a scan of an RFID tag that
 // resolves to no person, stamped with the device from context. Nil service
 // (not wired in tests) is a no-op; a persistence error only logs — the scan
 // response to the kiosk must not fail because bookkeeping did.
-func RecordUnregisteredTagScan(ctx context.Context, scans auditSvc.UnregisteredTagScanService, logger *slog.Logger, rfid string) {
+func RecordUnregisteredTagScan(ctx context.Context, scans UnregisteredTagScanRecorder, logger *slog.Logger, rfid string) {
 	if scans == nil {
 		return
 	}
