@@ -545,7 +545,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        794
+        780
       ],
       "tables": []
     },
@@ -565,7 +565,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        900
+        886
       ],
       "tables": []
     },
@@ -575,7 +575,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1041
+        1027
       ],
       "tables": []
     },
@@ -595,7 +595,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        853
+        839
       ],
       "tables": []
     },
@@ -605,7 +605,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        881
+        867
       ],
       "tables": []
     },
@@ -656,7 +656,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1139
+        1125
       ],
       "tables": []
     },
@@ -666,7 +666,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        609
+        595
       ],
       "tables": []
     },
@@ -686,7 +686,7 @@
       "declaration": "TestGroupSupervisorRepository_List_WithQueryOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        826
+        812
       ],
       "tables": []
     },
@@ -706,7 +706,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        751
+        737
       ],
       "tables": []
     },
@@ -716,7 +716,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        766
+        752
       ],
       "tables": []
     },

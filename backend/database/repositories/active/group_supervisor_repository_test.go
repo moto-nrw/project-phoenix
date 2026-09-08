@@ -556,9 +556,6 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
 		require.NoError(t, err)
 		assert.Zero(t, count)
-		countByGroup, err := repo.EndSupervisionsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
-		require.NoError(t, err)
-		assert.Zero(t, countByGroup)
 
 		reloaded, err := repo.FindByID(ctx, future.ID)
 		require.NoError(t, err)
@@ -579,17 +576,6 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, count)
-
-		found, err := repo.FindByID(ctx, supervisor.ID)
-		require.NoError(t, err)
-		require.Equal(t, today, *found.EndDate)
-	})
-
-	t.Run("ends groups' active supervisions on the injected date", func(t *testing.T) {
-		data, supervisor := createActiveSupervisor(t)
-		count, err := repo.EndSupervisionsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
-		require.NoError(t, err)
-		require.Equal(t, int64(1), count)
 
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)

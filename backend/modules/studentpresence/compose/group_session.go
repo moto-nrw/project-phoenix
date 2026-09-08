@@ -36,6 +36,17 @@ func (e engine) LockGroup(ctx context.Context, groupID int64) (studentpresence.L
 	return liveGroupToPublic(row), nil
 }
 
+func (e engine) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time) (studentpresence.EndedGroupSessions, error) {
+	row, err := e.Service.EndGroupSessions(ctx, groupIDs, at, timezone.DateFromTime(at))
+	if err != nil {
+		return studentpresence.EndedGroupSessions{}, err
+	}
+	return studentpresence.EndedGroupSessions{
+		VisitsClosed: row.VisitsClosed, SessionsEnded: row.SessionsEnded, SupervisorsEnded: row.SupervisorsEnded,
+		EndedActiveGroupIDs: row.EndedActiveGroupIDs,
+	}, nil
+}
+
 func (e engine) EndGroupSession(ctx context.Context, groupID int64, at time.Time) (studentpresence.EndedGroupSession, error) {
 	// Supervisions end on the school's calendar day of the close instant.
 	row, err := e.Service.EndGroupSession(ctx, groupID, at, timezone.DateFromTime(at))

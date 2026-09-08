@@ -71,10 +71,6 @@ type GroupRepository interface {
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
 
-	// EndSessionsByIDs ends multiple group sessions in a single query.
-	// Returns the number of sessions ended.
-	EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error)
-
 	// AggregateRoomSessions returns one row per active.groups session in the
 	// given room that was active at any point during [start, end] — i.e.
 	// start_time <= end AND (end_time IS NULL OR end_time >= start). Sessions
@@ -160,10 +156,6 @@ type GroupSupervisorRepository interface {
 	// touching their supervisions elsewhere. Idempotent: zero rows matched
 	// is not an error (staff already ended or never supervised this group).
 	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
-
-	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
-	// Returns the number of supervisions ended.
-	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
 
 	// FindStaleOpen returns supervisor rows started before the given day that
 	// still lack an end_date. Feeds the nightly stale-supervisor cleanup and

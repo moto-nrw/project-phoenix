@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/uptrace/bun"
 )
 
 type liveGroupRow struct {
@@ -122,4 +123,66 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 		GroupID: groupID, EndedAt: at,
 		ClosedVisits: visitRecordsFromRows(visits), EndedSupervisorIDs: supervisorIDs,
 	}, stats, nil
+}
+
+// EndGroupSessions is the nightly bulk close. It ends only groups that are
+// still open, so a retry after a rolled-back run finds the same set again and
+// a group closed in between is left alone. Visit exits keep the clamp to the
+// entry time the nightly job always applied: one skewed interval must not
+// abort the whole batch.
+func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time, endDate ports.Date) (result ports.EndedGroupSessions, stats ports.Stats, err error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return result, stats, err
+	}
+	if len(groupIDs) == 0 {
+		return result, stats, nil
+	}
+	started := time.Now()
+	defer func() { stats.StatementDuration = time.Since(started) }()
+
+	open := []int64{}
+	stats.Queries++
+	err = db.NewRaw(`SELECT id FROM active.groups WHERE tenant_id = ? AND id IN (?) AND end_time IS NULL ORDER BY id`,
+		tenantID, bun.List(groupIDs)).Scan(ctx, &open)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return result, stats, fmt.Errorf("end group sessions: list open groups: %w", err)
+	}
+	if len(open) == 0 {
+		return result, stats, nil
+	}
+
+	stats.Queries++
+	visits, err := db.NewUpdate().Table("active.visits").
+		Set("exit_time = GREATEST(?, entry_time)", at).Set("updated_at = ?", at).
+		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Exec(ctx)
+	if err != nil {
+		return result, stats, fmt.Errorf("end group sessions: close visits: %w", err)
+	}
+	if result.VisitsClosed, err = visits.RowsAffected(); err != nil {
+		return result, stats, fmt.Errorf("end group sessions: close visits: %w", err)
+	}
+
+	stats.Queries++
+	groups, err := db.NewUpdate().Table("active.groups").Set("end_time = ?", at).Set("updated_at = ?", at).
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(open)).Where("end_time IS NULL").Exec(ctx)
+	if err != nil {
+		return result, stats, fmt.Errorf("end group sessions: end groups: %w", err)
+	}
+	if result.SessionsEnded, err = groups.RowsAffected(); err != nil {
+		return result, stats, fmt.Errorf("end group sessions: end groups: %w", err)
+	}
+
+	stats.Queries++
+	supervisors, err := db.NewUpdate().Table("active.group_supervisors").Set("end_date = ?", endDate).Set("updated_at = ?", at).
+		Where("tenant_id = ?", tenantID).Where("group_id IN (?)", bun.List(open)).Where("end_date IS NULL").Exec(ctx)
+	if err != nil {
+		return result, stats, fmt.Errorf("end group sessions: end supervisors: %w", err)
+	}
+	if result.SupervisorsEnded, err = supervisors.RowsAffected(); err != nil {
+		return result, stats, fmt.Errorf("end group sessions: end supervisors: %w", err)
+	}
+	result.EndedActiveGroupIDs = open
+	stats.Rows = result.VisitsClosed + result.SessionsEnded + result.SupervisorsEnded
+	return result, stats, nil
 }

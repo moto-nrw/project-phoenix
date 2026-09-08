@@ -25,8 +25,17 @@ type EndedGroupSession struct {
 	EndedSupervisorIDs []int64
 }
 
-// GroupSessionStore closes a live group inside the caller's transaction.
+// EndedGroupSessions counts what a bulk close changed.
+type EndedGroupSessions struct {
+	VisitsClosed        int64
+	SessionsEnded       int64
+	SupervisorsEnded    int64
+	EndedActiveGroupIDs []int64
+}
+
+// GroupSessionStore closes live groups inside the caller's transaction.
 type GroupSessionStore interface {
 	LockGroup(context.Context, int64) (LiveGroup, Stats, error)
 	EndGroupSession(context.Context, int64, time.Time, Date) (EndedGroupSession, Stats, error)
+	EndGroupSessions(context.Context, []int64, time.Time, Date) (EndedGroupSessions, Stats, error)
 }

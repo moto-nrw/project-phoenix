@@ -159,3 +159,83 @@ func TestEndGroupSessionRespectsTwoTenantRLS(t *testing.T) {
 		return nil
 	}))
 }
+
+// The nightly bulk close ends only the still-open groups among the given IDs,
+// with their open visits and supervisions, and reports what it changed. A
+// retry finds nothing left to close and rewrites no departure.
+func TestEndGroupSessionsClosesOpenGroupsOnly(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Bulk end")
+	room := testpkg.CreateTestRoom(t, db, "Bulk end")
+	staff := testpkg.CreateTestStaff(t, db, "Bulk", "End")
+	student := testpkg.CreateTestStudent(t, db, "Bulk", "Student", "1a")
+	skewedStudent := testpkg.CreateTestStudent(t, db, "Bulk", "Skewed", "1a")
+	untouchedStudent := testpkg.CreateTestStudent(t, db, "Bulk", "Untouched", "1a")
+	first := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	second := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	untouched := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	firstSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, first.ID, "supervisor")
+	secondSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, second.ID, "supervisor")
+	untouchedSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, untouched.ID, "supervisor")
+	entry := time.Now().Add(-time.Hour)
+	firstVisit := testpkg.CreateTestVisit(t, db, student.ID, first.ID, entry, nil)
+	// A visit whose entry is ahead of the close instant keeps a zero-length
+	// interval instead of an exit before its entry.
+	skewedEntry := time.Now().Add(time.Hour)
+	skewedVisit := testpkg.CreateTestVisit(t, db, skewedStudent.ID, second.ID, skewedEntry, nil)
+	untouchedVisit := testpkg.CreateTestVisit(t, db, untouchedStudent.ID, untouched.ID, entry, nil)
+	at := time.Now().Truncate(time.Microsecond)
+
+	var ended studentpresence.EndedGroupSessions
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		ended, err = module.EndGroupSessions(txCtx, []int64{first.ID, second.ID}, at)
+		return err
+	}))
+	assert.EqualValues(t, 2, ended.VisitsClosed)
+	assert.EqualValues(t, 2, ended.SessionsEnded)
+	assert.EqualValues(t, 2, ended.SupervisorsEnded)
+	assert.ElementsMatch(t, []int64{first.ID, second.ID}, ended.EndedActiveGroupIDs)
+
+	for _, group := range []testpkg.EndedActiveGroup{
+		{GroupID: first.ID, SupervisorID: firstSupervisor.ID},
+		{GroupID: second.ID, SupervisorID: secondSupervisor.ID},
+	} {
+		groupEnded, supervisorEnded := testpkg.ActiveGroupEnded(t, db, group)
+		assert.True(t, groupEnded)
+		assert.True(t, supervisorEnded)
+	}
+	groupEnded, supervisorEnded := testpkg.ActiveGroupEnded(t, db, testpkg.EndedActiveGroup{GroupID: untouched.ID, SupervisorID: untouchedSupervisor.ID})
+	assert.False(t, groupEnded, "a group outside the batch keeps running")
+	assert.False(t, supervisorEnded)
+
+	visits, err := module.ListVisits(ctx, studentpresence.VisitFilter{IDs: []int64{firstVisit.ID, skewedVisit.ID, untouchedVisit.ID}})
+	require.NoError(t, err)
+	exits := map[int64]*time.Time{}
+	for _, visit := range visits {
+		exits[visit.ID] = visit.ExitTime
+	}
+	require.NotNil(t, exits[firstVisit.ID])
+	assert.WithinDuration(t, at, *exits[firstVisit.ID], time.Millisecond)
+	require.NotNil(t, exits[skewedVisit.ID])
+	assert.WithinDuration(t, skewedEntry, *exits[skewedVisit.ID], time.Millisecond, "the exit is clamped to the entry time")
+	assert.Nil(t, exits[untouchedVisit.ID])
+
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		ended, err = module.EndGroupSessions(txCtx, []int64{first.ID, second.ID, untouched.ID}, time.Now())
+		return err
+	}))
+	assert.EqualValues(t, 1, ended.SessionsEnded, "only the group still open is ended on the retry")
+	assert.Equal(t, []int64{untouched.ID}, ended.EndedActiveGroupIDs)
+	visits, err = module.ListVisits(ctx, studentpresence.VisitFilter{IDs: []int64{firstVisit.ID}})
+	require.NoError(t, err)
+	require.Len(t, visits, 1)
+	assert.WithinDuration(t, at, *visits[0].ExitTime, time.Millisecond, "the retry does not rewrite the recorded departure")
+
+	_, err = module.EndGroupSessions(ctx, []int64{first.ID}, at)
+	require.ErrorContains(t, err, "transaction is required")
+}

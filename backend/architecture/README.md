@@ -371,7 +371,14 @@ of the root composition tracked by #2762, and the port is rebound to the
 Timetable owner's public capability when that cutover lands. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
 exactly this facade and no longer orchestrates the Timetable bridge and the
-active service itself. The workflow owns no data object: policy validation
+active service itself. The other session-ending paths of the retained active
+service (the manual group end, the instance Complete and Cancel transitions
+through `EndActivitySession`, the timeout, and the nightly bulk end) write
+their presence rows through the same owner commands (`EndGroupSession`,
+`EndGroupSessions`); the legacy bulk group and supervision end methods are
+deleted. Those paths still complete the mirrored instance through the
+retained bridge inside the active service; moving them onto the workflow is
+the remaining #2762 work. The workflow owns no data object: policy validation
 refuses a write owner of kind `workflow`. Under ADR 0013, this registration
 raises the policy epoch from 3 to 4 and uses only candidate-created packages.
 Existing-owner import and data-ownership guards remain unchanged.
