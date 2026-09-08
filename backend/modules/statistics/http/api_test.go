@@ -1,9 +1,9 @@
-// Package statistics_test drives the production Resource.Router() so the
+// Package statisticshttp_test drives the production Resource.Router() so the
 // full middleware chain (JWT → tenant → permissions → tenant tx) runs as on
 // the real server. It pins the permission pair, the range validation, the
 // care-day arithmetic with a closing day and a holiday period, the absence
 // categories, the room utilization window semantics, and the export audit.
-package statistics_test
+package statisticshttp_test
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -27,6 +26,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

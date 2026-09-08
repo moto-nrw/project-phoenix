@@ -303,6 +303,30 @@ only because PR mode cannot record debt for a package the candidate creates
 exists at a base SHA, rebind each port to its owner's public capability as it
 appears, and delete the adapter with the last legacy source.
 
+The supervision read projection (`modules/supervisiondashboard`,
+`calendar-view`/`public`, #2703) builds the "Aktuelle Aufsicht" aggregate
+from plain owner facts through consumer-owned ports; it persists nothing and
+never writes. Its compatibility adapter (`modules/supervisiondashboard/legacy`,
+`calendar-view`/`adapter`) binds those ports to the retained identity,
+settings, presence, Schulhof, timetable-operations and day-planning services
+and to the shared authorize rules, and maps the Timetable and Facilities wire
+rows field by field (the adapter tests pin byte-identical JSON). Every
+`calendar-view.adapter.*` and `calendar-view.adapter-test.*` rule is a
+compatibility permission that exists only because PR mode cannot record debt
+for a package the candidate creates: convert them to exact debt with the rule
+above once the package exists at a base SHA, rebind each port to its owner's
+public capability as it appears, and delete the adapter with the last legacy
+source. The same applies to the staff calendar HTTP adapter
+(`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
+rendering, the permission contract, the JWT middleware, the calendar-date type
+and, as the one compatibility binding, the retained `services/calendar`
+until School Calendar exposes the staff calendar publicly) and to the
+statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
+the same shared HTTP dependencies, the Bun database the tenant middleware
+takes, the Document Rendering renderer and, as compatibility binding, the
+retained `services/statistics`), including their `*.adapter-test.*`
+permissions.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

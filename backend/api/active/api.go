@@ -8,11 +8,11 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -30,7 +30,7 @@ type Resource struct {
 	// SupervisionDashboardService backs the aggregated supervision dashboard
 	// endpoint (#2096); assigned after construction to keep the positional
 	// constructor's existing call sites unchanged.
-	SupervisionDashboardService supervisiondashboard.Getter
+	SupervisionDashboardService supervisiondashboard.Query
 	db                          *bun.DB
 	logger                      *slog.Logger
 }

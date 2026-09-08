@@ -47,6 +47,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -74,7 +76,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
-	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -237,7 +238,7 @@ type Factory struct {
 	// Statistics is the Statistik report (#2606).
 	Statistics              statistics.Service
 	OGSGroupLive            grouplive.Query
-	SupervisionDashboard    supervisiondashboard.Getter
+	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
 	OperatorMFA             platform.OperatorMFAService
@@ -2946,7 +2947,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
 
-	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
+	supervisionDashboardService, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{
 		Active:      activeService,
 		UserContext: userContextService,
 		Education:   educationService,
@@ -2955,7 +2956,11 @@ func newFactory(
 		Settings:    settingsService,
 		Pickups:     pickupScheduleService,
 		Arrivals:    arrivalScheduleService,
+		Now:         now,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)
+	}
 
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 		InstanceStudentRepo:        repos.InstanceStudent,
