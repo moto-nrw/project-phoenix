@@ -26,12 +26,18 @@ import { Modal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
+  HOME_BOARD_COLUMNS,
+  computeBoardCells,
   homeBlockDefinition,
+  rowsOf,
   type HomeBlockDefinition,
   type HomeBlockKey,
   type HomeBlockPlacement,
   type HomeBlockSpan,
+  type HomeBoardCell,
+  type HomeMoveTarget,
 } from "~/lib/home-blocks";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 
 /**
  * Das Brett der Startseite (#2180): die Bausteine an ihren Plätzen.
@@ -119,7 +125,8 @@ export interface HomeBoardProps {
   readonly placements: readonly HomeBlockPlacement[];
   readonly addable: readonly HomeBlockDefinition[];
   readonly editing: boolean;
-  readonly onReorder: (from: number, to: number) => void;
+  /** Versetzt einen Baustein in eine Reihe oder in eine neue Reihe. */
+  readonly onMove: (key: HomeBlockKey, target: HomeMoveTarget) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onAdd: (key: HomeBlockKey) => void;
@@ -135,6 +142,15 @@ interface ItemHandle {
   readonly set: (x: number, y: number) => void;
   readonly settle: () => void;
 }
+
+type MoveDirection = "left" | "right" | "up" | "down";
+
+const ARROW_DIRECTION: Readonly<Record<string, MoveDirection>> = {
+  ArrowLeft: "left",
+  ArrowRight: "right",
+  ArrowUp: "up",
+  ArrowDown: "down",
+};
 
 /** Alles, was ein Zug zwischen zwei Ereignissen wissen muss. */
 interface DragSession {
@@ -168,7 +184,7 @@ export function HomeBoard({
   placements,
   addable,
   editing,
-  onReorder,
+  onMove,
   onSpanChange,
   onRemove,
   onAdd,
@@ -239,32 +255,94 @@ export function HomeBoard({
   }, [endDrag]);
 
   /**
-   * Die Zelle, über der der Zeiger steht — nach der Geometrie des Rasters,
-   * nicht nach dem Element, das gerade darunter durchgleitet.
+   * Wohin die gezogene Kachel gehört — nach der Geometrie des Rasters, nicht
+   * nach dem Element, das gerade darunter durchgleitet.
+   *
+   * Drei Fälle, in dieser Reihenfolge: der Zeiger steht auf einer anderen
+   * Kachel (deren Platz in deren Reihe), im freien Rest einer Reihe (ans Ende
+   * dieser Reihe), oder in der Lücke zwischen zwei Reihen beziehungsweise
+   * über der ersten und unter der letzten (eine neue Reihe dort). So bekommt
+   * auch eine schmale Kennzahl eine Reihe für sich, wenn man sie unter eine
+   * Karte legt, statt dass das Raster sie daneben spült.
    */
-  const cellUnderPointer = (
+  const targetUnderPointer = (
+    current: DragSession,
     clientX: number,
     clientY: number,
-  ): HomeBlockKey | null => {
+  ): HomeMoveTarget | null => {
     const container = grid.current;
     if (!container) return null;
     const bounds = container.getBoundingClientRect();
     const px = clientX - bounds.left;
     const py = clientY - bounds.top;
-    for (const child of Array.from(container.children)) {
-      const cell = child as HTMLElement;
-      const key = cell.dataset.blockKey as HomeBlockKey | undefined;
-      if (!key) continue;
-      if (
-        px >= cell.offsetLeft &&
-        px <= cell.offsetLeft + cell.offsetWidth &&
-        py >= cell.offsetTop &&
-        py <= cell.offsetTop + cell.offsetHeight
-      ) {
-        return key;
+    const cellOf = (key: HomeBlockKey) =>
+      container.querySelector<HTMLElement>(`[data-block-key="${key}"]`);
+
+    const bands = rowsOf(order.current).map((entries, row) => {
+      let top = Number.POSITIVE_INFINITY;
+      let bottom = Number.NEGATIVE_INFINITY;
+      for (const entry of entries) {
+        const cell = cellOf(entry.key);
+        if (!cell) continue;
+        top = Math.min(top, cell.offsetTop);
+        bottom = Math.max(bottom, cell.offsetTop + cell.offsetHeight);
+      }
+      return { row, entries, top, bottom };
+    });
+
+    const draggedSpan =
+      order.current.find((entry) => entry.key === current.key)?.span ?? 1;
+    // Hat eine Reihe keinen Platz mehr für die gezogene Kachel, meint der
+    // Zeiger über ihr die Reihe DAVOR oder DANACH — je nachdem, ob er in der
+    // oberen oder unteren Hälfte steht. So legt man eine Kennzahl unter eine
+    // volle Reihe, ohne die schmale Lücke treffen zu müssen.
+    const roomIn = (band: (typeof bands)[number]) =>
+      HOME_BOARD_COLUMNS -
+      band.entries
+        .filter((entry) => entry.key !== current.key)
+        .reduce((sum, entry) => sum + entry.span, 0);
+
+    for (const band of bands) {
+      for (const [index, entry] of band.entries.entries()) {
+        const cell = cellOf(entry.key);
+        if (!cell) continue;
+        if (
+          px >= cell.offsetLeft &&
+          px <= cell.offsetLeft + cell.offsetWidth &&
+          py >= cell.offsetTop &&
+          py <= cell.offsetTop + cell.offsetHeight
+        ) {
+          // Die eigene Zelle: da ist sie schon.
+          if (entry.key === current.key) return null;
+          if (roomIn(band) < draggedSpan) {
+            const below = py > (band.top + band.bottom) / 2;
+            return { kind: "newRow", before: below ? band.row + 1 : band.row };
+          }
+          return { kind: "into", row: band.row, index };
+        }
       }
     }
-    return null;
+
+    // Die Lücke zwischen zwei Reihen ist schmal; ein Rand innerhalb der
+    // Reihe zählt mit dazu, damit man sie mit dem Zeiger trifft.
+    const edge = 10;
+    for (const band of bands) {
+      if (py < band.top + edge || py > band.bottom - edge) continue;
+      const first = cellOf(band.entries[0]!.key);
+      const last = cellOf(band.entries[band.entries.length - 1]!.key);
+      if (last && px > last.offsetLeft + last.offsetWidth) {
+        return { kind: "into", row: band.row, index: band.entries.length };
+      }
+      if (first && px < first.offsetLeft) {
+        return { kind: "into", row: band.row, index: 0 };
+      }
+      return null;
+    }
+
+    for (const band of bands) {
+      if (py < band.top + edge) return { kind: "newRow", before: band.row };
+    }
+    return { kind: "newRow", before: bands.length };
   };
 
   /**
@@ -291,11 +369,8 @@ export function HomeBoard({
     current.lastY = clientY;
     place(current);
 
-    const overKey = cellUnderPointer(clientX, clientY);
-    if (!overKey || overKey === current.key) return;
-    const from = order.current.findIndex((entry) => entry.key === current.key);
-    const to = order.current.findIndex((entry) => entry.key === overKey);
-    if (from >= 0 && to >= 0 && from !== to) onReorder(from, to);
+    const target = targetUnderPointer(current, clientX, clientY);
+    if (target) onMove(current.key, target);
   };
 
   /**
@@ -410,12 +485,54 @@ export function HomeBoard({
     endDrag();
   };
 
-  const moveByKeyboard = (key: HomeBlockKey, delta: -1 | 1) => {
-    const from = placements.findIndex((entry) => entry.key === key);
-    const to = from + delta;
-    if (from < 0 || to < 0 || to >= placements.length) return;
-    onReorder(from, to);
+  /**
+   * Ohne Maus: links und rechts wandern durch die Reihe und an deren Rand in
+   * die Nachbarreihe; oben und unten geben der Kachel eine eigene Reihe
+   * darüber oder darunter (oder rücken ihre eigene Reihe).
+   */
+  const moveByKeyboard = (key: HomeBlockKey, direction: MoveDirection) => {
+    const rows = rowsOf(placements);
+    const row = rows.findIndex((entries) =>
+      entries.some((entry) => entry.key === key),
+    );
+    if (row < 0) return;
+    const entries = rows[row]!;
+    const index = entries.findIndex((entry) => entry.key === key);
+    const alone = entries.length === 1;
+    switch (direction) {
+      case "left":
+        if (index > 0) onMove(key, { kind: "into", row, index: index - 1 });
+        else if (row > 0) {
+          onMove(key, {
+            kind: "into",
+            row: row - 1,
+            index: rows[row - 1]!.length,
+          });
+        }
+        return;
+      case "right":
+        if (index < entries.length - 1) {
+          onMove(key, { kind: "into", row, index: index + 1 });
+        } else if (row < rows.length - 1) {
+          onMove(key, { kind: "into", row: row + 1, index: 0 });
+        }
+        return;
+      case "up":
+        if (alone && row === 0) return;
+        onMove(key, { kind: "newRow", before: alone ? row - 1 : row });
+        return;
+      case "down":
+        if (alone && row === rows.length - 1) return;
+        onMove(key, { kind: "newRow", before: alone ? row + 2 : row + 1 });
+        return;
+    }
   };
+
+  // Ab der zweispaltigen Ansicht zeichnet das Brett die Reihen ausdrücklich;
+  // vier Spalten gibt es erst auf einem breiten Bildschirm.
+  const flow = useMediaQuery(BELOW_SM);
+  const wide = useMediaQuery("(min-width: 1280px)");
+  const cells = computeBoardCells(placements, wide ? 4 : 2);
 
   const selectedIndex = placements.findIndex(
     (placement) => placement.key === selectedKey,
@@ -452,15 +569,13 @@ export function HomeBoard({
       <ul
         ref={grid}
         data-testid="home-board"
-        // `grid-flow-row-dense` füllt Lücken: steht eine schmale Kennzahl
-        // hinter einer breiten Karte, rutscht sie in das freie Feld davor,
-        // statt eine halbe Reihe leer zu lassen — dasselbe Verhalten wie auf
-        // einem Startbildschirm mit gemischten Kachelgrößen. Beim Anordnen
-        // bleibt das aus: dort soll die Reihenfolge stehen, die man baut.
-        // `relative`, damit die Zellen ihre Lage relativ zum Raster kennen.
-        className={`relative grid grid-cols-2 gap-4 sm:auto-rows-[7rem] xl:grid-cols-4 ${
-          editing ? "" : "sm:grid-flow-row-dense"
-        }`}
+        // Jede Zelle bekommt ihren Platz ausdrücklich zugewiesen (Spalte und
+        // Rasterzeile aus den Reihen der Person); das Raster verteilt nichts
+        // selbst und füllt keine Lücken. Nur auf dem Handy fließen die
+        // Kacheln in Reihenfolge, dort gibt es keine Reihe, neben der etwas
+        // stehen müsste. `relative`, damit die Zellen ihre Lage relativ zum
+        // Raster kennen.
+        className="relative grid grid-cols-2 gap-4 sm:auto-rows-[7rem] xl:grid-cols-4"
       >
         {placements.map((placement, index) => {
           const definition = homeBlockDefinition(placement.key);
@@ -470,6 +585,7 @@ export function HomeBoard({
               key={placement.key}
               placement={placement}
               definition={definition}
+              cell={flow ? null : (cells.get(placement.key) ?? null)}
               editing={editing}
               dragging={dragging}
               reduceMotion={reduceMotion}
@@ -492,7 +608,9 @@ export function HomeBoard({
                     if (dragHappened.current) return;
                     setSelectedKey(placement.key);
                   }}
-                  onMove={(delta) => moveByKeyboard(placement.key, delta)}
+                  onMove={(direction) =>
+                    moveByKeyboard(placement.key, direction)
+                  }
                 />
               ) : (
                 <div className="h-full min-h-0">{children(placement)}</div>
@@ -514,6 +632,7 @@ export function HomeBoard({
 function BoardItem({
   placement,
   definition,
+  cell,
   editing,
   dragging,
   reduceMotion,
@@ -526,6 +645,8 @@ function BoardItem({
 }: {
   readonly placement: HomeBlockPlacement;
   readonly definition: HomeBlockDefinition | null;
+  /** Die ausdrückliche Rasterzelle; `null` lässt die Kachel fließen (Handy). */
+  readonly cell: HomeBoardCell | null;
   readonly editing: boolean;
   readonly dragging: boolean;
   readonly reduceMotion: boolean;
@@ -576,11 +697,18 @@ function BoardItem({
         y,
         position: "relative",
         zIndex: dragging ? 10 : undefined,
+        ...(cell
+          ? {
+              gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
+              gridRow: `${cell.rowStart} / span ${cell.rowSpan}`,
+            }
+          : {}),
       }}
       data-testid={`home-block-${placement.key}`}
       data-block-key={placement.key}
       data-span={placement.span}
-      className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0 ${
+      data-row={placement.row}
+      className={`min-h-0 ${cell ? "" : `${SPAN_CLASS[placement.span]} ${rowClass(definition)}`} ${
         editing ? "touch-pan-y select-none" : ""
       }`}
       // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt kein
@@ -618,16 +746,13 @@ function ArrangeTile({
   readonly selected: boolean;
   readonly dragging: boolean;
   readonly onSelect: () => void;
-  readonly onMove: (delta: -1 | 1) => void;
+  readonly onMove: (direction: MoveDirection) => void;
 }) {
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      event.preventDefault();
-      onMove(-1);
-    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      event.preventDefault();
-      onMove(1);
-    }
+    const direction = ARROW_DIRECTION[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    onMove(direction);
   };
 
   return (
@@ -638,7 +763,7 @@ function ArrangeTile({
       onClick={onSelect}
       onKeyDown={onKeyDown}
       aria-pressed={selected}
-      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}. Pfeiltasten verschieben.`}
+      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}. Pfeiltasten verschieben: links und rechts in der Reihe, oben und unten in eine eigene Reihe.`}
       className={`flex h-full w-full flex-col items-start gap-2 p-4 text-left ${
         dragging
           ? "scale-[1.02] cursor-grabbing shadow-xl"

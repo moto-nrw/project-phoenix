@@ -58,6 +58,11 @@ const MaxHomeBlockEntries = 100
 type HomeBlockPlacement struct {
 	Key  string `json:"key"`
 	Span int    `json:"span"`
+	// Row is the zero-based row of the start page grid the block sits in
+	// (#2180). Rows are the person's own grouping: a block dropped between two
+	// rows gets a row of its own. Arrangements stored before rows existed
+	// carry 0 everywhere; the frontend packs those by width.
+	Row int `json:"row"`
 }
 
 // ValidateHomeBlockPlacements rejects a malformed arrangement: unknown key
@@ -76,6 +81,9 @@ func ValidateHomeBlockPlacements(blocks []HomeBlockPlacement) error {
 		}
 		if block.Span != 1 && block.Span != 2 && block.Span != 4 {
 			return fmt.Errorf("start page block %q has an invalid width %d", block.Key, block.Span)
+		}
+		if block.Row < 0 || block.Row >= MaxHomeBlockEntries {
+			return fmt.Errorf("start page block %q has an invalid row %d", block.Key, block.Row)
 		}
 		if _, duplicate := seen[block.Key]; duplicate {
 			return fmt.Errorf("start page block %q is placed twice", block.Key)

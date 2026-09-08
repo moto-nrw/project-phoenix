@@ -380,8 +380,8 @@ describe("Startseite anpassen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     layoutState.blocks = [
-      { key: "tile.students_present", span: 1 },
-      { key: "section.staff_notices", span: 2 },
+      { key: "tile.students_present", span: 1, row: 0 },
+      { key: "section.staff_notices", span: 2, row: 0 },
     ];
     // Der Rest der Standardansicht ist bereits entfernt, damit diese Fläche
     // genau zwei Karten hat und die Erwartungen unten lesbar bleiben.
@@ -453,8 +453,8 @@ describe("Startseite anpassen", () => {
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "tile.students_present", span: 1 },
-      { key: "section.staff_notices", span: 4 },
+      { key: "tile.students_present", span: 1, row: 0 },
+      { key: "section.staff_notices", span: 4, row: 1 },
     ]);
   });
 
@@ -513,8 +513,8 @@ describe("Startseite anpassen", () => {
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2 },
-      { key: "tile.students_present", span: 1 },
+      { key: "section.staff_notices", span: 2, row: 0 },
+      { key: "tile.students_present", span: 1, row: 0 },
     ]);
   });
 
@@ -534,8 +534,8 @@ describe("Startseite anpassen", () => {
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2 },
-      { key: "tile.students_present", span: 1 },
+      { key: "section.staff_notices", span: 2, row: 0 },
+      { key: "tile.students_present", span: 1, row: 0 },
     ]);
   });
 
@@ -554,7 +554,7 @@ describe("Startseite anpassen", () => {
       "tile.students_present": false,
     });
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "section.staff_notices", span: 2 },
+      { key: "section.staff_notices", span: 2, row: 0 },
     ]);
   });
 
@@ -566,9 +566,12 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Ans Ende heißt: in die letzte Reihe, wenn dort Platz ist, sonst in eine
+    // neue darunter — hier ist die erste Reihe mit drei Spalten schon zu voll.
     expect(save.mock.calls[0]?.[1]?.at(-1)).toEqual({
       key: "section.birthdays",
       span: 2,
+      row: 1,
     });
   });
 

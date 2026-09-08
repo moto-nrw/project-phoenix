@@ -76,17 +76,18 @@ func (s *settingsService) HomeLayout(ctx context.Context, tenantID, accountID in
 	return homeLayouts.View(ctx, tenantID, accountID, permissions)
 }
 
-func (s *settingsService) SetHomeLayout(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, order []string, spans map[string]int) error {
+func (s *settingsService) SetHomeLayout(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, order []string, spans map[string]int, rows map[string]int) error {
 	homeLayouts, err := s.homeLayoutService()
 	if err != nil {
 		return err
 	}
-	// Order and width arrive apart from the HTTP layer and become the stored
-	// arrangement here. A key without a width keeps span 0 and is rejected by
-	// the placement validation rather than silently defaulting to some size.
+	// Order, width and row arrive apart from the HTTP layer and become the
+	// stored arrangement here. A key without a width keeps span 0 and is
+	// rejected by the placement validation rather than silently defaulting to
+	// some size; a key without a row lands in row 0.
 	blocks := make([]configModel.HomeBlockPlacement, 0, len(order))
 	for _, key := range order {
-		blocks = append(blocks, configModel.HomeBlockPlacement{Key: key, Span: spans[key]})
+		blocks = append(blocks, configModel.HomeBlockPlacement{Key: key, Span: spans[key], Row: rows[key]})
 	}
 	return homeLayouts.SetOverrides(ctx, tenantID, accountID, overrides, blocks)
 }

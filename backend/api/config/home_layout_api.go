@@ -31,6 +31,7 @@ type homeLayoutOverridesRequest struct {
 type homeLayoutBlockRequest struct {
 	Key  string `json:"key"`
 	Span int    `json:"span"`
+	Row  int    `json:"row"`
 }
 
 type homeBlockPoliciesRequest struct {
@@ -84,12 +85,14 @@ func (rs *SettingsResource) setHomeLayout(w http.ResponseWriter, r *http.Request
 
 	order := make([]string, 0, len(req.Blocks))
 	spans := make(map[string]int, len(req.Blocks))
+	rows := make(map[string]int, len(req.Blocks))
 	for _, block := range req.Blocks {
 		order = append(order, block.Key)
 		spans[block.Key] = block.Span
+		rows[block.Key] = block.Row
 	}
 
-	if err := rs.homeLayouts.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides, order, spans); err != nil {
+	if err := rs.homeLayouts.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides, order, spans, rows); err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
 	}

@@ -20,11 +20,16 @@ import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatStatusDate } from "~/lib/date-helpers";
 import { getTimeBasedGreeting } from "~/lib/greeting";
 import {
+  appendPlacement,
   defaultSpanFor,
+  movePlacement,
+  placementWithSpan,
   resolveHomeLayout,
+  withoutPlacement,
   type HomeBlockKey,
   type HomeBlockPlacement,
   type HomeBlockSpan,
+  type HomeMoveTarget,
 } from "~/lib/home-blocks";
 import { useHomeBlockAccess } from "~/lib/hooks/use-home-block-access";
 import { useReminders } from "~/lib/hooks/use-reminders";
@@ -212,32 +217,23 @@ function HomeContent() {
     setSaveError(null);
   }, []);
 
-  const reorder = useCallback((from: number, to: number) => {
-    setDraft((current) => {
-      if (!current) return current;
-      if (to < 0 || to >= current.length) return current;
-      const next = [...current];
-      const [moved] = next.splice(from, 1);
-      if (!moved) return current;
-      next.splice(to, 0, moved);
-      return next;
-    });
+  // Jede Änderung am Entwurf läuft durch dieselben Regeln (`home-blocks.ts`):
+  // Reihen bleiben lückenlos, eine Reihe, die überläuft, teilt sich, und
+  // eine leere verschwindet.
+  const move = useCallback((key: HomeBlockKey, target: HomeMoveTarget) => {
+    setDraft((current) =>
+      current ? movePlacement(current, key, target) : current,
+    );
   }, []);
 
   const changeSpan = useCallback((key: HomeBlockKey, span: HomeBlockSpan) => {
-    setDraft(
-      (current) =>
-        current?.map((placement) =>
-          placement.key === key ? { ...placement, span } : placement,
-        ) ?? current,
+    setDraft((current) =>
+      current ? placementWithSpan(current, key, span) : current,
     );
   }, []);
 
   const removeBlock = useCallback((key: HomeBlockKey) => {
-    setDraft(
-      (current) =>
-        current?.filter((placement) => placement.key !== key) ?? null,
-    );
+    setDraft((current) => (current ? withoutPlacement(current, key) : null));
     setRemovedInDraft((current) =>
       current.includes(key) ? current : [...current, key],
     );
@@ -250,7 +246,7 @@ function HomeContent() {
       }
       // Neu hinzugefügt heisst hinten: die vorhandene Anordnung soll sich
       // durch ein Hinzufügen nicht verschieben.
-      return [...current, { key, span: defaultSpanFor(key) }];
+      return appendPlacement(current, key, defaultSpanFor(key));
     });
     setRemovedInDraft((current) => current.filter((entry) => entry !== key));
   }, []);
@@ -414,7 +410,7 @@ function HomeContent() {
           placements={placements}
           addable={addable}
           editing={editing}
-          onReorder={reorder}
+          onMove={move}
           onSpanChange={changeSpan}
           onRemove={removeBlock}
           onAdd={addBlock}

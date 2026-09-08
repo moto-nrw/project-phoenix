@@ -649,10 +649,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Jede Person stellt sich ihre Startseite selbst zusammen: welche Bausteine, in welcher Reihenfolge, wie breit. Die Anordnung gilt auf allen Geräten.",
         steps: [
           "Auf der `Startseite` oben rechts `Anpassen` klicken. Statt der Inhalte zeigt die Fläche jetzt die Anordnung: jede Karte als Kachel mit Name und Breite.",
-          "Eine Kachel an ihren neuen Platz ziehen. Die anderen rücken dabei beiseite, die Kachel landet dort, wo Sie sie loslassen. Am Handy die Kachel kurz gedrückt halten und dann ziehen.",
+          "Eine Kachel an ihren neuen Platz ziehen. Die anderen rücken dabei beiseite, die Kachel landet dort, wo Sie sie loslassen. Legen Sie sie in die Lücke zwischen zwei Reihen, bekommt sie eine eigene Reihe, auch eine schmale Kennzahl allein. Am Handy die Kachel kurz gedrückt halten und dann ziehen.",
           "Eine Kachel anklicken, um sie auszuwählen. Über der Fläche erscheint eine Leiste mit Breite und `Entfernen`; sie bleibt beim Scrollen stehen.",
           "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
-          "Ohne Maus: die Kachel mit der Tabulatortaste ansteuern und mit den Pfeiltasten verschieben. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
+          "Ohne Maus: die Kachel mit der Tabulatortaste ansteuern. Pfeil links und rechts verschieben sie in der Reihe, Pfeil oben und unten geben ihr eine eigene Reihe darüber oder darunter. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
           "Über `Bausteine` in der Leiste holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
           "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` in der Leiste bringt die Ansicht Ihrer Rolle zurück.",
           "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter. Die Zeile mit Uhrzeit und laufendem Einsatz bleibt immer stehen; sie ist kein Baustein.",

@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LAYOUTS,
   HOME_BLOCKS,
+  appendPlacement,
+  computeBoardCells,
   homeProfileFor,
+  movePlacement,
+  placementWithSpan,
   resolveHomeLayout,
+  rowsOf,
   sanitizeHomeBlockPlacements,
   sanitizeHomeBlockPolicies,
   sanitizeHomeLayoutOverrides,
   type HomeBlockAccess,
   type HomeBlockContext,
   type HomeBlockKey,
+  type HomeBlockPlacement,
 } from "./home-blocks";
 
 /** Jemand, der alles darf — der Betriebsmodus bleibt so die einzige Variable. */
@@ -203,15 +209,25 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
     const { placements, customized } = resolveHomeLayout(
       fullContext,
       [
-        { key: "section.staff_notices", span: 4 },
-        { key: "tile.students_sick", span: 1 },
+        { key: "section.staff_notices", span: 4, row: 0 },
+        { key: "tile.students_sick", span: 1, row: 0 },
       ],
       {},
       {},
     );
 
-    expect(placements[0]).toEqual({ key: "section.staff_notices", span: 4 });
-    expect(placements[1]).toEqual({ key: "tile.students_sick", span: 1 });
+    expect(placements[0]).toEqual({
+      key: "section.staff_notices",
+      span: 4,
+      row: 0,
+    });
+    // Neben einer Karte über die volle Breite ist kein Platz: die Kennzahl
+    // rückt in eine eigene Reihe darunter.
+    expect(placements[1]).toEqual({
+      key: "tile.students_sick",
+      span: 1,
+      row: 1,
+    });
     expect(customized).toBe(true);
   });
 
@@ -220,7 +236,7 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
     // Startseite längst eingerichtet hat.
     const { placements } = resolveHomeLayout(
       fullContext,
-      [{ key: "section.staff_notices", span: 2 }],
+      [{ key: "section.staff_notices", span: 2, row: 0 }],
       {},
       {},
     );
@@ -232,7 +248,7 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
   it("lässt entfernte Bausteine entfernt", () => {
     const { placements, addable } = resolveHomeLayout(
       fullContext,
-      [{ key: "section.staff_notices", span: 2 }],
+      [{ key: "section.staff_notices", span: 2, row: 0 }],
       { "section.open_requests": false },
       {},
     );
@@ -246,20 +262,24 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
   it("korrigiert eine Breite, die es für den Baustein nicht gibt", () => {
     const { placements } = resolveHomeLayout(
       fullContext,
-      [{ key: "tile.students_sick", span: 4 }],
+      [{ key: "tile.students_sick", span: 4, row: 0 }],
       {},
       {},
     );
 
-    expect(placements[0]).toEqual({ key: "tile.students_sick", span: 1 });
+    expect(placements[0]).toEqual({
+      key: "tile.students_sick",
+      span: 1,
+      row: 0,
+    });
   });
 
   it("stellt einen Baustein nicht zweimal auf die Fläche", () => {
     const { placements } = resolveHomeLayout(
       fullContext,
       [
-        { key: "section.staff_notices", span: 2 },
-        { key: "section.staff_notices", span: 4 },
+        { key: "section.staff_notices", span: 2, row: 0 },
+        { key: "section.staff_notices", span: 4, row: 0 },
       ],
       {},
       {},
@@ -352,7 +372,7 @@ describe("resolveHomeLayout — Berechtigung", () => {
   it("stellt einen Baustein ohne Recht auch dann nicht auf, wenn er angeordnet ist", () => {
     const { placements, addable } = resolveHomeLayout(
       { ...fullContext, access: accessWith([]) },
-      [{ key: "tile.students_present", span: 1 }],
+      [{ key: "tile.students_present", span: 1, row: 0 }],
       {},
       {},
     );
@@ -368,7 +388,7 @@ describe("resolveHomeLayout — Vorgabe der Einrichtung", () => {
   it("stellt einen verpflichtenden Baustein auf, auch wenn er entfernt wurde", () => {
     const { placements, addable } = resolveHomeLayout(
       fullContext,
-      [{ key: "section.staff_notices", span: 2 }],
+      [{ key: "section.staff_notices", span: 2, row: 0 }],
       { "section.birthdays": false },
       { "section.birthdays": "required" },
     );
@@ -382,7 +402,7 @@ describe("resolveHomeLayout — Vorgabe der Einrichtung", () => {
   it("lässt einen abgeschalteten Baustein trotz Anordnung weg", () => {
     const { placements, addable } = resolveHomeLayout(
       fullContext,
-      [{ key: "tile.students_sick", span: 1 }],
+      [{ key: "tile.students_sick", span: 1, row: 0 }],
       {},
       { "tile.students_sick": "disabled" },
     );
@@ -428,18 +448,43 @@ describe("sanitize", () => {
   it("räumt eine gespeicherte Anordnung auf", () => {
     expect(
       sanitizeHomeBlockPlacements([
-        { key: "section.staff_notices", span: 4 },
-        { key: "section.staff_notices", span: 2 },
-        { key: "tile.does_not_exist", span: 1 },
+        { key: "section.staff_notices", span: 4, row: 0 },
+        { key: "section.staff_notices", span: 2, row: 0 },
+        { key: "tile.does_not_exist", span: 1, row: 0 },
         { key: "tile.students_sick", span: 3 },
         "kaputt",
         null,
       ]),
     ).toEqual([
-      { key: "section.staff_notices", span: 4 },
-      // Eine Breite, die es für eine Kennzahl nicht gibt, wird korrigiert.
-      { key: "tile.students_sick", span: 1 },
+      { key: "section.staff_notices", span: 4, row: 0 },
+      // Eine Breite, die es für eine Kennzahl nicht gibt, wird korrigiert;
+      // neben der vollen Breite ist kein Platz, also eine eigene Reihe.
+      { key: "tile.students_sick", span: 1, row: 1 },
     ]);
+  });
+
+  // Anordnungen von vor den Reihen tragen keine oder überall Reihe 0: sie
+  // werden nach Breite gepackt, wie das Raster sie damals zeichnete.
+  it("packt eine Anordnung ohne Reihen nach Breite", () => {
+    expect(
+      sanitizeHomeBlockPlacements([
+        { key: "tile.students_present", span: 1 },
+        { key: "tile.students_sick", span: 1 },
+        { key: "section.open_requests", span: 2 },
+        { key: "section.staff_today", span: 2 },
+        { key: "section.birthdays", span: 4 },
+      ]).map((entry) => entry.row),
+    ).toEqual([0, 0, 0, 1, 2]);
+  });
+
+  it("übernimmt gespeicherte Reihen und schließt Lücken", () => {
+    expect(
+      sanitizeHomeBlockPlacements([
+        { key: "tile.students_present", span: 1, row: 2 },
+        { key: "section.open_requests", span: 2, row: 5 },
+        { key: "section.staff_today", span: 2, row: 5 },
+      ]).map((entry) => entry.row),
+    ).toEqual([0, 1, 1]);
   });
 
   it("verträgt null und Nicht-Objekte", () => {
@@ -447,5 +492,161 @@ describe("sanitize", () => {
     expect(sanitizeHomeLayoutOverrides("nope")).toEqual({});
     expect(sanitizeHomeBlockPolicies(undefined)).toEqual({});
     expect(sanitizeHomeBlockPlacements("nope")).toEqual([]);
+  });
+});
+
+describe("Reihen (#2180)", () => {
+  const rows: HomeBlockPlacement[] = [
+    { key: "tile.students_present", span: 1, row: 0 },
+    { key: "tile.students_sick", span: 1, row: 0 },
+    { key: "section.open_requests", span: 2, row: 1 },
+    { key: "section.staff_today", span: 2, row: 1 },
+    { key: "section.birthdays", span: 4, row: 2 },
+  ];
+  const rowsAsKeys = (placements: readonly HomeBlockPlacement[]) =>
+    rowsOf(placements).map((entries) => entries.map((entry) => entry.key));
+
+  // Genau der Fall aus der Rückmeldung: eine Kennzahl unter die offenen
+  // Anfragen legen — sie bekommt eine eigene Reihe, statt daneben zu rutschen.
+  it("gibt einem Baustein zwischen zwei Reihen eine eigene Reihe", () => {
+    const next = movePlacement(rows, "tile.students_present", {
+      kind: "newRow",
+      before: 2,
+    });
+
+    expect(rowsAsKeys(next)).toEqual([
+      ["tile.students_sick"],
+      ["section.open_requests", "section.staff_today"],
+      ["tile.students_present"],
+      ["section.birthdays"],
+    ]);
+  });
+
+  it("setzt einen Baustein an eine Stelle in einer Reihe", () => {
+    const next = movePlacement(rows, "section.staff_today", {
+      kind: "into",
+      row: 0,
+      index: 1,
+    });
+
+    expect(rowsAsKeys(next)).toEqual([
+      ["tile.students_present", "section.staff_today", "tile.students_sick"],
+      ["section.open_requests"],
+      ["section.birthdays"],
+    ]);
+  });
+
+  it("lässt eine Reihe verschwinden, die leer wird", () => {
+    const next = movePlacement(rows, "section.birthdays", {
+      kind: "into",
+      row: 1,
+      index: 0,
+    });
+
+    // Die Geburtstage brauchen die volle Breite: in Reihe 1 passen sie nicht,
+    // also bleibt alles, wie es ist — und ihre eigene Reihe bleibt bestehen.
+    expect(next).toBe(rows);
+
+    const emptied = movePlacement(
+      [
+        { key: "tile.students_present", span: 1, row: 0 },
+        { key: "tile.students_sick", span: 1, row: 1 },
+        { key: "section.birthdays", span: 4, row: 2 },
+      ],
+      "tile.students_sick",
+      { kind: "into", row: 0, index: 1 },
+    );
+    expect(emptied.map((entry) => entry.row)).toEqual([0, 0, 1]);
+  });
+
+  it("gibt dieselbe Anordnung zurück, wenn sich nichts ändert", () => {
+    expect(
+      movePlacement(rows, "section.birthdays", { kind: "newRow", before: 2 }),
+    ).toBe(rows);
+    expect(
+      movePlacement(rows, "tile.students_sick", {
+        kind: "into",
+        row: 0,
+        index: 1,
+      }),
+    ).toBe(rows);
+  });
+
+  it("teilt eine Reihe, wenn eine Breite sie überlaufen lässt", () => {
+    const next = placementWithSpan(rows, "section.open_requests", 4);
+
+    expect(rowsAsKeys(next)).toEqual([
+      ["tile.students_present", "tile.students_sick"],
+      ["section.open_requests"],
+      ["section.staff_today"],
+      ["section.birthdays"],
+    ]);
+  });
+
+  it("hängt einen Baustein in die letzte Reihe oder darunter an", () => {
+    expect(
+      appendPlacement(rows, "section.messages", 2).map((entry) => entry.row),
+    ).toEqual([0, 0, 1, 1, 2, 3]);
+    expect(
+      appendPlacement(rows.slice(0, 2), "section.messages", 2).map(
+        (entry) => entry.row,
+      ),
+    ).toEqual([0, 0, 0]);
+  });
+
+  it("rechnet Reihen in Rasterzellen um", () => {
+    const cells = computeBoardCells(rows, 4);
+
+    expect(cells.get("tile.students_sick")).toEqual({
+      columnStart: 2,
+      columnSpan: 1,
+      rowStart: 1,
+      rowSpan: 1,
+    });
+    expect(cells.get("section.staff_today")).toEqual({
+      columnStart: 3,
+      columnSpan: 2,
+      rowStart: 2,
+      rowSpan: 2,
+    });
+    expect(cells.get("section.birthdays")).toEqual({
+      columnStart: 1,
+      columnSpan: 4,
+      rowStart: 4,
+      rowSpan: 2,
+    });
+  });
+
+  // Auf zwei Spalten bricht eine breite Reihe innerhalb ihres Bandes um.
+  it("bricht eine Reihe auf einem schmalen Raster um", () => {
+    const cells = computeBoardCells(rows, 2);
+
+    expect(cells.get("section.staff_today")).toEqual({
+      columnStart: 1,
+      columnSpan: 2,
+      rowStart: 4,
+      rowSpan: 2,
+    });
+    expect(cells.get("section.birthdays")?.columnSpan).toBe(2);
+  });
+});
+
+describe("Reihen — volle Reihe (#2180)", () => {
+  const rows: HomeBlockPlacement[] = [
+    { key: "tile.students_present", span: 1, row: 0 },
+    { key: "section.open_requests", span: 2, row: 1 },
+    { key: "section.staff_today", span: 2, row: 1 },
+  ];
+
+  // Ein Zug über eine volle Reihe hinweg darf keine Spuren hinterlassen:
+  // sonst teilt sich die Reihe, nur weil der Zeiger sie gestreift hat.
+  it("lässt eine volle Reihe in Ruhe", () => {
+    expect(
+      movePlacement(rows, "tile.students_present", {
+        kind: "into",
+        row: 1,
+        index: 0,
+      }),
+    ).toBe(rows);
   });
 });
