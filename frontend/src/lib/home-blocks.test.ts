@@ -329,9 +329,10 @@ describe("resolveHomeLayout — Berechtigung", () => {
     expect(keysOf(placements)).toContain("section.staff_notices");
   });
 
-  it("zeigt Mein Tag nur mit time_tracking:own", () => {
+  // Dieselbe Quelle wie der Tagesplan, also dasselbe Recht.
+  it("zeigt Mein Tag nur mit schedules:read", () => {
     expect(keysOf(resolveFor([]).placements)).not.toContain("section.my_day");
-    expect(keysOf(resolveFor(["time_tracking:own"]).placements)).toContain(
+    expect(keysOf(resolveFor(["schedules:read"]).placements)).toContain(
       "section.my_day",
     );
   });

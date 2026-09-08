@@ -129,6 +129,12 @@ export interface HomeBlockDefinition {
   /** Erlaubte Breiten, von schmal nach breit. */
   readonly spans: readonly HomeBlockSpan[];
   /**
+   * Höhe in Rasterzeilen. Eine Kennzahl ist eine Zeile hoch, eine Liste
+   * zwei; ein Baustein, der den ganzen Tag trägt, darf drei haben. Ohne
+   * Angabe gilt die Höhe der Art.
+   */
+  readonly height?: 2 | 3;
+  /**
    * Darf die Person die Daten des Bausteins abrufen? Spiegelt das Gate des
    * Endpunkts dahinter; ohne das Recht liefert der Server ohnehin nichts.
    */
@@ -282,11 +288,16 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     key: "section.my_day",
     kind: "section",
     label: "Mein Tag",
-    description: "Ihre heutigen Einsätze mit Ort, Zeit und Vertretungen.",
+    description:
+      "Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kindern und Kolleginnen. Starten geht direkt hier.",
     concept: "carePlan",
     spans: SECTION_SPANS,
-    // /api/time-tracking/assignments (#1844) liefert nur die eigenen Blöcke.
-    permitted: (access) => access.has(PERMISSION.timeTrackingOwn),
+    // Der Tag braucht Platz: drei Zeilen hoch, damit ein Tag mit fünf
+    // Blöcken ganz dasteht statt als „Noch 3 Einsätze".
+    height: 3,
+    // Dieselbe Quelle wie der Tagesplan (/timetable/operations/planned-now),
+    // damit die Startseite genau das trägt, was dort steht.
+    permitted: (access) => access.has(PERMISSION.schedulesRead),
     available: (ctx) => ctx.timetableEnabled,
   },
   {
@@ -460,7 +471,9 @@ export const HOME_BOARD_COLUMNS = 4;
  * zählt die Karte und verlinkt es.
  */
 export function homeBlockHeight(key: HomeBlockKey): number {
-  return homeBlockDefinition(key)?.kind === "tile" ? 1 : 2;
+  const definition = homeBlockDefinition(key);
+  if (!definition) return 2;
+  return definition.height ?? (definition.kind === "tile" ? 1 : 2);
 }
 
 /**
@@ -496,12 +509,14 @@ export const DEFAULT_LAYOUTS: Record<
   HomeProfile,
   readonly HomeBlockPlacement[]
 > = {
+  // Der Tag zuerst und über die volle Breite: das ist die Seite, von der aus
+  // eine Betreuungskraft arbeitet. Darunter die Gruppe und was ansteht.
   care: [
-    { key: "section.my_day", span: 2, col: 0, row: 0 },
-    { key: "section.my_group", span: 2, col: 2, row: 0 },
-    { key: "section.staff_notices", span: 2, col: 0, row: 2 },
-    { key: "section.reminders", span: 2, col: 2, row: 2 },
-    { key: "section.birthdays", span: 4, col: 0, row: 4 },
+    { key: "section.my_day", span: 4, col: 0, row: 0 },
+    { key: "section.my_group", span: 2, col: 0, row: 3 },
+    { key: "section.reminders", span: 2, col: 2, row: 3 },
+    { key: "section.staff_notices", span: 2, col: 0, row: 5 },
+    { key: "section.birthdays", span: 2, col: 2, row: 5 },
   ],
   lead: [
     { key: "tile.students_present", span: 1, col: 0, row: 0 },
@@ -520,17 +535,17 @@ export const DEFAULT_LAYOUTS: Record<
   // Lage der Schule. Die Erinnerungen fehlen hier, weil die Jetzt-Zone und
   // der Ablauf des Tages den Moment schon tragen; sie stehen im Menü.
   lead_care: [
-    { key: "section.my_day", span: 2, col: 0, row: 0 },
-    { key: "section.my_group", span: 2, col: 2, row: 0 },
-    { key: "tile.students_present", span: 1, col: 0, row: 2 },
-    { key: "tile.students_sick", span: 1, col: 1, row: 2 },
-    { key: "tile.students_excused", span: 1, col: 2, row: 2 },
-    { key: "tile.students_home", span: 1, col: 3, row: 2 },
-    { key: "section.open_requests", span: 2, col: 0, row: 3 },
-    { key: "section.staff_today", span: 2, col: 2, row: 3 },
-    { key: "section.staff_notices", span: 2, col: 0, row: 5 },
-    { key: "section.day_flow", span: 2, col: 2, row: 5 },
-    { key: "section.birthdays", span: 4, col: 0, row: 7 },
+    { key: "section.my_day", span: 4, col: 0, row: 0 },
+    { key: "section.my_group", span: 2, col: 0, row: 3 },
+    { key: "section.open_requests", span: 2, col: 2, row: 3 },
+    { key: "tile.students_present", span: 1, col: 0, row: 5 },
+    { key: "tile.students_sick", span: 1, col: 1, row: 5 },
+    { key: "tile.students_excused", span: 1, col: 2, row: 5 },
+    { key: "tile.students_home", span: 1, col: 3, row: 5 },
+    { key: "section.staff_today", span: 2, col: 0, row: 6 },
+    { key: "section.staff_notices", span: 2, col: 2, row: 6 },
+    { key: "section.day_flow", span: 2, col: 0, row: 8 },
+    { key: "section.birthdays", span: 2, col: 2, row: 8 },
   ],
 };
 

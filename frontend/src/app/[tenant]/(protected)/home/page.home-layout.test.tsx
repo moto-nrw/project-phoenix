@@ -78,8 +78,8 @@ vi.mock("~/components/home/day-flow-block", () => ({
 vi.mock("~/components/home/open-requests-block", () => ({
   OpenRequestsBlock: () => <div data-testid="open-requests-block" />,
 }));
-vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
-  BetreuungsplanHeuteCard: () => <div data-testid="my-day-block" />,
+vi.mock("~/components/home/my-day-block", () => ({
+  MyDayBlock: () => <div data-testid="my-day-block" />,
 }));
 vi.mock("~/components/home/my-group-block", () => ({
   MyGroupBlock: () => <div data-testid="my-group-block" />,

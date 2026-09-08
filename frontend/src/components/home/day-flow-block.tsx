@@ -168,9 +168,10 @@ export function DayFlowBlock() {
 /**
  * Der Zustand eines Blocks relativ zur Uhr — dieselben Wörter wie im
  * Tagesplan („Läuft", „Nicht gestartet", „Fällt aus"), und für das Kommende
- * die Zeit bis zum Beginn statt eines „Geplant", das nichts sagt.
+ * die Zeit bis zum Beginn statt eines „Geplant", das nichts sagt. „Mein Tag"
+ * nutzt dieselbe Marke, damit beide Karten dieselbe Sprache sprechen.
  */
-function BlockState({
+export function BlockState({
   block,
   now,
 }: {

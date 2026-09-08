@@ -43,18 +43,8 @@ vi.mock("~/components/home/staff-today-block", () => ({
     />
   ),
 }));
-vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
-  BetreuungsplanHeuteCard: ({
-    title,
-    href,
-  }: {
-    title?: string;
-    href?: string;
-  }) => (
-    <div data-testid="my-day-block" data-href={href}>
-      {title}
-    </div>
-  ),
+vi.mock("~/components/home/my-day-block", () => ({
+  MyDayBlock: () => <div data-testid="my-day-block">Mein Tag</div>,
 }));
 
 import { HomeBlockContent, type HomeBlockData } from "./home-block-content";
@@ -108,7 +98,6 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     birthdays: undefined,
     birthdaysLoading: false,
     tenantPath: (path: string) => `/test-tenant${path}`,
-    dayPlanHref: "/test-tenant/tagesplan",
     ...overrides,
   };
 }
@@ -277,20 +266,10 @@ describe("HomeBlockContent — Listen", () => {
 });
 
 describe("HomeBlockContent — eigene Quellen", () => {
-  it("nennt den Baustein der eigenen Einsätze 'Mein Tag'", () => {
+  it("rendert den eigenen Tag als eigenen Baustein", () => {
     render(<HomeBlockContent blockKey="section.my_day" data={data()} />);
 
     expect(screen.getByTestId("my-day-block")).toHaveTextContent("Mein Tag");
-  });
-
-  // Die Karte hat keinen Kopflink; ihre Zeilen sind der einzige Weg weiter.
-  it("macht die Einsätze in 'Mein Tag' im Tagesplan anklickbar", () => {
-    render(<HomeBlockContent blockKey="section.my_day" data={data()} />);
-
-    expect(screen.getByTestId("my-day-block")).toHaveAttribute(
-      "data-href",
-      "/test-tenant/tagesplan",
-    );
   });
 
   it("rendert die Bausteine mit eigener Abfrage", () => {

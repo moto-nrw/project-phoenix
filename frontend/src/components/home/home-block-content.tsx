@@ -6,12 +6,12 @@ import { ChevronRight } from "lucide-react";
 import { BirthdayList } from "~/components/dashboard/birthday-list";
 import { DayFlowBlock } from "~/components/home/day-flow-block";
 import { MessagesBlock } from "~/components/home/messages-block";
+import { MyDayBlock } from "~/components/home/my-day-block";
 import { MyGroupBlock } from "~/components/home/my-group-block";
 import { OpenRequestsBlock } from "~/components/home/open-requests-block";
 import { RemindersBlock } from "~/components/home/reminders-block";
 import { StaffNoticesBlock } from "~/components/home/staff-notices-block";
 import { StaffTodayBlock } from "~/components/home/staff-today-block";
-import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -50,13 +50,6 @@ export interface HomeBlockData {
   readonly birthdays: BirthdayOverview | undefined;
   readonly birthdaysLoading: boolean;
   readonly tenantPath: (path: string) => string;
-  /**
-   * Wohin der Tag fuer diese Person fuehrt: Betreuungskraefte in den
-   * Tagesplan, reine Adminkonten in den Betreuungsplan. Die Seitenleiste
-   * blendet den Tagesplan fuer sie aus, ein Weiterlink dorthin ginge ins
-   * Leere.
-   */
-  readonly dayPlanHref: string;
 }
 
 /**
@@ -426,19 +419,7 @@ export function HomeBlockContent({
 }) {
   switch (blockKey) {
     case "section.my_day":
-      return (
-        <BetreuungsplanHeuteCard
-          title="Mein Tag"
-          showEmpty
-          href={data.dayPlanHref}
-          // Kompakte Zeilen nur hier: die Karte hat auf der Fläche eine feste
-          // Höhe. Drei passen ganz hinein; ist es mehr, treten zwei Zeilen
-          // plus der Hinweis auf den Rest an ihre Stelle. Gemessen, nicht
-          // geschätzt. Auf der Zeiterfassung bleibt die gewohnte Ansicht.
-          dense
-          maxRows={3}
-        />
-      );
+      return <MyDayBlock />;
     case "section.my_group":
       return <MyGroupBlock />;
     case "section.staff_notices":

@@ -46,7 +46,6 @@ import {
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { useDayPlanHref } from "~/lib/hooks/use-day-plan-href";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { DashboardSkeleton } from "./page-skeleton";
@@ -75,7 +74,6 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
 function HomeContent() {
   const router = useTenantRouter();
   const tenantPath = useTenantAwarePath();
-  const dayPlanHref = useDayPlanHref();
   const nfcEnabled = useNFCEnabled();
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
@@ -336,7 +334,6 @@ function HomeContent() {
     birthdays,
     birthdaysLoading,
     tenantPath,
-    dayPlanHref,
   };
 
   return (
