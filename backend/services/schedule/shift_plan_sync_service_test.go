@@ -325,7 +325,7 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	stored.Cancelled = true
 	stored.ChangeReason = &reason
 	stored.SickAbsenceID = &absenceID
-	_, err := e.repos.StaffShift.UpdateColumns(e.ctx, stored, "cancelled", "change_reason", "sick_absence_id")
+	err := e.repos.StaffShift.Update(e.ctx, stored)
 	require.NoError(t, err)
 
 	before := activeSvc.SickCascadeInput{

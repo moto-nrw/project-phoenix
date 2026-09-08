@@ -63,7 +63,9 @@ func TestStaffShiftsAreTenantIsolated(t *testing.T) {
 	foreignShift.Notes = "crossed"
 	_, err = capability.UpdateStaffShift(ctx, foreignShift)
 	require.ErrorIs(t, err, workforce.ErrStaffShiftNotFound)
-	stamped, err := capability.UpdateStaffShiftColumns(ctx, foreignShift, []string{"notes"})
+	absenceType := testpkg.CreateTestStaffAbsenceType(t, db, "Shift isolation")
+	absence := testpkg.CreateTestStaffAbsenceToday(t, db, local.ID, absenceType.ID)
+	stamped, err := capability.SetStaffShiftSickAbsence(ctx, foreignShift.ID, &absence.ID)
 	require.NoError(t, err)
 	assert.Zero(t, stamped, "a partial update addressed at a foreign row touches nothing")
 
@@ -76,6 +78,7 @@ func TestStaffShiftsAreTenantIsolated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, foreignShift.ID, stillThere.ID)
 	assert.Empty(t, stillThere.Notes)
+	assert.Nil(t, stillThere.SickAbsenceID)
 
 	// A tenant cannot plan a shift for another tenant's staff member.
 	_, err = capability.CreateStaffShift(foreignCtx, testShift(local.ID, day.AddDays(1), "08:00:00", "12:00:00"))
@@ -117,8 +120,8 @@ func TestStaffShiftRowRulesMatchTheLegacyRepository(t *testing.T) {
 	// Validation runs before any statement.
 	_, err = capability.CreateStaffShift(ctx, testShift(staff.ID, monday, "16:00:00", "08:00:00"))
 	require.ErrorIs(t, err, workforce.ErrInvalidStaffShift)
-	_, err = capability.UpdateStaffShiftColumns(ctx, created, []string{"tenant_id"})
-	require.ErrorIs(t, err, workforce.ErrInvalidStaffShift, "only the exposed columns may be stamped")
+	_, err = capability.SetStaffShiftSickAbsence(ctx, 0, nil)
+	require.ErrorIs(t, err, workforce.ErrInvalidStaffShift, "a shift ID is required")
 
 	created.EndTime = "17:00:00"
 	created.Notes = "Updated through the facade"
@@ -127,9 +130,10 @@ func TestStaffShiftRowRulesMatchTheLegacyRepository(t *testing.T) {
 	assert.Equal(t, "17:00:00", updated.EndTime)
 	assert.Equal(t, "Updated through the facade", updated.Notes)
 
-	absenceID := int64(4711)
-	updated.SickAbsenceID = &absenceID
-	stamped, err := capability.UpdateStaffShiftColumns(ctx, updated, []string{"sick_absence_id"})
+	absenceType := testpkg.CreateTestStaffAbsenceType(t, db, "Shift rules")
+	absence := testpkg.CreateTestStaffAbsenceToday(t, db, staff.ID, absenceType.ID)
+	absenceID := absence.ID
+	stamped, err := capability.SetStaffShiftSickAbsence(ctx, updated.ID, &absenceID)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, stamped)
 	bySickAbsence, err := capability.ListStaffShifts(ctx, workforce.StaffShiftFilter{SickAbsenceID: &absenceID})
@@ -230,7 +234,7 @@ func TestStaffShiftSeriesLifecycleStaysInTheTenant(t *testing.T) {
 	// A detached row survives re-plans; the second occurrence is removed.
 	detached := rows[0]
 	detached.Detached = true
-	_, err = capability.UpdateStaffShiftColumns(ctx, detached, []string{"detached"})
+	_, err = capability.UpdateStaffShift(ctx, detached)
 	require.NoError(t, err)
 	exception := workforce.StaffShiftSeriesException{SeriesID: series.ID, Date: secondMonday.String(), CreatedBy: staff.ID}
 	require.NoError(t, capability.RecordSeriesException(ctx, exception))
@@ -467,4 +471,56 @@ func TestSeriesPlanRollsBackWithTheCallerTransaction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, dates, 1)
 	assert.WithinDuration(t, time.Now(), retried.CreatedAt, time.Minute)
+}
+
+func TestStaffShiftSickAbsencePreservesOtherFieldsAndRollsBack(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Sick", "Association")
+	absenceType := testpkg.CreateTestStaffAbsenceType(t, db, "Shift association")
+	absence := testpkg.CreateTestStaffAbsenceToday(t, db, staff.ID, absenceType.ID)
+	capability := buildWorkforce(t, db)
+	shift := testShift(staff.ID, timezone.NewDate(2026, 9, 7), "08:00:00", "16:00:00")
+	shift.Notes = "Preserve notes and cancellation"
+	shift.Cancelled = true
+	created, err := capability.CreateStaffShift(ctx, shift)
+	require.NoError(t, err)
+
+	for _, invalidID := range []int64{0, -1} {
+		_, err := capability.SetStaffShiftSickAbsence(ctx, created.ID, &invalidID)
+		require.ErrorIs(t, err, workforce.ErrInvalidStaffShift)
+	}
+
+	for _, absenceID := range []*int64{&absence.ID, &absence.ID, nil, nil} {
+		failure := errors.New("abort after sick-absence association")
+		err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+			affected, err := capability.SetStaffShiftSickAbsence(txCtx, created.ID, absenceID)
+			if err != nil {
+				return err
+			}
+			require.EqualValues(t, 1, affected)
+			return failure
+		})
+		require.ErrorIs(t, err, failure)
+		afterRollback, err := capability.FindStaffShift(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, created, afterRollback, "the caller rollback restores the complete row")
+
+		affected, err := capability.SetStaffShiftSickAbsence(ctx, created.ID, absenceID)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, affected)
+		created.SickAbsenceID = absenceID
+		persisted, err := capability.FindStaffShift(ctx, created.ID)
+		require.NoError(t, err)
+		// The existing database trigger advances updated_at on every write.
+		assert.False(t, persisted.UpdatedAt.Before(created.UpdatedAt))
+		created.UpdatedAt = persisted.UpdatedAt
+		assert.Equal(t, created, persisted, "only the sick-absence association and audit timestamp change")
+	}
+
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err = capability.SetStaffShiftSickAbsence(cancelledCtx, created.ID, &absence.ID)
+	require.ErrorIs(t, err, context.Canceled)
 }

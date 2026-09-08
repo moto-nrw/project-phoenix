@@ -207,9 +207,9 @@ type ShiftCommand interface {
 	CreateStaffShifts(context.Context, []StaffShift) ([]StaffShift, error)
 	// UpdateStaffShift rewrites every column of the row.
 	UpdateStaffShift(context.Context, StaffShift) (StaffShift, error)
-	// UpdateStaffShiftColumns stamps only the named columns and reports how
-	// many rows matched.
-	UpdateStaffShiftColumns(ctx context.Context, shift StaffShift, columns []string) (int64, error)
+	// SetStaffShiftSickAbsence associates a shift with a sick absence; nil clears
+	// the association. Other shift fields stay unchanged. Returns matched rows.
+	SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error)
 	DeleteStaffShift(context.Context, int64) error
 	// DeleteUpcomingStaffShifts removes the staff member's rows on or after
 	// from; past rows stay as history.
@@ -547,11 +547,14 @@ func (m *Module) UpdateStaffShift(ctx context.Context, shift StaffShift) (StaffS
 	return m.engine.UpdateStaffShift(ctx, shift)
 }
 
-func (m *Module) UpdateStaffShiftColumns(ctx context.Context, shift StaffShift, columns []string) (int64, error) {
-	if shift.ID <= 0 {
+func (m *Module) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
+	if shiftID <= 0 {
 		return 0, invalidShift("staff shift ID is required")
 	}
-	return m.engine.UpdateStaffShiftColumns(ctx, shift, columns)
+	if absenceID != nil && *absenceID <= 0 {
+		return 0, invalidShift("sick absence ID must be positive")
+	}
+	return m.engine.SetStaffShiftSickAbsence(ctx, shiftID, absenceID)
 }
 
 func (m *Module) DeleteStaffShift(ctx context.Context, id int64) error {

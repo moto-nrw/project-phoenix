@@ -44,8 +44,8 @@ func (e engine) UpdateStaffShift(ctx context.Context, shift workforce.StaffShift
 	return shiftToPublic(updated), mapShiftError(err)
 }
 
-func (e engine) UpdateStaffShiftColumns(ctx context.Context, shift workforce.StaffShift, columns []string) (int64, error) {
-	affected, err := e.service.UpdateStaffShiftColumns(ctx, shiftToDomain(shift), columns)
+func (e engine) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
+	affected, err := e.service.SetStaffShiftSickAbsence(ctx, shiftID, absenceID)
 	return affected, mapShiftError(err)
 }
 
