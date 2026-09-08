@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
-import { formatDate } from "~/lib/date-helpers";
+import { formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchNoticeAcknowledgements } from "~/lib/staff-notices-api";
 import type {
@@ -99,7 +99,7 @@ export function StaffNoticeAcknowledgementsModal({
                     {row.name}
                   </span>
                   <span className="text-sm text-gray-500">
-                    {formatDate(row.acknowledged_at)}
+                    {formatChatDateTime(row.acknowledged_at)}
                   </span>
                 </li>
               ))}
