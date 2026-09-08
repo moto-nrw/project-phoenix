@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -23,7 +24,6 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -94,7 +94,7 @@ type ResourceConfig struct {
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService
-	OGSGroupLiveService     ogsGroupLiveService.Getter
+	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
@@ -163,7 +163,7 @@ func (rs *Resource) Router() chi.Router {
 		// users:read retain their personal-group navigation; groups:read only
 		// controls whether the service includes further tenant groups.
 		r.With(withTx).Get("/ogs-group-navigation",
-			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+			common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {
 				if rs.OGSGroupLiveService == nil {
 					return nil, errors.New("OGS group live service is not configured")
 				}

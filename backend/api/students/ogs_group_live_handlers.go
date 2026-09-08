@@ -7,22 +7,23 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 )
 
 // Compatibility aliases keep the endpoint's documented response names local
 // to the API package while the projection and its GDPR contract live in the
-// service layer.
-type OGSLiveGroupResponse = ogsGroupLiveService.Group
-type OGSLiveStudentResponse = ogsGroupLiveService.Student
-type OGSLiveRoomStatus = ogsGroupLiveService.RoomStatus
-type OGSLiveTransferResponse = ogsGroupLiveService.Transfer
-type OGSLiveTrackingIndicators = ogsGroupLiveService.TrackingIndicators
-type OGSGroupLiveResponse = ogsGroupLiveService.Projection
+// live-group read projection (#2702).
+type OGSLiveGroupResponse = grouplive.Group
+type OGSLiveStudentResponse = grouplive.Student
+type OGSLiveRoomStatus = grouplive.RoomStatus
+type OGSLiveTransferResponse = grouplive.Transfer
+type OGSLiveTrackingIndicators = grouplive.TrackingIndicators
+type OGSGroupLiveResponse = grouplive.Projection
 
 // getOGSGroupLive handles GET /students/ogs-group-live?group_id={id}. The
-// service owns group authorization, projection shaping, and the all-or-nothing
-// sub-load contract; this boundary only parses input and maps domain errors.
+// projection owns group authorization, response shaping, and the
+// all-or-nothing sub-load contract; this boundary only parses input and maps
+// domain errors.
 func (rs *Resource) getOGSGroupLive(w http.ResponseWriter, r *http.Request) {
 	requestedGroupID, ok := parseOptionalGroupID(w, r)
 	if !ok {
@@ -33,8 +34,8 @@ func (rs *Resource) getOGSGroupLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := rs.OGSGroupLiveService.Get(r.Context(), requestedGroupID)
-	if errors.Is(err, ogsGroupLiveService.ErrForbiddenGroup) {
+	response, err := rs.OGSGroupLiveService.LiveGroup(r.Context(), requestedGroupID)
+	if errors.Is(err, grouplive.ErrForbiddenGroup) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("you do not supervise this group")))
 		return
 	}
