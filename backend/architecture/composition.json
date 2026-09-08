@@ -27302,6 +27302,11 @@
           "declaration": "type API"
         },
         {
+          "file": "api/session_end.go",
+          "line": 17,
+          "declaration": "newSessionEnd"
+        },
+        {
           "file": "api/staff_composition.go",
           "line": 112,
           "declaration": "newStaffComposition"

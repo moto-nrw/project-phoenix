@@ -42,6 +42,7 @@ func setupSessionsRoute(t *testing.T) *testContext {
 		svc.Activities,
 		svc.Facilities,
 		svc.Education,
+		svc.SessionEnd,
 	)
 
 	return &testContext{

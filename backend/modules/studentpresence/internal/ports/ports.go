@@ -23,6 +23,7 @@ type Store interface {
 	UnclaimedStore
 	AttendanceStore
 	VisitStore
+	GroupSessionStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)
 	LockOpenPresence(context.Context, []int64) (Stats, error)
