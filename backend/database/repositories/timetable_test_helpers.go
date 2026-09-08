@@ -38,7 +38,6 @@ type TimetableTestRepositories struct {
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	PlanningTrack             scheduleModels.PlanningTrackRepository
-	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
@@ -106,7 +105,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
 		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
-		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
 		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
 		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
@@ -154,7 +152,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		ActivityGroup: r.ActivityGroup, ActivityCategory: r.ActivityCategory, ActivitySchedule: r.ActivitySchedule,
 		ActivitySupervisor: r.ActivitySupervisor, StudentEnrollment: r.StudentEnrollment,
 		StaffShift: r.StaffShift, StaffShiftSeries: r.StaffShiftSeries, StaffShiftSeriesException: r.StaffShiftSeriesException,
-		ShiftType: r.ShiftType, PlanningTrack: r.PlanningTrack, TimetableConflictAck: r.TimetableConflictAck,
+		ShiftType: r.ShiftType, PlanningTrack: r.PlanningTrack,
 		ActivityInstance: r.ActivityInstance, InstanceIdempotency: r.InstanceIdempotency,
 		InstanceStaff: r.InstanceStaff, InstanceStudent: r.InstanceStudent, ActivityException: r.ActivityException,
 		Timeframe: r.Timeframe, RecurrenceRule: r.RecurrenceRule, CalendarPeriod: r.CalendarPeriod,

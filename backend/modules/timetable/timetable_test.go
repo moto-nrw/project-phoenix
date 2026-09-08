@@ -14,6 +14,7 @@ import (
 type recordingEngine struct {
 	timetable.RecurrenceRuleQuery
 	timetable.CareExitRosterCommand
+	timetable.ConflictAckCapability
 	create     timetable.CreateCategory
 	update     timetable.UpdateCategory
 	group      timetable.GroupInput
@@ -952,6 +953,29 @@ func TestModuleValidatesStudentEnrollmentBoundary(t *testing.T) {
 	assert.Equal(t, []string{
 		"create_student_enrollment", "create_student_enrollment", "list_student_enrollments",
 	}, engine.rejections)
+}
+
+func TestModuleValidatesConflictAckBoundary(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := timetable.NewModule(engine)
+	ctx := context.Background()
+
+	_, err := module.ListConflictAcks(ctx, 0)
+	require.ErrorIs(t, err, timetable.ErrInvalidConflictAck)
+	err = module.AcknowledgeConflict(ctx, 1, "not-hex")
+	require.ErrorIs(t, err, timetable.ErrInvalidConflictAck)
+	err = module.AcknowledgeConflict(ctx, 0, "0123456789abcdef")
+	require.ErrorIs(t, err, timetable.ErrInvalidConflictAck)
+	err = module.UnacknowledgeConflict(ctx, 1, "ABCDEF0123456789")
+	require.ErrorIs(t, err, timetable.ErrInvalidConflictAck)
+	assert.Zero(t, engine.calls)
+	assert.Equal(t, []string{
+		"list_conflict_acks", "acknowledge_conflict", "acknowledge_conflict", "unacknowledge_conflict",
+	}, engine.rejections)
+
+	assert.True(t, timetable.ValidConflictAckFingerprint("0123456789abcdef0123456789abcdef"))
+	assert.False(t, timetable.ValidConflictAckFingerprint("0123456789abcde"))
 }
 
 func TestModuleValidatesTimeframeBoundary(t *testing.T) {

@@ -184,7 +184,6 @@ type Factory struct {
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	PlanningTrack             scheduleModels.PlanningTrackRepository
-	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
@@ -645,7 +644,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		PlanningTrack:             nil, // bound to Timetable below
-		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below
 		InstanceStaff:             nil, // bound to Timetable below

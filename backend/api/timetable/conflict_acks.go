@@ -15,8 +15,8 @@
 // Permission: SchedulesRead — anyone who can see the plan (and thus the
 // banner) may manage their own view state. Writes only ever touch rows of the
 // calling account in the calling tenant. Fingerprints are opaque to the
-// server, so stored acks are bounded per account: the repository prunes the
-// oldest rows beyond schedule.MaxConflictAcksPerAccount on every insert.
+// server, so stored acks are bounded per account: the Timetable & Activities
+// owner prunes the oldest rows beyond its per-account cap on every insert.
 package timetable
 
 import (
@@ -27,7 +27,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -111,7 +111,7 @@ func (rs *Resource) conflictAckAccount(w http.ResponseWriter, r *http.Request) (
 // detection emits and the DB CHECK enforces).
 func conflictAckFingerprintParam(w http.ResponseWriter, r *http.Request) (string, bool) {
 	fingerprint := chi.URLParam(r, "fingerprint")
-	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+	if !timetable.ValidConflictAckFingerprint(fingerprint) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid fingerprint")))
 		return "", false
 	}
