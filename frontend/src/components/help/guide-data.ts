@@ -348,12 +348,13 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` öffnen und `Räume` wählen.",
           "Neuen Raum anlegen.",
           "`Raumname`, `Kategorie`, `Gebäude`, `Etage` und `Farbe` pflegen. Optional unter `Maximale Belegung` festlegen, wie viele Kinder gleichzeitig in den Raum eingecheckt sein dürfen. Ohne Angabe gibt es kein Raumlimit.",
+          "`Offener Raum` einschalten, wenn Kinder diesen Raum jederzeit als Ziel wählen dürfen. Der Raum bleibt dann dauerhaft verfügbar. Sie müssen ihn nicht jeden Morgen öffnen.",
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
         ],
         callout: {
           title: "Systemräume: Schulhof und WC",
-          body: "`Schulhof` und `WC` legt moto selbst an. Sie lassen sich weder umbenennen noch löschen. Die `Farbe` des Schulhofs kann jedoch frei gewählt werden, damit er zum Farbschema Ihrer Räume und Tablets passt. Ohne eigene Farbe erscheint der Schulhof weiterhin in Orange. Das WC hat kein eigenes Farbfeld, weil es nirgends farbig angezeigt wird.",
+          body: "`Schulhof` und `WC` legt moto selbst an. Sie lassen sich weder umbenennen noch löschen. Die `Farbe` des Schulhofs kann jedoch frei gewählt werden, damit er zum Farbschema Ihrer Räume und Tablets passt. Ohne eigene Farbe erscheint der Schulhof weiterhin in Orange. Das WC hat kein eigenes Farbfeld, weil es nirgends farbig angezeigt wird. Beim Schulhof ist `Offener Raum` von Anfang an eingeschaltet. Sie können ihn ausschalten. Dann gelten für den Schulhof die normalen Raumregeln. Beim WC gibt es diesen Schalter nicht.",
           tone: "blue",
         },
         screenshot:

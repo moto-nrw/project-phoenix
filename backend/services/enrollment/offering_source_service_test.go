@@ -1404,7 +1404,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1)
 
-	occurrenceDate := firstInPhaseMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1593,10 +1593,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	// Stand in for the materializer: one planned occurrence on the first
 	// in-phase Monday, already carrying the grade-1 child, plus a second one
 	// where a human decided the child's slot by hand.
-	occurrenceDate := timezone.Date(env.sourcePhase.ServiceStartDate)
-	for occurrenceDate.Weekday() != time.Monday {
-		occurrenceDate = occurrenceDate.AddDays(1)
-	}
+	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1674,7 +1671,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 
 	// One materialized occurrence the child is deliberately NOT on: staff
 	// removed the child's row by hand after materialization.
-	occurrenceDate := firstInPhaseMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1713,8 +1710,13 @@ func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID 
 	return rows
 }
 
-// firstInPhaseMondayOnOrAfter returns the first Monday on or after the date.
-func firstInPhaseMondayOnOrAfter(date timezone.Date) timezone.Date {
+// firstFutureMondayOnOrAfter returns the first Monday on or after date that
+// has not yet passed in the real calendar. Its callers create planned
+// occurrences, which the reconciler deliberately does not alter in the past.
+func firstFutureMondayOnOrAfter(date timezone.Date) timezone.Date {
+	if today := timezone.TodayDate(); date.Before(today) {
+		date = today
+	}
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
 	}
@@ -1811,7 +1813,7 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 	template := createSourcedTemplate(t, env, "InstanzGenehmigungTermin", offering.ID, nil, period)
 
 	// The occurrence exists BEFORE any child is approved.
-	occurrenceDate := firstInPhaseMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1848,7 +1850,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	require.NoError(t, err)
 
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	occurrenceDate := firstInPhaseMondayOnOrAfter(switchDate)
+	occurrenceDate := firstFutureMondayOnOrAfter(switchDate)
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,

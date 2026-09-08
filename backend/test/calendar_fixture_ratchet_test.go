@@ -9,7 +9,9 @@ import (
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
 // the system clock. Every exact function key needs its own reviewed reason.
-var calendarFixtureClockExceptions = map[string]string{}
+var calendarFixtureClockExceptions = map[string]string{
+	"services/enrollment/offering_source_service_test.go:TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval": "the reconciliation contract distinguishes planned occurrences from past occurrences relative to the current Berlin day",
+}
 
 func TestCalendarFixtureClockRatchet(t *testing.T) {
 	t.Parallel()

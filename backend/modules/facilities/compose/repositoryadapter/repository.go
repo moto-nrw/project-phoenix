@@ -40,6 +40,7 @@ func (r *Repository) Create(ctx context.Context, room *facilitiesModels.Room) er
 	created, err := rooms.CreateRoom(ctx, facilities.CreateRoom{
 		Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
 		Category: room.Category, Color: room.Color, IsSystem: room.IsSystem,
+		IsOpenRoom: room.IsOpenRoom,
 	})
 	if err == nil {
 		applyPublic(room, created)
@@ -74,6 +75,11 @@ func (r *Repository) Update(ctx context.Context, room *facilitiesModels.Room) er
 	updated, err := rooms.UpdateRoom(ctx, facilities.UpdateRoom{
 		ID: room.ID, Name: room.Name, Building: room.Building, Floor: room.Floor,
 		Capacity: room.Capacity, Category: room.Category, Color: room.Color,
+		// Legacy callers read-modify-write a whole room, so the loaded
+		// release value is passed back explicitly. Sending nil here would
+		// make every legacy save silently skip the column instead of
+		// preserving what the caller actually holds.
+		IsOpenRoom: &room.IsOpenRoom,
 	})
 	if err == nil {
 		applyPublic(room, updated)
@@ -232,4 +238,5 @@ func applyPublic(target *facilitiesModels.Room, source facilities.Room) {
 	target.Name, target.Building = source.Name, source.Building
 	target.Floor, target.Capacity = source.Floor, source.Capacity
 	target.Category, target.Color, target.IsSystem = source.Category, source.Color, source.IsSystem
+	target.IsOpenRoom = source.IsOpenRoom
 }

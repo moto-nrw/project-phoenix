@@ -141,6 +141,10 @@ type RoomRequest struct {
 	Capacity *int    `json:"capacity,omitempty"`
 	Category *string `json:"category,omitempty"`
 	Color    *string `json:"color,omitempty"`
+	// IsOpenRoom is a pointer so an omitted field means "leave the release
+	// as it is". The room form posts a partial payload, so a plain bool
+	// would revoke a standing release on the first unrelated edit.
+	IsOpenRoom *bool `json:"is_open_room,omitempty"`
 }
 
 func (req *RoomRequest) Bind(_ *http.Request) error {
@@ -163,6 +167,8 @@ type RoomResponse struct {
 	CategoryName    *string   `json:"category_name,omitempty"`
 	StudentCount    int       `json:"student_count"`
 	SupervisorNames *string   `json:"supervisor_names,omitempty"`
+	IsSystem        bool      `json:"is_system"`
+	IsOpenRoom      bool      `json:"is_open_room"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -173,6 +179,7 @@ func newRoomResponse(view RoomView) RoomResponse {
 		Capacity: view.Capacity, Category: view.Category, Color: view.Color,
 		IsOccupied: view.IsOccupied, GroupName: view.GroupName, CategoryName: view.CategoryName,
 		StudentCount: view.StudentCount, SupervisorNames: view.SupervisorNames,
+		IsSystem: view.IsSystem, IsOpenRoom: view.IsOpenRoom,
 		CreatedAt: view.CreatedAt, UpdatedAt: view.UpdatedAt,
 	}
 }
@@ -241,6 +248,9 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 	room, err := rs.rooms.CreateRoom(r.Context(), facilities.CreateRoom{
 		Name: req.Name, Building: req.Building, Floor: req.Floor, Capacity: req.Capacity,
 		Category: req.Category, Color: req.Color,
+		// An omitted field creates an unreleased room: release is an explicit
+		// administrative decision, never a default.
+		IsOpenRoom: req.IsOpenRoom != nil && *req.IsOpenRoom,
 	})
 	if err != nil {
 		rs.failure(w, r, err)
@@ -263,6 +273,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	room, err := rs.rooms.UpdateRoom(r.Context(), facilities.UpdateRoom{
 		ID: id, Name: req.Name, Building: req.Building, Floor: req.Floor,
 		Capacity: req.Capacity, Category: req.Category, Color: req.Color,
+		IsOpenRoom: req.IsOpenRoom,
 	})
 	if err != nil {
 		rs.failure(w, r, err)
@@ -372,8 +383,11 @@ func visibleRooms(rooms []facilities.Room, includeSystem bool) []facilities.Room
 	}
 	visible := make([]facilities.Room, 0, len(rooms))
 	for _, room := range rooms {
-		if room.Name == facilities.WCRoomName || room.Name == facilities.WCRoomAliasName ||
-			(room.IsSystem && room.Name != facilities.SchulhofRoomName) {
+		// Mirrors the owner's ExcludeSystem predicate: toilet rooms are never
+		// staff-visible, any other system room stays visible while it is
+		// released. Reading the stored release rather than the Schulhof name
+		// keeps this in step with a deactivated yard (#3064).
+		if facilities.IsToiletRoomName(room.Name) || (room.IsSystem && !room.IsOpenRoom) {
 			continue
 		}
 		visible = append(visible, room)
@@ -459,10 +473,15 @@ func historyQueryTime(r *http.Request, name string, fallback time.Time) (time.Ti
 }
 
 func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
+	kind, code := classifyFailure(err)
+	rs.runtime.Failure(w, r, kind, err, code)
+}
+
+func classifyFailure(err error) (FailureKind, string) {
 	kind, code := FailureInternal, facilities.ErrorCode(err)
 	switch {
 	case errors.Is(err, facilities.ErrInvalidRoom), errors.Is(err, facilities.ErrSystemRoomNameReserved),
-		errors.Is(err, facilities.ErrRoomColorReserved):
+		errors.Is(err, facilities.ErrRoomColorReserved), errors.Is(err, facilities.ErrToiletRoomNotReleasable):
 		kind = FailureInvalid
 	case errors.Is(err, facilities.ErrRoomNotFound):
 		kind = FailureNotFound
@@ -473,5 +492,5 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, facilities.ErrRoomRequiredByOffering):
 		kind = FailureConflict
 	}
-	rs.runtime.Failure(w, r, kind, err, code)
+	return kind, code
 }

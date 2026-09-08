@@ -543,7 +543,7 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 	// here — a prior-day session that outlived the session-end cutoff must
 	// stay reusable, or scans would 404 until the next EndDailySessions run.
 	currentGroups := activeGroups
-	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
+	if isSelfProvisioningRoom(room) {
 		now := s.currentTime()
 		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
 			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
@@ -629,13 +629,39 @@ func (s *CheckinService) useExistingActiveGroup(ctx context.Context, activeGroup
 	}
 }
 
+// isReleasedSchulhofRoom reports whether room is the canonical Schulhof AND
+// still released by the administration (#3064).
+//
+// The release is what earns the room its permanent kiosk journey: a scan lands
+// there without anyone having started a session first. When an administrator
+// removes the release, the yard falls back to the ordinary room rules — a scan
+// then needs a real running session, exactly like every other room. Reading the
+// stored value rather than the name alone is what makes that deactivation
+// effective server-side instead of only hiding a button.
+//
+// Deliberately still tied to the canonical Schulhof: generalizing the
+// auto-created session to every released room belongs to the tickets that also
+// build the shared room view and the independent room stay (#3065/#3066).
+func isReleasedSchulhofRoom(room *facilities.Room) bool {
+	return room != nil && room.Name == constants.SchulhofRoomName && room.IsOpenRoom
+}
+
+// isSelfProvisioningRoom reports whether this room auto-creates its own kiosk
+// session, which is what makes closing yesterday's stale session here safe.
+// Ordinary rooms get no such cleanup: a prior-day session that outlived the
+// session-end cutoff must stay reusable, or scans would 404 until the next
+// EndDailySessions run.
+func isSelfProvisioningRoom(room *facilities.Room) bool {
+	return room != nil && (isReleasedSchulhofRoom(room) || constants.IsWCRoomName(room.Name))
+}
+
 // createSpecialRoomActiveGroupIfNeeded creates an active group if the room is a
-// special room (Schulhof, WC).
+// special room (released Schulhof, WC).
 func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, room *facilities.Room, deviceID int64) (*SelectedActiveGroup, error) {
 	var activityGroup *activities.Group
 	var err error
 	switch {
-	case room.Name == constants.SchulhofRoomName:
+	case isReleasedSchulhofRoom(room):
 		s.getLogger().InfoContext(ctx, "auto-creating Schulhof active group",
 			slog.Int64("room_id", room.ID),
 		)

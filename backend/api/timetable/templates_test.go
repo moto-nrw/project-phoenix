@@ -422,7 +422,10 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateModule(t, mat)
+	clock := func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	}
+	s := buildTemplateModule(t, mat, clock)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -435,7 +438,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	require.NotZero(t, created.TemplateID)
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(s.db)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
 		tmplID := created.TemplateID
 		inst := &scheduleModel.ActivityInstance{
@@ -499,7 +502,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	today := timezone.NewDate(2026, 8, 24)
+	today := timezone.NewDate(2030, 8, 26)
 	createTemplateTestPeriodRange(
 		t,
 		s.db,

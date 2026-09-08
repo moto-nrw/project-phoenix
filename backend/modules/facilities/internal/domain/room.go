@@ -25,17 +25,18 @@ const (
 )
 
 type Room struct {
-	ID        int64
-	TenantID  int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Name      string
-	Building  string
-	Floor     *int
-	Capacity  *int
-	Category  *string
-	Color     *string
-	IsSystem  bool
+	ID         int64
+	TenantID   int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Name       string
+	Building   string
+	Floor      *int
+	Capacity   *int
+	Category   *string
+	Color      *string
+	IsSystem   bool
+	IsOpenRoom bool
 }
 
 type CreateRoom struct {
@@ -46,6 +47,9 @@ type CreateRoom struct {
 	Category *string
 	Color    *string
 	IsSystem bool
+	// IsOpenRoom releases the room for permanent use. Ordinary rooms are
+	// created unreleased; only the auto-provisioned Schulhof sets this.
+	IsOpenRoom bool
 }
 
 type UpdateRoom struct {
@@ -56,6 +60,11 @@ type UpdateRoom struct {
 	Capacity *int
 	Category *string
 	Color    *string
+	// IsOpenRoom is nil when the caller did not express an opinion, which
+	// leaves the stored release untouched. A room's release is an explicit
+	// administrative decision and must not be reset as a side effect of an
+	// unrelated edit (renaming a room, picking a colour).
+	IsOpenRoom *bool
 }
 
 type RoomFilter struct {

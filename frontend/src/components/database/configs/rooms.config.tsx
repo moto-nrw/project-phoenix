@@ -83,6 +83,17 @@ export const roomsConfig = defineEntityConfig<Room>({
             colSpan: 2,
             component: RoomColorField,
           },
+          {
+            // "Offener Raum" is the domain term from #3062. The hint names what
+            // the switch does and, in one short sentence, what it does not: the
+            // most likely wrong reading is "I have taken supervision here".
+            name: "isOpenRoom",
+            label: "Offener Raum",
+            type: "checkbox",
+            colSpan: 2,
+            helperText:
+              "Kinder können diesen Raum jederzeit als Ziel wählen. Das ersetzt keine Aufsicht.",
+          },
         ],
       },
     ],

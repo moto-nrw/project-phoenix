@@ -5,6 +5,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
@@ -671,25 +672,27 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
       case "checkbox":
         return (
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id={field.name}
-              name={field.name}
-              checked={Boolean(formData[field.name])}
-              onChange={handleChange}
-              className="text-moto-blue focus:ring-moto-blue h-4 w-4 rounded border-gray-300"
-            />
+          <div>
             <label
               htmlFor={field.name}
-              className={`ml-2 block text-xs md:text-sm ${hasError ? "text-moto-red" : "text-gray-700"}`}
+              className="flex cursor-pointer items-center gap-2"
             >
-              {field.label}
+              <Checkbox
+                id={field.name}
+                name={field.name}
+                checked={Boolean(formData[field.name])}
+                onChange={handleChange}
+              />
+              <span
+                className={`block text-xs md:text-sm ${hasError ? "text-moto-red" : "text-gray-700"}`}
+              >
+                {field.label}
+              </span>
             </label>
+            {/* Below the row, like every other field's hint. Inline it ran into
+                the label as one long line and broke the form's own rhythm. */}
             {field.helperText && (
-              <p className="ml-2 text-xs text-gray-500 md:text-sm">
-                {field.helperText}
-              </p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );

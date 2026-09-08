@@ -332,6 +332,13 @@ func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
 			body["floor"] = *room.Floor
 		}
 
+		// Only sent when the room is meant to be released. An omitted
+		// is_open_room leaves the release alone, which is also the create
+		// default — ordinary demo rooms stay unreleased.
+		if room.IsOpenRoom {
+			body["is_open_room"] = true
+		}
+
 		respBody, err := s.client.Post("/api/rooms", body)
 		if err != nil {
 			return fmt.Errorf("failed to create room %s: %w", room.Name, err)

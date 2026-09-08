@@ -12,10 +12,12 @@ import (
 )
 
 type recordingEngine struct {
-	findID     int64
-	listIDs    []int64
-	calls      int
-	rejections []string
+	findID      int64
+	listIDs     []int64
+	calls       int
+	rejections  []string
+	createInput *facilities.CreateRoom
+	updateInput *facilities.UpdateRoom
 }
 
 func (e *recordingEngine) RequireTenant(context.Context) error { return nil }
@@ -65,11 +67,17 @@ func (e *recordingEngine) LockRoomsByID(_ context.Context, ids []int64) ([]facil
 }
 
 func (e *recordingEngine) CreateRoom(_ context.Context, input facilities.CreateRoom) (facilities.Room, error) {
-	return facilities.Room{Name: input.Name, Color: input.Color}, nil
+	e.createInput = &input
+	return facilities.Room{Name: input.Name, Color: input.Color, IsOpenRoom: input.IsOpenRoom}, nil
 }
 
 func (e *recordingEngine) UpdateRoom(_ context.Context, input facilities.UpdateRoom) (facilities.Room, error) {
-	return facilities.Room{ID: input.ID, Name: input.Name, Color: input.Color}, nil
+	e.updateInput = &input
+	room := facilities.Room{ID: input.ID, Name: input.Name, Color: input.Color}
+	if input.IsOpenRoom != nil {
+		room.IsOpenRoom = *input.IsOpenRoom
+	}
+	return room, nil
 }
 
 func (e *recordingEngine) DeleteRoom(context.Context, int64) error { return nil }
