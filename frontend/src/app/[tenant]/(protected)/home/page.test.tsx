@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
@@ -92,6 +93,36 @@ vi.mock("~/components/home/messages-block", () => ({
 // Die Jetzt-Zone hat eigene Quellen und einen eigenen Test.
 vi.mock("~/components/home/now-strip", () => ({
   NowStrip: () => <div data-testid="home-now" />,
+}));
+
+// Die Bewegung der Kacheln animiert framer-motion; hier zählt nur, wo sie
+// landen. `motion.li` wird zum echten `li`, die Animationsprops fallen weg.
+vi.mock("framer-motion", () => ({
+  motion: new Proxy(
+    {},
+    {
+      get:
+        (_target, tag: string) =>
+        ({
+          children,
+          layout,
+          transition,
+          style,
+          ...rest
+        }: {
+          children?: ReactNode;
+          layout?: unknown;
+          transition?: unknown;
+          style?: Record<string, unknown>;
+        } & Record<string, unknown>) => {
+          void layout;
+          void transition;
+          void style;
+          return createElement(tag, rest, children);
+        },
+    },
+  ),
+  useReducedMotion: () => true,
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
@@ -396,7 +427,7 @@ describe("Startseite anpassen", () => {
     startEditing();
 
     expect(
-      screen.getByText(/Karte anklicken, um Breite und Platz zu ändern/),
+      screen.getByText(/Anklicken, um die Breite zu ändern/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Entfernen" }),
@@ -464,11 +495,18 @@ describe("Startseite anpassen", () => {
     ]);
   });
 
-  it("verschiebt die ausgewählte Karte nach vorne", async () => {
+  // Verschoben wird durch Ziehen; ohne Maus übernehmen die Pfeiltasten auf
+  // der Kachel — Knöpfe in der Leiste gibt es dafür nicht mehr.
+  it("verschiebt eine Karte mit den Pfeiltasten nach vorne", async () => {
     startEditing();
-    select("Tagesinformationen");
 
-    fireEvent.click(screen.getByRole("button", { name: "Nach vorne" }));
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: /^Tagesinformationen auswählen/ }),
+      { key: "ArrowLeft" },
+    );
+    expect(
+      screen.queryByRole("button", { name: "Nach vorne" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));

@@ -334,7 +334,7 @@ function HomeContent() {
       statsLoading={isLoading}
       stats={
         editing
-          ? "Karte anklicken und in der Leiste ändern, an ihren neuen Platz ziehen, oder dort einen Baustein hinzufügen."
+          ? "Karte ziehen, um sie zu verschieben. Anklicken, um Breite zu ändern oder sie zu entfernen."
           : headerStats
       }
       error={

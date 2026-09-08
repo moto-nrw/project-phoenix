@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ArrowLeft,
-  ArrowRight,
-  GripVertical,
-  Plus,
-  Trash2,
-} from "lucide-react";
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -40,15 +43,19 @@ import {
  * Im Anpassen-Modus zeigt das Brett nicht die Inhalte, sondern die Anordnung:
  * jede Karte wird zu einer Platzhalter-Kachel mit Symbol, Name und Breite, an
  * derselben Stelle und in derselben Größe wie die echte Karte. Man ordnet
- * hier, man liest nicht. Eine Kachel anklicken wählt sie aus; alles Weitere
- * steht in EINER Leiste über der Fläche, die beim Scrollen stehen bleibt —
- * statt in fünf Knöpfen auf jeder einzelnen Karte.
+ * hier, man liest nicht.
  *
- * Die Leiste trägt IMMER dieselben drei Dinge rechts: Baustein hinzufügen,
- * Standardansicht wiederherstellen, und links entweder die ausgewählte Karte
- * mit ihren Reglern oder den Satz, wie man eine auswählt. Die Auswahl der
- * Bausteine stand vorher unter der Fläche — bei acht Karten also außerhalb des
- * Bildes, und wer die Startseite anpassen wollte, fand nichts zum Auswählen.
+ * ANORDNEN HEISST ZIEHEN. Eine Kachel folgt dem Zeiger, sobald man sie ein
+ * paar Pixel bewegt (am Handy: kurz halten, dann ziehen), und die anderen
+ * rücken sofort beiseite — nicht erst beim Loslassen. Die Karte landet dort,
+ * wo man sie sieht. Knöpfe „nach vorne / nach hinten" gibt es nicht mehr;
+ * die Pfeiltasten verschieben eine ausgewählte Kachel für alle, die keine
+ * Maus benutzen. Die Bewegung der anderen Kacheln animiert framer-motion
+ * (`layout`), damit man sieht, was passiert, statt es zu raten.
+ *
+ * Ein Klick wählt die Kachel aus; alles Weitere (Breite, Entfernen) steht in
+ * EINER Leiste über der Fläche, die beim Scrollen stehen bleibt. Rechts trägt
+ * sie immer „Bausteine" und „Standardansicht wiederherstellen".
  */
 
 // Auch das Handy hat zwei Spalten: eine Kennzahl ist eine Zahl mit einem Wort
@@ -65,6 +72,11 @@ const SPAN_LABEL: Record<HomeBlockSpan, string> = {
   2: "Breit",
   4: "Volle Breite",
 };
+
+/** So weit muss sich der Zeiger bewegen, bevor ein Klick zum Zug wird. */
+const DRAG_THRESHOLD_PX = 6;
+/** So lange hält man am Handy, bevor die Kachel dem Finger folgt. */
+const TOUCH_HOLD_MS = 220;
 
 /**
  * Eine Kennzahl ist eine Reihe hoch, eine Liste zwei — aber erst ab der
@@ -90,6 +102,30 @@ export interface HomeBoardProps {
   readonly children: (placement: HomeBlockPlacement) => ReactNode;
 }
 
+/** Der laufende Zug, so wie das Brett ihn zeichnet. */
+interface DragVisual {
+  readonly key: HomeBlockKey;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Alles, was ein Zug zwischen zwei Ereignissen wissen muss. */
+interface DragSession {
+  key: HomeBlockKey;
+  pointerId: number;
+  element: HTMLElement;
+  /** Zeiger beim Anfassen. */
+  startX: number;
+  startY: number;
+  /** Lage der Kachel im Fluss beim Anfassen — unabhängig von Transformationen. */
+  originLeft: number;
+  originTop: number;
+  /** Ab hier folgt die Kachel dem Zeiger. */
+  active: boolean;
+  holdTimer: ReturnType<typeof setTimeout> | null;
+  preventTouchScroll: ((event: TouchEvent) => void) | null;
+}
+
 export function HomeBoard({
   placements,
   addable,
@@ -102,22 +138,140 @@ export function HomeBoard({
   restoring,
   children,
 }: HomeBoardProps) {
-  const [draggedKey, setDraggedKey] = useState<HomeBlockKey | null>(null);
-  const [overKey, setOverKey] = useState<HomeBlockKey | null>(null);
+  const reduceMotion = useReducedMotion();
   const [selectedKey, setSelectedKey] = useState<HomeBlockKey | null>(null);
-  // Ein Zug, der weit genug ging, darf am Ende nicht auch noch als Klick
-  // gelten — sonst wählt das Loslassen die Kachel aus, auf der man landet.
-  const draggedFar = useRef(false);
+  const [drag, setDrag] = useState<DragVisual | null>(null);
+  const session = useRef<DragSession | null>(null);
+  // Ein Zug, der lief, darf am Ende nicht auch noch als Klick gelten — sonst
+  // wählt das Loslassen die Kachel aus, auf der man landet.
+  const dragHappened = useRef(false);
+  // Die aktuelle Reihenfolge für Ereignisse, die zwischen zwei Renderings
+  // kommen: der Index der gezogenen Kachel wandert mit jedem Umsortieren.
+  const order = useRef(placements);
+  order.current = placements;
+
+  const endDrag = useCallback(() => {
+    const current = session.current;
+    if (!current) return;
+    if (current.holdTimer) clearTimeout(current.holdTimer);
+    if (current.preventTouchScroll) {
+      document.removeEventListener("touchmove", current.preventTouchScroll);
+    }
+    current.element.releasePointerCapture?.(current.pointerId);
+    session.current = null;
+    setDrag(null);
+  }, []);
 
   // Beim Verlassen des Anpassen-Modus die Auswahl fallen lassen, sonst steht
   // beim nächsten Öffnen eine Kachel markiert, die niemand angeklickt hat.
   useEffect(() => {
     if (!editing) {
       setSelectedKey(null);
-      setDraggedKey(null);
-      setOverKey(null);
+      endDrag();
     }
-  }, [editing]);
+  }, [editing, endDrag]);
+
+  useEffect(() => endDrag, [endDrag]);
+
+  const activate = (current: DragSession) => {
+    current.active = true;
+    dragHappened.current = true;
+    current.element.setPointerCapture?.(current.pointerId);
+    setDrag({ key: current.key, x: 0, y: 0 });
+  };
+
+  const beginDrag = (
+    event: ReactPointerEvent<HTMLLIElement>,
+    key: HomeBlockKey,
+  ) => {
+    if (!editing || session.current) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const element = event.currentTarget;
+    const current: DragSession = {
+      key,
+      pointerId: event.pointerId,
+      element,
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: element.offsetLeft,
+      originTop: element.offsetTop,
+      active: false,
+      holdTimer: null,
+      preventTouchScroll: null,
+    };
+    session.current = current;
+    dragHappened.current = false;
+
+    if (event.pointerType === "touch") {
+      // Am Handy entscheidet die Wartezeit, ob der Finger scrollt oder zieht:
+      // wer still hält, zieht; wer gleich wischt, scrollt. Erst ab dann darf
+      // die Seite nicht mehr mitscrollen — das Ereignis muss nicht-passiv
+      // abgefangen werden, sonst zieht der Browser die Seite unter der
+      // Kachel weg.
+      current.holdTimer = setTimeout(() => {
+        current.holdTimer = null;
+        current.preventTouchScroll = (touch: TouchEvent) =>
+          touch.preventDefault();
+        document.addEventListener("touchmove", current.preventTouchScroll, {
+          passive: false,
+        });
+        activate(current);
+      }, TOUCH_HOLD_MS);
+    }
+  };
+
+  const moveDrag = (event: ReactPointerEvent<HTMLLIElement>) => {
+    const current = session.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const dx = event.clientX - current.startX;
+    const dy = event.clientY - current.startY;
+
+    if (!current.active) {
+      const far = Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
+      if (!far) return;
+      if (current.holdTimer) {
+        // Der Finger wischt, bevor die Wartezeit um ist: das ist ein Scrollen.
+        clearTimeout(current.holdTimer);
+        session.current = null;
+        return;
+      }
+      activate(current);
+    }
+
+    // Die Kachel folgt dem Zeiger. Rückt sie beim Umsortieren im Fluss an
+    // eine andere Stelle, gleicht der Versatz das aus, damit sie unter dem
+    // Zeiger bleibt statt zu springen.
+    const element = current.element;
+    setDrag({
+      key: current.key,
+      x: dx + (current.originLeft - element.offsetLeft),
+      y: dy + (current.originTop - element.offsetTop),
+    });
+
+    // Die gezogene Kachel lässt Zeigerereignisse durch; darunter liegt die
+    // Kachel, deren Platz sie einnehmen soll. Sobald der Zeiger über einer
+    // anderen steht, rückt diese beiseite — nicht erst beim Loslassen.
+    const under = document.elementFromPoint(event.clientX, event.clientY);
+    const target = under?.closest<HTMLElement>("[data-block-key]");
+    const overKey = target?.dataset.blockKey as HomeBlockKey | undefined;
+    if (!overKey || overKey === current.key) return;
+    const from = order.current.findIndex((entry) => entry.key === current.key);
+    const to = order.current.findIndex((entry) => entry.key === overKey);
+    if (from >= 0 && to >= 0 && from !== to) onReorder(from, to);
+  };
+
+  const finishDrag = (event: ReactPointerEvent<HTMLLIElement>) => {
+    const current = session.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    endDrag();
+  };
+
+  const moveByKeyboard = (key: HomeBlockKey, delta: -1 | 1) => {
+    const from = placements.findIndex((entry) => entry.key === key);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= placements.length) return;
+    onReorder(from, to);
+  };
 
   const selectedIndex = placements.findIndex(
     (placement) => placement.key === selectedKey,
@@ -127,10 +281,9 @@ export function HomeBoard({
     ? homeBlockDefinition(selected.key)
     : null;
 
-  const move = (from: number, to: number) => {
-    if (to < 0 || to >= placements.length) return;
-    onReorder(from, to);
-  };
+  const settle = reduceMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 520, damping: 42, mass: 0.8 };
 
   return (
     <div className="space-y-4">
@@ -143,9 +296,6 @@ export function HomeBoard({
           <SelectionBar
             definition={selectedDefinition}
             placement={selected}
-            index={selectedIndex}
-            total={placements.length}
-            onMove={move}
             onSpanChange={onSpanChange}
             onRemove={(key) => {
               setSelectedKey(null);
@@ -169,57 +319,39 @@ export function HomeBoard({
       >
         {placements.map((placement, index) => {
           const definition = homeBlockDefinition(placement.key);
+          const dragging = drag?.key === placement.key;
           return (
-            <li
+            <motion.li
               key={placement.key}
+              // `layout` lässt jede Kachel an ihren neuen Platz gleiten, wenn
+              // sich Reihenfolge oder Breite ändern. Die gezogene Kachel
+              // selbst springt ohne Übergang an ihre Flussposition — den
+              // sichtbaren Weg legt sie unter dem Zeiger zurück.
+              layout={editing}
+              transition={dragging ? { duration: 0 } : settle}
+              style={
+                dragging
+                  ? {
+                      x: drag.x,
+                      y: drag.y,
+                      zIndex: 10,
+                      pointerEvents: "none",
+                      position: "relative",
+                    }
+                  : undefined
+              }
               data-testid={`home-block-${placement.key}`}
               data-block-key={placement.key}
               data-span={placement.span}
-              className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0`}
+              className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0 ${
+                editing ? "touch-pan-y select-none" : ""
+              }`}
               // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt
-              // kein Tablet und lässt sich nicht testen. Der Zug beginnt erst
-              // nach ein paar Pixeln, damit ein Klick ein Klick bleibt.
-              onPointerDown={(event) => {
-                if (!editing || event.pointerType !== "mouse") return;
-                if (event.button !== 0) return;
-                draggedFar.current = false;
-                setDraggedKey(placement.key);
-                setOverKey(null);
-                // Optional: in Testumgebungen ohne Zeiger-Erfassung fehlt sie.
-                event.currentTarget.setPointerCapture?.(event.pointerId);
-              }}
-              onPointerMove={(event) => {
-                if (!editing || draggedKey !== placement.key) return;
-                draggedFar.current = true;
-                const element = document.elementFromPoint(
-                  event.clientX,
-                  event.clientY,
-                );
-                const target =
-                  element?.closest<HTMLElement>("[data-block-key]");
-                setOverKey(
-                  (target?.dataset.blockKey as HomeBlockKey | undefined) ??
-                    null,
-                );
-              }}
-              onPointerUp={(event) => {
-                if (!editing || draggedKey !== placement.key) return;
-                event.currentTarget.releasePointerCapture?.(event.pointerId);
-                const to = placements.findIndex(
-                  (entry) => entry.key === overKey,
-                );
-                if (draggedFar.current && to >= 0 && to !== index) {
-                  move(index, to);
-                } else if (!draggedFar.current) {
-                  setSelectedKey(placement.key);
-                }
-                setDraggedKey(null);
-                setOverKey(null);
-              }}
-              onPointerCancel={() => {
-                setDraggedKey(null);
-                setOverKey(null);
-              }}
+              // kein Tablet und lässt sich nicht testen.
+              onPointerDown={(event) => beginDrag(event, placement.key)}
+              onPointerMove={moveDrag}
+              onPointerUp={finishDrag}
+              onPointerCancel={finishDrag}
             >
               {editing && definition ? (
                 <ArrangeTile
@@ -228,20 +360,18 @@ export function HomeBoard({
                   position={index + 1}
                   total={placements.length}
                   selected={placement.key === selectedKey}
-                  dragging={placement.key === draggedKey}
-                  dropTarget={
-                    overKey === placement.key && draggedKey !== placement.key
-                  }
+                  dragging={dragging}
                   onSelect={() => {
                     // Nach einem Zug ist der Klick nur das Loslassen.
-                    if (draggedFar.current) return;
+                    if (dragHappened.current) return;
                     setSelectedKey(placement.key);
                   }}
+                  onMove={(delta) => moveByKeyboard(placement.key, delta)}
                 />
               ) : (
                 <div className="h-full min-h-0">{children(placement)}</div>
               )}
-            </li>
+            </motion.li>
           );
         })}
       </ul>
@@ -252,7 +382,8 @@ export function HomeBoard({
 /**
  * Die Kachel im Anpassen-Modus: Symbol, Name, Breite und der Platz in der
  * Reihenfolge. Sie ist ein Knopf, damit sie sich auch mit der Tastatur
- * auswählen lässt — Ziehen allein wäre nicht bedienbar.
+ * auswählen und mit den Pfeiltasten verschieben lässt — Ziehen allein wäre
+ * nicht bedienbar.
  */
 function ArrangeTile({
   definition,
@@ -261,8 +392,8 @@ function ArrangeTile({
   total,
   selected,
   dragging,
-  dropTarget,
   onSelect,
+  onMove,
 }: {
   readonly definition: HomeBlockDefinition;
   readonly placement: HomeBlockPlacement;
@@ -270,20 +401,33 @@ function ArrangeTile({
   readonly total: number;
   readonly selected: boolean;
   readonly dragging: boolean;
-  readonly dropTarget: boolean;
   readonly onSelect: () => void;
+  readonly onMove: (delta: -1 | 1) => void;
 }) {
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      onMove(-1);
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      onMove(1);
+    }
+  };
+
   return (
     <ChoiceTile
       as="button"
       selected={selected}
-      tone={selected ? "green" : dropTarget ? "blue" : "gray"}
+      tone={selected ? "green" : "gray"}
       onClick={onSelect}
+      onKeyDown={onKeyDown}
       aria-pressed={selected}
-      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}`}
-      className={`flex h-full w-full cursor-grab flex-col items-start gap-2 p-4 text-left ${
-        dropTarget ? "ring-moto-blue ring-2" : ""
-      } ${dragging ? "opacity-50" : ""}`}
+      aria-label={`${definition.label} auswählen, Platz ${position} von ${total}, ${SPAN_LABEL[placement.span]}. Pfeiltasten verschieben.`}
+      className={`flex h-full w-full flex-col items-start gap-2 p-4 text-left ${
+        dragging
+          ? "scale-[1.02] cursor-grabbing shadow-xl"
+          : "cursor-grab transition-shadow"
+      }`}
     >
       <span className="flex w-full items-center gap-2">
         <GripVertical
@@ -325,14 +469,12 @@ function ArrangeTile({
 
 /**
  * Was mit der ausgewählten Kachel passieren kann — an einer Stelle, statt auf
- * jeder Karte. Ohne Auswahl steht hier, wie man eine trifft.
+ * jeder Karte: die Breite und das Entfernen. Verschoben wird durch Ziehen,
+ * nicht hier. Ohne Auswahl steht hier, wie man eine trifft.
  */
 function SelectionBar({
   definition,
   placement,
-  index,
-  total,
-  onMove,
   onSpanChange,
   onRemove,
   onRestoreDefault,
@@ -342,9 +484,6 @@ function SelectionBar({
 }: {
   readonly definition: HomeBlockDefinition | null;
   readonly placement: HomeBlockPlacement | undefined;
-  readonly index: number;
-  readonly total: number;
-  readonly onMove: (from: number, to: number) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onRestoreDefault: () => void;
@@ -365,7 +504,7 @@ function SelectionBar({
             </span>
           </span>
 
-          {definition.spans.length > 1 && (
+          {definition.spans.length > 1 ? (
             <span className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Breite</span>
               <SegmentedControl
@@ -380,32 +519,13 @@ function SelectionBar({
                 }
               />
             </span>
+          ) : (
+            // Eine Kennzahl hat genau eine Breite. Das steht da, damit
+            // niemand den fehlenden Regler für einen Fehler hält.
+            <span className="text-sm text-gray-500">
+              Kennzahlen sind immer schmal.
+            </span>
           )}
-
-          <span className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="gap-1"
-              disabled={index === 0}
-              onClick={() => onMove(index, index - 1)}
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Nach vorne
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="gap-1"
-              disabled={index === total - 1}
-              onClick={() => onMove(index, index + 1)}
-            >
-              Nach hinten
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </span>
 
           <Button
             type="button"
@@ -420,13 +540,13 @@ function SelectionBar({
         </>
       ) : (
         <span className="min-w-0 flex-1 text-sm text-gray-600">
-          Karte anklicken, um Breite und Platz zu ändern.
-          {/* Gezogen wird mit der Maus; auf einem Handy führt „Nach vorne" und
-              „Nach hinten" in der Leiste zum selben Ziel. */}
-          <span className="hidden sm:inline">
-            {" "}
-            Zum Umsortieren die Karte ziehen.
+          <span className="sm:hidden">
+            Karte halten und ziehen, um sie zu verschieben.
           </span>
+          <span className="hidden sm:inline">
+            Karte ziehen, um sie zu verschieben.
+          </span>{" "}
+          Anklicken, um die Breite zu ändern.
         </span>
       )}
 
@@ -501,10 +621,8 @@ function AddBlockModal({
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
-            {/* „Ziehen" gilt nur mit Maus; auf dem Handy schiebt „Nach vorne"
-                in der Leiste. Deshalb ein Satz, der für beides stimmt. */}
-            Der Baustein erscheint am Ende Ihrer Startseite. Von dort können Sie
-            ihn nach vorne schieben.
+            Der Baustein erscheint am Ende Ihrer Startseite. Von dort ziehen Sie
+            ihn an seinen Platz.
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {addable.map((block) => (
