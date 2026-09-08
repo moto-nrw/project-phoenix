@@ -1097,8 +1097,8 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 // SCHULHOF AUTO-CREATE TESTS
 // =============================================================================
 
-// createSchulhofRoom creates a room with the exact name "Schulhof" (no timestamp
-// suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
+// createSchulhofRoom creates the released canonical Schulhof with the exact name
+// "Schulhof" (no timestamp suffix) so the auto-create path recognizes it.
 // If a Schulhof room already exists (e.g. from seed data), it cleans up and recreates it
 // to ensure the test owns the full lifecycle.
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
@@ -1119,9 +1119,10 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	}
 
 	room := &facilities.Room{
-		Name:     "Schulhof",
-		Building: "Test Building",
-		IsSystem: true,
+		Name:       "Schulhof",
+		Building:   "Test Building",
+		IsSystem:   true,
+		IsOpenRoom: true,
 	}
 	room.SetTenantID(testpkg.Tenant(t))
 

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	roomsOpenReleaseVersion     = "1.15.370"
+	roomsOpenReleaseVersion     = "1.15.372"
 	roomsOpenReleaseDescription = "Add is_open_room release flag to facilities.rooms and release existing canonical Schulhof rooms (#3064)"
 )
 
@@ -26,7 +26,7 @@ func init() {
 }
 
 func roomsOpenReleaseUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.370: Adding is_open_room release flag to facilities.rooms...")
+	fmt.Println("Migration 1.15.372: Adding is_open_room release flag to facilities.rooms...")
 
 	// An "offener Raum" is a place the OGS administration permanently releases
 	// for use (#3062). The release belongs to the room, needs no daily opening,
@@ -68,14 +68,14 @@ func roomsOpenReleaseUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed releasing canonical Schulhof rooms: %w", err)
 	}
 	if affected, affErr := res.RowsAffected(); affErr == nil {
-		fmt.Printf("Migration 1.15.370: released %d canonical Schulhof room(s)\n", affected)
+		fmt.Printf("Migration 1.15.372: released %d canonical Schulhof room(s)\n", affected)
 	}
 
 	return nil
 }
 
 func roomsOpenReleaseDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.370...")
+	fmt.Println("Rolling back migration 1.15.372...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE facilities.rooms

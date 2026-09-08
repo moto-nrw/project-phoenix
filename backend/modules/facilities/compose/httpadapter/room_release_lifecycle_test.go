@@ -17,7 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -76,7 +75,7 @@ func TestRevokingAReleaseEndsNeitherVisitsNorSessions(t *testing.T) {
 	)
 	req.Header.Set("Content-Type", "application/json")
 	rr := testutil.ExecuteWithAuthPermissions(
-		t, tc.router, req, claims, []string{permissions.RoomsRead, permissions.RoomsUpdate},
+		t, tc.router, req, claims, []string{"rooms:read", "rooms:update"},
 	)
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	require.False(t, roomIsReleased(t, tc.db, tenantID, room.ID))

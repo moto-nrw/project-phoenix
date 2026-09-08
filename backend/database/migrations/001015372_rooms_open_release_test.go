@@ -1,6 +1,6 @@
 package migrations
 
-// Coverage for the 1.15.370 room-release backfill (#3064): existing schools
+// Coverage for the 1.15.372 room-release backfill (#3064): existing schools
 // must keep their Schulhof permanently available without a new daily step,
 // while every other room — including the toilet system rooms and a room a
 // school merely named "Schulhof" itself — starts unreleased.
@@ -45,7 +45,7 @@ func roomIsOpenRoom(t *testing.T, db *testpkg.DB, roomID int64) bool {
 }
 
 // TestRoomsOpenRelease_ReleasesOnlyCanonicalSchulhof stages the room set a
-// deployed school carries into 1.15.370 and runs the backfill. The
+// deployed school carries into 1.15.372 and runs the backfill. The
 // load-bearing fixtures are the two rooms the predicate must tell apart: the
 // auto-provisioned Schulhof (is_system) and a school's own room that happens
 // to carry the same name.

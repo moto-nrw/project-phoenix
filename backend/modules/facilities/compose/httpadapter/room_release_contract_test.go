@@ -17,7 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -61,7 +60,7 @@ func TestRoomRelease_RequiresTheRoomUpdatePermission(t *testing.T) {
 		)
 		req.Header.Set("Content-Type", "application/json")
 		rr := testutil.ExecuteWithAuthPermissions(
-			t, tc.router, req, claims, []string{permissions.RoomsRead},
+			t, tc.router, req, claims, []string{"rooms:read"},
 		)
 		assert.Equal(t, http.StatusForbidden, rr.Code,
 			"rooms:read alone must not be enough to release a room. Body: %s", rr.Body.String())
@@ -77,7 +76,7 @@ func TestRoomRelease_RequiresTheRoomUpdatePermission(t *testing.T) {
 		)
 		req.Header.Set("Content-Type", "application/json")
 		rr := testutil.ExecuteWithAuthPermissions(
-			t, tc.router, req, claims, []string{permissions.RoomsRead, permissions.RoomsUpdate},
+			t, tc.router, req, claims, []string{"rooms:read", "rooms:update"},
 		)
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		assert.True(t, roomIsReleased(t, tc.db, tenantID, room.ID))
@@ -91,7 +90,7 @@ func TestRoomRelease_RequiresTheRoomUpdatePermission(t *testing.T) {
 		)
 		req.Header.Set("Content-Type", "application/json")
 		rr := testutil.ExecuteWithAuthPermissions(
-			t, tc.router, req, claims, []string{permissions.RoomsRead, permissions.RoomsUpdate},
+			t, tc.router, req, claims, []string{"rooms:read", "rooms:update"},
 		)
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		assert.False(t, roomIsReleased(t, tc.db, tenantID, room.ID))
