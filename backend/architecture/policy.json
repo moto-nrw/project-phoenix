@@ -299,10 +299,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-time-tracking",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-timetable",
       "kind": "inbound"
     },
@@ -828,13 +824,6 @@
       "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "api/time-tracking",
-      "owner": "inbound-time-tracking",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
     },
     {
       "path": "api/timetable",
@@ -2098,6 +2087,13 @@
     },
     {
       "path": "modules/workforce/inbound/shiftplanning",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/inbound/timetracking",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -6849,17 +6845,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-time-tracking.to.workforce",
-      "description": "inbound-time-tracking calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-time-tracking",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-timetable.to.timetable-activities",
       "description": "inbound-timetable calls exactly one public capability.",
       "scopes": [
@@ -7721,19 +7706,6 @@
       ],
       "source_owner": "root-composition",
       "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-time-tracking.to.export-transfer",
-      "description": "The workforce time-tracking HTTP resource calls the public Export Transfer capability to send an already-produced export file (#3050).",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-time-tracking",
-      "source_role": "http",
       "target_owner": "export-transfer",
       "target_role": "contract"
     },

@@ -245,6 +245,20 @@ The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
 
+The Workforce time-tracking HTTP composition
+(`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
+under the same compatibility permissions (#2690). It replaced
+`api/time-tracking` and serves the public work-session, absence, month,
+ledger, month-close, overview, audit-log, export and personnel-record
+contracts of `modules/workforce`, which the root composition adapts from the
+retained `services/active` and `services/users` services. Its remaining
+`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
+shifts and assignments) go with the shift services' move. The kiosk staff
+clock consumes the public device-scan contract in `modules/devicescan`
+(`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
+one rule anchored to that new point, and the staff-clock workflow reaches the
+Workforce time clock only through its own port.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to

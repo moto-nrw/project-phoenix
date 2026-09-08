@@ -57,22 +57,22 @@ func invalidWorkSession(reason string) error { return &InvalidWorkSessionError{R
 // WorkSession is one work block of a staff member. Date is the calendar day
 // the block is filed under, in DateLayout; the instants are timestamps.
 type WorkSession struct {
-	ID             int64
-	TenantID       int64
-	StaffID        int64
-	Date           string
-	Status         string
-	Source         string
-	CheckInTime    time.Time
-	CheckOutTime   *time.Time
-	ReopenedAt     *time.Time
-	BreakMinutes   int
-	Notes          string
-	AutoCheckedOut bool
-	CreatedBy      int64
-	UpdatedBy      *int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID             int64      `json:"id"`
+	TenantID       int64      `json:"tenant_id"`
+	StaffID        int64      `json:"staff_id"`
+	Date           string     `json:"date"`
+	Status         string     `json:"status"`
+	Source         string     `json:"source"`
+	CheckInTime    time.Time  `json:"check_in_time"`
+	CheckOutTime   *time.Time `json:"check_out_time,omitempty"`
+	ReopenedAt     *time.Time `json:"-"`
+	BreakMinutes   int        `json:"break_minutes"`
+	Notes          string     `json:"notes,omitempty"`
+	AutoCheckedOut bool       `json:"auto_checked_out"`
+	CreatedBy      int64      `json:"created_by"`
+	UpdatedBy      *int64     `json:"updated_by,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 // IsOpen reports whether the block is still running.
@@ -113,15 +113,15 @@ type WorkSessionFilter struct {
 
 // WorkSessionBreak is one break period inside a work block.
 type WorkSessionBreak struct {
-	ID              int64
-	TenantID        int64
-	SessionID       int64
-	StartedAt       time.Time
-	EndedAt         *time.Time
-	DurationMinutes int
-	PlannedEndTime  *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID              int64      `json:"id"`
+	TenantID        int64      `json:"tenant_id"`
+	SessionID       int64      `json:"session_id"`
+	StartedAt       time.Time  `json:"started_at"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	DurationMinutes int        `json:"duration_minutes"`
+	PlannedEndTime  *time.Time `json:"planned_end_time,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // IsActive reports whether the break has not ended yet.
@@ -140,17 +140,17 @@ type WorkSessionBreakFilter struct {
 // StaffBalanceAdjustment is one Stundenkonto correction transaction (#1420).
 // EffectiveDate is a calendar day in DateLayout; MinutesDelta is signed.
 type StaffBalanceAdjustment struct {
-	ID            int64
-	TenantID      int64
-	StaffID       int64
-	Type          string
-	MinutesDelta  int
-	EffectiveDate string
-	Note          string
-	DecidedBy     int64
-	DecidedAt     time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            int64     `json:"id"`
+	TenantID      int64     `json:"tenant_id"`
+	StaffID       int64     `json:"staff_id"`
+	Type          string    `json:"type"`
+	MinutesDelta  int       `json:"minutes_delta"`
+	EffectiveDate string    `json:"effective_date"`
+	Note          string    `json:"note"`
+	DecidedBy     int64     `json:"decided_by"`
+	DecidedAt     time.Time `json:"decided_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // StaffBalanceAdjustmentFilter narrows an adjustment listing; the effective
@@ -168,18 +168,18 @@ type StaffBalanceAdjustmentFilter struct {
 // StaffVacationOpening records the vacation days a staff member had already
 // taken before the moto introduction (#2132), per calendar year.
 type StaffVacationOpening struct {
-	ID                   int64
-	TenantID             int64
-	StaffID              int64
-	Year                 int
-	EffectiveDate        string
-	TakenBeforeDays      float64
-	EnteredRemainingDays float64
-	Note                 string
-	DecidedBy            int64
-	DecidedAt            time.Time
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                   int64     `json:"id"`
+	TenantID             int64     `json:"tenant_id"`
+	StaffID              int64     `json:"staff_id"`
+	Year                 int       `json:"year"`
+	EffectiveDate        string    `json:"effective_date"`
+	TakenBeforeDays      float64   `json:"taken_before_days"`
+	EnteredRemainingDays float64   `json:"entered_remaining_days"`
+	Note                 string    `json:"note"`
+	DecidedBy            int64     `json:"decided_by"`
+	DecidedAt            time.Time `json:"decided_at"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // StaffVacationQuota is the yearly vacation entitlement of a staff member.

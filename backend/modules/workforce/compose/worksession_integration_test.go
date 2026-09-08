@@ -51,16 +51,18 @@ func TestWorkSessionRowRulesMatchTheLegacyRepository(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Session", "Rules")
 	capability := buildWorkforce(t, db)
-	today := timezone.TodayDate()
+	// A fixed Berlin day: the row rules do not depend on the wall clock.
+	today := timezone.NewDate(2026, 3, 10)
+	checkIn := today.BerlinMidnight().Add(8 * time.Hour)
 
-	created, err := capability.CreateWorkSession(ctx, testWorkSession(staff.ID, today, time.Now()))
+	created, err := capability.CreateWorkSession(ctx, testWorkSession(staff.ID, today, checkIn))
 	require.NoError(t, err)
 	assert.NotZero(t, created.ID)
 	assert.Equal(t, testpkg.Tenant(t), created.TenantID, "the ambient tenant is stamped on the row")
 	assert.Equal(t, today.String(), created.Date)
 	assert.True(t, created.IsOpen())
 
-	homeOffice := testWorkSession(staff.ID, today, time.Now())
+	homeOffice := testWorkSession(staff.ID, today, checkIn.Add(time.Hour))
 	homeOffice.Status = workforce.WorkSessionStatusHomeOffice
 	// A second open block on the same day trips the unique index and surfaces
 	// as the conflict the kiosk classifies, with the driver error reachable.
@@ -134,7 +136,8 @@ func TestWorkSessionHistoryAndOpenSessionsFollowTheStoredDay(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "History", "Staff")
 	capability := buildWorkforce(t, db)
-	today := timezone.TodayDate()
+	// A fixed Berlin day: the stored-day rules do not depend on the wall clock.
+	today := timezone.NewDate(2026, 3, 10)
 
 	for _, offset := range []int{-2, -1, 0} {
 		day := today.AddDays(offset)
