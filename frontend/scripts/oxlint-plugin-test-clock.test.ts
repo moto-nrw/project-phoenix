@@ -110,6 +110,7 @@ describe("test-clock/no-real-clock", () => {
       it("escapes the frozen clock", () => {
         const now = vi.getRealSystemTime();
         vi.stubGlobal("Date", RealDate);
+        Date = RealDate;
         globalThis.Date = RealDate;
         global.Date = RealDate;
         window.Date = RealDate;
@@ -120,7 +121,22 @@ describe("test-clock/no-real-clock", () => {
     `);
 
     expect(result.status).toBe(1);
-    expect(countReports(result.output)).toBe(7);
+    expect(countReports(result.output)).toBe(8);
+  });
+
+  it("allows assignments to a locally scoped Date binding", () => {
+    const result = lintSource(`
+      function updateLocalDate(): number {
+        let Date = 1;
+        Date = 2;
+        return Date;
+      }
+
+      void updateLocalDate();
+    `);
+
+    expect(result.status).toBe(0);
+    expect(countReports(result.output)).toBe(0);
   });
 
   it("accepts the sanctioned clock helpers and fake-timer control", () => {

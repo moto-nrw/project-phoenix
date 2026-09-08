@@ -167,13 +167,15 @@ describe("isolation with file-scoped fake timers", () => {
     vi.useRealTimers();
   });
 
-  it("can change time while keeping the file's fake-timer mode", () => {
+  it("can release the file's fake-timer mode after changing time", () => {
     expect(vi.isFakeTimers()).toBe(true);
     setTestClock("2031-06-15T10:00:00+02:00");
     expect(Date.now()).toBe(new Date("2031-06-15T10:00:00+02:00").getTime());
+    releaseFakeTimers();
+    expect(vi.isFakeTimers()).toBe(false);
   });
 
-  it("resets the clock before the next test without uninstalling fake timers", () => {
+  it("reinstalls fake timers and resets the clock before the next test", () => {
     expect(vi.isFakeTimers()).toBe(true);
     expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
   });

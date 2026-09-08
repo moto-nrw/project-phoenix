@@ -9,7 +9,8 @@ Every Vitest test in both projects (`app-dom` and `api-node`) runs on a
 deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
 `TEST_CLOCK_INSTANT` before each test and normally restores the real clock
 afterwards. If a file enables fake timers in module scope or `beforeAll`, the
-setup preserves that mode while resetting its system time before each test;
+setup preserves that mode while resetting its system time before each test. If
+a test releases fake timers, the setup reinstalls them before the next test;
 the file restores real timers in `afterAll`.
 `vitest.config.ts` pins the zone to `Europe/Berlin`, so the frozen instant is
 always Wednesday, 9 September 2026, 12:00 Berlin time (`TEST_CLOCK_TODAY` =

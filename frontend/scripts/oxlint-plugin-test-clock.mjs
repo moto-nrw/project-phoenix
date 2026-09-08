@@ -13,10 +13,11 @@
 //       timers back to the event loop while the clock stays frozen, or
 //       `useRealClock("reason")` for a reviewed real-time exception.
 //     - `useRealClock()` without a non-empty string-literal reason.
-//     - `vi.getRealSystemTime()`, `vi.stubGlobal("Date", …)` and assignments
-//       to `globalThis.Date` / `global.Date` / `window.Date` (including
-//       computed `["Date"]` properties), which read or replace the real clock
-//       behind the setup's back.
+//     - `vi.getRealSystemTime()`, `vi.stubGlobal("Date", …)`, direct global
+//       `Date = …` assignments, and assignments to `globalThis.Date` /
+//       `global.Date` / `window.Date` (including computed `["Date"]`
+//       properties), which read or replace the real clock behind the setup's
+//       back.
 //
 // There is no baseline and no allowlist: an exception is `useRealClock` with
 // its reason in the call, not a disable comment.
@@ -71,11 +72,29 @@ function literalText(node) {
   return node.quasis.map((quasi) => quasi.value.cooked ?? "").join("");
 }
 
+function findVariable(sourceCode, identifier) {
+  let scope = sourceCode.getScope(identifier);
+
+  while (scope) {
+    const variable = scope.set.get(identifier.name);
+    if (variable) return variable;
+    scope = scope.upper;
+  }
+
+  return undefined;
+}
+
 function isDateProperty(node) {
   return (
     (node.type === "Identifier" && node.name === "Date") ||
     (isStringLiteral(node) && literalText(node) === "Date")
   );
+}
+
+function isGlobalDateIdentifier(node, sourceCode) {
+  if (node.type !== "Identifier" || node.name !== "Date") return false;
+  const variable = findVariable(sourceCode, node);
+  return !variable || variable.defs.length === 0;
 }
 
 function isDateGlobalMember(node) {
@@ -143,7 +162,10 @@ const noRealClock = {
         }
       },
       AssignmentExpression(node) {
-        if (isDateGlobalMember(node.left)) {
+        if (
+          isGlobalDateIdentifier(node.left, sourceCode) ||
+          isDateGlobalMember(node.left)
+        ) {
           context.report({ node, messageId: "dateReplaced" });
         }
       },

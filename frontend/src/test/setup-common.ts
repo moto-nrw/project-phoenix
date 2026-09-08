@@ -12,21 +12,27 @@ process.env.API_URL = "http://server:8080";
 // frozen instant; the hook uninstalls it after the test unless the file
 // installed it before the test (beforeAll / module scope). In that case it
 // preserves the file's fake-timer mode while resetting its system time before
-// each test; uninstalling it remains the file's responsibility.
+// each test. If a test releases it, the hook reinstalls it before the next
+// test; uninstalling it remains the file's responsibility.
 //
 // The module-scope freeze covers collection time: a `vi.useFakeTimers()` at
 // the top of a test file also starts at the shared instant.
 freezeTestClock();
 
 let fakeTimersInstalledBeforeTest = false;
+let fileUsesFakeTimers = false;
 
 beforeEach(() => {
   fakeTimersInstalledBeforeTest = vi.isFakeTimers();
+  fileUsesFakeTimers ||= fakeTimersInstalledBeforeTest;
+  if (fileUsesFakeTimers && !fakeTimersInstalledBeforeTest) {
+    vi.useFakeTimers();
+  }
   freezeTestClock();
 });
 
 afterEach(() => {
-  if (fakeTimersInstalledBeforeTest) return;
+  if (fileUsesFakeTimers) return;
   vi.useRealTimers();
 });
 
