@@ -5,6 +5,30 @@ import (
 	"time"
 )
 
+const (
+	ChangeRequestStatusPendingReview       = "pending_review"
+	ChangeRequestStatusNeedsParentResponse = "needs_parent_response"
+	ChangeRequestStatusApproved            = "approved"
+	ChangeRequestStatusRejected            = "rejected"
+	// ChangeRequestStatusCancelled is allowed by the column constraint but
+	// written by nothing today. Readers still have to account for it: a row
+	// that exists must never fall out of every list.
+	ChangeRequestStatusCancelled = "cancelled"
+)
+
+const (
+	ChangeRequestOriginParent = "parent"
+	ChangeRequestOriginAdmin  = "admin"
+)
+
+const (
+	ChangeRequestMessageAuthorParent = "parent"
+	ChangeRequestMessageAuthorStaff  = "staff"
+)
+
+// ChangeRequest is a proposed correction to an enrollment request, filed by
+// the family over the status token or recorded by staff as a direct
+// correction. Snapshots and diff stay raw JSON at the owner boundary.
 type ChangeRequest struct {
 	ID        int64     `json:"id"`
 	TenantID  int64     `json:"tenant_id"`

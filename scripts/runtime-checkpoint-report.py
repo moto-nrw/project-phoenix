@@ -109,6 +109,7 @@ def summarize(raw):
         "enrollment-2694-writes-v6": 0,
         "enrollment-2694-writes-v7": 0,
         "enrollment-2694-writes-v8": 0,
+        "enrollment-2696-change-requests-v1": 0,
     }
     version = raw["workload_version"]
     if version not in worker_run_counts:

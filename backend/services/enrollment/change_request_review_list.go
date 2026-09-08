@@ -54,7 +54,7 @@ type ChangeRequestIntakeRequests interface {
 // ChangeRequestReviewItem is one change request plus the names the list shows.
 // The row itself stays untouched, so the detail view keeps its own contract.
 type ChangeRequestReviewItem struct {
-	ChangeRequest *enrollmentModels.ChangeRequest
+	ChangeRequest *ChangeRequest
 	// ChildNames are the affected children: the pinned one when the request
 	// targets a single child, every child of the enrollment otherwise.
 	ChildNames []string
@@ -172,7 +172,7 @@ func (s *changeRequestService) CountOpenForReview(ctx context.Context, statuses 
 // never one per row.
 func (s *changeRequestService) reviewListLookups(
 	ctx context.Context,
-	rows []*enrollmentModels.ChangeRequest,
+	rows []*ChangeRequest,
 ) (
 	map[int64]*enrollmentModels.Request,
 	map[int64][]*RequestChild,
