@@ -122,6 +122,12 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 
 // AcknowledgedCounts gibt je Hinweis-Id die Zahl der Kenntnisnahmen zurück —
 // die Antwort auf "ist der Hinweis angekommen".
+//
+// Die Verfasserin zählt nicht mit. Ihre Kenntnisnahme wird beim Anlegen
+// gestempelt, damit der eigene Hinweis sie nicht nach einer Bestätigung fragt;
+// als Leserin des Hinweises ist sie damit aber nicht gemeint. Ohne diesen
+// Ausschluss stünde bei einem frisch geschriebenen Hinweis „1 Person hat
+// bestätigt", und die Leitung liest darin ein Teammitglied.
 func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs []int64) (map[int64]int, error) {
 	result := make(map[int64]int, len(noticeIDs))
 	if len(noticeIDs) == 0 {
@@ -136,7 +142,9 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
 		ColumnExpr(`"sna".notice_id AS notice_id`).
 		ColumnExpr("COUNT(*) AS count").
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
 		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs)).
+		Where(`"sna".account_id <> "n".created_by`).
 		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {
