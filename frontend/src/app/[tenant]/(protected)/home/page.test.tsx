@@ -123,6 +123,16 @@ vi.mock("framer-motion", () => ({
     },
   ),
   useReducedMotion: () => true,
+  useMotionValue: (initial: number) => {
+    let value = initial;
+    return {
+      get: () => value,
+      set: (next: number) => {
+        value = next;
+      },
+    };
+  },
+  animate: () => ({ stop: () => undefined }),
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
@@ -468,23 +478,36 @@ describe("Startseite anpassen", () => {
 
     const source = screen.getByTestId("home-block-section.staff_notices");
     const target = screen.getByTestId("home-block-tile.students_present");
-    const elementFromPoint = vi
-      .spyOn(document, "elementFromPoint")
-      .mockReturnValue(target);
+    // Wo eine Kachel hingehört, entscheidet die Geometrie des Rasters, nicht
+    // das Element unter dem Zeiger. Die Testumgebung kennt kein Layout, also
+    // bekommen die Zellen ihre Lage hier: die Kennzahl oben links, die
+    // Tagesinformationen darunter.
+    const cell = (
+      element: HTMLElement,
+      box: { left: number; top: number; width: number; height: number },
+    ) => {
+      Object.defineProperty(element, "offsetLeft", { value: box.left });
+      Object.defineProperty(element, "offsetTop", { value: box.top });
+      Object.defineProperty(element, "offsetWidth", { value: box.width });
+      Object.defineProperty(element, "offsetHeight", { value: box.height });
+    };
+    cell(target, { left: 0, top: 0, width: 300, height: 100 });
+    cell(source, { left: 0, top: 120, width: 600, height: 200 });
 
     fireEvent.pointerDown(source, {
       pointerType: "mouse",
       button: 0,
       pointerId: 1,
+      clientX: 100,
+      clientY: 200,
     });
     fireEvent.pointerMove(source, {
       pointerType: "mouse",
       pointerId: 1,
-      clientX: 40,
+      clientX: 100,
       clientY: 40,
     });
     fireEvent.pointerUp(source, { pointerType: "mouse", pointerId: 1 });
-    elementFromPoint.mockRestore();
 
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 

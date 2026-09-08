@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -10,7 +11,13 @@ import {
   type ReactNode,
 } from "react";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  type Transition,
+} from "framer-motion";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -45,17 +52,28 @@ import {
  * derselben Stelle und in derselben Größe wie die echte Karte. Man ordnet
  * hier, man liest nicht.
  *
- * ANORDNEN HEISST ZIEHEN. Eine Kachel folgt dem Zeiger, sobald man sie ein
- * paar Pixel bewegt (am Handy: kurz halten, dann ziehen), und die anderen
- * rücken sofort beiseite — nicht erst beim Loslassen. Die Karte landet dort,
- * wo man sie sieht. Knöpfe „nach vorne / nach hinten" gibt es nicht mehr;
- * die Pfeiltasten verschieben eine ausgewählte Kachel für alle, die keine
- * Maus benutzen. Die Bewegung der anderen Kacheln animiert framer-motion
- * (`layout`), damit man sieht, was passiert, statt es zu raten.
+ * ANORDNEN HEISST ZIEHEN, wie auf einem Startbildschirm. Eine Kachel folgt
+ * dem Zeiger, sobald man sie ein paar Pixel bewegt (am Handy: kurz halten,
+ * dann ziehen), und die anderen gleiten sofort beiseite — nicht erst beim
+ * Loslassen. Beim Loslassen federt die Kachel an ihren Platz.
  *
- * Ein Klick wählt die Kachel aus; alles Weitere (Breite, Entfernen) steht in
- * EINER Leiste über der Fläche, die beim Scrollen stehen bleibt. Rechts trägt
- * sie immer „Bausteine" und „Standardansicht wiederherstellen".
+ * Drei Entscheidungen machen das ruhig statt zappelig:
+ *
+ * 1. Wo eine Kachel HINGEHÖRT, entscheidet die Geometrie des Rasters
+ *    (offsetLeft/offsetTop der Zellen), nicht das Element unter dem Zeiger.
+ *    Die Zellen bewegen sich während der Animation per Transform, ihre
+ *    Rasterposition steht sofort fest — sonst tauscht die Kachel unter dem
+ *    Zeiger im Sekundentakt hin und her, während sie noch gleitet.
+ * 2. Die gezogene Kachel bewegt sich über Motion-Werte, ohne Rendern je
+ *    Zeigerereignis. Rückt sie beim Umsortieren im Fluss an eine andere
+ *    Zelle, gleicht der Versatz das aus, damit sie unter dem Zeiger bleibt.
+ * 3. Das Raster füllt im Anpassen-Modus keine Lücken (kein dense): die
+ *    Reihenfolge, die man sieht, ist die, die man baut.
+ *
+ * Knöpfe „nach vorne / nach hinten" gibt es nicht mehr; die Pfeiltasten
+ * verschieben eine Kachel für alle, die keine Maus benutzen. Ein Klick wählt
+ * die Kachel aus; alles Weitere (Breite, Entfernen) steht in EINER Leiste über
+ * der Fläche, die beim Scrollen stehen bleibt.
  */
 
 // Auch das Handy hat zwei Spalten: eine Kennzahl ist eine Zahl mit einem Wort
@@ -77,6 +95,15 @@ const SPAN_LABEL: Record<HomeBlockSpan, string> = {
 const DRAG_THRESHOLD_PX = 6;
 /** So lange hält man am Handy, bevor die Kachel dem Finger folgt. */
 const TOUCH_HOLD_MS = 220;
+
+/** Die Feder, mit der Kacheln an ihren Platz gleiten. */
+const SETTLE: Transition = {
+  type: "spring",
+  stiffness: 380,
+  damping: 36,
+  mass: 0.9,
+};
+const INSTANT: Transition = { duration: 0 };
 
 /**
  * Eine Kennzahl ist eine Reihe hoch, eine Liste zwei — aber erst ab der
@@ -102,28 +129,39 @@ export interface HomeBoardProps {
   readonly children: (placement: HomeBlockPlacement) => ReactNode;
 }
 
-/** Der laufende Zug, so wie das Brett ihn zeichnet. */
-interface DragVisual {
-  readonly key: HomeBlockKey;
-  readonly x: number;
-  readonly y: number;
+/** Was das Brett an einer Kachel bewegen kann, ohne sie neu zu rendern. */
+interface ItemHandle {
+  readonly element: HTMLLIElement | null;
+  readonly set: (x: number, y: number) => void;
+  readonly settle: () => void;
 }
 
 /** Alles, was ein Zug zwischen zwei Ereignissen wissen muss. */
 interface DragSession {
   key: HomeBlockKey;
   pointerId: number;
-  element: HTMLElement;
+  element: HTMLLIElement;
   /** Zeiger beim Anfassen. */
   startX: number;
   startY: number;
-  /** Lage der Kachel im Fluss beim Anfassen — unabhängig von Transformationen. */
+  /** Zelle der Kachel im Raster beim Anfassen — unabhängig von Transformationen. */
   originLeft: number;
   originTop: number;
   /** Ab hier folgt die Kachel dem Zeiger. */
   active: boolean;
+  /** Letzte Zeigerposition — für den Versatz nach einem Umsortieren. */
+  lastX: number;
+  lastY: number;
   holdTimer: ReturnType<typeof setTimeout> | null;
   preventTouchScroll: ((event: TouchEvent) => void) | null;
+  /** Löst die Fenster-Listener des laufenden Zugs. */
+  detach: (() => void) | null;
+  /**
+   * Das Ereignis, das den Zug ausgelöst hat. Es erreicht danach auch das
+   * Fenster, dessen Listener gerade erst dazukam — ein zweites Mal gezählt,
+   * würde es die Kachel sofort wieder zurücksortieren.
+   */
+  activatedBy: Event | null;
 }
 
 export function HomeBoard({
@@ -138,17 +176,27 @@ export function HomeBoard({
   restoring,
   children,
 }: HomeBoardProps) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = useReducedMotion() === true;
   const [selectedKey, setSelectedKey] = useState<HomeBlockKey | null>(null);
-  const [drag, setDrag] = useState<DragVisual | null>(null);
+  const [draggedKey, setDraggedKey] = useState<HomeBlockKey | null>(null);
+  const grid = useRef<HTMLUListElement>(null);
+  const handles = useRef(new Map<HomeBlockKey, ItemHandle>());
   const session = useRef<DragSession | null>(null);
   // Ein Zug, der lief, darf am Ende nicht auch noch als Klick gelten — sonst
   // wählt das Loslassen die Kachel aus, auf der man landet.
   const dragHappened = useRef(false);
-  // Die aktuelle Reihenfolge für Ereignisse, die zwischen zwei Renderings
-  // kommen: der Index der gezogenen Kachel wandert mit jedem Umsortieren.
+  // Die aktuelle Reihenfolge für Ereignisse zwischen zwei Renderings: der
+  // Index der gezogenen Kachel wandert mit jedem Umsortieren.
   const order = useRef(placements);
   order.current = placements;
+
+  const register = useCallback(
+    (key: HomeBlockKey, handle: ItemHandle | null) => {
+      if (handle) handles.current.set(key, handle);
+      else handles.current.delete(key);
+    },
+    [],
+  );
 
   const endDrag = useCallback(() => {
     const current = session.current;
@@ -157,9 +205,18 @@ export function HomeBoard({
     if (current.preventTouchScroll) {
       document.removeEventListener("touchmove", current.preventTouchScroll);
     }
-    current.element.releasePointerCapture?.(current.pointerId);
+    current.detach?.();
+    if (current.element.hasPointerCapture?.(current.pointerId)) {
+      current.element.releasePointerCapture(current.pointerId);
+    }
+    if (current.active) handles.current.get(current.key)?.settle();
     session.current = null;
-    setDrag(null);
+    setDraggedKey(null);
+    // Der Klick, der zum Loslassen gehört, kommt nach diesem Ereignis; erst
+    // danach darf ein Klick wieder auswählen (auch einer per Tastatur).
+    setTimeout(() => {
+      dragHappened.current = false;
+    }, 0);
   }, []);
 
   // Beim Verlassen des Anpassen-Modus die Auswahl fallen lassen, sonst steht
@@ -171,14 +228,114 @@ export function HomeBoard({
     }
   }, [editing, endDrag]);
 
-  useEffect(() => endDrag, [endDrag]);
+  // Verliert das Fenster den Fokus oder kommt das Loslassen nie an, bleibt
+  // keine Kachel am Zeiger kleben.
+  useEffect(() => {
+    window.addEventListener("blur", endDrag);
+    return () => {
+      window.removeEventListener("blur", endDrag);
+      endDrag();
+    };
+  }, [endDrag]);
 
+  /**
+   * Die Zelle, über der der Zeiger steht — nach der Geometrie des Rasters,
+   * nicht nach dem Element, das gerade darunter durchgleitet.
+   */
+  const cellUnderPointer = (
+    clientX: number,
+    clientY: number,
+  ): HomeBlockKey | null => {
+    const container = grid.current;
+    if (!container) return null;
+    const bounds = container.getBoundingClientRect();
+    const px = clientX - bounds.left;
+    const py = clientY - bounds.top;
+    for (const child of Array.from(container.children)) {
+      const cell = child as HTMLElement;
+      const key = cell.dataset.blockKey as HomeBlockKey | undefined;
+      if (!key) continue;
+      if (
+        px >= cell.offsetLeft &&
+        px <= cell.offsetLeft + cell.offsetWidth &&
+        py >= cell.offsetTop &&
+        py <= cell.offsetTop + cell.offsetHeight
+      ) {
+        return key;
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Die Kachel folgt dem Zeiger. Rückt sie beim Umsortieren im Raster in eine
+   * andere Zelle, gleicht der Versatz das aus, damit sie unter dem Zeiger
+   * bleibt statt zu springen.
+   */
+  const place = (current: DragSession) => {
+    const element = current.element;
+    handles.current
+      .get(current.key)
+      ?.set(
+        current.lastX -
+          current.startX +
+          (current.originLeft - element.offsetLeft),
+        current.lastY -
+          current.startY +
+          (current.originTop - element.offsetTop),
+      );
+  };
+
+  const follow = (current: DragSession, clientX: number, clientY: number) => {
+    current.lastX = clientX;
+    current.lastY = clientY;
+    place(current);
+
+    const overKey = cellUnderPointer(clientX, clientY);
+    if (!overKey || overKey === current.key) return;
+    const from = order.current.findIndex((entry) => entry.key === current.key);
+    const to = order.current.findIndex((entry) => entry.key === overKey);
+    if (from >= 0 && to >= 0 && from !== to) onReorder(from, to);
+  };
+
+  /**
+   * Ab hier folgt die Kachel dem Zeiger. Bewegen und Loslassen hört das
+   * FENSTER, nicht die Kachel: beim Umsortieren wandert ihr Knoten im DOM,
+   * und ein Knoten, der den Platz wechselt, verliert die Zeigererfassung —
+   * das Loslassen käme dann nie mehr bei ihr an, und die Kachel bliebe am
+   * Zeiger kleben.
+   */
   const activate = (current: DragSession) => {
     current.active = true;
     dragHappened.current = true;
     current.element.setPointerCapture?.(current.pointerId);
-    setDrag({ key: current.key, x: 0, y: 0 });
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerId !== current.pointerId) return;
+      if (event === current.activatedBy) return;
+      follow(current, event.clientX, event.clientY);
+    };
+    const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== current.pointerId) return;
+      endDrag();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    current.detach = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    setDraggedKey(current.key);
   };
+
+  // Nach einem Umsortieren steht die gezogene Kachel im Raster in einer
+  // anderen Zelle. Der Versatz wird noch im selben Bild nachgezogen, nicht
+  // erst beim nächsten Zeigerereignis — sonst springt sie für ein Bild.
+  useLayoutEffect(() => {
+    const current = session.current;
+    if (current?.active) place(current);
+  });
 
   const beginDrag = (
     event: ReactPointerEvent<HTMLLIElement>,
@@ -196,8 +353,12 @@ export function HomeBoard({
       originLeft: element.offsetLeft,
       originTop: element.offsetTop,
       active: false,
+      lastX: event.clientX,
+      lastY: event.clientY,
       holdTimer: null,
       preventTouchScroll: null,
+      detach: null,
+      activatedBy: null,
     };
     session.current = current;
     dragHappened.current = false;
@@ -220,44 +381,27 @@ export function HomeBoard({
     }
   };
 
+  /**
+   * Vor dem Zug hört die Kachel selbst: erst ab der Bewegungsschwelle wird
+   * aus dem Klick ein Zug, und ab dann übernimmt das Fenster.
+   */
   const moveDrag = (event: ReactPointerEvent<HTMLLIElement>) => {
     const current = session.current;
-    if (!current || current.pointerId !== event.pointerId) return;
+    if (!current || current.active || current.pointerId !== event.pointerId) {
+      return;
+    }
     const dx = event.clientX - current.startX;
     const dy = event.clientY - current.startY;
-
-    if (!current.active) {
-      const far = Math.hypot(dx, dy) > DRAG_THRESHOLD_PX;
-      if (!far) return;
-      if (current.holdTimer) {
-        // Der Finger wischt, bevor die Wartezeit um ist: das ist ein Scrollen.
-        clearTimeout(current.holdTimer);
-        session.current = null;
-        return;
-      }
-      activate(current);
+    if (Math.hypot(dx, dy) <= DRAG_THRESHOLD_PX) return;
+    if (current.holdTimer) {
+      // Der Finger wischt, bevor die Wartezeit um ist: das ist ein Scrollen.
+      clearTimeout(current.holdTimer);
+      session.current = null;
+      return;
     }
-
-    // Die Kachel folgt dem Zeiger. Rückt sie beim Umsortieren im Fluss an
-    // eine andere Stelle, gleicht der Versatz das aus, damit sie unter dem
-    // Zeiger bleibt statt zu springen.
-    const element = current.element;
-    setDrag({
-      key: current.key,
-      x: dx + (current.originLeft - element.offsetLeft),
-      y: dy + (current.originTop - element.offsetTop),
-    });
-
-    // Die gezogene Kachel lässt Zeigerereignisse durch; darunter liegt die
-    // Kachel, deren Platz sie einnehmen soll. Sobald der Zeiger über einer
-    // anderen steht, rückt diese beiseite — nicht erst beim Loslassen.
-    const under = document.elementFromPoint(event.clientX, event.clientY);
-    const target = under?.closest<HTMLElement>("[data-block-key]");
-    const overKey = target?.dataset.blockKey as HomeBlockKey | undefined;
-    if (!overKey || overKey === current.key) return;
-    const from = order.current.findIndex((entry) => entry.key === current.key);
-    const to = order.current.findIndex((entry) => entry.key === overKey);
-    if (from >= 0 && to >= 0 && from !== to) onReorder(from, to);
+    current.activatedBy = event.nativeEvent;
+    activate(current);
+    follow(current, event.clientX, event.clientY);
   };
 
   const finishDrag = (event: ReactPointerEvent<HTMLLIElement>) => {
@@ -280,10 +424,6 @@ export function HomeBoard({
   const selectedDefinition = selected
     ? homeBlockDefinition(selected.key)
     : null;
-
-  const settle = reduceMotion
-    ? { duration: 0 }
-    : { type: "spring" as const, stiffness: 520, damping: 42, mass: 0.8 };
 
   return (
     <div className="space-y-4">
@@ -310,44 +450,30 @@ export function HomeBoard({
       )}
 
       <ul
+        ref={grid}
         data-testid="home-board"
         // `grid-flow-row-dense` füllt Lücken: steht eine schmale Kennzahl
         // hinter einer breiten Karte, rutscht sie in das freie Feld davor,
         // statt eine halbe Reihe leer zu lassen — dasselbe Verhalten wie auf
-        // einem Startbildschirm mit gemischten Kachelgrößen.
-        className="grid grid-cols-2 gap-4 sm:grid-flow-row-dense sm:auto-rows-[7rem] xl:grid-cols-4"
+        // einem Startbildschirm mit gemischten Kachelgrößen. Beim Anordnen
+        // bleibt das aus: dort soll die Reihenfolge stehen, die man baut.
+        // `relative`, damit die Zellen ihre Lage relativ zum Raster kennen.
+        className={`relative grid grid-cols-2 gap-4 sm:auto-rows-[7rem] xl:grid-cols-4 ${
+          editing ? "" : "sm:grid-flow-row-dense"
+        }`}
       >
         {placements.map((placement, index) => {
           const definition = homeBlockDefinition(placement.key);
-          const dragging = drag?.key === placement.key;
+          const dragging = draggedKey === placement.key;
           return (
-            <motion.li
+            <BoardItem
               key={placement.key}
-              // `layout` lässt jede Kachel an ihren neuen Platz gleiten, wenn
-              // sich Reihenfolge oder Breite ändern. Die gezogene Kachel
-              // selbst springt ohne Übergang an ihre Flussposition — den
-              // sichtbaren Weg legt sie unter dem Zeiger zurück.
-              layout={editing}
-              transition={dragging ? { duration: 0 } : settle}
-              style={
-                dragging
-                  ? {
-                      x: drag.x,
-                      y: drag.y,
-                      zIndex: 10,
-                      pointerEvents: "none",
-                      position: "relative",
-                    }
-                  : undefined
-              }
-              data-testid={`home-block-${placement.key}`}
-              data-block-key={placement.key}
-              data-span={placement.span}
-              className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0 ${
-                editing ? "touch-pan-y select-none" : ""
-              }`}
-              // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt
-              // kein Tablet und lässt sich nicht testen.
+              placement={placement}
+              definition={definition}
+              editing={editing}
+              dragging={dragging}
+              reduceMotion={reduceMotion}
+              register={register}
               onPointerDown={(event) => beginDrag(event, placement.key)}
               onPointerMove={moveDrag}
               onPointerUp={finishDrag}
@@ -371,11 +497,101 @@ export function HomeBoard({
               ) : (
                 <div className="h-full min-h-0">{children(placement)}</div>
               )}
-            </motion.li>
+            </BoardItem>
           );
         })}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Eine Zelle des Bretts. Sie besitzt die Motion-Werte, mit denen das Brett
+ * sie beim Ziehen bewegt, ohne sie je Zeigerereignis neu zu rendern; beim
+ * Loslassen federn die Werte auf null zurück, und `layout` lässt die übrigen
+ * Zellen an ihren neuen Platz gleiten.
+ */
+function BoardItem({
+  placement,
+  definition,
+  editing,
+  dragging,
+  reduceMotion,
+  register,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+  children,
+}: {
+  readonly placement: HomeBlockPlacement;
+  readonly definition: HomeBlockDefinition | null;
+  readonly editing: boolean;
+  readonly dragging: boolean;
+  readonly reduceMotion: boolean;
+  readonly register: (key: HomeBlockKey, handle: ItemHandle | null) => void;
+  readonly onPointerDown: (event: ReactPointerEvent<HTMLLIElement>) => void;
+  readonly onPointerMove: (event: ReactPointerEvent<HTMLLIElement>) => void;
+  readonly onPointerUp: (event: ReactPointerEvent<HTMLLIElement>) => void;
+  readonly onPointerCancel: (event: ReactPointerEvent<HTMLLIElement>) => void;
+  readonly children: ReactNode;
+}) {
+  const ref = useRef<HTMLLIElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  useEffect(() => {
+    register(placement.key, {
+      get element() {
+        return ref.current;
+      },
+      set: (nextX, nextY) => {
+        x.set(nextX);
+        y.set(nextY);
+      },
+      settle: () => {
+        if (reduceMotion) {
+          x.set(0);
+          y.set(0);
+          return;
+        }
+        animate(x, 0, SETTLE);
+        animate(y, 0, SETTLE);
+      },
+    });
+    return () => register(placement.key, null);
+  }, [placement.key, register, reduceMotion, x, y]);
+
+  return (
+    <motion.li
+      ref={ref}
+      // `layout` lässt jede Zelle an ihren neuen Platz gleiten, wenn sich
+      // Reihenfolge oder Breite ändern. Die gezogene Zelle selbst springt
+      // ohne Übergang in ihre Rasterzelle — den sichtbaren Weg legt sie
+      // unter dem Zeiger zurück, und beim Loslassen federt sie zurück.
+      layout={editing}
+      transition={dragging || reduceMotion ? INSTANT : SETTLE}
+      style={{
+        x,
+        y,
+        position: "relative",
+        zIndex: dragging ? 10 : undefined,
+      }}
+      data-testid={`home-block-${placement.key}`}
+      data-block-key={placement.key}
+      data-span={placement.span}
+      className={`${SPAN_CLASS[placement.span]} ${rowClass(definition)} min-h-0 ${
+        editing ? "touch-pan-y select-none" : ""
+      }`}
+      // Zeigerereignisse statt HTML5-Ziehen: das native Ziehen kennt kein
+      // Tablet und lässt sich nicht testen.
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+    >
+      {children}
+    </motion.li>
   );
 }
 
