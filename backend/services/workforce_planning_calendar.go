@@ -24,11 +24,7 @@ func (c planningCalendarCapability) HolidaysInRange(ctx context.Context, from, t
 	if c.holidays == nil {
 		return []workforce.PublicHoliday{}, nil
 	}
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -47,11 +43,7 @@ func (c planningCalendarCapability) ClosingDaysInRange(ctx context.Context, from
 	if c.closingDays == nil {
 		return []workforce.ClosingPeriod{}, nil
 	}
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}

@@ -85,6 +85,19 @@ func parseCapabilityDate(value, field string) (timezone.Date, error) {
 	return date, nil
 }
 
+// parseCapabilityRange parses the from/to pair every range read takes.
+func parseCapabilityRange(from, to string) (timezone.Date, timezone.Date, error) {
+	fromDate, err := parseCapabilityDate(from, "from")
+	if err != nil {
+		return timezone.Date(""), timezone.Date(""), err
+	}
+	toDate, err := parseCapabilityDate(to, "to")
+	if err != nil {
+		return timezone.Date(""), timezone.Date(""), err
+	}
+	return fromDate, toDate, nil
+}
+
 func parseOptionalCapabilityDate(value, field string) (*timezone.Date, error) {
 	if value == "" {
 		return nil, nil
@@ -305,11 +318,7 @@ func (c workSessionCapability) CreateSessionAsAdmin(ctx context.Context, editorS
 }
 
 func (c workSessionCapability) HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*workforce.HistoryResponse, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -341,11 +350,7 @@ func (c workSessionCapability) TodayPresenceMap(ctx context.Context) (map[int64]
 }
 
 func (c workSessionCapability) ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*workforce.ExportFile, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -457,11 +462,7 @@ func (c staffAbsenceCapability) ListAbsences(ctx context.Context, staffID int64,
 }
 
 func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*workforce.StaffAbsenceResponse, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -649,11 +650,7 @@ func (c workTimeMonthCapability) MonthSummary(ctx context.Context, staffID int64
 }
 
 func (c workTimeMonthCapability) DailyTargets(ctx context.Context, staffID int64, from, to string) ([]workforce.DailyTarget, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -672,11 +669,7 @@ func (c workTimeMonthCapability) DailyTargets(ctx context.Context, staffID int64
 }
 
 func (c workTimeMonthCapability) DailyProjection(ctx context.Context, staffID int64, from, to string) ([]workforce.DailyProjection, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -731,11 +724,7 @@ func (c balanceAdjustmentCapability) adjustment(entity *activeModels.StaffBalanc
 }
 
 func (c balanceAdjustmentCapability) ListAdjustments(ctx context.Context, staffID int64, from, to string) ([]*workforce.StaffBalanceAdjustment, error) {
-	fromDate, err := parseCapabilityDate(from, "from")
-	if err != nil {
-		return nil, err
-	}
-	toDate, err := parseCapabilityDate(to, "to")
+	fromDate, toDate, err := parseCapabilityRange(from, to)
 	if err != nil {
 		return nil, err
 	}
