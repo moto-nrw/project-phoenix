@@ -6,6 +6,7 @@ package supervisiondashboard
 // flag means.
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -189,4 +190,118 @@ func TestOpenRoomsAndStudentsAreOrderedStably(t *testing.T) {
 	assert.Equal(t, []string{"Turnhalle", "Werkraum"}, []string{result[0].Name, result[1].Name})
 	assert.Equal(t, "Ada Adler", result[0].Students[0].StudentName)
 	assert.Equal(t, "Zoe Zander", result[0].Students[1].StudentName)
+}
+
+// countingOpenRoomSource records how often each port is called, so the test can
+// state the real invariant: the shared view costs the same whether a school has
+// one released room with one session or many with many.
+type countingOpenRoomSource struct {
+	rooms    []ReleasedRoom
+	sessions []RunningSession
+	visits   []*activeService.VisitWithStudentDisplay
+
+	roomCalls, sessionCalls, visitCalls int
+}
+
+func (c *countingOpenRoomSource) ListReleasedRooms(context.Context) ([]ReleasedRoom, error) {
+	c.roomCalls++
+	return c.rooms, nil
+}
+
+func (c *countingOpenRoomSource) ListRunningSessionsInRooms(context.Context, []int64) ([]RunningSession, error) {
+	c.sessionCalls++
+	return c.sessions, nil
+}
+
+func (c *countingOpenRoomSource) GetActiveGroupVisitsWithDisplayForGroups(
+	context.Context, []int64,
+) ([]*activeService.VisitWithStudentDisplay, error) {
+	c.visitCalls++
+	return c.visits, nil
+}
+
+func loadWith(t *testing.T, source *countingOpenRoomSource) *Projection {
+	t.Helper()
+	svc := &service{deps: Dependencies{
+		OpenRoomDirectory: source,
+		OpenRoomSessions:  source,
+		OpenRoomVisits:    source,
+	}}
+	projection := emptyProjection()
+	require.NoError(t, svc.loadOpenRooms(t.Context(), projection, nil))
+	return projection
+}
+
+// TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions is the query-budget
+// promise in its own terms: reading per room, or per session, would make the
+// cost follow the school's timetable. One call per port, always.
+func TestOpenRoomLoadCostDoesNotGrowWithRoomsOrSessions(t *testing.T) {
+	t.Parallel()
+
+	small := &countingOpenRoomSource{
+		rooms:    []ReleasedRoom{{ID: 1, Name: "Turnhalle"}},
+		sessions: []RunningSession{{ActiveGroupID: 10, RoomID: 1, StartTime: at(0)}},
+		visits:   []*activeService.VisitWithStudentDisplay{visit(100, 10, "Ada", "Adler", at(5))},
+	}
+	large := &countingOpenRoomSource{
+		rooms: []ReleasedRoom{
+			{ID: 1, Name: "Turnhalle"}, {ID: 2, Name: "Werkraum"},
+			{ID: 3, Name: "Schulhof"}, {ID: 4, Name: "Leseecke"},
+		},
+		sessions: []RunningSession{
+			{ActiveGroupID: 10, RoomID: 1, StartTime: at(0)},
+			{ActiveGroupID: 11, RoomID: 1, StartTime: at(10)},
+			{ActiveGroupID: 12, RoomID: 2, StartTime: at(0)},
+			{ActiveGroupID: 13, RoomID: 3, StartTime: at(0)},
+		},
+		visits: []*activeService.VisitWithStudentDisplay{
+			visit(100, 10, "Ada", "Adler", at(5)),
+			visit(101, 11, "Bea", "Berg", at(15)),
+			visit(102, 12, "Cem", "Celik", at(5)),
+			visit(103, 13, "Dana", "Daum", at(5)),
+		},
+	}
+
+	smallProjection := loadWith(t, small)
+	largeProjection := loadWith(t, large)
+
+	require.Len(t, smallProjection.OpenRooms, 1)
+	require.Len(t, largeProjection.OpenRooms, 4)
+
+	assert.Equal(t, 1, small.roomCalls)
+	assert.Equal(t, 1, small.sessionCalls)
+	assert.Equal(t, 1, small.visitCalls)
+	assert.Equal(t, small.roomCalls, large.roomCalls,
+		"room reads must not grow with the number of released rooms")
+	assert.Equal(t, small.sessionCalls, large.sessionCalls,
+		"session reads must not grow with the number of released rooms")
+	assert.Equal(t, small.visitCalls, large.visitCalls,
+		"visit reads must not grow with the number of running sessions")
+}
+
+// TestOpenRoomLoadSkipsSessionsAndVisitsWithoutReleasedRooms keeps the cheap
+// path cheap: a school that released nothing pays one read, not three.
+func TestOpenRoomLoadSkipsSessionsAndVisitsWithoutReleasedRooms(t *testing.T) {
+	t.Parallel()
+
+	source := &countingOpenRoomSource{}
+	projection := loadWith(t, source)
+
+	assert.Empty(t, projection.OpenRooms)
+	assert.Equal(t, 1, source.roomCalls)
+	assert.Zero(t, source.sessionCalls)
+	assert.Zero(t, source.visitCalls)
+}
+
+// TestOpenRoomLoadSkipsVisitsWhenNothingRuns covers the middle case: released
+// rooms exist but are all empty, so there are no sessions to ask visits for.
+func TestOpenRoomLoadSkipsVisitsWhenNothingRuns(t *testing.T) {
+	t.Parallel()
+
+	source := &countingOpenRoomSource{rooms: []ReleasedRoom{{ID: 1, Name: "Turnhalle"}}}
+	projection := loadWith(t, source)
+
+	require.Len(t, projection.OpenRooms, 1, "the empty room is still reachable")
+	assert.Equal(t, 1, source.sessionCalls)
+	assert.Zero(t, source.visitCalls)
 }

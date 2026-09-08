@@ -25,6 +25,9 @@ type GroupRepository interface {
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
+	// FindActiveByRoomIDs is the batch form, with the activity template and
+	// current supervisors preloaded, for callers aggregating several rooms.
+	FindActiveByRoomIDs(ctx context.Context, roomIDs []int64) ([]*Group, error)
 
 	// LockRoomSessionWrites serializes active session writes for one room until
 	// the current transaction completes.

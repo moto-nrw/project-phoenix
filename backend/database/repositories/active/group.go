@@ -79,6 +79,36 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	return groups, nil
 }
 
+// FindActiveByRoomIDs is the batch form of FindActiveByRoomID, with the
+// activity template and current supervisors preloaded. The shared open-room
+// view (#3065) aggregates several released rooms at once; asking per room
+// would make the query count grow with the school's configuration and the
+// per-session template lookups grow with its timetable.
+func (r *GroupRepository) FindActiveByRoomIDs(ctx context.Context, roomIDs []int64) ([]*active.Group, error) {
+	if len(roomIDs) == 0 {
+		return []*active.Group{}, nil
+	}
+
+	var groups []*active.Group
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Relation("ActualGroup").
+		Relation("Supervisors").
+		Where(`"group".room_id IN (?) AND "group".end_time IS NULL`, bun.List(roomIDs))
+
+	query = base.WithTenantFilter(ctx, query, "group")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by room IDs",
+			Err: base.TranslateNotFound(err),
+		}
+	}
+
+	return groups, nil
+}
+
 // LockRoomSessionWrites serializes active session changes for one tenant room.
 // A push move depends on the target room containing exactly one active session
 // until its visit writes commit, without blocking sessions in other rooms.

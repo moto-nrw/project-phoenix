@@ -1126,7 +1126,10 @@ func newFactory(
 	})
 
 	// Initialize active service with SSE broadcaster
-	activeService := active.NewService(active.ServiceDependencies{
+	// Held in a variable so the narrow batch-visit reader for the shared
+	// open-room view (#3065) is built from exactly the same dependencies,
+	// rather than from a second copy of them.
+	activeServiceDeps := active.ServiceDependencies{
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
@@ -1156,7 +1159,8 @@ func newFactory(
 		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
 		Now:                      now,
-	})
+	}
+	activeService := active.NewService(activeServiceDeps)
 
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
@@ -2951,6 +2955,13 @@ func newFactory(
 		Settings:    settingsService,
 		Pickups:     pickupScheduleService,
 		Arrivals:    arrivalScheduleService,
+		// Shared open-room view (#3065). Each port is satisfied by the owner
+		// that holds the data: Facilities for the release, the session
+		// repository for what runs in those rooms, the presence service for
+		// who is in them.
+		OpenRoomDirectory: openRoomDirectory{rooms: rooms},
+		OpenRoomSessions:  openRoomSessions{groups: repos.ActiveGroup},
+		OpenRoomVisits:    active.NewVisitDisplayBatchReader(activeServiceDeps),
 	})
 
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
