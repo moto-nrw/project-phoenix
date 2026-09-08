@@ -264,7 +264,13 @@ func TestUnregisteredTagScan_TwoTenantIsolation(t *testing.T) {
 	require.Equal(t, tenantA, scanA.TenantID)
 	require.Equal(t, tenantB, scanB.TenantID)
 
-	require.NoError(t, testpkg.WithinTenantContext(t, base, db, tenantB, func(ctxB context.Context) error {
+	require.NoError(t, testpkg.WithTenantTx(t, base, db, tenantB, func(ctxB context.Context, tx bun.Tx) error {
+		var bypass bool
+		require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(ctxB, &bypass))
+		require.False(t, bypass)
+		var visibleIDs []int64
+		require.NoError(t, tx.NewSelect().Table("audit.unregistered_tag_scans").Column("id").Where("id IN (?, ?)", scanA.ID, scanB.ID).Scan(ctxB, &visibleIDs))
+		require.Equal(t, []int64{scanB.ID}, visibleIDs, "RLS hides foreign rows without an owner tenant predicate")
 		_, err := fleet.FindUnregisteredTagScan(ctxB, scanA.ID)
 		assert.ErrorIs(t, err, devicefleet.ErrUnregisteredTagScanNotFound, "tenant B must not see tenant A's scan")
 
@@ -277,6 +283,13 @@ func TestUnregisteredTagScan_TwoTenantIsolation(t *testing.T) {
 		return nil
 	}))
 
+	// Tenant roles may append, but only the operator role may resolve scans.
+	err := testpkg.WithinTenantContext(t, base, db, tenantB, func(ctxB context.Context) error {
+		_, err := fleet.ResolveUnregisteredTagScan(ctxB, devicefleet.ResolveUnregisteredTagScan{ID: scanA.ID, OperatorID: operatorID})
+		return err
+	})
+	require.ErrorContains(t, err, "permission denied for table unregistered_tag_scans")
+
 	require.NoError(t, testpkg.WithinAdminContext(t, base, db, func(adminCtx context.Context) error {
 		scans, err := fleet.ListUnregisteredTagScans(adminCtx, devicefleet.UnregisteredTagScanFilter{TenantIDs: []int64{tenantA, tenantB}})
 		require.NoError(t, err)
@@ -286,6 +299,7 @@ func TestUnregisteredTagScan_TwoTenantIsolation(t *testing.T) {
 			byID[scan.ID] = scan
 		}
 		require.NotNil(t, byID[scanA.ID].DeviceIdentifier)
+		require.Nil(t, byID[scanA.ID].ResolvedAt, "tenant-B's rejected resolve must not stamp tenant-A's row")
 		assert.Equal(t, deviceA.DeviceID, *byID[scanA.ID].DeviceIdentifier)
 		assert.Nil(t, byID[scanB.ID].DeviceIdentifier, "a device of another tenant leaves the identity unset")
 
