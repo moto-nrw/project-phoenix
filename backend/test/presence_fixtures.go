@@ -103,16 +103,12 @@ func ActiveGroupEnded(tb testing.TB, db *bun.DB, ended EndedActiveGroup) (groupE
 	return groupEnded, supervisorEnded
 }
 
-// CreateTestScheduledCheckout records a pending scheduled checkout for the
-// fixture tenant and returns its row ID. Student and staff must already exist.
+// CreateTestScheduledCheckout records one pending scheduled checkout for the
+// fixture tenant and returns its row ID. The presence capability has no write
+// operation for this table, so the row is inserted directly with the tenant
+// column set. A student can hold only one pending checkout (partial unique
+// index), so call it at most once per student.
 func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID int64, scheduledFor time.Time) int64 {
-	tb.Helper()
-	return CreateTestScheduledCheckoutForTenant(tb, db, Tenant(tb), studentID, staffID, scheduledFor)
-}
-
-// CreateTestScheduledCheckoutForTenant records a pending scheduled checkout in
-// an explicit fixture tenant and returns its row ID.
-func CreateTestScheduledCheckoutForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, staffID int64, scheduledFor time.Time) int64 {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -121,7 +117,7 @@ func CreateTestScheduledCheckoutForTenant(tb testing.TB, db *bun.DB, tenantID, s
 		INSERT INTO active.scheduled_checkouts (tenant_id, student_id, scheduled_by, scheduled_for, status)
 		VALUES (?, ?, ?, ?, 'pending')
 		RETURNING id
-	`, tenantID, studentID, staffID, scheduledFor).Scan(ctx, &id)
+	`, Tenant(tb), studentID, staffID, scheduledFor).Scan(ctx, &id)
 	require.NoError(tb, err, "Failed to create test scheduled checkout")
 	return id
 }
