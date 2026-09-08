@@ -7717,7 +7717,7 @@
       "declaration": "TestSourcedRosterRows_AppearInTemplateListReads",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2318
+        2320
       ],
       "tables": []
     },
@@ -10744,7 +10744,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        711
+        712
       ],
       "tables": [
         "schedule.instance_students"
