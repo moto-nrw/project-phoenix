@@ -5,7 +5,6 @@ import (
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,9 +35,11 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	important := testpkg.NewTestStaffNotice(t, "Wichtiger Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Important: true})
 	expired := testpkg.NewTestStaffNotice(t, "Abgelaufen", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{ValidUntil: &ended})
 	future := testpkg.NewTestStaffNotice(t, "Beginnt später", day("2026-09-01"), account.ID, testpkg.StaffNoticeOpts{})
-	for _, notice := range []*users.StaffNotice{inactive, info, important, expired, future} {
-		notice.Audience = users.StaffNoticeAudienceAll
-	}
+	inactive.Audience = "all"
+	info.Audience = "all"
+	important.Audience = "all"
+	expired.Audience = "all"
+	future.Audience = "all"
 	require.NoError(t, repo.Create(ctx, inactive))
 	require.NoError(t, repo.Create(ctx, info))
 	require.NoError(t, repo.Create(ctx, important))
@@ -90,7 +91,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 		Important:               true,
 		RequiresAcknowledgement: true,
 	})
-	notice.Audience = users.StaffNoticeAudienceAll
+	notice.Audience = "all"
 	require.NoError(t, repo.Create(ctx, notice))
 
 	require.NoError(t, repo.Acknowledge(ctx, notice.ID, account.ID))
@@ -132,9 +133,9 @@ func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
 	forAll := testpkg.NewTestStaffNotice(t, "Für alle", from, account.ID, testpkg.StaffNoticeOpts{})
 	forStaff := testpkg.NewTestStaffNotice(t, "Nur Betreuung", from, account.ID, testpkg.StaffNoticeOpts{})
 	forTeachers := testpkg.NewTestStaffNotice(t, "Nur Lehrkräfte", from, account.ID, testpkg.StaffNoticeOpts{})
-	forAll.Audience = users.StaffNoticeAudienceAll
-	forStaff.Audience = users.StaffNoticeAudienceStaff
-	forTeachers.Audience = users.StaffNoticeAudienceLehrkraft
+	forAll.Audience = "all"
+	forStaff.Audience = "staff"
+	forTeachers.Audience = "lehrkraft"
 	require.NoError(t, repo.Create(ctx, forAll))
 	require.NoError(t, repo.Create(ctx, forStaff))
 	require.NoError(t, repo.Create(ctx, forTeachers))
@@ -181,8 +182,8 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 	require.NoError(t, err)
 	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
 	other := testpkg.NewTestStaffNotice(t, "Anderer Hinweis", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
-	notice.Audience = users.StaffNoticeAudienceAll
-	other.Audience = users.StaffNoticeAudienceAll
+	notice.Audience = "all"
+	other.Audience = "all"
 	require.NoError(t, repo.Create(ctx, notice))
 	require.NoError(t, repo.Create(ctx, other))
 
