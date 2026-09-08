@@ -30,7 +30,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
@@ -241,7 +241,7 @@ function TagesplanRow({
       </span>
       {running ? (
         <span className="shrink-0">
-          <StatusDotBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
+          <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
         </span>
       ) : null}
     </>

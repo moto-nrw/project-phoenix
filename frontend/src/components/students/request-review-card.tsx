@@ -9,7 +9,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate, relativeDaysLabel } from "~/lib/date-helpers";
 
@@ -88,10 +88,9 @@ function TypePill({
   if (!type) return null;
   return (
     <span className="shrink-0">
-      <StatusDotBadge
+      <StatusColorBadge
         label={label ?? TYPE_LABEL[type]}
         color={TYPE_COLOR[type]}
-        showDot={false}
       />
     </span>
   );
@@ -313,20 +312,12 @@ export function RequestReviewCard({
               <span className="truncate text-sm text-gray-600">{summary}</span>
             )}
             {!decided && meta && (
-              <StatusBadge
-                label={meta.label}
-                tone={meta.tone}
-                showDot={false}
-              />
+              <StatusBadge label={meta.label} tone={meta.tone} />
             )}
           </span>
           {decided &&
             (meta ? (
-              <StatusBadge
-                label={meta.label}
-                tone={meta.tone}
-                showDot={false}
-              />
+              <StatusBadge label={meta.label} tone={meta.tone} />
             ) : (
               <span />
             ))}

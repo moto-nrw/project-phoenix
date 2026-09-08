@@ -601,13 +601,11 @@ export function DataTableStatusBadge({
       ? LOCATION_COLORS.GROUP_ROOM
       : LOCATION_COLORS.DANGER;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span style={{ color }}>{label}</span>
+    <span
+      className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1 text-xs font-medium"
+      style={{ color }}
+    >
+      {label}
     </span>
   );
 }

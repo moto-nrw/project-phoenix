@@ -18,7 +18,7 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -165,7 +165,7 @@ export function StudentSheetModal({
                 </span>
               ) : null}
               {sheet.status ? (
-                <StatusDotBadge
+                <StatusColorBadge
                   label={STATUS_LABELS[sheet.status] ?? sheet.status}
                   color={STATUS_COLORS[sheet.status] ?? LOCATION_COLORS.UNKNOWN}
                 />

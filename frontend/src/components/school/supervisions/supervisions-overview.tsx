@@ -12,7 +12,7 @@ import { useSession } from "next-auth/react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
 import { getTimeBasedGreeting } from "~/lib/greeting";
@@ -78,7 +78,7 @@ function SupervisionRow({
               neben ihm: der Name ist das, wonach man sucht. */}
           {badge ? (
             <span className="mt-1 flex sm:hidden">
-              <StatusDotBadge label={badge.label} color={badge.color} />
+              <StatusColorBadge label={badge.label} color={badge.color} />
             </span>
           ) : null}
         </span>
@@ -89,7 +89,7 @@ function SupervisionRow({
         ) : null}
         {badge ? (
           <span className="hidden shrink-0 sm:flex">
-            <StatusDotBadge label={badge.label} color={badge.color} />
+            <StatusColorBadge label={badge.label} color={badge.color} />
           </span>
         ) : null}
         <ChevronRight
