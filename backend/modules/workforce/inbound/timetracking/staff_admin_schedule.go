@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
@@ -138,9 +139,12 @@ func (rs *StaffAdminResource) buildTemplateScheduleResponse(ctx context.Context,
 	var entries []ScheduleEntryResponse
 	var totals []int
 	if len(rows) > 0 {
-		entries, totals, rotation = scheduleRowsToResponseParts(rows)
+		entries, totals, rotation, err = scheduleRowsToResponseParts(rows)
 	} else {
-		entries, totals = modelEntriesToResponseParts(model.Entries, rotation)
+		entries, totals, err = modelEntriesToResponseParts(model.Entries, rotation)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return &ScheduleResponse{
 		Mode: "template",
@@ -163,7 +167,10 @@ func (rs *StaffAdminResource) buildCustomScheduleResponse(ctx context.Context, s
 		return nil, fmt.Errorf("load custom schedule: %w", err)
 	}
 
-	entries, totals, rotation := scheduleRowsToResponseParts(rows)
+	entries, totals, rotation, err := scheduleRowsToResponseParts(rows)
+	if err != nil {
+		return nil, err
+	}
 	earliest := earliestValidFrom(rows)
 	// The zero anchor (no anchor and no schedule rows, only possible with
 	// rotation_length 1) renders empty.
@@ -195,14 +202,19 @@ func earliestValidFrom(rows []workforce.StaffWorkSchedule) string {
 
 // formatScheduleStartTime renders a wall clock ("15:04", empty when unset)
 // as the nullable wire field.
-func formatScheduleStartTime(value string) *string {
+func formatScheduleStartTime(value string) (*string, error) {
 	if value == "" {
-		return nil
+		return nil, nil
 	}
-	return &value
+	parsed, err := time.Parse(workforce.ClockLayout, value)
+	if err != nil {
+		return nil, fmt.Errorf("stored start time %q is not a %s wall clock: %w", value, workforce.ClockLayout, err)
+	}
+	formatted := parsed.Format("15:04")
+	return &formatted, nil
 }
 
-func scheduleRowsToResponseParts(rows []workforce.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int) {
+func scheduleRowsToResponseParts(rows []workforce.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int, error) {
 	rotation := 1
 	for _, row := range rows {
 		if row.RotationLength > rotation {
@@ -215,37 +227,45 @@ func scheduleRowsToResponseParts(rows []workforce.StaffWorkSchedule) ([]Schedule
 	totals := make([]int, rotation)
 	entries := make([]ScheduleEntryResponse, 0, len(rows))
 	for _, row := range rows {
+		startTime, err := formatScheduleStartTime(row.StartTime)
+		if err != nil {
+			return nil, nil, 0, err
+		}
 		entries = append(entries, ScheduleEntryResponse{
 			WeekIndex:     row.WeekIndex,
 			DayOfWeek:     row.DayOfWeek,
 			TargetMinutes: row.TargetMinutes,
-			StartTime:     formatScheduleStartTime(row.StartTime),
+			StartTime:     startTime,
 		})
 		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
 			totals[row.WeekIndex] += row.TargetMinutes
 		}
 	}
-	return entries, totals, rotation
+	return entries, totals, rotation, nil
 }
 
-func modelEntriesToResponseParts(modelEntries []workforce.WorkTimeModelEntry, rotation int) ([]ScheduleEntryResponse, []int) {
+func modelEntriesToResponseParts(modelEntries []workforce.WorkTimeModelEntry, rotation int) ([]ScheduleEntryResponse, []int, error) {
 	if rotation < 1 {
 		rotation = 1
 	}
 	entries := make([]ScheduleEntryResponse, 0, len(modelEntries))
 	totals := make([]int, rotation)
 	for _, e := range modelEntries {
+		startTime, err := formatScheduleStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
 		entries = append(entries, ScheduleEntryResponse{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
-			StartTime:     formatScheduleStartTime(e.StartTime),
+			StartTime:     startTime,
 		})
 		if e.WeekIndex >= 0 && e.WeekIndex < rotation {
 			totals[e.WeekIndex] += e.TargetMinutes
 		}
 	}
-	return entries, totals
+	return entries, totals, nil
 }
 
 // resolveEditorStaffID maps the JWT account id to a staff id, the staff

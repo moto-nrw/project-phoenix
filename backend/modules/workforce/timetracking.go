@@ -136,6 +136,29 @@ type SessionResponse struct {
 	AuditCount       int                 `json:"audit_count"`
 }
 
+// MarshalJSON preserves exact history IDs and the calculated break-minute field.
+func (sr SessionResponse) MarshalJSON() ([]byte, error) {
+	type alias SessionResponse
+	if sr.WorkSession == nil {
+		return json.Marshal(alias(sr))
+	}
+	return json.Marshal(struct {
+		alias
+		ID        string  `json:"id"`
+		TenantID  string  `json:"tenant_id"`
+		StaffID   string  `json:"staff_id"`
+		CreatedBy string  `json:"created_by"`
+		UpdatedBy *string `json:"updated_by,omitempty"`
+	}{
+		alias:     alias(sr),
+		ID:        strconv.FormatInt(sr.ID, 10),
+		TenantID:  strconv.FormatInt(sr.TenantID, 10),
+		StaffID:   strconv.FormatInt(sr.StaffID, 10),
+		CreatedBy: strconv.FormatInt(sr.CreatedBy, 10),
+		UpdatedBy: formatOptionalID(sr.UpdatedBy),
+	})
+}
+
 // WorkWeekSummary aggregates the recorded work of one ISO week.
 type WorkWeekSummary struct {
 	WeekNumber      int  `json:"week_number"`
