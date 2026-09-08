@@ -51,7 +51,9 @@ export function NowStrip({
   const now = useBerlinClock();
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
-  const { isSupervising, hasGroups } = useOptionalSupervision();
+  // `ownSupervision`, nicht `isSupervising`: Letzteres ist wahr, sobald es
+  // einen Schulhof gibt — „fortsetzen" kann man nur, was man selbst führt.
+  const { ownSupervision, hasGroups } = useOptionalSupervision();
 
   // Der eigene Tag: für alle, die selbst betreuen. Ein reines Adminkonto hat
   // keine Einsätze; die Abfrage liefe ins Leere.
@@ -114,7 +116,7 @@ export function NowStrip({
   const canOpenGroup =
     hasGroups && !context.openCareGroupMode && context.detailed;
   const actions = nowActions({
-    isSupervising,
+    isSupervising: ownSupervision === true,
     canOpenGroup,
     timetable: context.timetableEnabled && context.detailed,
     dayPlanHref,

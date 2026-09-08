@@ -65,6 +65,7 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(
 
 const EMPTY_SUPERVISION_STATE: DerivedSupervision = {
   isSupervising: false,
+  ownSupervision: false,
   supervisedRoomId: undefined,
   supervisedRoomName: undefined,
   supervisedRooms: [],
@@ -493,6 +494,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isLoadingGroups: false,
   groups: [],
   isSupervising: false,
+  ownSupervision: false,
   supervisedRooms: [],
   isLoadingSupervision: false,
   overviewEnabled: false,

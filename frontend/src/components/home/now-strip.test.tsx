@@ -44,7 +44,7 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
 }));
 const supervision = vi.hoisted(() => ({
-  isSupervising: false,
+  ownSupervision: false,
   hasGroups: true,
 }));
 vi.mock("~/lib/supervision-context", () => ({
@@ -137,7 +137,7 @@ describe("NowStrip (#2180)", () => {
     sources.school = undefined;
     sources.analytics = undefined;
     sources.requested = [];
-    supervision.isSupervising = false;
+    supervision.ownSupervision = false;
     supervision.hasGroups = true;
   });
 
@@ -188,7 +188,7 @@ describe("NowStrip (#2180)", () => {
 
   it("stellt eine laufende Aufsicht als ersten Weg voran", () => {
     sources.own = [];
-    supervision.isSupervising = true;
+    supervision.ownSupervision = true;
 
     render(<NowStrip access={care} context={context(care)} />);
 
