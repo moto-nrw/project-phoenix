@@ -975,8 +975,8 @@ func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*
 		}
 	}
 	var email *string
-	if s.AccountRepo != nil {
-		if account, err := s.AccountRepo.FindByID(ctx, accountID); err == nil && account != nil && strings.TrimSpace(account.Email) != "" {
+	if s.GuardianAccess != nil {
+		if account, err := s.GuardianAccess.FindAccount(ctx, accountID); err == nil && strings.TrimSpace(account.Email) != "" {
 			value := account.Email
 			email = &value
 		}

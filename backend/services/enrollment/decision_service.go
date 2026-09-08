@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -32,11 +31,6 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// guardianRoleName is the auth.roles.name value the guardian invitation
-// flow uses on accept. Mirrored here so an approval that finds an
-// existing account can attach the role for the new tenant directly.
-const guardianRoleName = "guardian"
 
 // openSchoolClassPlaceholder satisfies the required users.students.school_class
 // column when enrollment deliberately did not collect a grade or concrete
@@ -424,14 +418,15 @@ type DecisionServiceConfig struct {
 	CalendarPeriodRepo     scheduleModels.CalendarPeriodRepository
 	TimeframeRepo          scheduleModels.TimeframeRepository
 	ActivityExceptionRepo  scheduleModels.ActivityExceptionRepository
-	AccountRepo            authModels.AccountRepository
-	AccountTenantRepo      authModels.AccountTenantRepository
-	AccountRoleRepo        authModels.AccountRoleRepository
-	RoleRepo               authModels.RoleRepository
-	OutboxEnqueuer         platformModels.OutboxEnqueuer
-	StudentAudit           StudentRolloverAuditor
-	StudentConsents        StudentConsentAuditor
-	CareWithdrawal         CareWithdrawalReconciler
+	// GuardianAccess is the Identity & Access capability an approval uses to
+	// recognise a parent's existing portal account and grant it access to
+	// this school. Required: an approval without it fails instead of silently
+	// skipping the account attach (#2699).
+	GuardianAccess  DecisionGuardianAccess
+	OutboxEnqueuer  platformModels.OutboxEnqueuer
+	StudentAudit    StudentRolloverAuditor
+	StudentConsents StudentConsentAuditor
+	CareWithdrawal  CareWithdrawalReconciler
 	// Broadcaster announces student_updated + student_companions_changed after
 	// an approved enrollment sync replaced a child's departure plan (the write
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
@@ -1467,6 +1462,9 @@ func (s *decisionService) applyApproval(
 		s.StudentGuardianRepo == nil {
 		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
 	}
+	if s.GuardianAccess == nil {
+		return nil, errDecisionGuardianAccessRequired
+	}
 
 	// Rollover branch (migration 1.15.62): when this request_child was
 	// carried forward from a previous year's approved enrollment, we
@@ -2213,38 +2211,6 @@ func (s *decisionService) guardianIdentityRequest(
 	identityRequest := *request
 	identityRequest.GuardianEmail = invite.GuardianEmail
 	return &identityRequest, nil
-}
-
-// submitterOwnsEmail reports whether the submitted guardian email is the
-// authenticated submitter's OWN account address. It is the ownership proof
-// resolveGuardianProfile requires before letting an authenticated approval
-// claim an unlinked guardian profile.
-//
-// Two configurations answer true without a comparison, both deliberately:
-//
-//   - AccountRepo unwired: attachExistingAccountByID short-circuits on the
-//     same nil check, so no account linkage can happen at all — there is
-//     nothing to protect and the legacy accept stands.
-//   - account deleted between submission and decision: the by-id attach
-//     already falls back to the email-owner lookup, which can only bind the
-//     profile to whoever owns THAT address, never to the caller.
-func (s *decisionService) submitterOwnsEmail(ctx context.Context, accountID int64, email string) (bool, error) {
-	if s.AccountRepo == nil {
-		return true, nil
-	}
-	account, err := s.AccountRepo.FindByID(ctx, accountID)
-	if err != nil {
-		return false, fmt.Errorf("decision: load submitting account %d: %w", accountID, err)
-	}
-	if account == nil {
-		if s.Logger != nil {
-			s.Logger.Warn("decision: submitting account no longer resolvable, skipping email ownership check",
-				slog.Int64("guardian_account_id", accountID),
-			)
-		}
-		return true, nil
-	}
-	return strings.EqualFold(strings.TrimSpace(account.Email), email), nil
 }
 
 func (s *decisionService) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *users.GuardianProfile, request *enrollmentModels.Request) error {
@@ -3599,191 +3565,6 @@ func sortedWeekdaySet(days map[int]bool) []int {
 // admin UI can link from a historical request back to the new student.
 func (s *decisionService) linkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
 	return s.Children.LinkCreatedStudent(ctx, requestChildID, studentID)
-}
-
-// attachExistingAccountIfPresent looks up the parent email in the
-// global auth.accounts table (no tenant_id - emails are unique
-// platform-wide). If a row exists, it ensures the new tenant is
-// represented in account_tenants + account_roles, and links the
-// per-tenant guardian profile to that account_id. Returns true when
-// the attachment happened so the caller can skip enqueueing an
-// invitation.
-//
-// Why this exists (slice-2 follow-up): without this step, an admin
-// approving the same parent at a second school would queue another
-// guardian-invitation email, and the accept flow's
-// createOrFindAccount overwrites the existing password hash. This
-// surfaces as "I just got accepted at school B and now my school A
-// password no longer works." Linking directly here keeps the parent
-// silent and on the same credentials.
-func (s *decisionService) attachExistingAccountIfPresent(
-	ctx context.Context,
-	guardian *users.GuardianProfile,
-) (bool, error) {
-	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
-		s.AccountRoleRepo == nil || s.RoleRepo == nil {
-		// Auth repos not wired - fall back to the original invitation
-		// flow. Test factories that don't bring up the auth side will
-		// hit this path.
-		return false, nil
-	}
-	if guardian.Email == nil || strings.TrimSpace(*guardian.Email) == "" {
-		return false, nil
-	}
-
-	email := strings.TrimSpace(strings.ToLower(*guardian.Email))
-	account, err := s.AccountRepo.FindByEmail(ctx, email)
-	if err != nil {
-		// Not-found is the common case (parent has no portal account
-		// yet) - treat it as "nothing to attach", let the invitation
-		// flow run. We don't import the auth package's notfound
-		// detection here; instead we rely on the FindByEmail wrapper
-		// returning a typed DatabaseError on real failures. Logging
-		// at debug level covers both branches.
-		s.Logger.Debug("decision: account lookup result",
-			slog.String("email", email),
-			slog.String("error", err.Error()),
-		)
-		return false, nil
-	}
-	if account == nil {
-		return false, nil
-	}
-
-	return s.attachAccountToGuardian(ctx, guardian, account, "attach")
-}
-
-// attachAccountToGuardian runs the shared attach tail for both account
-// resolution paths: account_tenants mapping (idempotent create), guardian
-// role for this tenant, and LinkAccount on the per-tenant profile.
-// errPrefix keeps the historical per-path error wording ("attach" /
-// "attach by id").
-func (s *decisionService) attachAccountToGuardian(
-	ctx context.Context,
-	guardian *users.GuardianProfile,
-	account *authModels.Account,
-	errPrefix string,
-) (bool, error) {
-	// 1 + 2. Active account_tenants mapping and guardian role for this tenant.
-	if err := s.ensureGuardianTenantAccess(ctx, account.ID, errPrefix); err != nil {
-		return false, err
-	}
-
-	// 3. Link the per-tenant guardian profile row to the global
-	// account. LinkAccount also flips has_account=true so future
-	// approvals for the same profile see the linked state.
-	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
-		return false, fmt.Errorf("%s: link profile: %w", errPrefix, err)
-	}
-	guardian.AccountID = &account.ID
-	guardian.HasAccount = true
-
-	return true, nil
-}
-
-// attachExistingAccountByID links the guardian profile to the account
-// identified by accountID directly, bypassing the email lookup that
-// attachExistingAccountIfPresent uses. Called when the enrollment
-// request was submitted by an authenticated parent (PR 11) - the
-// JWT-derived account_id is more authoritative than the email field
-// (which the parent could have typed differently in the form).
-//
-// Same downstream steps as the email-based path: account_tenants
-// mapping + guardian role for the new tenant + LinkAccount on the
-// per-tenant profile. Returns true on success so the caller skips the
-// invitation enqueue.
-func (s *decisionService) attachExistingAccountByID(
-	ctx context.Context,
-	guardian *users.GuardianProfile,
-	accountID int64,
-) (bool, error) {
-	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
-		s.AccountRoleRepo == nil || s.RoleRepo == nil {
-		return false, nil
-	}
-	account, err := s.AccountRepo.FindByID(ctx, accountID)
-	if err != nil || account == nil {
-		// Account was deleted between submission and decision - fall
-		// back to email lookup so the approval still goes through.
-		s.Logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
-			slog.Int64("guardian_account_id", accountID),
-		)
-		if guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
-			return s.attachExistingAccountIfPresent(ctx, guardian)
-		}
-		return false, nil
-	}
-
-	return s.attachAccountToGuardian(ctx, guardian, account, "attach by id")
-}
-
-// ensureGuardianTenantAccess makes an account's guardian membership in the
-// CURRENT tenant usable: the auth.account_tenants mapping is created OR
-// REACTIVATED, and the guardian base role is assigned for this tenant.
-//
-// EnsureActive (not Create) is deliberate: Create is an ON CONFLICT DO NOTHING
-// insert, so an existing row left inactive by a previous offboarding would
-// survive an approval untouched — mapping present, status 'inactive', parent
-// locked out of the school they were just approved for.
-//
-// errPrefix keeps the caller's historical error wording ("attach" /
-// "attach by id" / the already-linked path).
-func (s *decisionService) ensureGuardianTenantAccess(ctx context.Context, accountID int64, errPrefix string) error {
-	if s.AccountTenantRepo == nil || s.AccountRoleRepo == nil || s.RoleRepo == nil {
-		// Auth repos not wired — the invitation flow stays responsible, same
-		// short-circuit the attach paths use.
-		return nil
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return fmt.Errorf("%s: tenant not in context", errPrefix)
-	}
-
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   accountID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := s.AccountTenantRepo.EnsureActive(ctx, mapping); err != nil {
-		return fmt.Errorf("%s: account_tenants: %w", errPrefix, err)
-	}
-
-	// Guardian role for this tenant. AccountRoleRepo.Create has no ON CONFLICT,
-	// so ensureGuardianRoleForTenant checks first and only creates when missing.
-	return s.ensureGuardianRoleForTenant(ctx, accountID)
-}
-
-// ensureGuardianRoleForTenant assigns the guardian base role for the
-// current tenant, idempotently. Mirrors the linkProfileToAccount step
-// in services/auth.guardianInvitationService so a parent linked here
-// gets the same role footprint as one who came in via the invite
-// accept flow.
-func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accountID int64) error {
-	role, err := s.RoleRepo.FindByName(ctx, guardianRoleName)
-	if err != nil {
-		return fmt.Errorf("attach: guardian role lookup: %w", err)
-	}
-	if role == nil {
-		return fmt.Errorf("attach: guardian role not found")
-	}
-
-	existing, err := s.AccountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
-	if err == nil && existing != nil {
-		// Already assigned for this tenant (FindByAccountAndRole
-		// honours tenant scope) - nothing to do.
-		return nil
-	}
-
-	assignment := &authModels.AccountRole{
-		AccountID: accountID,
-		RoleID:    role.ID,
-	}
-	if err := s.AccountRoleRepo.Create(ctx, assignment); err != nil {
-		return fmt.Errorf("attach: create account_role: %w", err)
-	}
-	return nil
 }
 
 // applyTargetedFields walks the request's pinned schema and dispatches

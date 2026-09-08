@@ -17,6 +17,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
@@ -126,6 +127,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		pickupAutoExcusal,
 		db,
 	)
+	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Requests:               repos.Enrollment(),
 		Children:               repos.Enrollment(),
@@ -155,10 +160,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		CalendarPeriodRepo:     repos.CalendarPeriod,
 		TimeframeRepo:          repos.Timeframe,
 		ActivityExceptionRepo:  repos.ActivityException,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		AccountRoleRepo:        repos.AccountRole,
-		RoleRepo:               repos.Role,
+		GuardianAccess:         guardianAccess,
 		OutboxEnqueuer:         emailOutboxService,
 		StudentAudit:           studentAuditService,
 		StudentConsents:        studentConsentService,
