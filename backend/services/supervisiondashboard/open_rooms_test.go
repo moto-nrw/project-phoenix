@@ -138,12 +138,12 @@ func TestSessionWithoutATemplateReportsNoOffering(t *testing.T) {
 func TestSupervisionFlagReportsOnlyTheCallersOwnSupervision(t *testing.T) {
 	t.Parallel()
 
+	var caller, somebodyElse int64 = 7, 9
 	rooms := []ReleasedRoom{{ID: 1, Name: "Turnhalle"}, {ID: 2, Name: "Werkraum"}}
 	sessions := []RunningSession{
-		{ActiveGroupID: 10, RoomID: 1, StartTime: at(0), SupervisorStaffIDs: []int64{7}},
-		{ActiveGroupID: 11, RoomID: 2, StartTime: at(0), SupervisorStaffIDs: []int64{9}},
+		{ActiveGroupID: 10, RoomID: 1, StartTime: at(0), SupervisorStaffIDs: []int64{caller}},
+		{ActiveGroupID: 11, RoomID: 2, StartTime: at(0), SupervisorStaffIDs: []int64{somebodyElse}},
 	}
-	caller := int64(7)
 
 	result := assembleOpenRooms(inputs(rooms, sessions, nil), visible, &caller)
 
