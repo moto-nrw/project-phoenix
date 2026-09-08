@@ -14,6 +14,11 @@ type ScheduleDate = timezone.Date
 type ScheduleQueryOptions = modelBase.QueryOptions
 type RequestQueueFilters = modelBase.RequestQueueFilters
 
+// TodayDate is the Berlin calendar day in the owner's vocabulary. The legacy
+// composition binds Care Plan workflows to it; the calendar dependency stays
+// with this adapter (#2743) instead of spreading into the repository root.
+func TodayDate() careplan.Date { return careplan.Date(timezone.TodayDate()) }
+
 func CarePlanScheduleQueryOptions(options *ScheduleQueryOptions) *careplan.StudentScheduleQueryOptions {
 	if options == nil {
 		return nil

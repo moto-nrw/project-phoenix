@@ -26,10 +26,10 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -140,13 +140,13 @@ type Service interface {
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
-	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error)
 
 	// EditExcusedRequest rewrites the caller's own pending sick or excused
 	// absence request instead of withdrawing and refiling it (#2267). The
 	// existing share is kept. Authorization: the account must be the
 	// submitting guardian.
-	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*activeModels.ExcusedAbsenceRequest, error)
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*careplan.ExcusedAbsenceRequest, error)
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
@@ -522,7 +522,7 @@ type ServiceConfig struct {
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.
-	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
+	ExcusedRequests careplan.ExcusedAbsenceRequests
 
 	// AbsenceNotifier informs the child's group and the office that an absence
 	// was reported. Optional and best-effort, after-commit only.

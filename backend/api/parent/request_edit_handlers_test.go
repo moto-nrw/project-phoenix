@@ -125,6 +125,14 @@ func TestEditExcusedRequestEndpoint(t *testing.T) {
 	require.Equal(t, http.StatusConflict, stale.Code, stale.Body.String())
 	assert.Contains(t, stale.Body.String(), "change_request_stale")
 
+	// The request reason policy applies to edits too. A blank replacement must
+	// keep the create path's 400 response instead of surfacing as an internal
+	// error from the Care Plan validation sentinel.
+	emptyNote := doRequest(t, router, http.MethodPut, path, token, map[string]any{
+		"dates": []string{corrected.String()}, "note": "   ",
+	})
+	require.Equal(t, http.StatusBadRequest, emptyNote.Code, emptyNote.Body.String())
+
 	// A request id that belongs to nobody the caller may act for is missing.
 	missing := doRequest(t, router, http.MethodPut,
 		fmt.Sprintf("/me/children/%d/excused-requests/999999999", chain.StudentID), token,

@@ -12,10 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -81,7 +81,7 @@ type ResourceConfig struct {
 	// (#1665).
 	OfferingChangeService    enrollmentService.OfferingChangeRequestService
 	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
-	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
+	ExcusedRequestService    excusedrequests.Service
 	ParentRequestBulkService userService.ParentRequestBulkService
 	// ParentRequestConflictService resolves a whole conflict group at once
 	// (#2267). Optional: a bare test Resource answers 500 rather than

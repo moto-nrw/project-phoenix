@@ -3,6 +3,7 @@ package usercontext
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -55,6 +56,22 @@ func (p *ParentRequestReviewPolicy) StudentFilter(
 		_, ok := groupIDs[*student.GroupID]
 		return ok
 	}, nil
+}
+
+// Scope reports the caller's reach as data: school-wide, or exactly the
+// group ids a group leader may review. Owners that keep their own student
+// projection apply it themselves instead of handing this package a row.
+func (p *ParentRequestReviewPolicy) Scope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error) {
+	schoolWide, groups, err := p.resolveScope(ctx, permissions)
+	if err != nil {
+		return false, nil, err
+	}
+	groupIDs = make([]int64, 0, len(groups))
+	for id := range groups {
+		groupIDs = append(groupIDs, id)
+	}
+	slices.Sort(groupIDs)
+	return schoolWide, groupIDs, nil
 }
 
 // Allows applies the same scope to a single decision.

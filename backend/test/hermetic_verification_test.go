@@ -533,7 +533,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupGradeTransitionServiceTest", // services/education grade-transition tests — wraps SetupTestDB
 		"buildLifecycle",                  // services/schedule instance-lifecycle tests — wraps SetupTestDB
 		"newCareFixture",                  // services/schedule care-request tests — wraps SetupTestDB
-		"buildAbsenceService",             // services/absence excused-request tests — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

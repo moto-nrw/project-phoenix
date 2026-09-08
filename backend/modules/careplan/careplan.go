@@ -12,27 +12,16 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 )
 
-const DateLayout = "2006-01-02"
+const DateLayout = excusedrequests.DateLayout
 
-// Date is a calendar day in canonical YYYY-MM-DD form.
-type Date string
-
-func (d Date) String() string         { return string(d) }
-func (d Date) IsZero() bool           { return d == "" }
-func (d Date) Before(other Date) bool { return d < other }
-func (d Date) After(other Date) bool  { return d > other }
-func (d Date) Compare(other Date) int {
-	switch {
-	case d < other:
-		return -1
-	case d > other:
-		return 1
-	default:
-		return 0
-	}
-}
+// Date is a calendar day in canonical YYYY-MM-DD form. It is declared in the
+// excused-absence contract so that contract stays self-contained; the facade
+// and every other Care Plan surface use this alias.
+type Date = excusedrequests.Date
 
 const (
 	OfferingOrderCatalog      = "catalog"

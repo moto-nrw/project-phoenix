@@ -12,10 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -42,7 +42,7 @@ type StudentTestModule struct {
 	CareRequests       schedule.CareScheduleRequestService
 	OfferingChanges    enrollment.OfferingChangeRequestService
 	PickupAdjustments  enrollment.PickupAdjustmentService
-	ExcusedRequests    absence.ExcusedAbsenceRequestService
+	ExcusedRequests    careplan.ExcusedAbsenceRequests
 	MasterDataReview   users.MasterDataReviewService
 	ParentRequests     *users.ParentRequestCoordinator
 	FamilyProtection   *users.FamilyProtectionService
@@ -276,20 +276,15 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		DB:                  db,
 		Today:               today,
 	})
-	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		userContextService,
-		pillEmitter,
-		realtimeHub,
-		requestReviewPolicy,
-		parentRequestEvents,
-		logger.With("service", "excused-requests"),
-		db,
-	)
+	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
+		carePlan: repos.CarePlan, students: repos.Student, persons: repos.Person,
+		scope:   parentRequestReviewScope(requestReviewPolicy),
+		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
+		logger: logger.With("service", "excused-requests"),
+	})
+	if err != nil {
+		return StudentTestModule{}, err
+	}
 	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
 		repos.StudentDataChangeRequest,
 		repos.Student,
@@ -302,12 +297,13 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		logger.With("service", "master-data-review"),
 		realtimeHub,
 	)
+	excusedCoordinatorPort := excusedRequestCoordinatorPort{requests: excusedRequestService}
 	parentRequestCoordinator := users.NewParentRequestCoordinator(
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
-		excusedRequestService,
+		excusedCoordinatorPort,
 	)
 	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
-	parentRequestCoordinator.SetExcusedConflictPort(excusedRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetExcusedConflictPort(excusedCoordinatorPort)
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)

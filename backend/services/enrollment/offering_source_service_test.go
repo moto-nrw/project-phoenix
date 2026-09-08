@@ -133,8 +133,8 @@ func loadTemplateEnrollments(t *testing.T, env *decisionTestEnv, templateID int6
 func offeringSourcePeriod(t *testing.T, env *decisionTestEnv) *scheduleModels.CalendarPeriod {
 	t.Helper()
 	return createCareOfferingTestPeriod(t, env.db, "offering-source",
-		timezone.NewDate(2026, 8, 1),
-		timezone.NewDate(2027, 8, 31))
+		timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(-31),
+		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 }
 
 func offeringResyncer(t *testing.T, env *decisionTestEnv) enrollmentService.OfferingRosterResyncer {
@@ -1389,6 +1389,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
@@ -1573,6 +1574,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzQuelle", nil)
@@ -1807,6 +1809,7 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzGenehmigung", nil)

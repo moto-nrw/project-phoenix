@@ -15,7 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,33 +57,20 @@ func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int
 // buildExcusedServices wires a parent service with the excused-request service
 // attached and the approval gate set as requested. Returns both so tests can
 // drive the parent submit path and the staff decide path.
-func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
+func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, careplan.ExcusedAbsenceRequests, *testpkg.RecordingBroadcaster, *bun.DB) {
 	return buildAbsenceApprovalServices(t, false, requiresApproval)
 }
 
-func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
+func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (parentService.Service, careplan.ExcusedAbsenceRequests, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	lock, notFound, err := repositories.NewCareStudentLock(db)
-	require.NoError(t, err)
-	absenceSvc.BindCareStudentLockForDB(db, lock, notFound)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, // userContext: admin perms in the ctx short-circuit the write gate
-		nil, // emitter: pill is best-effort and nil-safe
-		bc,
-		testpkg.AbsenceRequestReviewPolicy{},
-		nil,
-		slog.Default(),
-		db,
-		func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
-	)
+	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Broadcaster: bc, Logger: slog.Default(),
+		Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
+	})
+	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -156,7 +144,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, decideErr := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID:  res.PendingRequest.ID,
 			Approve:    true,
 			ReviewedBy: chain.AccountID,
@@ -269,7 +257,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 
 	// Staff approve inside a tenant transaction (as the middleware would).
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		item, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		item, derr := excused.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   true,
 		})
@@ -307,7 +295,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	requestID := res.PendingRequest.ID
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, derr := excused.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   false,
 			Reason:    "Bitte telefonisch klären",
@@ -354,7 +342,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 
 	// Staff reject it today — reviewed_at is stamped now, inside the window.
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, derr := excused.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   false,
 			Reason:    "Bitte telefonisch klären",
@@ -391,7 +379,7 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	requestID := res.PendingRequest.ID
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, derr := excused.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   true,
 		})

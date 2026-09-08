@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -194,7 +193,7 @@ func TestApplyPlanningAttachesPendingNoteToRedactedStudent(t *testing.T) {
 		pickups:   map[int64]*scheduleService.EffectivePickupTime{},
 		timetable: map[int64]struct{}{},
 	}
-	pending := map[int64]*activeModels.ExcusedAbsenceRequest{
+	pending := map[int64]*pendingExcusedRequest{
 		11: {Note: "Zahnarzt"},
 		12: {Note: "Arzttermin"},
 	}
