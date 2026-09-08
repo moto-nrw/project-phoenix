@@ -31,6 +31,47 @@ Raw measurements, interpretation, and acceptance belong in the issue, not here.
      "$checkpoint_dir/raw.json" "$checkpoint_dir"
    ```
 
+The helper's Delivery scenarios require the production mock mailer. Unset
+`EMAIL_SMTP_HOST` (and the other `EMAIL_SMTP_*` values) in the shell that runs
+the command; a development shell that exports the Mailpit host fails the run
+before the worker scenarios.
+
+## Compare a later checkpoint with the baseline (`checkpoint-1-v1`)
+
+Checkpoint [#3020](https://github.com/moto-nrw/project-phoenix/issues/3020)
+repeats `checkpoint-1-v1` unchanged after the core-module migrations. Regenerate
+the baseline summary from the lossless raw evidence in #3019 with the current
+reporter, so both summaries carry the same metric set, then compare:
+
+```bash
+python3 scripts/runtime-checkpoint-report.py baseline/raw.json baseline
+python3 scripts/runtime-checkpoint-report.py "$checkpoint_dir/raw.json" "$checkpoint_dir"
+python3 scripts/runtime-checkpoint-compare.py \
+  baseline/summary.json "$checkpoint_dir/summary.json" "$checkpoint_dir/comparison"
+```
+
+The comparison writes `comparison.json` and `comparison.md`. It refuses a
+different workload version or scenario set; those need an old/new bridge run on
+the same commit instead. For every metric present in both summaries it
+classifies the median and the worst run separately: any change to an
+exact-invariant metric (queries, rows, waits, deadlocks, retries, rollbacks,
+job counters, HTTP outcomes) is `material`; a latency metric is `material` only
+beyond both the relative tolerance (default 20%) and the absolute tolerance
+(default 0.5 ms), otherwise `within-tolerance`; observer coverage (lock sample
+count and gap) is `coverage`, never a verdict. A changed stable-error contract
+is material. Metrics measured on one side only, such as
+`executed_write_rows_affected` for samples recorded before that field existed,
+are listed as unmeasured, not compared. The tolerances are CLI options and are
+recorded in the output; they mark what needs an explanation, they do not
+explain it. Run the checks with
+`python3 -m unittest discover -s scripts -p 'runtime_checkpoint_*_test.py'`.
+
+Harness changes since the #3019 commit that keep `checkpoint-1-v1` equivalent:
+warmup responses are asserted against the expected status (outside timing),
+`write_rows_affected` is recorded per sample, and the environment inventory
+lists the two Enrollment change-request tables. Scenario definitions, order,
+warmups, sample counts, fixtures, and worker scenarios are unchanged.
+
 The opt-in helper runs before the existing route/auth goldens. It uses their
 `api.WithRuntime` instance and `Runtime.Handler`, including production module
 wiring and the `phoenix_auth` pool. It adds no composition root. Ordinary test
