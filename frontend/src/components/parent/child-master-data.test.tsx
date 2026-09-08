@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import { ChildMasterDataView } from "./child-master-data";
 import {
@@ -377,7 +378,7 @@ describe("ChildMasterDataView", () => {
         resolveSave?.(masterData({ health_info: "Neue Info" }));
       });
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -423,7 +424,7 @@ describe("ChildMasterDataView", () => {
         resolvers[1]?.(masterData({ health_info: "Neuester Stand" }));
       });
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -466,7 +467,7 @@ describe("ChildMasterDataView", () => {
       );
       expect(health).toHaveValue("Neuester Stand");
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

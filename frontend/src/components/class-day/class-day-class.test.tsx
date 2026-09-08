@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { setTestClock } from "~/test/clock";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -128,18 +129,13 @@ describe("ClassDayClass", () => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
     // Weekday fixtures must not depend on the day CI runs. Keep async timers real.
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-09-07T12:00:00+02:00"));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    setTestClock(new Date("2026-09-07T12:00:00+02:00"));
   });
 
   it.each(["2026-09-05T12:00:00+02:00", "2026-09-06T12:00:00+02:00"])(
     "does not load a class day or offer arrival changes on the weekend (%s)",
     (date) => {
-      vi.setSystemTime(new Date(date));
+      setTestClock(new Date(date));
       const fetchClassDay = vi.fn(() => Promise.resolve(report()));
 
       render(<ClassDayClass schoolClass="4a" fetchClassDay={fetchClassDay} />);
