@@ -414,6 +414,32 @@ the registry default, never a process environment fallback. Before deployment,
 any intended prior environment value must be stored as an explicit per-school
 setting. This integration does not inspect or modify deployed settings.
 
+The emergency snapshot read projection (`modules/emergencysnapshot`,
+`emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
+children with location, reachable adults and the optional health note, from
+plain owner facts through consumer-owned ports and owns the row order and
+the document shape; it persists nothing and never writes. Its compatibility
+adapter (`modules/emergencysnapshot/legacy`, `emergency-snapshot`/`adapter`)
+binds the presence ports, the room names and the person identities to the
+public Student Presence, Facilities and People Directory facades
+(`emergency-snapshot.from.*`) and, as compatibility bindings, the student
+row with its health note and legacy contact columns and the guardian contact
+rows to the retained People Directory repositories, the health-info switch to
+the retained settings service, the presence-mode read to the retained active
+service, the calendar day and German collation to the shared helpers, and
+the PDF to the Document Rendering renderer; the adapter tests pin the
+rendered document field by field and prove the two-tenant RLS boundary over
+the real facades and repositories. Every `emergency-snapshot.adapter.*` and
+`emergency-snapshot.adapter-test.*` rule is a compatibility permission that
+exists only because PR mode cannot record debt for a package the candidate
+creates: convert them to exact debt with the rule above once the package
+exists at a base SHA, rebind each port to its owner's public capability as it
+appears, and delete the adapter with the last legacy source. The same applies
+to the emergency HTTP adapter (`modules/emergencysnapshot/http`,
+`inbound-emergency`/`http`: common HTTP rendering, the permission contract
+and the Bun database the shared tenant middleware takes) and its
+`inbound-emergency.adapter-test.*` permission.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the
