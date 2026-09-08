@@ -91,7 +91,7 @@ func sourcedStudentIDsOn(
 // sourcedStudentIDs is the "as planned today" shorthand.
 func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64 {
 	t.Helper()
-	return sourcedStudentIDsOn(t, s, templateID, timezone.NewDate(2026, 8, 24))
+	return sourcedStudentIDsOn(t, s, templateID, timezone.TodayDate())
 }
 
 // selectedWeekdaysOn returns the weekday set the child's roster row carries on

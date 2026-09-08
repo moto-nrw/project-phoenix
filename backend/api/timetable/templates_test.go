@@ -499,7 +499,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	today := timezone.NewDate(2026, 8, 24)
+	today := timezone.TodayDate()
 	createTemplateTestPeriodRange(
 		t,
 		s.db,

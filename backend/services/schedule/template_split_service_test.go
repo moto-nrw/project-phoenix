@@ -44,7 +44,7 @@ func activityDatePointer(date timezone.Date) *activitiesModels.Date {
 // offsetWeeks additional weeks. The split validates effective_date >= today,
 // so all split tests anchor on future dates.
 func futureMonday(offsetWeeks int) timezone.Date {
-	d := timezone.NewDate(2026, 8, 24).AddDays(1)
+	d := timezone.TodayDate().AddDays(1)
 	for d.Weekday() != time.Monday {
 		d = d.AddDays(1)
 	}
@@ -1065,7 +1065,7 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 	suffix := time.Now().UnixNano()
 
 	t.Run("past effective_date", func(t *testing.T) {
-		in := baseSplitInput(s, timezone.NewDate(2026, 8, 24).AddDays(-1), fmt.Sprintf("Split-Vergangen-%d", suffix))
+		in := baseSplitInput(s, timezone.TodayDate().AddDays(-1), fmt.Sprintf("Split-Vergangen-%d", suffix))
 		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
 	})
