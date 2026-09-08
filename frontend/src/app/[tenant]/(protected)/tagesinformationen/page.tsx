@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { StaffNoticeAcknowledgementsModal } from "~/components/staff-notices/staff-notice-acknowledgements-modal";
 import { StaffNoticeModal } from "~/components/staff-notices/staff-notice-modal";
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
@@ -21,6 +22,7 @@ import { createLogger } from "~/lib/logger";
 import {
   createStaffNotice,
   deleteStaffNotice,
+  describeAudience,
   describeRecurrence,
   fetchStaffNotices,
   fetchTodaysNotices,
@@ -75,6 +77,8 @@ export default function TagesinformationenPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<StaffNotice | null>(null);
   const [deleting, setDeleting] = useState<StaffNotice | null>(null);
+  // Bestätigungsliste (#2208): welcher Hinweis gerade seine Namen zeigt.
+  const [showingAcks, setShowingAcks] = useState<StaffNotice | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [deletePending, setDeletePending] = useState(false);
   const [listError, setListError] = useState("");
@@ -170,6 +174,10 @@ export default function TagesinformationenPage() {
               }
             }}
           />
+          <StaffNoticeAcknowledgementsModal
+            notice={showingAcks}
+            onClose={() => setShowingAcks(null)}
+          />
           <ConfirmDeleteModal
             isOpen={deleting !== null}
             title="Tagesinformation löschen"
@@ -250,6 +258,7 @@ export default function TagesinformationenPage() {
                         </p>
                       )}
                       <p className="mt-2 text-sm text-gray-500">
+                        {describeAudience(notice.audience)} ·{" "}
                         {describeRecurrence(notice)} · ab{" "}
                         {formatDate(notice.valid_from)}
                         {notice.valid_until
@@ -257,11 +266,23 @@ export default function TagesinformationenPage() {
                           : " (unbefristet)"}
                       </p>
                       {notice.requires_acknowledgement && (
-                        <p className="mt-1 text-sm text-gray-500">
-                          Kenntnisnahme verlangt ·{" "}
-                          {notice.acknowledged_count === 1
-                            ? "1 Person hat bestätigt"
-                            : `${notice.acknowledged_count} Personen haben bestätigt`}
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-gray-500">
+                          <span>
+                            Kenntnisnahme verlangt ·{" "}
+                            {notice.acknowledged_count === 1
+                              ? "1 Person hat bestätigt"
+                              : `${notice.acknowledged_count} Personen haben bestätigt`}
+                          </span>
+                          {(notice.acknowledged_count ?? 0) > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="compact"
+                              onClick={() => setShowingAcks(notice)}
+                            >
+                              Wer hat bestätigt?
+                            </Button>
+                          )}
                         </p>
                       )}
                     </div>

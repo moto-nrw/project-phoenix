@@ -382,6 +382,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/aufsichten",
   "/klasse",
   "/nachrichten",
+  // Tagesinformationen der OGS-Leitung für Lehrkräfte (#2208).
+  "/tagesinformationen",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [

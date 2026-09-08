@@ -4,9 +4,11 @@ import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
+import { schoolNavBadge } from "./school-nav-badge";
 import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
 const ITEM =
@@ -31,7 +33,8 @@ const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
  * auf jedem gängigen Telefon — zeigt die Leiste in dieser Besetzung nur die
  * Icons; das aktive Ziel bleibt an seiner gefüllten Pille erkennbar, der Name
  * steht weiter im aria-label. Bei drei Zielen bleibt die Beschriftung wie
- * bisher immer sichtbar.
+ * bisher immer sichtbar. Mit den Tagesinformationen (#2208) sind es ohne
+ * Team-Chat vier und mit ihm fünf Ziele; die Regel bleibt dieselbe.
  *
  * Kein "Mehr"-Menü und kein gleitender Indikator — dafür sind es zu wenige
  * Ziele. Ab 1024 px übernimmt die Seitennavigation; CSS blendet diese Leiste
@@ -39,8 +42,11 @@ const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
  */
 export function SchoolBottomNav({
   teamChat,
+  notices,
 }: {
   readonly teamChat: SchoolTeamChatUnread;
+  /** Offene Tagesinformationen (#2208); ohne Wert steht keine Zahl. */
+  readonly notices?: SchoolStaffNoticesPending;
 }) {
   const pathname = usePathname();
   const items = SCHOOL_MOBILE_NAV.filter(
@@ -48,11 +54,10 @@ export function SchoolBottomNav({
   );
   // Ab dem vierten Ziel passt die längste Beschriftung erst ab 420 px in die
   // Pille. Schmalere Geräte bekommen die Icon-Zeile, statt dass ein Ziel aus
-  // der Leiste geschoben wird.
+  // der Leiste geschoben wird. Seit den Tagesinformationen (#2208) sind es
+  // immer mindestens vier Ziele, die Beschriftung ist also stets so geregelt.
   const labelClass =
-    items.length > 3
-      ? "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline"
-      : "text-sm font-semibold whitespace-nowrap";
+    "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline";
 
   return (
     <nav
@@ -73,6 +78,7 @@ export function SchoolBottomNav({
           <ul className="flex items-center justify-around gap-1">
             {items.map((item) => {
               const active = isSchoolNavActive(item.href, pathname);
+              const badge = schoolNavBadge(item, { teamChat, notices });
               return (
                 <li key={item.key}>
                   <NavLink
@@ -92,16 +98,15 @@ export function SchoolBottomNav({
                         active={active}
                         className="h-5 w-5 shrink-0"
                       />
-                      {item.badge === "teamChat" &&
-                        teamChat.unreadCount > 0 && (
-                          <NotificationBadge
-                            count={teamChat.unreadCount}
-                            tone="staff"
-                            size="sm"
-                            ariaLabel={`${teamChat.unreadCount} ungelesene Nachrichten`}
-                            className="absolute -top-2 -right-3"
-                          />
-                        )}
+                      {badge && badge.count > 0 && (
+                        <NotificationBadge
+                          count={badge.count}
+                          tone="staff"
+                          size="sm"
+                          ariaLabel={badge.ariaLabel}
+                          className="absolute -top-2 -right-3"
+                        />
+                      )}
                     </span>
                     {active ? (
                       <span className={labelClass}>{item.label}</span>
