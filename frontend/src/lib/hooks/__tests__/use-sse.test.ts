@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { useSSE } from "../use-sse";
 import type { SSEEvent } from "../../sse-types";
 
@@ -743,7 +744,7 @@ describe("useSSE Hook", () => {
       // Switch to fake timers and flush any pending timers
       vi.useFakeTimers();
       await vi.runAllTimersAsync();
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Old instance should remain closed, no new instance created
       expect(firstInstance.readyState).toBe(firstInstance.CLOSED);

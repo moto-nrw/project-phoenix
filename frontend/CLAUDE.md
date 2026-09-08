@@ -11,6 +11,15 @@ Run `cd frontend && pnpm run check` with zero warnings and relevant behavior
 tests after code changes. Before push, run `scripts/test-changed.sh origin/development`
 without `--fast`. Service and screenshot workflows: `docs/agents/operations.md`.
 
+## Test clock (MANDATORY)
+
+Every Vitest test runs on a frozen `Date` (`TEST_CLOCK_INSTANT`, Wednesday
+2026-09-09 12:00 Berlin) installed by `src/test/setup-common.ts`; timers stay
+real. Move time with `setTestClock()` from `~/test/clock`, hand fake timers
+back with `releaseFakeTimers()`, never `vi.useRealTimers()` inside a test body
+(oxlint `test-clock/no-real-clock`). Scope, helpers, and the reviewed
+real-clock exception: [frontend test clock](../docs/agents/frontend-testing.md).
+
 ## Server and API boundaries
 
 Server requests use `getServerApiUrl()` / `API_URL`, not the browser URL.

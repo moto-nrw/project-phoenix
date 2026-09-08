@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { Modal } from "./modal";
@@ -111,7 +112,7 @@ describe("ConfirmDeleteModal", () => {
 
       expect(onClose).toHaveBeenCalledOnce();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

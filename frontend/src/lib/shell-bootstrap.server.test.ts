@@ -1,5 +1,6 @@
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import type { TenantInfo } from "~/lib/tenant-api";
 
 const { mockApiGet } = vi.hoisted(() => ({ mockApiGet: vi.fn() }));
@@ -287,7 +288,7 @@ describe("loadShellBootstrap", () => {
       expect(profileSignal?.aborted).toBe(true);
       expect(shell.profile).toBeUndefined();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 });

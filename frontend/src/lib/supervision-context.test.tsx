@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -232,38 +233,35 @@ describe("SupervisionProvider", () => {
     expect(result.current.isSupervising).toBe(false);
   });
 
-  it(
-    "should refresh data when refresh is called",
-    { timeout: 10000 },
-    async () => {
-      setupFetchMock(); // Use defaults (empty)
+  it("should refresh data when refresh is called", async () => {
+    setupFetchMock(); // Use defaults (empty)
 
-      const { result } = renderHook(() => useSupervision(), {
-        wrapper: createWrapper("test-token"),
-      });
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
 
-      await waitFor(() => {
-        expect(result.current.isLoadingGroups).toBe(false);
-      });
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
 
-      // Wait more than 5 seconds to bypass debounce
-      await new Promise((resolve) => setTimeout(resolve, 5100));
+    // The 5-second throttle compares Date.now() with the last refresh; on
+    // the frozen test clock only moving the clock bypasses it.
+    setTestClock(new Date(Date.now() + 5100));
 
-      // Update mock for refresh call
-      setupFetchMock({
-        groups: { groups: [{ id: 10, name: "New Group" }] },
-      });
+    // Update mock for refresh call
+    setupFetchMock({
+      groups: { groups: [{ id: 10, name: "New Group" }] },
+    });
 
-      await act(async () => {
-        await result.current.refresh();
-      });
+    await act(async () => {
+      await result.current.refresh();
+    });
 
-      await waitFor(() => {
-        expect(result.current.groups).toHaveLength(1);
-        expect(result.current.groups[0]?.name).toBe("New Group");
-      });
-    },
-  );
+    await waitFor(() => {
+      expect(result.current.groups).toHaveLength(1);
+      expect(result.current.groups[0]?.name).toBe("New Group");
+    });
+  });
 
   it("updates a group's personal section after a handover", async () => {
     setupFetchMock({
@@ -490,7 +488,7 @@ describe("SupervisionProvider", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
 
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   it("should handle supervision with room name fallback", async () => {
