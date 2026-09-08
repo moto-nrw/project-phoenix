@@ -599,10 +599,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
 
-		// Staff Stammdaten (#1423)
-		StaffMasterData:    users.NewStaffMasterDataRepository(db),
-		StaffQualification: users.NewStaffQualificationRepository(db),
-		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+		// Staff Stammdaten (#1423) belong to Workforce (#2690): the retained
+		// contracts are served by the adapters over the one facade.
+		StaffMasterData:    workforceLegacy.NewStaffMasterDataRepository(timetableDependencies.Workforce),
+		StaffQualification: workforceLegacy.NewStaffQualificationRepository(timetableDependencies.Workforce),
+		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(timetableDependencies.Workforce),
 
 		// Guardian payment data (#2608)
 		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
@@ -660,25 +661,27 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:                     active.NewGroupRepository(db, activeDeviceDirectory{devices: deviceFleet}),
-		GroupSupervisor:                 groupSupervisor,
-		CrossTenant:                     active.NewCrossTenantRepository(db),
-		CombinedGroup:                   active.NewCombinedGroupRepository(db),
-		GroupMapping:                    active.NewGroupMappingRepository(db),
-		StudentStatusDay:                nil, // bound to Care Plan below
-		Statistics:                      active.NewStatisticsRepository(db),
-		CourseStatistics:                timetableCourseStatisticsRepository{timetable: timetableCapability},
-		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
-		WorkSession:                     active.NewWorkSessionRepository(db, now),
-		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
+		ActiveGroup:           active.NewGroupRepository(db, activeDeviceDirectory{devices: deviceFleet}),
+		GroupSupervisor:       groupSupervisor,
+		CrossTenant:           active.NewCrossTenantRepository(db),
+		CombinedGroup:         active.NewCombinedGroupRepository(db),
+		GroupMapping:          active.NewGroupMappingRepository(db),
+		StudentStatusDay:      nil, // bound to Care Plan below
+		Statistics:            active.NewStatisticsRepository(db),
+		CourseStatistics:      timetableCourseStatisticsRepository{timetable: timetableCapability},
+		ExcusedAbsenceRequest: nil, // bound to Care Plan below
+		// Work sessions, breaks, balances and vacation rows belong to
+		// Workforce (#2690); the facade carries its own clock.
+		WorkSession:                     workforceLegacy.NewWorkSessionRepository(timetableDependencies.Workforce),
+		WorkSessionBreak:                workforceLegacy.NewWorkSessionBreakRepository(timetableDependencies.Workforce),
 		StaffAbsence:                    workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
 		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
 		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(timetableDependencies.Workforce),
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db),
-		StaffVacationOpening:            active.NewStaffVacationOpeningRepository(db),
-		StaffBalanceAdjust:              active.NewStaffBalanceAdjustmentRepository(db),
+		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(timetableDependencies.Workforce),
+		StaffVacationOpening:            workforceLegacy.NewStaffVacationOpeningRepository(timetableDependencies.Workforce),
+		StaffBalanceAdjust:              workforceLegacy.NewStaffBalanceAdjustmentRepository(timetableDependencies.Workforce),
 		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		SessionStartLock: active.NewSessionStartLocker(db),
@@ -843,7 +846,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
-	factory.bindStaffMembershipDecorators()
+	factory.bindStaffMembershipDecorators(timetableDependencies.Workforce)
 	// Same lazy capability for the repositories that used to join users.staff
 	// or users.teachers themselves; wired here so they sit inside the person,
 	// school and group wrappers bound afterwards (#2667, agent A2).
