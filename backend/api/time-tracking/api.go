@@ -825,8 +825,8 @@ func plannedShifts(shifts []*scheduleModels.StaffShift) []workforce.PlannedShift
 		}
 		planned := workforce.PlannedShift{StaffShift: workforce.StaffShift{
 			ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
-			StartTime: timezone.NormalizeWallClock(shift.StartTime).Format(workforce.ClockLayout),
-			EndTime:   timezone.NormalizeWallClock(shift.EndTime).Format(workforce.ClockLayout),
+			StartTime:    timezone.NormalizeWallClock(shift.StartTime).Format(workforce.ClockLayout),
+			EndTime:      timezone.NormalizeWallClock(shift.EndTime).Format(workforce.ClockLayout),
 			BreakMinutes: shift.BreakMinutes, ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes,
 			SeriesID: shift.SeriesID, Detached: shift.Detached, Cancelled: shift.Cancelled,
 			ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID, SickAbsenceID: shift.SickAbsenceID,
