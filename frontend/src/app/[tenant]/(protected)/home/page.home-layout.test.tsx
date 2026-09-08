@@ -43,6 +43,7 @@ vi.mock("~/lib/auth-utils", () => ({
   hasEffectiveAdminScope: vi.fn(() => true),
   hasPermission: vi.fn(() => true),
   hasRole: vi.fn(() => true),
+  isCaregiver: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/change-request-access", () => ({
@@ -178,20 +179,20 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   });
 
   it("fragt die Geburtstage nur, wenn die Karte auf der Fläche steht", async () => {
+    // Geburtstage stehen in beiden Standardansichten, also wird gefragt.
     render(<HomePage />);
 
     await waitFor(() =>
       expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
     );
-    // Nicht in der Standardansicht: die Startseite ist ein Einstieg, die Karte
-    // holt man sich über "Anpassen" dazu.
-    expect(requestedKeys()).not.toContain("birthday-overview");
+    expect(requestedKeys()).toContain("birthday-overview");
 
+    // Wer die Karte entfernt, löst die Abfrage auch nicht mehr aus.
     vi.mocked(useSWRAuth).mockClear();
-    layoutState.blocks = [{ key: "section.birthdays", span: 2 }];
+    layoutState.overrides = { "section.birthdays": false };
     render(<HomePage />);
 
-    expect(requestedKeys()).toContain("birthday-overview");
+    expect(requestedKeys()).not.toContain("birthday-overview");
   });
 
   it("zeigt die Standardansicht, wenn die Anordnung nicht geladen werden kann", async () => {

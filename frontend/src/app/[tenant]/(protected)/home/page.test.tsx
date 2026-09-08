@@ -43,6 +43,7 @@ vi.mock("~/lib/auth-utils", () => ({
   hasEffectiveAdminScope: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasPermission: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasRole: vi.fn(() => false),
+  isCaregiver: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/change-request-access", () => ({
@@ -283,6 +284,7 @@ const HIDDEN_DEFAULTS: HomeLayoutOverrides = {
   "section.open_requests": false,
   "section.active_groups": false,
   "section.day_flow": false,
+  "section.birthdays": false,
 };
 describe("Startseite anpassen", () => {
   beforeEach(() => {
@@ -325,15 +327,17 @@ describe("Startseite anpassen", () => {
 
     // Die Karten weichen Platzhaltern mit Name und Breite; gearbeitet wird
     // hier an der Anordnung, nicht am Inhalt.
-    expect(
-      screen.queryByTestId("staff-notices-block"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("staff-notices-block")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: /^Tagesinformationen auswählen, Platz 2 von 2, Breit/,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Bausteine hinzufügen")).toBeInTheDocument();
+    // Der Weg zu allen weiteren Bausteinen steht in der Leiste, nicht unter
+    // der Fläche: dort wäre er bei acht Karten außerhalb des Bildes.
+    expect(
+      screen.getByRole("button", { name: "Bausteine" }),
+    ).toBeInTheDocument();
   });
 
   // Ohne Auswahl steht keine Werkzeugleiste da, sondern der Satz, wie man eine
@@ -342,7 +346,7 @@ describe("Startseite anpassen", () => {
     startEditing();
 
     expect(
-      screen.getByText(/Eine Karte anklicken, um Breite und Platz zu ändern/),
+      screen.getByText(/Karte anklicken, um Breite und Platz zu ändern/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Entfernen" }),
@@ -446,6 +450,7 @@ describe("Startseite anpassen", () => {
   it("nimmt einen Baustein aus dem Hinzufügen-Menü ans Ende auf", async () => {
     startEditing();
 
+    fireEvent.click(screen.getByRole("button", { name: "Bausteine" }));
     fireEvent.click(screen.getByRole("button", { name: /Geburtstage/ }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 

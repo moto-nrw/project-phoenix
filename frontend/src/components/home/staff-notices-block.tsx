@@ -6,7 +6,6 @@ import { ChevronRight } from "lucide-react";
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   HOME_CARD_BODY,
@@ -16,6 +15,7 @@ import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
 
 /**
  * Baustein „Tagesinformationen" der Startseite (#2180): die Hinweise der
@@ -23,6 +23,12 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
  * landet. Dieselbe Liste wie auf /tagesinformationen, damit eine Kenntnisnahme
  * hier genauso zählt wie dort.
  */
+/**
+ * Ein Hinweis ist ein Text, kein Listeneintrag: mehr als einer passt in eine
+ * Karte dieser Höhe nicht ganz hinein.
+ */
+const MAX_NOTICES = 2;
+
 export function StaffNoticesBlock() {
   const tenantPath = useTenantAwarePath();
   const {
@@ -33,6 +39,7 @@ export function StaffNoticesBlock() {
   } = useSWRAuth<StaffNotice[]>("staff-notices-today", fetchTodaysNotices, {
     revalidateOnFocus: false,
   });
+  const { shown, hidden } = useHomeCardRows(notices ?? [], MAX_NOTICES);
 
   return (
     <SectionCard
@@ -63,18 +70,36 @@ export function StaffNoticesBlock() {
           );
         }
         if (isLoading && notices === undefined) {
-          return <Loading fullPage={false} message="Hinweise werden geladen" />;
+          // Dieselbe Skelettform wie die Nachbarkarten. Ein kreisender Spinner
+          // mitten in einer Reihe stiller Platzhalter zieht den Blick auf die
+          // eine Karte, die gerade nichts zu sagen hat.
+          return (
+            <div className="space-y-2" aria-hidden="true">
+              <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
+              <div className="h-3 w-4/5 animate-pulse rounded bg-gray-200"></div>
+              <div className="h-3 w-3/5 animate-pulse rounded bg-gray-200"></div>
+            </div>
+          );
         }
         if (!notices || notices.length === 0) {
           return (
             <EmptyState
-              className="py-8"
+              className="py-4"
               title="Heute gibt es keine Hinweise"
               description="Neue Hinweise der Leitung erscheinen hier."
             />
           );
         }
-        return <TodayNoticeList notices={notices} onChanged={mutate} />;
+        return (
+          <>
+            <TodayNoticeList notices={shown} onChanged={mutate} />
+            <HomeMoreRow
+              hidden={hidden}
+              href={tenantPath("/tagesinformationen")}
+              label="Hinweise"
+            />
+          </>
+        );
       })()}
     </SectionCard>
   );

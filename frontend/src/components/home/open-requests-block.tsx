@@ -82,7 +82,7 @@ export function OpenRequestsBlock() {
     >
       {rows.length === 0 ? (
         <EmptyState
-          className="py-8"
+          className="py-4"
           title="Nichts wartet auf eine Entscheidung"
           description="Neue Anfragen von Eltern und aus dem Team erscheinen hier."
         />
@@ -102,10 +102,7 @@ export function OpenRequestsBlock() {
                     {row.hint}
                   </span>
                 </span>
-                <StatusBadge
-                  tone="orange"
-                  label={`${row.count} offen`}
-                />
+                <StatusBadge tone="orange" label={`${row.count} offen`} />
               </Link>
             </li>
           ))}

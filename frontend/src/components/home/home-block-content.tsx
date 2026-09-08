@@ -14,6 +14,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
 import { StatCard } from "~/components/ui/stat-card";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import {
@@ -45,6 +46,13 @@ export interface HomeBlockData {
   readonly birthdays: BirthdayOverview | undefined;
   readonly birthdaysLoading: boolean;
   readonly tenantPath: (path: string) => string;
+  /**
+   * Wohin der Tag fuer diese Person fuehrt: Betreuungskraefte in den
+   * Tagesplan, reine Adminkonten in den Betreuungsplan. Die Seitenleiste
+   * blendet den Tagesplan fuer sie aus, ein Weiterlink dorthin ginge ins
+   * Leere.
+   */
+  readonly dayPlanHref: string;
 }
 
 /**
@@ -54,7 +62,8 @@ export interface HomeBlockData {
  * `overflow-y-auto` sonst am Rand abschneidet — daher sah der Knopf „Zur
  * Kenntnis nehmen" aus, als wäre er angeschnitten.
  */
-export const HOME_CARD_BODY = "mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto px-1";
+export const HOME_CARD_BODY =
+  "moto-scroll-fade mt-4 -mx-1 min-h-0 flex-1 overflow-y-auto px-1";
 
 /**
  * Symbolfläche aller Karten der Startseite: ein Kasten, eine Größe. Vorher
@@ -113,63 +122,69 @@ function ListCard({
   );
 }
 
-function RowSkeleton({ withBadge = false }: { readonly withBadge?: boolean }) {
+/**
+ * Platzhalterzeilen in der Höhe der echten: drei zweizeilige Blöcke ragen aus
+ * einer Karte dieser Höhe heraus, und beim Laden blitzt ein Scrollbalken auf.
+ */
+function RowSkeleton() {
   return (
     <div className="space-y-2" aria-hidden="true">
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+          className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
         >
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
-            <div className="h-3 w-1/4 animate-pulse rounded bg-gray-200"></div>
-          </div>
-          {withBadge ? (
-            <div className="h-6 w-16 animate-pulse rounded-full bg-gray-200"></div>
-          ) : (
-            <div className="ml-2 h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-gray-200"></div>
-          )}
+          <div className="h-4 w-24 animate-pulse rounded bg-gray-200"></div>
+          <div className="h-4 flex-1 animate-pulse rounded bg-gray-200"></div>
         </div>
       ))}
     </div>
   );
 }
 
+/** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
+const MAX_LIST_ROWS = 3;
+
 function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
   const activities = data.analytics?.recentActivity;
+  const { shown } = useHomeCardRows(activities ?? [], MAX_LIST_ROWS);
   return (
     <ListCard title="Letzte Bewegungen" concept="changeHistory">
       {data.analyticsLoading ? (
-        <RowSkeleton withBadge />
+        <RowSkeleton />
       ) : !activities || activities.length === 0 ? (
-        <EmptyState className="py-8" title="Keine aktuellen Bewegungen" />
+        <EmptyState className="py-4" title="Keine aktuellen Bewegungen" />
       ) : (
         <div className="space-y-2">
-          {activities.slice(0, 5).map((activity, idx) => {
+          {shown.map((activity, idx) => {
             const ts = new Date(activity.timestamp).getTime();
             const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
             return (
+              // Diese Zeile fuehrt nirgendwohin: eine Bewegung ist ein
+              // Ereignis, keine Seite. Darum auch kein Hover-Effekt, der
+              // etwas anderes verspricht.
               <div
                 key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
-                className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                    <span className="truncate">{activity.groupName}</span>
-                    <ChevronRight
-                      className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                      aria-hidden="true"
-                    />
-                    <span className="truncate">{activity.roomName}</span>
-                  </p>
+                <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+                  <span className="truncate font-medium text-gray-900">
+                    {activity.groupName}
+                  </span>
+                  <ChevronRight
+                    className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
+                    aria-hidden="true"
+                  />
+                  <span className="truncate text-gray-500">
+                    {activity.roomName}
+                  </span>
                   {activity.count > 1 && (
-                    <p className="text-xs text-gray-500">
-                      {activity.count} Kinder
-                    </p>
+                    <span className="flex-shrink-0 text-gray-500">
+                      · {activity.count} Kinder
+                    </span>
                   )}
-                </div>
-                <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                </p>
+                <span className="flex-shrink-0 text-xs text-gray-500">
                   {formatRecentActivityTime(activity.timestamp)}
                 </span>
               </div>
@@ -183,6 +198,7 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
 
 function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
   const activities = data.analytics?.currentActivities;
+  const { shown, hidden } = useHomeCardRows(activities ?? [], MAX_LIST_ROWS);
   return (
     <ListCard
       title="Laufende Aktivitäten"
@@ -192,30 +208,38 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
       {data.analyticsLoading ? (
         <RowSkeleton />
       ) : !activities || activities.length === 0 ? (
-        <EmptyState className="py-8" title="Keine laufenden Aktivitäten" />
+        <EmptyState className="py-4" title="Keine laufenden Aktivitäten" />
       ) : (
         <div className="space-y-2">
-          {activities.slice(0, 5).map((activity) => (
-            <div
+          {shown.map((activity) => (
+            <Link
               key={activity.id}
-              className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+              href={data.tenantPath("/activities")}
+              aria-label={`${activity.name}: Aktivitäten öffnen`}
+              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
+              <p className="min-w-0 flex-1 truncate text-sm">
+                <span className="font-medium text-gray-900">
                   {activity.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {activity.category} • {activity.participants}
+                </span>
+                <span className="text-gray-500">
+                  {" · "}
+                  {activity.category} · {activity.participants}
                   {activity.maxCapacity == null
                     ? " Teilnehmer"
                     : `/${activity.maxCapacity} Teilnehmer`}
-                </p>
-              </div>
+                </span>
+              </p>
               <div
                 className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
               ></div>
-            </div>
+            </Link>
           ))}
+          <HomeMoreRow
+            hidden={hidden}
+            href={data.tenantPath("/activities")}
+            label="Aktivitäten"
+          />
         </div>
       )}
     </ListCard>
@@ -236,6 +260,7 @@ const ACTIVE_GROUP_KIND: Record<string, string> = {
 
 function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
   const groups = data.analytics?.activeGroupsSummary;
+  const { shown, hidden } = useHomeCardRows(groups ?? [], MAX_LIST_ROWS);
   return (
     <ListCard
       title="Laufende Betreuung"
@@ -245,33 +270,39 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
       {data.analyticsLoading ? (
         <RowSkeleton />
       ) : !groups || groups.length === 0 ? (
-        <EmptyState className="py-8" title="Es läuft gerade nichts" />
+        <EmptyState className="py-4" title="Es läuft gerade nichts" />
       ) : (
         <div className="space-y-2">
-          {groups.slice(0, 5).map((group) => (
-            <div
+          {shown.map((group) => (
+            <Link
               key={`${group.type}-${group.name}`}
-              className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+              href={data.tenantPath("/ogs-groups")}
+              aria-label={`${group.name}: Betreuung öffnen`}
+              className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
-                  {group.name}
-                </p>
-                <p className="text-xs text-gray-500">
+              <p className="min-w-0 flex-1 truncate text-sm">
+                <span className="font-medium text-gray-900">{group.name}</span>
+                <span className="text-gray-500">
+                  {" · "}
                   {[
                     ACTIVE_GROUP_KIND[group.type],
                     group.location,
                     `${group.studentCount} Kinder`,
                   ]
                     .filter(Boolean)
-                    .join(" • ")}
-                </p>
-              </div>
+                    .join(" · ")}
+                </span>
+              </p>
               <div
                 className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
               ></div>
-            </div>
+            </Link>
           ))}
+          <HomeMoreRow
+            hidden={hidden}
+            href={data.tenantPath("/ogs-groups")}
+            label="Gruppen"
+          />
         </div>
       )}
     </ListCard>
@@ -367,7 +398,9 @@ function StatBlock({
     case "tile.capacity_utilization":
       return tile(
         "Auslastung",
-        analytics ? `${Math.round(analytics.capacityUtilization * 100)}%` : "0%",
+        analytics
+          ? `${Math.round(analytics.capacityUtilization * 100)}%`
+          : "0%",
         "utilization",
       );
     default:
@@ -384,7 +417,19 @@ export function HomeBlockContent({
 }) {
   switch (blockKey) {
     case "section.my_day":
-      return <BetreuungsplanHeuteCard title="Mein Tag" showEmpty />;
+      return (
+        <BetreuungsplanHeuteCard
+          title="Mein Tag"
+          showEmpty
+          href={data.dayPlanHref}
+          // Kompakte Zeilen nur hier: die Karte hat auf der Fläche eine feste
+          // Höhe. Drei passen ganz hinein; ist es mehr, treten zwei Zeilen
+          // plus der Hinweis auf den Rest an ihre Stelle. Gemessen, nicht
+          // geschätzt. Auf der Zeiterfassung bleibt die gewohnte Ansicht.
+          dense
+          maxRows={3}
+        />
+      );
     case "section.staff_notices":
       return <StaffNoticesBlock />;
     case "section.day_flow":

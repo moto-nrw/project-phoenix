@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, GripVertical, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  GripVertical,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Modal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   homeBlockDefinition,
@@ -21,8 +28,14 @@ import {
  *
  * Vier Spalten, feste Reihenhöhe. Eine Kennzahl belegt eine Zelle, eine Liste
  * zwei Reihen — dadurch stehen die Karten immer auf einer Linie, und die
- * Fläche wächst nicht mit dem Inhalt: was nicht hineinpasst, scrollt IN seiner
- * Karte. Die Startseite bleibt so ein Einstieg und wird keine lange Liste.
+ * Fläche wächst nicht mit dem Inhalt. Die Startseite bleibt so ein Einstieg
+ * und wird keine lange Liste. Was nicht in eine Karte passt, wird dort
+ * GEZÄHLT und verlinkt, nicht angeschnitten: eine halb sichtbare Zeile am
+ * Kartenrand liest sich, als liefe der Baustein aus seiner Karte heraus.
+ *
+ * Auf einem Handy gilt das nicht: eine Spalte, keine feste Reihenhöhe, jede
+ * Karte so hoch wie ihr Inhalt. Dort steht ohnehin nichts nebeneinander, und
+ * gescrollt wird die Seite.
  *
  * Im Anpassen-Modus zeigt das Brett nicht die Inhalte, sondern die Anordnung:
  * jede Karte wird zu einer Platzhalter-Kachel mit Symbol, Name und Breite, an
@@ -30,12 +43,21 @@ import {
  * hier, man liest nicht. Eine Kachel anklicken wählt sie aus; alles Weitere
  * steht in EINER Leiste über der Fläche, die beim Scrollen stehen bleibt —
  * statt in fünf Knöpfen auf jeder einzelnen Karte.
+ *
+ * Die Leiste trägt IMMER dieselben drei Dinge rechts: Baustein hinzufügen,
+ * Standardansicht wiederherstellen, und links entweder die ausgewählte Karte
+ * mit ihren Reglern oder den Satz, wie man eine auswählt. Die Auswahl der
+ * Bausteine stand vorher unter der Fläche — bei acht Karten also außerhalb des
+ * Bildes, und wer die Startseite anpassen wollte, fand nichts zum Auswählen.
  */
 
+// Auch das Handy hat zwei Spalten: eine Kennzahl ist eine Zahl mit einem Wort
+// und braucht keine volle Bildschirmbreite — untereinander gestellt schiebt
+// sie alles Wichtige unter den Rand. Listen nehmen dort beide Spalten.
 const SPAN_CLASS: Record<HomeBlockSpan, string> = {
-  1: "sm:col-span-1 xl:col-span-1",
-  2: "sm:col-span-2 xl:col-span-2",
-  4: "sm:col-span-2 xl:col-span-4",
+  1: "col-span-1",
+  2: "col-span-2 xl:col-span-2",
+  4: "col-span-2 xl:col-span-4",
 };
 
 const SPAN_LABEL: Record<HomeBlockSpan, string> = {
@@ -44,9 +66,14 @@ const SPAN_LABEL: Record<HomeBlockSpan, string> = {
   4: "Volle Breite",
 };
 
-/** Eine Kennzahl ist eine Reihe hoch, eine Liste zwei. */
+/**
+ * Eine Kennzahl ist eine Reihe hoch, eine Liste zwei — aber erst ab der
+ * zweispaltigen Ansicht. Auf einem Handy gibt es keine Reihe, neben der eine
+ * Karte stehen müsste: dort wächst jede Karte mit ihrem Inhalt und die Seite
+ * scrollt. Eine feste Höhe würde dort nur Inhalt anschneiden.
+ */
 function rowClass(definition: HomeBlockDefinition | null): string {
-  return definition?.kind === "tile" ? "row-span-1" : "row-span-2";
+  return definition?.kind === "tile" ? "sm:row-span-1" : "sm:row-span-2";
 }
 
 export interface HomeBoardProps {
@@ -126,6 +153,8 @@ export function HomeBoard({
             }}
             onRestoreDefault={onRestoreDefault}
             restoring={restoring}
+            addable={addable}
+            onAdd={onAdd}
           />
         </div>
       )}
@@ -136,7 +165,7 @@ export function HomeBoard({
         // hinter einer breiten Karte, rutscht sie in das freie Feld davor,
         // statt eine halbe Reihe leer zu lassen — dasselbe Verhalten wie auf
         // einem Startbildschirm mit gemischten Kachelgrößen.
-        className="grid auto-rows-[7rem] grid-flow-row-dense grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        className="grid grid-cols-2 gap-4 sm:grid-flow-row-dense sm:auto-rows-[7rem] xl:grid-cols-4"
       >
         {placements.map((placement, index) => {
           const definition = homeBlockDefinition(placement.key);
@@ -166,9 +195,11 @@ export function HomeBoard({
                   event.clientX,
                   event.clientY,
                 );
-                const target = element?.closest<HTMLElement>("[data-block-key]");
+                const target =
+                  element?.closest<HTMLElement>("[data-block-key]");
                 setOverKey(
-                  (target?.dataset.blockKey as HomeBlockKey | undefined) ?? null,
+                  (target?.dataset.blockKey as HomeBlockKey | undefined) ??
+                    null,
                 );
               }}
               onPointerUp={(event) => {
@@ -214,8 +245,6 @@ export function HomeBoard({
           );
         })}
       </ul>
-
-      {editing && <AddPanel addable={addable} onAdd={onAdd} />}
     </div>
   );
 }
@@ -271,7 +300,9 @@ function ArrangeTile({
       </span>
       {definition.kind === "section" && (
         <>
-          <span className="line-clamp-2 text-xs text-gray-500">
+          {/* Auf dem Handy ist die Kachel schmal: zwei Zeilen schneiden den
+              Satz mitten durch, drei tragen ihn. */}
+          <span className="line-clamp-3 text-xs text-gray-500 sm:line-clamp-2">
             {definition.description}
           </span>
           {/* Angedeuteter Inhalt: ohne ihn wirkt die Kachel im Anpassen-Modus
@@ -304,6 +335,8 @@ function SelectionBar({
   onRemove,
   onRestoreDefault,
   restoring,
+  addable,
+  onAdd,
 }: {
   readonly definition: HomeBlockDefinition | null;
   readonly placement: HomeBlockPlacement | undefined;
@@ -314,143 +347,191 @@ function SelectionBar({
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onRestoreDefault: () => void;
   readonly restoring: boolean;
+  readonly addable: readonly HomeBlockDefinition[];
+  readonly onAdd: (key: HomeBlockKey) => void;
 }) {
-  const restoreButton = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="md"
-      className="ml-auto shrink-0"
-      disabled={restoring}
-      onClick={onRestoreDefault}
-    >
-      Standardansicht wiederherstellen
-    </Button>
-  );
-
-  if (!definition || !placement) {
-    return (
-      <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-lg">
-        <span className="text-sm text-gray-600">
-          Eine Karte anklicken, um Breite und Platz zu ändern. Zum Umsortieren
-          die Karte an ihren neuen Platz ziehen.
-        </span>
-        {restoreButton}
-      </div>
-    );
-  }
+  const [adding, setAdding] = useState(false);
 
   return (
     <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-lg">
-      <span className="flex items-center gap-2">
-        <MotoConceptIcon concept={definition.concept} size={20} />
-        <span className="text-sm font-semibold text-gray-900">
-          {definition.label}
-        </span>
-      </span>
+      {definition && placement ? (
+        <>
+          <span className="flex items-center gap-2">
+            <MotoConceptIcon concept={definition.concept} size={20} />
+            <span className="text-sm font-semibold text-gray-900">
+              {definition.label}
+            </span>
+          </span>
 
-      {definition.spans.length > 1 && (
-        <span className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Breite</span>
-          <SegmentedControl
-            ariaLabel={`Breite von ${definition.label}`}
-            items={definition.spans.map((span) => ({
-              value: String(span),
-              label: SPAN_LABEL[span],
-            }))}
-            value={String(placement.span)}
-            onChange={(next) =>
-              onSpanChange(placement.key, Number(next) as HomeBlockSpan)
-            }
-          />
+          {definition.spans.length > 1 && (
+            <span className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Breite</span>
+              <SegmentedControl
+                ariaLabel={`Breite von ${definition.label}`}
+                items={definition.spans.map((span) => ({
+                  value: String(span),
+                  label: SPAN_LABEL[span],
+                }))}
+                value={String(placement.span)}
+                onChange={(next) =>
+                  onSpanChange(placement.key, Number(next) as HomeBlockSpan)
+                }
+              />
+            </span>
+          )}
+
+          <span className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="gap-1"
+              disabled={index === 0}
+              onClick={() => onMove(index, index - 1)}
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Nach vorne
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="gap-1"
+              disabled={index === total - 1}
+              onClick={() => onMove(index, index + 1)}
+            >
+              Nach hinten
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </span>
+
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            className="gap-1"
+            onClick={() => onRemove(placement.key)}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Entfernen
+          </Button>
+        </>
+      ) : (
+        <span className="min-w-0 flex-1 text-sm text-gray-600">
+          Karte anklicken, um Breite und Platz zu ändern.
+          {/* Gezogen wird mit der Maus; auf einem Handy führt „Nach vorne" und
+              „Nach hinten" in der Leiste zum selben Ziel. */}
+          <span className="hidden sm:inline">
+            {" "}
+            Zum Umsortieren die Karte ziehen.
+          </span>
         </span>
       )}
 
-      <span className="flex items-center gap-1">
+      {/* Rechts stehen die beiden Aktionen, die immer gehen — auch ohne
+          ausgewählte Karte. „Bausteine" ist der Weg zu allem, was man noch
+          hinzufügen kann; vorher lag diese Liste unter der Fläche und damit
+          außerhalb des Bildes. */}
+      <span className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto sm:flex-nowrap">
         <Button
           type="button"
           variant="outline"
           size="md"
           className="gap-1"
-          disabled={index === 0}
-          onClick={() => onMove(index, index - 1)}
+          onClick={() => setAdding(true)}
         >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Nach vorne
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Bausteine
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="md"
-          className="gap-1"
-          disabled={index === total - 1}
-          onClick={() => onMove(index, index + 1)}
+          className="whitespace-nowrap"
+          disabled={restoring}
+          onClick={onRestoreDefault}
         >
-          Nach hinten
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          Standardansicht wiederherstellen
         </Button>
       </span>
 
-      <Button
-        type="button"
-        variant="outline_danger"
-        size="md"
-        className="gap-1"
-        onClick={() => onRemove(placement.key)}
-      >
-        <Trash2 className="h-4 w-4" aria-hidden="true" />
-        Entfernen
-      </Button>
-
-      {restoreButton}
+      <AddBlockModal
+        open={adding}
+        onClose={() => setAdding(false)}
+        addable={addable}
+        onAdd={(key) => {
+          onAdd(key);
+          setAdding(false);
+        }}
+      />
     </div>
   );
 }
 
-function AddPanel({
+/**
+ * Die Auswahl der Bausteine: alles, was diese Person sehen darf und gerade
+ * nicht auf ihrer Startseite hat. Als Dialog, damit sie von jeder Stelle der
+ * Fläche aus erreichbar ist.
+ */
+function AddBlockModal({
+  open,
+  onClose,
   addable,
   onAdd,
 }: {
+  readonly open: boolean;
+  readonly onClose: () => void;
   readonly addable: readonly HomeBlockDefinition[];
   readonly onAdd: (key: HomeBlockKey) => void;
 }) {
   return (
-    <SectionCard
-      title="Bausteine hinzufügen"
-      description={
-        addable.length === 0
-          ? "Sie haben alles auf Ihrer Startseite, was für Sie verfügbar ist."
-          : "Was Sie hinzufügen, erscheint am Ende Ihrer Startseite."
-      }
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title="Baustein hinzufügen"
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
     >
-      {addable.length > 0 && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {addable.map((block) => (
-            <ChoiceTile
-              key={block.key}
-              as="button"
-              onClick={() => onAdd(block.key)}
-              className="flex items-start gap-3 p-3 text-left"
-            >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">
-                <MotoConceptIcon concept={block.concept} size={18} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-gray-900">
-                  {block.label}
+      {addable.length === 0 ? (
+        <EmptyState
+          title="Sie haben schon alles"
+          description="Auf Ihrer Startseite steht jeder Baustein, der für Sie verfügbar ist."
+        />
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            {/* „Ziehen" gilt nur mit Maus; auf dem Handy schiebt „Nach vorne"
+                in der Leiste. Deshalb ein Satz, der für beides stimmt. */}
+            Der Baustein erscheint am Ende Ihrer Startseite. Von dort können Sie
+            ihn nach vorne schieben.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {addable.map((block) => (
+              <ChoiceTile
+                key={block.key}
+                as="button"
+                onClick={() => onAdd(block.key)}
+                className="flex items-start gap-3 p-3 text-left"
+              >
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">
+                  <MotoConceptIcon concept={block.concept} size={18} />
                 </span>
-                <span className="block text-xs text-gray-500">
-                  {block.description}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-gray-900">
+                    {block.label}
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    {block.description}
+                  </span>
                 </span>
-              </span>
-              <Plus
-                className="mt-1 h-4 w-4 shrink-0 text-gray-400"
-                aria-hidden="true"
-              />
-            </ChoiceTile>
-          ))}
+                <Plus
+                  className="mt-1 h-4 w-4 shrink-0 text-gray-400"
+                  aria-hidden="true"
+                />
+              </ChoiceTile>
+            ))}
+          </div>
         </div>
       )}
-    </SectionCard>
+    </Modal>
   );
 }

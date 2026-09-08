@@ -394,10 +394,15 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.staff_notices", span: 2 },
     { key: "section.reminders", span: 2 },
     { key: "section.active_groups", span: 2 },
-    // Vier Karten, zwei Reihen: die Betreuungsansicht passt damit auf einen
-    // Bildschirm. Der Ablauf des Tages fehlt hier bewusst — er zeigt dieselben
-    // Blöcke wie „Mein Tag", nur ungefiltert. Die offenen Anfragen betreffen
-    // nur Gruppenleitungen und Vertretungen. Beides steht im Hinzufügen-Menü.
+    // Geburtstage stehen in BEIDEN Standardansichten: wer heute Geburtstag
+    // hat, betrifft die Betreuungskraft am Tisch genauso wie die Leitung, und
+    // die Karte doppelt nichts anderes auf der Fläche. Über die volle Breite,
+    // weil sie mehrere Kinder nebeneinander zeigt statt untereinander.
+    { key: "section.birthdays", span: 4 },
+    // Der Ablauf des Tages fehlt hier bewusst — „Mein Tag" zeigt derselben
+    // Person dieselben Blöcke, nur auf sie gefiltert. Die offenen Anfragen
+    // betreffen nur Gruppenleitungen und Vertretungen. Beides steht im
+    // Hinzufügen-Menü.
   ],
   lead: [
     { key: "tile.students_present", span: 1 },
@@ -408,6 +413,7 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.staff_notices", span: 2 },
     { key: "section.active_groups", span: 2 },
     { key: "section.day_flow", span: 2 },
+    { key: "section.birthdays", span: 4 },
   ],
 };
 

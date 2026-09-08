@@ -18,9 +18,10 @@ import {
   reminderToneClass,
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
 
-/** So viele Zeilen zeigt die Karte; der Rest steht auf der Seite. */
-const MAX_ROWS = 6;
+/** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
+const MAX_ROWS = 3;
 
 /**
  * Baustein „Erinnerungen" (#2180, Daten aus #1457): was in den nächsten
@@ -34,10 +35,8 @@ export function RemindersBlock() {
   const tenantPath = useTenantAwarePath();
   const { reminders, error, isLoading, data } = useReminders();
 
-  const sorted = [...reminders].sort(
-    (a, b) => a.minutes_away - b.minutes_away,
-  );
-  const shown = sorted.slice(0, MAX_ROWS);
+  const sorted = [...reminders].sort((a, b) => a.minutes_away - b.minutes_away);
+  const { shown, hidden } = useHomeCardRows(sorted, MAX_ROWS);
 
   return (
     <SectionCard
@@ -71,13 +70,10 @@ export function RemindersBlock() {
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
                 >
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
-                    <div className="h-3 w-1/4 animate-pulse rounded bg-gray-200"></div>
-                  </div>
-                  <div className="h-4 w-12 animate-pulse rounded bg-gray-200"></div>
+                  <div className="h-4 w-24 animate-pulse rounded bg-gray-200"></div>
+                  <div className="h-4 flex-1 animate-pulse rounded bg-gray-200"></div>
                 </div>
               ))}
             </div>
@@ -86,44 +82,74 @@ export function RemindersBlock() {
         if (shown.length === 0) {
           return (
             <EmptyState
-              className="py-8"
+              className="py-4"
               title="Nichts steht an"
               description="Anstehende Abholungen und Aktivitäten erscheinen hier."
             />
           );
         }
         return (
-          <ul className="space-y-2">
-            {shown.map((reminder) => (
-              <li
-                key={reminderKey(reminder)}
-                className={`flex items-center justify-between gap-3 rounded-xl p-3 ${
+          <>
+            <ul className="space-y-2">
+              {shown.map((reminder) => {
+                // Eine Erinnerung zu einem Kind fuehrt zu diesem Kind; eine
+                // Erinnerung ohne Kind (Aktivitaetsbeginn) bleibt eine Anzeige
+                // und sieht auch nicht klickbar aus.
+                const href = reminder.student_id
+                  ? tenantPath(`/students/${reminder.student_id}`)
+                  : undefined;
+                const rowClass = `flex items-center justify-between gap-3 rounded-xl p-3 ${
                   isReminderOverdue(reminder)
                     ? "bg-moto-red/5"
                     : "bg-gray-50/50"
-                }`}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-gray-900">
-                    {reminder.title}
-                  </span>
-                  {reminder.subtitle && (
-                    <span className="block truncate text-xs text-gray-500">
-                      {reminder.subtitle}
+                }`;
+                const body = (
+                  <>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-gray-900">
+                        {reminder.title}
+                      </span>
+                      {reminder.subtitle && (
+                        <span className="block truncate text-xs text-gray-500">
+                          {reminder.subtitle}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <span className="flex shrink-0 flex-col items-end">
-                  <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                    {reminder.due_time}
-                  </span>
-                  <span className={`text-xs ${reminderToneClass(reminder)}`}>
-                    {reminderRelativeLabel(reminder)}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+                    <span className="flex shrink-0 flex-col items-end">
+                      <span className="text-sm font-semibold text-gray-900 tabular-nums">
+                        {reminder.due_time}
+                      </span>
+                      <span
+                        className={`text-xs ${reminderToneClass(reminder)}`}
+                      >
+                        {reminderRelativeLabel(reminder)}
+                      </span>
+                    </span>
+                  </>
+                );
+                return (
+                  <li key={reminderKey(reminder)}>
+                    {href ? (
+                      <Link
+                        href={href}
+                        aria-label={`${reminder.title}: Kind öffnen`}
+                        className={`${rowClass} transition-colors hover:bg-gray-100/70`}
+                      >
+                        {body}
+                      </Link>
+                    ) : (
+                      <span className={rowClass}>{body}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <HomeMoreRow
+              hidden={hidden}
+              href={tenantPath("/reminders")}
+              label="Erinnerungen"
+            />
+          </>
         );
       })()}
     </SectionCard>

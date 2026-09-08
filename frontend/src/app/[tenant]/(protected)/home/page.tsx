@@ -38,6 +38,7 @@ import {
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useDayPlanHref } from "~/lib/hooks/use-day-plan-href";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { DashboardSkeleton } from "./page-skeleton";
@@ -64,6 +65,7 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
 function HomeContent() {
   const router = useTenantRouter();
   const tenantPath = useTenantAwarePath();
+  const dayPlanHref = useDayPlanHref();
   const nfcEnabled = useNFCEnabled();
   const openCareGroupMode = useOpenCareGroupMode();
   const presenceMode = usePresenceMode();
@@ -127,7 +129,12 @@ function HomeContent() {
         homeLayout.overrides,
         homeLayout.policies,
       ),
-    [blockContext, homeLayout.blocks, homeLayout.overrides, homeLayout.policies],
+    [
+      blockContext,
+      homeLayout.blocks,
+      homeLayout.overrides,
+      homeLayout.policies,
+    ],
   );
 
   const placements = draft ?? saved.placements;
@@ -205,16 +212,18 @@ function HomeContent() {
   }, []);
 
   const changeSpan = useCallback((key: HomeBlockKey, span: HomeBlockSpan) => {
-    setDraft((current) =>
-      current?.map((placement) =>
-        placement.key === key ? { ...placement, span } : placement,
-      ) ?? current,
+    setDraft(
+      (current) =>
+        current?.map((placement) =>
+          placement.key === key ? { ...placement, span } : placement,
+        ) ?? current,
     );
   }, []);
 
   const removeBlock = useCallback((key: HomeBlockKey) => {
     setDraft(
-      (current) => current?.filter((placement) => placement.key !== key) ?? null,
+      (current) =>
+        current?.filter((placement) => placement.key !== key) ?? null,
     );
     setRemovedInDraft((current) =>
       current.includes(key) ? current : [...current, key],
@@ -312,6 +321,7 @@ function HomeContent() {
     birthdays,
     birthdaysLoading,
     tenantPath,
+    dayPlanHref,
   };
 
   return (
@@ -321,7 +331,7 @@ function HomeContent() {
       statsLoading={isLoading}
       stats={
         editing
-          ? "Karte anklicken und unten ändern, an ihren neuen Platz ziehen, oder unten einen Baustein hinzufügen."
+          ? "Karte anklicken und in der Leiste ändern, an ihren neuen Platz ziehen, oder dort einen Baustein hinzufügen."
           : headerStats
       }
       error={
@@ -407,7 +417,6 @@ function HomeContent() {
           )}
         </HomeBoard>
       )}
-
     </TenantPage>
   );
 }

@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 
 vi.mock("~/lib/dashboard-helpers", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/dashboard-helpers")>();
+  const actual =
+    await importOriginal<typeof import("~/lib/dashboard-helpers")>();
   return {
     ...actual,
     formatRecentActivityTime: vi.fn(() => "14:05"),
@@ -25,8 +26,16 @@ vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));
 vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
-  BetreuungsplanHeuteCard: ({ title }: { title?: string }) => (
-    <div data-testid="my-day-block">{title}</div>
+  BetreuungsplanHeuteCard: ({
+    title,
+    href,
+  }: {
+    title?: string;
+    href?: string;
+  }) => (
+    <div data-testid="my-day-block" data-href={href}>
+      {title}
+    </div>
   ),
 }));
 
@@ -81,15 +90,14 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     birthdays: undefined,
     birthdaysLoading: false,
     tenantPath: (path: string) => `/test-tenant${path}`,
+    dayPlanHref: "/test-tenant/tagesplan",
     ...overrides,
   };
 }
 
 describe("HomeBlockContent — Kennzahlen", () => {
   it("zeigt Beschriftung und Wert einer Kachel", () => {
-    render(
-      <HomeBlockContent blockKey="tile.students_present" data={data()} />,
-    );
+    render(<HomeBlockContent blockKey="tile.students_present" data={data()} />);
 
     expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
     expect(screen.getByText("150")).toBeInTheDocument();
@@ -133,7 +141,17 @@ describe("HomeBlockContent — Listen", () => {
     expect(screen.getByText("Letzte Bewegungen")).toBeInTheDocument();
     expect(screen.getByText("Gruppe 1")).toBeInTheDocument();
     expect(screen.getByText("Raum 101")).toBeInTheDocument();
-    expect(screen.getByText("5 Kinder")).toBeInTheDocument();
+    expect(screen.getByText("· 5 Kinder")).toBeInTheDocument();
+  });
+
+  // Eine Bewegung ist ein Ereignis, keine Seite: die Zeile fuehrt nirgendwohin
+  // und darf deshalb auch nicht anfassbar aussehen.
+  it("macht aus einer Bewegung keinen Link", () => {
+    render(
+      <HomeBlockContent blockKey="section.recent_activity" data={data()} />,
+    );
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
   it("sagt es, wenn es keine Bewegungen gibt", () => {
@@ -153,9 +171,19 @@ describe("HomeBlockContent — Listen", () => {
     );
 
     expect(screen.getByText("Schach")).toBeInTheDocument();
-    expect(screen.getByText("Sport • 8/10 Teilnehmer")).toBeInTheDocument();
+    expect(screen.getByText("· Sport · 8/10 Teilnehmer")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Laufende Aktivitäten/ }),
+    ).toHaveAttribute("href", "/test-tenant/activities");
+  });
+
+  it("führt eine Zeile der laufenden Aktivitäten in die Aktivitäten", () => {
+    render(
+      <HomeBlockContent blockKey="section.current_activities" data={data()} />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Schach: Aktivitäten öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/activities");
   });
 
@@ -177,7 +205,17 @@ describe("HomeBlockContent — Listen", () => {
 
     expect(screen.getByText("Laufende Betreuung")).toBeInTheDocument();
     expect(screen.getByText("OGS Gruppe A")).toBeInTheDocument();
-    expect(screen.getByText("Gruppe • Raum 101 • 15 Kinder")).toBeInTheDocument();
+    expect(
+      screen.getByText("· Gruppe · Raum 101 · 15 Kinder"),
+    ).toBeInTheDocument();
+  });
+
+  it("führt eine Zeile der laufenden Betreuung in die Betreuungsgruppen", () => {
+    render(<HomeBlockContent blockKey="section.active_groups" data={data()} />);
+
+    expect(
+      screen.getByRole("link", { name: "OGS Gruppe A: Betreuung öffnen" }),
+    ).toHaveAttribute("href", "/test-tenant/ogs-groups");
   });
 
   it("sagt es, wenn gerade nichts läuft", () => {
@@ -225,6 +263,16 @@ describe("HomeBlockContent — eigene Quellen", () => {
     render(<HomeBlockContent blockKey="section.my_day" data={data()} />);
 
     expect(screen.getByTestId("my-day-block")).toHaveTextContent("Mein Tag");
+  });
+
+  // Die Karte hat keinen Kopflink; ihre Zeilen sind der einzige Weg weiter.
+  it("macht die Einsätze in 'Mein Tag' im Tagesplan anklickbar", () => {
+    render(<HomeBlockContent blockKey="section.my_day" data={data()} />);
+
+    expect(screen.getByTestId("my-day-block")).toHaveAttribute(
+      "data-href",
+      "/test-tenant/tagesplan",
+    );
   });
 
   it("rendert die drei Bausteine mit eigener Abfrage", () => {
