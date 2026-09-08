@@ -113,12 +113,14 @@ describe("test-clock/no-real-clock", () => {
         globalThis.Date = RealDate;
         global.Date = RealDate;
         window.Date = RealDate;
+        globalThis["Date"] = RealDate;
+        window["Date"] = RealDate;
         vi.stubGlobal("fetch", () => now);
       });
     `);
 
     expect(result.status).toBe(1);
-    expect(countReports(result.output)).toBe(5);
+    expect(countReports(result.output)).toBe(7);
   });
 
   it("accepts the sanctioned clock helpers and fake-timer control", () => {

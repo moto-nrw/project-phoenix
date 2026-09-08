@@ -14,8 +14,9 @@
 //       `useRealClock("reason")` for a reviewed real-time exception.
 //     - `useRealClock()` without a non-empty string-literal reason.
 //     - `vi.getRealSystemTime()`, `vi.stubGlobal("Date", …)` and assignments
-//       to `globalThis.Date` / `global.Date` / `window.Date`, which read or
-//       replace the real clock behind the setup's back.
+//       to `globalThis.Date` / `global.Date` / `window.Date` (including
+//       computed `["Date"]` properties), which read or replace the real clock
+//       behind the setup's back.
 //
 // There is no baseline and no allowlist: an exception is `useRealClock` with
 // its reason in the call, not a disable comment.
@@ -70,14 +71,19 @@ function literalText(node) {
   return node.quasis.map((quasi) => quasi.value.cooked ?? "").join("");
 }
 
+function isDateProperty(node) {
+  return (
+    (node.type === "Identifier" && node.name === "Date") ||
+    (isStringLiteral(node) && literalText(node) === "Date")
+  );
+}
+
 function isDateGlobalMember(node) {
   return (
     node.type === "MemberExpression" &&
-    !node.computed &&
     node.object.type === "Identifier" &&
     DATE_GLOBAL_OBJECTS.has(node.object.name) &&
-    node.property.type === "Identifier" &&
-    node.property.name === "Date"
+    isDateProperty(node.property)
   );
 }
 
