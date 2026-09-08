@@ -15,6 +15,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // getAttendanceStatus handles getting a student's attendance status by RFID
@@ -120,6 +121,10 @@ func (rs *AttendanceResource) toggleAttendance(w http.ResponseWriter, r *http.Re
 func (rs *AttendanceResource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
+		if !errors.Is(err, usersSvc.ErrPersonNotFound) {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
+			return nil, nil, false
+		}
 		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return nil, nil, false
@@ -178,6 +183,10 @@ func (rs *AttendanceResource) handleCancelAction(w http.ResponseWriter, r *http.
 func (rs *AttendanceResource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest, deviceID int64) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil && !errors.Is(err, usersSvc.ErrPersonNotFound) {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
 	if err != nil || person == nil {
 		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
@@ -235,6 +244,10 @@ func (rs *AttendanceResource) handleNormalToggle(w http.ResponseWriter, r *http.
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
+		if !errors.Is(err, usersSvc.ErrPersonNotFound) {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
+			return
+		}
 		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return
