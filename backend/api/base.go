@@ -45,7 +45,6 @@ import (
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
@@ -108,6 +107,7 @@ import (
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -627,7 +627,7 @@ type API struct {
 	Import           *importAPI.Resource
 	Activities       *timetableHTTPAdapter.Resource
 	Staff            *staffHTTP.Resource
-	StaffAdmin       *timeTrackingAPI.StaffAdminResource
+	StaffAdmin       *timeTrackingHTTP.StaffAdminResource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
@@ -649,14 +649,14 @@ type API struct {
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
-	TimeTracking     *timeTrackingAPI.Resource
+	TimeTracking     *timeTrackingHTTP.Resource
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
 	Messaging        *messagingAPI.Resource
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
-	StaffNotices     *timeTrackingAPI.StaffNoticeResource
+	StaffNotices     *timeTrackingHTTP.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -817,7 +817,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
 
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, db, logger, frontendURL)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules.workforce, db, logger, frontendURL)
 	if err != nil {
 		return nil, err
 	}
@@ -842,8 +842,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, db, logger); err != nil {
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, workforce *workforceModule.Module, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, workforce, db, logger); err != nil {
 		return nil, err
 	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
@@ -1128,7 +1128,9 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) error {
+// initializeAPIResources composes the HTTP resources; workforce is the
+// Workforce module the staff administration reads schedules from.
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, workforce *workforceModule.Module, db *bun.DB, logger *slog.Logger) error {
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
@@ -1217,14 +1219,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
-	api.StaffNotices = timeTrackingAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
+	api.StaffNotices = timeTrackingHTTP.NewStaffNoticeResource(api.Services.StaffNotice, timeTrackingIdentity, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	staffResource, staffAdmin, err := newStaffComposition(api.membership, api.Services, db, logger.With("handler", "staff"))
+	staffResource, staffAdmin, err := newStaffComposition(api.membership, workforce, api.Services, db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
 	}
@@ -1271,7 +1273,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		CheckinService:    api.Services.Checkin,
-		StaffClockService: api.Services.StaffClock,
+		StaffClock:        api.Services.StaffClock,
 		UsersService:      api.Services.Users,
 		ActiveService:     api.Services.Active,
 		ActivitiesService: api.Services.Activities,
@@ -1303,9 +1305,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
-	api.TimeTracking.HolidayService = api.Services.Holidays
-	api.TimeTracking.ClosingDayService = api.Services.ClosingDays
+	api.TimeTracking = newTimeTrackingResource(api.Services, db)
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:   api.Services.CalendarPeriod,
 		ClosingDayService:       api.Services.ClosingDays,

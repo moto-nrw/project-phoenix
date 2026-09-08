@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -29,6 +30,9 @@ type Dependencies struct {
 	AssignedStaffIDs  func(ctx context.Context, workTimeModelID int64) ([]int64, error)
 	RebaseStaffAnchor func(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
 	Observe           func(Observation)
+	// Now is the clock the live work-session window and the calendar day
+	// are measured against; nil means the wall clock. Tests pin it.
+	Now func() time.Time
 }
 
 // New composes the Workforce work-time module. Every operation runs on the
@@ -45,11 +49,15 @@ func New(dependencies Dependencies) (*workforce.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
+	now := dependencies.Now
+	if now == nil {
+		now = time.Now
+	}
 	service := application.New(
 		store,
 		transaction{lock: store.AcquireXactLock},
 		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
-		clock{},
+		clock{now: now},
 		observe,
 	)
 	return workforce.NewModule(engine{service: service}), nil
@@ -121,9 +129,12 @@ func (t transaction) acquireXactLock(ctx context.Context, key string) error {
 	return t.lock(ctx, key)
 }
 
-type clock struct{}
+// clock derives the calendar day from the same instant the live windows use,
+// so a pinned test clock cannot disagree with itself across midnight.
+type clock struct{ now func() time.Time }
 
-func (clock) Today() string { return timezone.TodayDate().String() }
+func (c clock) Now() time.Time { return c.now() }
+func (c clock) Today() string  { return timezone.DateFromTime(c.now()).String() }
 
 type assignments struct {
 	ids    func(context.Context, int64) ([]int64, error)

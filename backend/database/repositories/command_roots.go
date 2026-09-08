@@ -141,7 +141,7 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command)
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
 	}
 	return TimeTrackingCleanupRepositories{
-		Session: activeRepo.NewWorkSessionRepository(db), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
+		Session: workforceLegacy.NewWorkSessionRepository(workTime), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
 		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }

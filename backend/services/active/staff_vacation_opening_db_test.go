@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepos "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepos "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -74,7 +73,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		SetVacationOpeningRepository(activeModels.StaffVacationOpeningRepository)
 	})
 	require.True(t, ok, "staff absence service must accept the vacation opening repository")
-	openingAware.SetVacationOpeningRepository(activeRepos.NewStaffVacationOpeningRepository(db))
+	openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
 
 	deletionAware, ok := svc.(interface {
 		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
@@ -444,7 +443,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	t.Parallel()
 
 	f := newVacationOpeningFixture(t)
-	repo := activeRepos.NewStaffVacationOpeningRepository(f.db)
+	repo := f.repos.StaffVacationOpening
 
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
 		EffectiveDate: f.cutoff,

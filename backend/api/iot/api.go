@@ -13,6 +13,7 @@ import (
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -22,7 +23,6 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
-	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -39,9 +39,11 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService               iotSvc.Service
-	CheckinService           *checkinSvc.CheckinService
-	StaffClockService        *staffclockSvc.Service
+	IoTService     iotSvc.Service
+	CheckinService *checkinSvc.CheckinService
+	// StaffClock is the public device-scan staff clock the kiosk stamps
+	// through (#2690).
+	StaffClock               devicescan.StaffClock
 	UsersService             usersSvc.PersonService
 	ActiveService            activeSvc.Service
 	ActivitiesService        activitiesSvc.ActivityService
@@ -142,15 +144,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
 
-		// Pure staff time tracking, independent of activities or groups.
-		staffClockResource := staffclockAPI.NewResource(rs.StaffClockService)
-		staffClockHandler := delegateHandler(staffClockResource.Router())
-		r.Post("/staff-clock", staffClockHandler)
-		r.Post("/staff-clock/state", staffClockHandler)
-
 		// Feedback endpoint (device-based feedback submission)
 		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
+
+		// Pure staff time tracking, independent of activities or groups.
+		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())
+		staffClockHandler := delegateHandler(staffClockResource.Router())
+		r.Post("/staff-clock", staffClockHandler)
+		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Data query endpoints (device + PIN auth)
 		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)

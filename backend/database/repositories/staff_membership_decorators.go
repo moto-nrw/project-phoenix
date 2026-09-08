@@ -8,6 +8,8 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )
 
 // The three repositories decorated here are people-directory repositories that
@@ -19,11 +21,11 @@ import (
 // bindStaffMembershipDecorators wires the decorators once, innermost, so the
 // school/person/group wrappers bound afterwards keep wrapping them and a later
 // BindSchoolMembership swap still reaches them (the capability is read lazily).
-func (f *Factory) bindStaffMembershipDecorators() {
+func (f *Factory) bindStaffMembershipDecorators(workTime workforce.Capability) {
 	capability := func() schoolmembership.Capability { return f.schoolMembership }
 	persons := func() userModels.PersonRepository { return f.membershipDeps.persons }
 	f.StaffDocument = staffDocumentMembershipRepository{
-		StaffDocumentRepository: usersRepo.NewStaffDocumentRepository(f.db), membership: capability,
+		StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: capability,
 	}
 	f.ParentMessageRead = parentMessageStaffRepository{
 		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
@@ -75,7 +77,7 @@ func staffAccountsByTenant(ctx context.Context, membership schoolmembership.Capa
 // --- staff documents ---
 
 type staffDocumentMembershipRepository struct {
-	*usersRepo.StaffDocumentRepository
+	workforceLegacy.StaffDocumentRepository
 	membership func() schoolmembership.Capability
 }
 
