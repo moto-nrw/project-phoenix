@@ -40,8 +40,6 @@ export interface HomeGroupSnapshot {
   } | null;
   readonly present: number;
   readonly total: number;
-  /** Anwesende Kinder, die gerade NICHT im Gruppenraum sind (Schulhof, anderer Raum). */
-  readonly elsewhere: number;
   /**
    * Kinder, die heute nicht (mehr) da sind, in der Reihenfolge der Gruppe —
    * einschließlich derer, die noch erwartet werden.
@@ -64,7 +62,6 @@ const EMPTY: Omit<HomeGroupSnapshot, "isLoading" | "error"> = {
   group: null,
   present: 0,
   total: 0,
-  elsewhere: 0,
   away: [],
   missing: [],
   pickups: [],
@@ -151,11 +148,6 @@ export function deriveHomeGroup(
             note: student.arrival_notes || undefined,
           }));
 
-  const elsewhere = here.filter((student) => {
-    const status = data.roomStatus[student.id];
-    return status !== undefined && !status.in_group_room;
-  }).length;
-
   return {
     group: {
       id: found.id,
@@ -165,7 +157,6 @@ export function deriveHomeGroup(
     },
     present: here.length,
     total: students.length,
-    elsewhere,
     away,
     missing,
     pickups,

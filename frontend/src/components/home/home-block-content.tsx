@@ -17,7 +17,11 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
-import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
+import {
+  HomeCardLink,
+  HomeMoreRow,
+  useHomeCardRows,
+} from "~/components/home/home-card-rows";
 import { StatCard } from "~/components/ui/stat-card";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import {
@@ -62,7 +66,8 @@ export interface HomeBlockData {
  * dem Schatten von Knöpfen und Zeilen den Platz, den ihm `overflow-hidden`
  * sonst am Rand abschneidet.
  */
-export const HOME_CARD_BODY = "mt-4 -mx-1 min-h-0 flex-1 overflow-hidden px-1";
+export const HOME_CARD_BODY =
+  "mt-4 -mx-1 -mb-2 min-h-0 flex-1 overflow-hidden px-1 pb-2";
 
 /**
  * Symbolfläche aller Karten der Startseite: ein Kasten, eine Größe. Vorher
@@ -103,16 +108,9 @@ function ListCard({
       leading={<HomeCardIcon concept={concept} />}
       actions={
         href ? (
-          <Link
-            href={href}
-            // Der Kartentitel gehört in den Linknamen: „Ansehen" allein sagt
-            // in der Vorlesereihenfolge nicht, was man ansieht.
-            aria-label={`${title}: ${linkText}`}
-            className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-          >
+          <HomeCardLink href={href} label={`${title}: ${linkText}`}>
             {linkText}
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          </HomeCardLink>
         ) : undefined
       }
     >

@@ -1,15 +1,13 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import { Alert } from "~/components/ui/alert";
-import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import {
   HOME_CARD_BODY,
   HomeCardIcon,
 } from "~/components/home/home-block-content";
+import { HomeCardLink } from "~/components/home/home-card-rows";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -61,14 +59,12 @@ export function StaffTodayBlock({
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
+        <HomeCardLink
           href={tenantPath("/staff")}
-          aria-label="Personal heute: zum Team"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label="Personal heute: zum Team"
         >
           Zum Team
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {error ? (

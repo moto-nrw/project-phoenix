@@ -144,16 +144,10 @@ interface NowAction {
 export function nowActions({
   isSupervising,
   canOpenGroup,
-  timetable,
-  dayPlanHref,
-  dayPlanLabel,
   tenantPath,
 }: {
   readonly isSupervising: boolean;
   readonly canOpenGroup: boolean;
-  readonly timetable: boolean;
-  readonly dayPlanHref: string;
-  readonly dayPlanLabel: string;
   readonly tenantPath: (path: string) => string;
 }): readonly NowAction[] {
   const actions: NowAction[] = [];
@@ -163,9 +157,9 @@ export function nowActions({
       label: "Aufsicht fortsetzen",
     });
   }
-  if (timetable) {
-    actions.push({ href: dayPlanHref, label: dayPlanLabel });
-  }
+  // Kein Weg in den Tagesplan: der Tag steht als Baustein direkt unter der
+  // Zone, mit Weiterlink und Starten-Knopf. Ein zweiter Knopf darüber wäre
+  // derselbe Weg zweimal.
   if (canOpenGroup) {
     actions.push({ href: tenantPath("/ogs-groups"), label: "Meine Gruppe" });
   }

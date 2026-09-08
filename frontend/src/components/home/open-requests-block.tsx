@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import Link from "~/components/ui/navigation-link";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -9,6 +7,7 @@ import {
   HOME_CARD_BODY,
   HomeCardIcon,
 } from "~/components/home/home-block-content";
+import { HomeCardLink } from "~/components/home/home-card-rows";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
@@ -70,14 +69,12 @@ export function OpenRequestsBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
+        <HomeCardLink
           href={tenantPath("/anfragen")}
-          aria-label="Offene Anfragen: alle ansehen"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label="Offene Anfragen: alle ansehen"
         >
           Alle ansehen
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {rows.length === 0 ? (

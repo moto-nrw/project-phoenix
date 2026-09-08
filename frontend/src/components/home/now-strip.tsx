@@ -13,7 +13,6 @@ import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import { formatMinutesAhead } from "~/lib/home-clock";
 import { deriveHomeNow, nowActions, type HomeNowState } from "~/lib/home-now";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import { createLogger } from "~/lib/logger";
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
@@ -49,8 +48,6 @@ export function NowStrip({
   const tenantPath = useTenantAwarePath();
   const today = useBerlinToday();
   const now = useBerlinClock();
-  const dayPlanHref = useDayPlanHref();
-  const dayPlanLabel = useDayPlanLabel();
   // `ownSupervision`, nicht `isSupervising`: Letzteres ist wahr, sobald es
   // einen Schulhof gibt — „fortsetzen" kann man nur, was man selbst führt.
   const { ownSupervision, hasGroups } = useOptionalSupervision();
@@ -118,9 +115,6 @@ export function NowStrip({
   const actions = nowActions({
     isSupervising: ownSupervision === true,
     canOpenGroup,
-    timetable: context.timetableEnabled && context.detailed,
-    dayPlanHref,
-    dayPlanLabel,
     tenantPath,
   });
 

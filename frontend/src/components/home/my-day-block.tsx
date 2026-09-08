@@ -15,6 +15,7 @@ import {
   HomeCardIcon,
 } from "~/components/home/home-block-content";
 import {
+  HomeCardLink,
   HomeMoreRow,
   useBerlinClock,
   useHomeCardRows,
@@ -100,16 +101,16 @@ export function MyDayBlock() {
         a.endTime.localeCompare(b.endTime),
     );
   const { shown, hidden } = useHomeCardRows(mine, MAX_ROWS);
-  // Die Jetzt-Linie steht vor dem ersten Block, der noch nicht vorbei ist.
-  // Ein Block, der laut Server läuft, zählt als „jetzt", auch über seine
-  // geplante Endzeit hinaus. Ohne Uhr (erstes Rendern) gibt es keine Linie.
+  // Die Jetzt-Linie steht vor dem ersten Block, dessen Endzeit noch nicht
+  // vorbei ist — nach der Uhr, wie im Tagesplan. Ein Block, der laut Server
+  // noch läuft, obwohl seine Zeit um ist, bleibt oben mit seiner Marke
+  // „Läuft"; die Linie folgt der Zeit, nicht dem Zustand. Ohne Uhr (erstes
+  // Rendern) gibt es keine Linie.
   const nowIndex =
     now === ""
       ? -1
       : (() => {
-          const index = shown.findIndex(
-            (block) => block.status === "active" || block.endTime > now,
-          );
+          const index = shown.findIndex((block) => block.endTime > now);
           return index === -1 ? shown.length : index;
         })();
 
@@ -120,14 +121,9 @@ export function MyDayBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
-          href={dayPlanHref}
-          aria-label={`Mein Tag: ${dayPlanLabel}`}
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-        >
+        <HomeCardLink href={dayPlanHref} label={`Mein Tag: ${dayPlanLabel}`}>
           {dayPlanLabel}
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {(() => {

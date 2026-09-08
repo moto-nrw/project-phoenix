@@ -166,9 +166,6 @@ describe("nowActions (#2180)", () => {
   const base = {
     isSupervising: false,
     canOpenGroup: false,
-    timetable: true,
-    dayPlanHref: "/t/tagesplan",
-    dayPlanLabel: "Zum Tagesplan",
     tenantPath,
   };
 
@@ -181,22 +178,20 @@ describe("nowActions (#2180)", () => {
 
     expect(actions.map((a) => a.label)).toEqual([
       "Aufsicht fortsetzen",
-      "Zum Tagesplan",
+      "Meine Gruppe",
     ]);
   });
 
-  it("führt sonst in den Tag und in die eigene Gruppe", () => {
+  // Der Tagesplan ist kein Weg der Zone: „Mein Tag" steht direkt darunter.
+  it("führt sonst in die eigene Gruppe, nicht in den Tagesplan", () => {
     const actions = nowActions({ ...base, canOpenGroup: true });
 
-    expect(actions.map((a) => a.href)).toEqual([
-      "/t/tagesplan",
-      "/t/ogs-groups",
-    ]);
+    expect(actions.map((a) => a.href)).toEqual(["/t/ogs-groups"]);
   });
 
-  // Ohne Betreuungsplan und ohne Gruppe bleibt die Kindersuche.
+  // Ohne Gruppe bleibt die Kindersuche.
   it("bietet als letzten Weg alle Kinder an", () => {
-    const actions = nowActions({ ...base, timetable: false });
+    const actions = nowActions(base);
 
     expect(actions).toEqual([
       { href: "/t/students/search", label: "Alle Kinder" },

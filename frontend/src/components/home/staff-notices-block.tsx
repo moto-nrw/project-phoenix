@@ -1,8 +1,5 @@
 "use client";
 
-import Link from "~/components/ui/navigation-link";
-import { ChevronRight } from "lucide-react";
-
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -15,7 +12,11 @@ import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
+import {
+  HomeCardLink,
+  HomeMoreRow,
+  useHomeCardRows,
+} from "~/components/home/home-card-rows";
 
 /**
  * Baustein „Tagesinformationen" der Startseite (#2180): die Hinweise der
@@ -50,14 +51,12 @@ export function StaffNoticesBlock() {
       bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept="announcements" />}
       actions={
-        <Link
+        <HomeCardLink
           href={tenantPath("/tagesinformationen")}
-          aria-label="Tagesinformationen: alle ansehen"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label="Tagesinformationen: alle ansehen"
         >
           Alle ansehen
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {(() => {

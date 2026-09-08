@@ -145,24 +145,18 @@ describe("deriveHomeGroup (#2180)", () => {
     expect(deriveHomeGroup(data, "").pickups).toHaveLength(1);
   });
 
-  it("zählt anwesende Kinder außerhalb des Gruppenraums", () => {
+  it("zählt nur Kinder, die da sind, als anwesend", () => {
     const data = liveData({
       students: [
         student("1"),
         student("2", { current_location: "Schulhof" }),
         student("3", { current_location: "HOME" }),
       ],
-      roomStatus: {
-        "1": { in_group_room: true },
-        "2": { in_group_room: false },
-        "3": { in_group_room: false },
-      },
     });
 
     const snapshot = deriveHomeGroup(data, "13:10");
 
-    // Das Kind zuhause zählt nicht als „außerhalb": es ist gar nicht da.
-    expect(snapshot.elsewhere).toBe(1);
+    // Schulhof ist da, zuhause ist nicht da.
     expect(snapshot.present).toBe(2);
   });
 

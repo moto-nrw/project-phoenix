@@ -1,9 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { ButtonLink } from "~/components/ui/button";
 import Link from "~/components/ui/navigation-link";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+
+/**
+ * Der Weiterlink im Kopf einer Karte der Startseite: ein weißer Knopf aus
+ * dem Kit, nicht ein Wort mit Pfeil. Alle Karten tragen denselben, damit die
+ * Fläche ruhig bleibt; der Kartentitel gehört in den Linknamen, weil
+ * „Alle ansehen" in der Vorlesereihenfolge allein nicht sagt, was man ansieht.
+ */
+export function HomeCardLink({
+  href,
+  label,
+  children,
+}: {
+  readonly href: string;
+  /** Der vorgelesene Name, mit Kartentitel. */
+  readonly label: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <ButtonLink
+      href={href}
+      variant="outline"
+      size="compact"
+      aria-label={label}
+      className="shrink-0 whitespace-nowrap"
+    >
+      {children}
+    </ButtonLink>
+  );
+}
 
 /**
  * Die aktuelle Berliner Uhrzeit als „HH:MM", halbminütlich nachgezogen.

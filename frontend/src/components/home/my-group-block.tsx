@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
@@ -12,6 +10,7 @@ import {
   HomeCardIcon,
 } from "~/components/home/home-block-content";
 import {
+  HomeCardLink,
   HomeMoreRow,
   useBerlinClock,
   useHomeCardRows,
@@ -53,17 +52,8 @@ export function MyGroupBlock() {
   const tenantPath = useTenantAwarePath();
   const now = useBerlinClock();
   const snapshot = useHomeGroup(true, now);
-  const {
-    group,
-    present,
-    total,
-    elsewhere,
-    away,
-    missing,
-    pickups,
-    isLoading,
-    error,
-  } = snapshot;
+  const { group, present, total, away, missing, pickups, isLoading, error } =
+    snapshot;
   const missingIds = new Set(missing.map((entry) => entry.student.id));
   const rows: GroupRow[] = [
     ...missing.map((arrival): GroupRow => ({ kind: "missing", arrival })),
@@ -79,7 +69,6 @@ export function MyGroupBlock() {
     ? [
         group.viaSubstitution ? `${group.name} (Vertretung)` : group.name,
         `${present} von ${total} da`,
-        elsewhere > 0 ? `${elsewhere} außerhalb des Gruppenraums` : null,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -92,14 +81,9 @@ export function MyGroupBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
-          href={href}
-          aria-label="Meine Gruppe heute: zur Gruppe"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-        >
+        <HomeCardLink href={href} label="Meine Gruppe heute: zur Gruppe">
           Zur Gruppe
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {(() => {

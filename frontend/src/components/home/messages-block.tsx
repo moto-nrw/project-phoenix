@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -10,6 +8,7 @@ import {
   HOME_CARD_BODY,
   HomeCardIcon,
 } from "~/components/home/home-block-content";
+import { HomeCardLink } from "~/components/home/home-card-rows";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useTenantSafe } from "~/lib/tenant-context";
@@ -59,14 +58,12 @@ export function MessagesBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
+        <HomeCardLink
           href={allHref}
-          aria-label="Ungelesene Nachrichten: Posteingang öffnen"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label="Ungelesene Nachrichten: Posteingang öffnen"
         >
           Posteingang
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {rows.length === 0 ? (

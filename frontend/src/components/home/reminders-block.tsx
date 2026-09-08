@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
@@ -18,7 +16,11 @@ import {
   reminderToneClass,
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { HomeMoreRow, useHomeCardRows } from "~/components/home/home-card-rows";
+import {
+  HomeCardLink,
+  HomeMoreRow,
+  useHomeCardRows,
+} from "~/components/home/home-card-rows";
 
 /** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
 const MAX_ROWS = 3;
@@ -45,14 +47,12 @@ export function RemindersBlock() {
       bodyClassName={HOME_CARD_BODY}
       leading={<HomeCardIcon concept="pickup" />}
       actions={
-        <Link
+        <HomeCardLink
           href={tenantPath("/reminders")}
-          aria-label="Erinnerungen: alle ansehen"
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label="Erinnerungen: alle ansehen"
         >
           Alle ansehen
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {(() => {

@@ -61,7 +61,6 @@ function withGroup(
     },
     present: 18,
     total: 22,
-    elsewhere: 0,
     away: [],
     missing: [],
     pickups: [],
@@ -175,16 +174,9 @@ describe("MyGroupBlock (#2180)", () => {
     expect(screen.getByText("Kommt 09:15")).toBeInTheDocument();
   });
 
-  it("zählt, wer gerade nicht im Gruppenraum ist", () => {
-    snapshot.current = withGroup({ elsewhere: 3 });
-
+  it("sagt es, wenn alle da sind und keine Abholung mehr kommt", () => {
     render(<MyGroupBlock />);
 
-    expect(
-      screen.getByText(
-        "Sternengruppe · 18 von 22 da · 3 außerhalb des Gruppenraums",
-      ),
-    ).toBeInTheDocument();
     expect(
       screen.getByText("Alle da, keine Abholung mehr heute"),
     ).toBeInTheDocument();

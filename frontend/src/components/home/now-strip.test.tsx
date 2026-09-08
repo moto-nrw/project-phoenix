@@ -162,10 +162,10 @@ describe("NowStrip (#2180)", () => {
     expect(
       screen.getByText("OGS-Raum 1 · bis 11:00 · danach 12:00 Mittagessen"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Zum Tagesplan" })).toHaveAttribute(
-      "href",
-      "/test-tenant/tagesplan",
-    );
+    // Kein Weg in den Tagesplan: „Mein Tag" steht direkt unter der Zone.
+    expect(
+      screen.queryByRole("link", { name: "Zum Tagesplan" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Meine Gruppe" })).toHaveAttribute(
       "href",
       "/test-tenant/ogs-groups",
@@ -235,7 +235,7 @@ describe("NowStrip (#2180)", () => {
 
     expect(screen.getByText("10:20")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Zum Tagesplan" }),
+      screen.getByRole("link", { name: "Meine Gruppe" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Läuft/)).not.toBeInTheDocument();
   });

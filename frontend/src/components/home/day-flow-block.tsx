@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
 import Link from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -17,6 +15,7 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 import { useSWRAuth } from "~/lib/swr";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import {
+  HomeCardLink,
   HomeMoreRow,
   upcomingFirst,
   useBerlinClock,
@@ -75,14 +74,12 @@ export function DayFlowBlock() {
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       actions={
-        <Link
+        <HomeCardLink
           href={dayPlanHref}
-          aria-label={`Ablauf des Tages: ${dayPlanLabel}`}
-          className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          label={`Ablauf des Tages: ${dayPlanLabel}`}
         >
           {dayPlanLabel}
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        </HomeCardLink>
       }
     >
       {(() => {
