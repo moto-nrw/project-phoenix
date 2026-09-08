@@ -198,9 +198,20 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   {
-    // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
-    // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
-    // filteredMainItemsByMode.
+    // Die Startseite (#2180) ist das Ziel nach dem Anmelden — für jede Rolle.
+    // Eine Seite, auf der man landet, muss die Leiste unten auch kennen,
+    // sonst findet man nicht zurück. Die Aktivitäten wandern dafür ins
+    // Mehr-Menü: fünf Reiter sind die Grenze, und der laufende Tag (Tagesplan,
+    // Gruppe, Aufsicht, Suchen) steht näher am Alltag.
+    href: "/home",
+    label: "Start",
+    iconKey: "home",
+    concept: "dashboard",
+    alwaysShow: true,
+  },
+  {
+    // Tagesplan (#2383): der Einstieg in den laufenden Betreuungstag. Gating
+    // (binary-Modus, timetable.enabled) unten in filteredMainItemsByMode.
     href: "/tagesplan",
     label: "Tagesplan",
     iconKey: "betreuungsplan",
@@ -225,13 +236,6 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/students/search",
     label: "Suchen",
     iconKey: "search",
-    alwaysShow: true,
-  },
-  {
-    href: "/activities",
-    label: "Aktivitäten",
-    iconKey: "activities",
-    concept: "activities",
     alwaysShow: true,
   },
 ];

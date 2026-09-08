@@ -71,6 +71,8 @@ export function HomeBlocksTab() {
       // Bildschirm.
       timetableEnabled: true,
       remindersEnabled: true,
+      messagingEnabled: true,
+      staffMessagingEnabled: true,
     };
     return HOME_BLOCKS.filter((block) => block.available(ctx));
   }, [presenceMode, openCareGroupMode, nfcEnabled]);

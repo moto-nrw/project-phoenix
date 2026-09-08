@@ -13,6 +13,11 @@ import {
   upcomingFirst,
 } from "~/components/home/home-card-rows";
 import { ChevronRight } from "lucide-react";
+import {
+  blockPhase,
+  formatMinutesAhead,
+  minutesBetween,
+} from "~/lib/home-clock";
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -69,10 +74,13 @@ export function BetreuungsplanHeuteCard({
   // Auf einem Handy hat auch die Startseite keine feste Kartenhöhe (eine
   // Spalte, jede Karte so hoch wie ihr Inhalt). Die kompakte einzeilige Form
   // würde dort nur den Raum abschneiden — also gilt sie erst ab der
-  // zweispaltigen Ansicht, und gekappt wird auf dem Handy gar nicht.
+  // zweispaltigen Ansicht, und gekappt wird auf dem Handy gar nicht. Ab dem
+  // laufenden Einsatz beginnt die Karte aber auf jedem Gerät: `maxRows`
+  // unterscheidet die Startseite von der Zeiterfassung, nicht die Breite.
   const isPhone = useMediaQuery(BELOW_SM);
   const now = useBerlinClock();
   const compact = dense && !isPhone;
+  const onHome = maxRows !== undefined;
   const rowLimit = isPhone ? undefined : maxRows;
   const { data: assignments, error } = useSWRAuth<OwnAssignment[]>(
     `time-tracking-own-assignments-today-${today}`,
@@ -131,12 +139,11 @@ export function BetreuungsplanHeuteCard({
   }
 
   // Ab dem Einsatz, der gerade läuft — sonst stünde nachmittags immer noch
-  // der Frühdienst in der Karte. Ohne Höhenvorgabe (Zeiterfassung) bleibt der
-  // ganze Tag stehen, dort ist die Vergangenheit Teil der Antwort.
-  const relevant =
-    rowLimit === undefined
-      ? blocks
-      : upcomingFirst(blocks, (block) => block.endTime, now);
+  // der Frühdienst in der Karte. Auf der Zeiterfassung bleibt der ganze Tag
+  // stehen, dort ist die Vergangenheit Teil der Antwort.
+  const relevant = onHome
+    ? upcomingFirst(blocks, (block) => block.endTime, now)
+    : blocks;
   // Der Hinweis auf den Rest kostet selbst eine Zeile Platz: passt nicht
   // alles, steht eine Zeile weniger da, statt dass der Hinweis herausragt.
   const fits = rowLimit === undefined || relevant.length <= rowLimit;
@@ -179,6 +186,10 @@ export function BetreuungsplanHeuteCard({
             block={block}
             href={href}
             dense={compact}
+            // Der Zustand relativ zur Uhr gehört auf die Startseite, wo die
+            // Karte den Moment trägt. Auf der Zeiterfassung steht der Tag als
+            // Liste, und „vorbei" wäre an jeder zweiten Zeile nur Rauschen.
+            now={onHome && now !== "" ? now : undefined}
           />
         ))}
       </ul>
@@ -200,12 +211,19 @@ function AssignmentRow({
   block,
   href,
   dense,
+  now,
 }: {
   readonly block: OwnAssignment;
   readonly href?: string;
   readonly dense: boolean;
+  /** Uhrzeit „HH:MM" für den Zustand der Zeile; ohne Angabe kein Zustand. */
+  readonly now?: string;
 }) {
   const dimmed = block.cancelled || block.isAbsent;
+  const phase =
+    now !== undefined && !dimmed
+      ? blockPhase(block.startTime, block.endTime, now)
+      : null;
   // Zwei Zeilenformen für zwei Orte. Auf der Zeiterfassung steht der ganze Tag
   // in einer Karte ohne Höhengrenze: dort bleibt der Eintrag zweizeilig, mit
   // dem Raum unter der Aufgabe. Auf der Startseite hat die Karte eine feste
@@ -270,6 +288,15 @@ function AssignmentRow({
         }`}
       >
         {block.isSubstitute && <StatusBadge tone="blue" label="Vertretung" />}
+        {/* Dieselben Wörter wie im Tagesplan und in der Jetzt-Zone: „Läuft"
+            für den Moment, die Zeit bis zum Beginn für das Kommende. */}
+        {phase === "running" && <StatusBadge tone="green" label="Läuft" />}
+        {phase === "upcoming" && (
+          <StatusBadge
+            tone="blue"
+            label={formatMinutesAhead(minutesBetween(now!, block.startTime))}
+          />
+        )}
         {block.cancelled && (
           <StatusBadge
             tone="red"

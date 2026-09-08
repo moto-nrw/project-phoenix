@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 
 import { HomeBlockContent } from "~/components/home/home-block-content";
 import { HomeBoard } from "~/components/home/home-board";
+import { NowStrip } from "~/components/home/now-strip";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -34,6 +35,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantSafe,
   useTenantSlugSafe,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
@@ -60,6 +62,8 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
   "section.recent_activity",
   "section.current_activities",
   "section.active_groups",
+  // Die Kräfte in Aufsicht kommen aus derselben Antwort.
+  "section.staff_today",
 ];
 
 function HomeContent() {
@@ -71,6 +75,11 @@ function HomeContent() {
   const presenceMode = usePresenceMode();
   const timetableEnabled = useTimetableEnabled();
   const tenantSlug = useTenantSlugSafe();
+  // Nachrichten und Team-Chat sind Schulschalter aus dem Tenant-Resolve,
+  // wie in der Seitenleiste.
+  const tenant = useTenantSafe()?.tenant;
+  const messagingEnabled = tenant?.messagingEnabled === true;
+  const staffMessagingEnabled = tenant?.staffMessagingEnabled === true;
   const access = useHomeBlockAccess();
   const { data: session, status } = useSession({
     required: true,
@@ -106,6 +115,8 @@ function HomeContent() {
       birthdaysEnabled,
       timetableEnabled,
       remindersEnabled,
+      messagingEnabled,
+      staffMessagingEnabled,
       access,
     }),
     [
@@ -115,6 +126,8 @@ function HomeContent() {
       birthdaysEnabled,
       timetableEnabled,
       remindersEnabled,
+      messagingEnabled,
+      staffMessagingEnabled,
       access,
     ],
   );
@@ -300,20 +313,10 @@ function HomeContent() {
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
-  const headerStats =
-    dashboardData &&
-    (placedKeys.has("tile.students_present") ||
-      placedKeys.has("tile.students_sick"))
-      ? [
-          formatStatusDate(),
-          ...(placedKeys.has("tile.students_present")
-            ? [`${dashboardData.studentsPresent} Kinder anwesend`]
-            : []),
-          ...(placedKeys.has("tile.students_sick")
-            ? [`${dashboardData.studentsSick} krank`]
-            : []),
-        ].join(" · ")
-      : formatStatusDate();
+  // Nur das Datum: die Zahlen des Tages trägt die Jetzt-Zone darunter, und
+  // die Kennzahlen stehen als Kacheln auf der Fläche. Dieselbe Zahl dreimal
+  // auf einem Bildschirm sagt nicht mehr als einmal.
+  const headerStats = formatStatusDate();
 
   const blockData = {
     analytics: dashboardData,
@@ -378,6 +381,12 @@ function HomeContent() {
       }
     >
       {canReadPhaseExpiryWarnings && !editing ? <PhaseExpiryWarnings /> : null}
+
+      {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die
+          Frage „was steht jetzt an" beantwortet die Startseite immer, egal
+          was jemand darunter angeordnet oder entfernt hat. Im Anpassen-Modus
+          tritt sie zurück, dort geht es um die Anordnung. */}
+      {!editing ? <NowStrip access={access} context={blockContext} /> : null}
 
       {placements.length === 0 && !editing ? (
         <EmptyState

@@ -615,23 +615,24 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Startseite",
         icon: LayoutDashboard,
         summary:
-          "Nach dem Anmelden landen alle auf der Startseite. Sie besteht aus Bausteinen, die auf einen Bildschirm passen. Womit Sie starten, hängt von Ihrer Aufgabe ab; danach stellen Sie sich die Fläche selbst zusammen.",
+          "Nach dem Anmelden landen alle auf der Startseite. Ganz oben steht, was jetzt ansteht; darunter liegen Bausteine, die Sie selbst anordnen. Womit Sie starten, hängt von Ihrer Aufgabe ab.",
         steps: [
-          "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle.",
-          "Betreuungskräfte starten mit `Mein Tag` (Ihre heutigen Einsätze samt Vertretungen), den `Tagesinformationen` der Leitung, den `Erinnerungen` (anstehende Abholungen und Aktivitäten) und den `Aktiven Gruppen`.",
-          "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Krank`, `Entschuldigt`, `Zuhause`), den `Offenen Anfragen`, den `Tagesinformationen`, den `Aktiven Gruppen` und dem `Ablauf des Tages`.",
-          "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`.",
+          "In der Seitenleiste ganz oben `Startseite` öffnen. Nach dem Anmelden landen Sie automatisch hier, unabhängig von Ihrer Rolle. Am Handy ist es der Reiter `Start` unten links.",
+          "Die Zeile unter der Begrüßung zeigt die Uhrzeit und den Moment: Betreuungskräfte sehen den Einsatz, der gerade läuft (`Läuft`), oder den nächsten mit der Zeit bis dahin. Die Leitung sieht, wie viele Blöcke laufen, wie viele nicht gestartet wurden, und wie viele Kinder und Kräfte da sind. Rechts daneben führt ein Knopf dorthin, wo Sie jetzt am ehesten hinwollen, zum Beispiel `Aufsicht fortsetzen` oder `Zum Tagesplan`.",
+          "Betreuungskräfte starten mit `Mein Tag` (Ihre heutigen Einsätze samt Vertretungen), `Meine Gruppe heute` (wie viele Kinder da sind, wer fehlt, wann die nächste Abholung ist), den `Tagesinformationen` der Leitung und den `Erinnerungen` (anstehende Abholungen und Aktivitäten).",
+          "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Krank`, `Entschuldigt`, `Zuhause`), den `Offenen Anfragen`, `Personal heute`, den `Tagesinformationen`, dem `Ablauf des Tages`, den `Ungelesenen Nachrichten` und der `Laufenden Betreuung`. Wer die Einrichtung leitet und selbst betreut, bekommt beides: den eigenen Tag vorneweg, die Lage der Schule dahinter.",
+          "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. Jede Zeile in einer Karte führt dorthin, wo Sie damit arbeiten.",
           "Verlangt eine Tagesinformation eine Kenntnisnahme, bestätigen Sie sie direkt auf der Karte.",
-          "Ist eine Liste länger als ihre Karte, scrollt sie in der Karte. Die Startseite selbst bleibt einen Bildschirm lang.",
+          "Passt in eine Karte nicht alles hinein, steht darunter `Noch 3 ansehen` mit dem Weg zum Rest. Die Startseite selbst bleibt einen Bildschirm lang.",
           "Oben rechts `Anpassen` öffnen, um Bausteine zu tauschen, zu verschieben oder in der Breite zu ändern. Wie das geht, steht im Abschnitt `Startseite anpassen`.",
         ],
         callout: {
           title: "Bausteine passen sich an Rechte und Einrichtung an",
-          body: "`Aktive Gruppen` entfällt bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung`, `Letzte Bewegungen` und der `Ablauf des Tages` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC aktiviert ist. `Mein Tag` und der `Ablauf des Tages` brauchen einen gepflegten Betreuungsplan. Fehlt ein Baustein ganz, ist das kein Fehler: entweder passt er nicht zu Ihrer Einrichtung, oder Ihnen fehlt das Recht für die Daten dahinter. Ihre Leitung kann es freischalten.",
+          body: "`Laufende Betreuung` und `Meine Gruppe heute` entfallen bei offener Betreuung ohne feste Gruppen. `In Räumen`, `Unterwegs`, `Auslastung`, `Letzte Bewegungen` und der `Ablauf des Tages` gibt es nur bei detaillierter Anwesenheit. `Aktive Aktivitäten` und `Laufende Aktivitäten` erscheinen, wenn NFC eingeschaltet ist. `Mein Tag` und der `Ablauf des Tages` brauchen einen gepflegten Betreuungsplan, die `Ungelesenen Nachrichten` einen eingeschalteten Posteingang. Fehlt ein Baustein ganz, ist das kein Fehler: entweder passt er nicht zu Ihrer Einrichtung, oder Ihnen fehlt das Recht für die Daten dahinter. Ihre Leitung kann es freischalten.",
           tone: "blue",
         },
         screenshot:
-          "Startseite mit Begrüßung, den Bausteinen der eigenen Rolle und dem Knopf `Anpassen` oben rechts.",
+          "Startseite mit Begrüßung, der Zeile mit Uhrzeit und laufendem Einsatz, den Bausteinen der eigenen Rolle und dem Knopf `Anpassen` oben rechts.",
         image: "/help/screens/startseite.webp",
       },
       {
@@ -652,9 +653,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine Kachel anklicken, um sie auszuwählen. Über der Fläche erscheint eine Leiste mit allem, was mit ihr geht; sie bleibt beim Scrollen stehen.",
           "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
           "`Nach vorne` und `Nach hinten` verschieben die Kachel auch ohne Maus. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
-          "Unter `Bausteine hinzufügen` holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
-          "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` ganz unten bringt die Ansicht Ihrer Rolle zurück.",
-          "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter.",
+          "Über `Bausteine` in der Leiste holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
+          "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` in der Leiste bringt die Ansicht Ihrer Rolle zurück.",
+          "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter. Die Zeile mit Uhrzeit und laufendem Einsatz bleibt immer stehen; sie ist kein Baustein.",
         ],
         callout: {
           title: "Manches gibt die Schule vor",
@@ -662,7 +663,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite im Anpassen-Modus: oben die Leiste mit Breite, Verschieben und Entfernen, darunter die Bausteine als Kacheln mit einer ausgewählten, ganz unten die Liste der Bausteine zum Hinzufügen.",
+          "Startseite im Anpassen-Modus: oben die Leiste mit Breite, Verschieben, Entfernen und `Bausteine`, darunter die Bausteine als Kacheln mit einer ausgewählten.",
         image: "/help/screens/startseite-anpassen.webp",
       },
       {
@@ -919,7 +920,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
         steps: [
-          "Nach dem Anmelden landen Sie auf der `Startseite`. Von dort führt `Zum Tagesplan` hierher. In der Seitenleiste steht `Tagesplan` ganz oben im `Tagesbetrieb`, am Handy ist es der erste Reiter unten.",
+          "Nach dem Anmelden landen Sie auf der `Startseite`. Von dort führt `Zum Tagesplan` hierher. In der Seitenleiste steht `Tagesplan` ganz oben im `Tagesbetrieb`, am Handy ist es der zweite Reiter unten, gleich neben `Start`.",
           "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
           "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
           "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",

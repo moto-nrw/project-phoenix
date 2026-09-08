@@ -477,17 +477,24 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights the canonical activities route", () => {
+    // Seit #2180 steht die Startseite als erster Reiter; die Aktivitäten
+    // wohnen für Betreuungskräfte im Mehr-Menü.
+    it("lists the activities route in the overflow menu", () => {
       mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 
-      // Activities should be highlighted
-      const links = screen.getAllByRole("link");
-      const activitiesLink = links.find(
-        (link) => link.getAttribute("href") === "/activities",
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/activities");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("link", { name: "Aktivitäten" })).toHaveAttribute(
+        "href",
+        "/test-tenant/activities",
       );
-      expect(activitiesLink).toBeDefined();
     });
   });
 

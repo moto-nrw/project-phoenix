@@ -43,7 +43,7 @@ vi.mock("~/lib/auth-utils", () => ({
   hasEffectiveAdminScope: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasPermission: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasRole: vi.fn(() => false),
-  isCaregiver: vi.fn(() => true),
+  isCaregiver: vi.fn(() => false),
 }));
 
 vi.mock("~/lib/change-request-access", () => ({
@@ -80,11 +80,27 @@ vi.mock("~/components/home/open-requests-block", () => ({
 vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
   BetreuungsplanHeuteCard: () => <div data-testid="my-day-block" />,
 }));
+vi.mock("~/components/home/my-group-block", () => ({
+  MyGroupBlock: () => <div data-testid="my-group-block" />,
+}));
+vi.mock("~/components/home/staff-today-block", () => ({
+  StaffTodayBlock: () => <div data-testid="staff-today-block" />,
+}));
+vi.mock("~/components/home/messages-block", () => ({
+  MessagesBlock: () => <div data-testid="messages-block" />,
+}));
+// Die Jetzt-Zone hat eigene Quellen und einen eigenen Test.
+vi.mock("~/components/home/now-strip", () => ({
+  NowStrip: () => <div data-testid="home-now" />,
+}));
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
   useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
+  useTenantSafe: vi.fn(() => ({
+    tenant: { messagingEnabled: true, staffMessagingEnabled: false },
+  })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
   useTimetableEnabled: vi.fn(() => true),
@@ -116,7 +132,7 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
 }));
 
 import { useSession } from "next-auth/react";
-import { hasEffectiveAdminScope, isAdmin } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, isAdmin, isCaregiver } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 
 const analytics = {
@@ -159,6 +175,7 @@ describe("Startseite", () => {
     });
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+    vi.mocked(isCaregiver).mockReturnValue(false);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(analytics));
   });
 
@@ -186,6 +203,36 @@ describe("Startseite", () => {
     expect(
       screen.queryByTestId("home-block-section.my_day"),
     ).not.toBeInTheDocument();
+  });
+
+  // Die Jetzt-Zone steht fest über dem Brett, egal was darunter angeordnet
+  // ist — und tritt im Anpassen-Modus zurück.
+  it("stellt die Jetzt-Zone über das Brett und nimmt sie beim Anpassen weg", async () => {
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("home-now")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anpassen" }));
+
+    expect(screen.queryByTestId("home-now")).not.toBeInTheDocument();
+  });
+
+  // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die
+  // selbst betreut, behält ihren eigenen Tag vor der Lage der Schule.
+  it("gibt der Leitung, die selbst betreut, den eigenen Tag dazu", async () => {
+    vi.mocked(isCaregiver).mockReturnValue(true);
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("home-board")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("home-block-section.my_day")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("home-block-section.open_requests"),
+    ).toBeInTheDocument();
   });
 
   // Seit #2180 ist die Startseite für jede Rolle offen: nicht die Rolle
@@ -285,6 +332,8 @@ const HIDDEN_DEFAULTS: HomeLayoutOverrides = {
   "section.active_groups": false,
   "section.day_flow": false,
   "section.birthdays": false,
+  "section.staff_today": false,
+  "section.messages": false,
 };
 describe("Startseite anpassen", () => {
   beforeEach(() => {
@@ -304,6 +353,7 @@ describe("Startseite anpassen", () => {
     });
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+    vi.mocked(isCaregiver).mockReturnValue(false);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(analytics));
     save.mockResolvedValue(undefined);
     reset.mockResolvedValue(undefined);

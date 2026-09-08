@@ -5,9 +5,12 @@ import { ChevronRight } from "lucide-react";
 
 import { BirthdayList } from "~/components/dashboard/birthday-list";
 import { DayFlowBlock } from "~/components/home/day-flow-block";
+import { MessagesBlock } from "~/components/home/messages-block";
+import { MyGroupBlock } from "~/components/home/my-group-block";
 import { OpenRequestsBlock } from "~/components/home/open-requests-block";
 import { RemindersBlock } from "~/components/home/reminders-block";
 import { StaffNoticesBlock } from "~/components/home/staff-notices-block";
+import { StaffTodayBlock } from "~/components/home/staff-today-block";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -36,9 +39,10 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
  * Die Kennzahlen und die drei Auswertungslisten teilen sich EINE Abfrage der
  * Betriebszahlen, die die Seite stellt und hierher reicht. Deshalb nehmen sie
  * ihre Daten als Eingabe statt sie selbst zu holen: fünf Kacheln nebeneinander
- * dürfen nicht fünf Abfragen bedeuten. Die vier Bausteine mit eigener Quelle
- * (Mein Tag, Tagesinformationen, Ablauf des Tages, offene Anfragen) laden für
- * sich, weil sie sonst die Seite blockieren würden.
+ * dürfen nicht fünf Abfragen bedeuten. Die Bausteine mit eigener Quelle (Mein
+ * Tag, Meine Gruppe, Tagesinformationen, Ablauf des Tages, offene Anfragen,
+ * Erinnerungen, Personal, Nachrichten) laden für sich, weil sie sonst die
+ * Seite blockieren würden.
  */
 export interface HomeBlockData {
   readonly analytics: DashboardAnalytics | undefined;
@@ -430,8 +434,14 @@ export function HomeBlockContent({
           maxRows={3}
         />
       );
+    case "section.my_group":
+      return <MyGroupBlock />;
     case "section.staff_notices":
       return <StaffNoticesBlock />;
+    case "section.staff_today":
+      return <StaffTodayBlock analytics={data.analytics} />;
+    case "section.messages":
+      return <MessagesBlock />;
     case "section.day_flow":
       return <DayFlowBlock />;
     case "section.open_requests":

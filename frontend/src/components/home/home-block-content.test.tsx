@@ -25,6 +25,24 @@ vi.mock("~/components/home/open-requests-block", () => ({
 vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));
+vi.mock("~/components/home/my-group-block", () => ({
+  MyGroupBlock: () => <div data-testid="my-group-block" />,
+}));
+vi.mock("~/components/home/messages-block", () => ({
+  MessagesBlock: () => <div data-testid="messages-block" />,
+}));
+vi.mock("~/components/home/staff-today-block", () => ({
+  StaffTodayBlock: ({
+    analytics,
+  }: {
+    analytics: { supervisorsToday: number } | undefined;
+  }) => (
+    <div
+      data-testid="staff-today-block"
+      data-supervisors={analytics?.supervisorsToday}
+    />
+  ),
+}));
 vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
   BetreuungsplanHeuteCard: ({
     title,
@@ -275,7 +293,7 @@ describe("HomeBlockContent — eigene Quellen", () => {
     );
   });
 
-  it("rendert die drei Bausteine mit eigener Abfrage", () => {
+  it("rendert die Bausteine mit eigener Abfrage", () => {
     const { rerender } = render(
       <HomeBlockContent blockKey="section.staff_notices" data={data()} />,
     );
@@ -288,5 +306,22 @@ describe("HomeBlockContent — eigene Quellen", () => {
       <HomeBlockContent blockKey="section.open_requests" data={data()} />,
     );
     expect(screen.getByTestId("open-requests-block")).toBeInTheDocument();
+
+    rerender(<HomeBlockContent blockKey="section.my_group" data={data()} />);
+    expect(screen.getByTestId("my-group-block")).toBeInTheDocument();
+
+    rerender(<HomeBlockContent blockKey="section.messages" data={data()} />);
+    expect(screen.getByTestId("messages-block")).toBeInTheDocument();
+  });
+
+  // Die Kräfte in Aufsicht kommen aus den Betriebszahlen der Seite: der
+  // Baustein bekommt sie gereicht, statt sie ein zweites Mal zu holen.
+  it("reicht dem Personal-Baustein die Betriebszahlen", () => {
+    render(<HomeBlockContent blockKey="section.staff_today" data={data()} />);
+
+    expect(screen.getByTestId("staff-today-block")).toHaveAttribute(
+      "data-supervisors",
+      "10",
+    );
   });
 });

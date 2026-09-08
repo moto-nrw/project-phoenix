@@ -5,10 +5,18 @@ import { useEffect, useState } from "react";
 import Link from "~/components/ui/navigation-link";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 
-/** Die aktuelle Berliner Uhrzeit als „HH:MM", minütlich nachgezogen. */
+/**
+ * Die aktuelle Berliner Uhrzeit als „HH:MM", halbminütlich nachgezogen.
+ *
+ * Bis zum ersten Rendern im Browser ist sie leer: die Uhr wird angezeigt,
+ * und ein Wert vom Server könnte an der Minutengrenze vom Wert des Browsers
+ * abweichen — genau der Unterschied, den React beim Hydrieren als Fehler
+ * meldet. Wer die Uhrzeit rechnet, behandelt „" als „noch unbekannt".
+ */
 export function useBerlinClock(): string {
-  const [now, setNow] = useState(() => berlinTime());
+  const [now, setNow] = useState("");
   useEffect(() => {
+    setNow(berlinTime());
     const id = setInterval(() => setNow(berlinTime()), 30_000);
     return () => clearInterval(id);
   }, []);

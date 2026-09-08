@@ -294,7 +294,9 @@ function ArrangeTile({
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900">
           {definition.label}
         </span>
-        <span className="shrink-0 text-xs text-gray-500">
+        {/* Auf dem Handy teilen sich zwei Kacheln eine Zeile: dort trägt der
+            Name die Kachel, die Breite steht in der Leiste. */}
+        <span className="hidden shrink-0 text-xs text-gray-500 sm:inline">
           {SPAN_LABEL[placement.span]}
         </span>
       </span>

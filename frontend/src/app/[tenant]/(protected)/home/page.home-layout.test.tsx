@@ -43,7 +43,7 @@ vi.mock("~/lib/auth-utils", () => ({
   hasEffectiveAdminScope: vi.fn(() => true),
   hasPermission: vi.fn(() => true),
   hasRole: vi.fn(() => true),
-  isCaregiver: vi.fn(() => true),
+  isCaregiver: vi.fn(() => false),
 }));
 
 vi.mock("~/lib/change-request-access", () => ({
@@ -81,11 +81,27 @@ vi.mock("~/components/home/open-requests-block", () => ({
 vi.mock("~/components/time-tracking/betreuungsplan-heute-card", () => ({
   BetreuungsplanHeuteCard: () => <div data-testid="my-day-block" />,
 }));
+vi.mock("~/components/home/my-group-block", () => ({
+  MyGroupBlock: () => <div data-testid="my-group-block" />,
+}));
+vi.mock("~/components/home/staff-today-block", () => ({
+  StaffTodayBlock: () => <div data-testid="staff-today-block" />,
+}));
+vi.mock("~/components/home/messages-block", () => ({
+  MessagesBlock: () => <div data-testid="messages-block" />,
+}));
+// Die Jetzt-Zone hat eigene Quellen und einen eigenen Test.
+vi.mock("~/components/home/now-strip", () => ({
+  NowStrip: () => <div data-testid="home-now" />,
+}));
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
   useOpenCareGroupMode: vi.fn(() => false),
   usePresenceMode: vi.fn(() => "detailed"),
+  useTenantSafe: vi.fn(() => ({
+    tenant: { messagingEnabled: true, staffMessagingEnabled: false },
+  })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
   useTimetableEnabled: vi.fn(() => true),
@@ -168,6 +184,8 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
       "section.open_requests": false,
       "section.day_flow": false,
       "section.my_day": false,
+      "section.staff_today": false,
+      "section.messages": false,
     };
 
     render(<HomePage />);

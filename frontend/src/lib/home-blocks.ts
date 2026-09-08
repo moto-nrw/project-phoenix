@@ -51,8 +51,14 @@ type HomeBlockKind = "tile" | "section";
  */
 export type HomeBlockSpan = 1 | 2 | 4;
 
-/** Standardansicht, aus der jemand startet. Leitet sich aus Rechten ab. */
-export type HomeProfile = "care" | "lead";
+/**
+ * Standardansicht, aus der jemand startet. Leitet sich aus Rechten ab.
+ *
+ * `lead_care` ist die Vereinigung: eine Person, die die Einrichtung führt UND
+ * selbst betreut, bekommt beides — den eigenen Tag vorneweg und die Lage der
+ * Schule dahinter.
+ */
+export type HomeProfile = "care" | "lead" | "lead_care";
 
 /**
  * Was die Person darf — genau so viel, wie der Katalog zum Entscheiden
@@ -68,6 +74,19 @@ export interface HomeBlockAccess {
    * `change-request-access.ts` statt hier ein siebtes Mal zu stehen.
    */
   readonly canOpenRequestsPage: boolean;
+  /**
+   * Betreut die Person selbst (Rolle mit Betreuungszuschnitt)? Entscheidet
+   * nicht über Rechte, sondern darüber, ob der eigene Tag zur Standardansicht
+   * gehört: ein reines Adminkonto hat keine Einsätze, die man ihm zeigen
+   * könnte.
+   */
+  readonly caresForGroups: boolean;
+  /**
+   * Hat die Person heute mindestens eine eigene Betreuungsgruppe (auch in
+   * Vertretung)? Kommt aus der Sitzung, nicht aus einem Recht: „Meine Gruppe"
+   * ohne Gruppe wäre eine Karte, die nur sagt, dass sie leer ist.
+   */
+  readonly hasOwnGroups: boolean;
 }
 
 /** Der Betriebsmodus der Schule, ohne Session- oder Kontext-Typen. */
@@ -87,6 +106,10 @@ interface HomeBlockModeContext {
    * Servers; die Startseite reicht es hierher.
    */
   readonly remindersEnabled: boolean;
+  /** Eltern-Nachrichten sind pro Schule einschaltbar (Elternportal). */
+  readonly messagingEnabled: boolean;
+  /** Der Team-Chat ist pro Schule einschaltbar und steht standardmäßig aus. */
+  readonly staffMessagingEnabled: boolean;
 }
 
 /** Betriebsmodus plus die Rechte der angemeldeten Person (#2180). */
@@ -129,10 +152,13 @@ export type HomeBlockKey =
   | "section.current_activities"
   | "section.active_groups"
   | "section.my_day"
+  | "section.my_group"
   | "section.staff_notices"
   | "section.day_flow"
   | "section.open_requests"
-  | "section.reminders";
+  | "section.reminders"
+  | "section.staff_today"
+  | "section.messages";
 
 const always = () => true;
 const roomSurfaces = (ctx: HomeBlockModeContext) => ctx.detailed;
@@ -144,7 +170,10 @@ const activitySurfaces = (ctx: HomeBlockModeContext) =>
 const PERMISSION = {
   /** GET /api/active/analytics/dashboard */
   analytics: "groups:read",
-  /** GET /api/birthdays und GET /api/staff-notices/today */
+  /**
+   * GET /api/birthdays, GET /api/staff-notices/today, GET /api/ogs-group-live
+   * und GET /api/staff/dashboard-summary.
+   */
   usersRead: "users:read",
   /** GET /api/time-tracking/assignments */
   timeTrackingOwn: "time_tracking:own",
@@ -261,6 +290,22 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     available: (ctx) => ctx.timetableEnabled,
   },
   {
+    key: "section.my_group",
+    kind: "section",
+    label: "Meine Gruppe heute",
+    description:
+      "Wie viele Kinder Ihrer Gruppe da sind, wer heute fehlt und wann die nächste Abholung ist.",
+    concept: "groups",
+    spans: SECTION_SPANS,
+    // Dieselbe Quelle wie die Seite „Meine Gruppen": der Server wählt die
+    // Gruppe der Person. Ohne eigene Gruppe gibt es nichts zu zeigen.
+    permitted: (access) =>
+      access.has(PERMISSION.usersRead) && access.hasOwnGroups,
+    // Offene Betreuung kennt keine feste Gruppe, und im Anwesenheitsmodus
+    // „binary" gibt es die Gruppenansicht nicht.
+    available: (ctx) => !ctx.openCareGroupMode && ctx.detailed,
+  },
+  {
     key: "section.staff_notices",
     kind: "section",
     label: "Tagesinformationen",
@@ -295,6 +340,36 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     concept: "requests",
     spans: SECTION_SPANS,
     permitted: anyRequestQueue,
+    available: always,
+  },
+  {
+    key: "section.messages",
+    kind: "section",
+    label: "Ungelesene Nachrichten",
+    description:
+      "Wie viele Nachrichten von Eltern und aus dem Team-Chat noch ungelesen sind.",
+    concept: "messages",
+    spans: SECTION_SPANS,
+    // Beide Zähler hängen am Konto, nicht an einem Recht: die Seitenleiste
+    // zeigt Nachrichten jeder Mitarbeiterin, und der Server zählt nur, was
+    // die Person lesen darf.
+    permitted: always,
+    available: (ctx) => ctx.messagingEnabled || ctx.staffMessagingEnabled,
+  },
+
+  // ---- Das Team -----------------------------------------------------------
+  {
+    key: "section.staff_today",
+    kind: "section",
+    label: "Personal heute",
+    description:
+      "Wer in Aufsicht ist, wer fehlt und ob offene Anträge auf die Leitung warten.",
+    concept: "staff",
+    spans: SECTION_SPANS,
+    // GET /api/staff/dashboard-summary hängt an users:read; die Zahl der
+    // Kräfte in Aufsicht kommt aus den Betriebszahlen und fehlt ohne
+    // groups:read schlicht.
+    permitted: (access) => access.has(PERMISSION.usersRead),
     available: always,
   },
 
@@ -368,22 +443,31 @@ export interface HomeBlockPlacement {
 /**
  * Die Standardansichten, aus denen jemand startet.
  *
- * Zwei Regeln halten sie brauchbar:
+ * Drei Regeln halten sie brauchbar:
  *
- * 1. KURZ. Die Startseite gibt den Einstieg auf einen Blick, sie zeigt nicht
- *    alles, was es gibt. Vier bis acht Bausteine, nicht mehr.
- * 2. KEINE DOPPLUNG. Zwei Bausteine, die dieselben Zeilen zeigen, gehören
+ * 1. DIE JETZT-ZONE ÜBER DEM BRETT trägt den Blick auf den Moment: laufender
+ *    Einsatz, nächster Einsatz, Hauptaktion. Das Brett darunter muss das
+ *    nicht noch einmal leisten und darf in Ruhe den Tag zeigen.
+ * 2. KURZ. Die Startseite gibt den Einstieg, sie zeigt nicht alles, was es
+ *    gibt. Was fehlt, steht im Hinzufügen-Menü.
+ * 3. KEINE DOPPLUNG. Zwei Bausteine, die dieselben Zeilen zeigen, gehören
  *    nicht zusammen in einen Standard. „Mein Tag" (die eigenen Einsätze) und
- *    „Ablauf des Tages" (alle Blöcke) sind genau so ein Paar: für eine
+ *    „Ablauf des Tages" (alle Blöcke) sind so ein Paar: für eine
  *    Betreuungskraft ist der eigene Tag der interessante Ausschnitt, für die
- *    Leitung der ganze Ablauf. Also bekommt jede Seite genau EINEN von beiden;
- *    der andere steht im Hinzufügen-Menü.
+ *    Leitung der ganze Ablauf. Wer beides ist, bekommt beides.
  *
- * Betreuung: der eigene Tag, die Hinweise der Leitung, was in den nächsten
- * Minuten ansteht, und wer gerade betreut.
+ * Betreuung: der eigene Tag, die eigene Gruppe, die Hinweise der Leitung, was
+ * in den nächsten Minuten ansteht — alles auf die Person zugeschnitten. Die
+ * schulweite „Laufende Betreuung" steht im Hinzufügen-Menü: für die Kraft in
+ * der Sternengruppe ist die Bärengruppe Rauschen.
  *
  * Leitung: die Lage der Schule in vier Zahlen, was auf eine Entscheidung
- * wartet, die Hinweise, der laufende Betrieb und der Ablauf des Tages.
+ * wartet, das Personal, die Hinweise, der Ablauf des Tages und die laufende
+ * Betreuung.
+ *
+ * Geburtstage stehen in JEDER Standardansicht: wer heute Geburtstag hat,
+ * betrifft die Betreuungskraft am Tisch genauso wie die Leitung. Über die
+ * volle Breite, weil die Karte mehrere Kinder nebeneinander zeigt.
  */
 export const DEFAULT_LAYOUTS: Record<
   HomeProfile,
@@ -391,18 +475,10 @@ export const DEFAULT_LAYOUTS: Record<
 > = {
   care: [
     { key: "section.my_day", span: 2 },
+    { key: "section.my_group", span: 2 },
     { key: "section.staff_notices", span: 2 },
     { key: "section.reminders", span: 2 },
-    { key: "section.active_groups", span: 2 },
-    // Geburtstage stehen in BEIDEN Standardansichten: wer heute Geburtstag
-    // hat, betrifft die Betreuungskraft am Tisch genauso wie die Leitung, und
-    // die Karte doppelt nichts anderes auf der Fläche. Über die volle Breite,
-    // weil sie mehrere Kinder nebeneinander zeigt statt untereinander.
     { key: "section.birthdays", span: 4 },
-    // Der Ablauf des Tages fehlt hier bewusst — „Mein Tag" zeigt derselben
-    // Person dieselben Blöcke, nur auf sie gefiltert. Die offenen Anfragen
-    // betreffen nur Gruppenleitungen und Vertretungen. Beides steht im
-    // Hinzufügen-Menü.
   ],
   lead: [
     { key: "tile.students_present", span: 1 },
@@ -410,8 +486,26 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "tile.students_excused", span: 1 },
     { key: "tile.students_home", span: 1 },
     { key: "section.open_requests", span: 2 },
+    { key: "section.staff_today", span: 2 },
     { key: "section.staff_notices", span: 2 },
+    { key: "section.day_flow", span: 2 },
+    { key: "section.messages", span: 2 },
     { key: "section.active_groups", span: 2 },
+    { key: "section.birthdays", span: 4 },
+  ],
+  // Die Vereinigung: erst der eigene Tag und die eigene Gruppe, dann die
+  // Lage der Schule. Die Erinnerungen fehlen hier, weil die Jetzt-Zone und
+  // der Ablauf des Tages den Moment schon tragen; sie stehen im Menü.
+  lead_care: [
+    { key: "section.my_day", span: 2 },
+    { key: "section.my_group", span: 2 },
+    { key: "tile.students_present", span: 1 },
+    { key: "tile.students_sick", span: 1 },
+    { key: "tile.students_excused", span: 1 },
+    { key: "tile.students_home", span: 1 },
+    { key: "section.open_requests", span: 2 },
+    { key: "section.staff_today", span: 2 },
+    { key: "section.staff_notices", span: 2 },
     { key: "section.day_flow", span: 2 },
     { key: "section.birthdays", span: 4 },
   ],
@@ -422,11 +516,12 @@ export const DEFAULT_LAYOUTS: Record<
  *
  * Am Adminzuschnitt festgemacht, nicht am Rollennamen: eine Schule kann ihre
  * Rollen frei anlegen, und die Frage ist nur, ob jemand die Einrichtung führt
- * oder in ihr betreut. Wer beides tut, bekommt die Leitungsansicht und findet
- * "Mein Tag" im Hinzufügen-Menü.
+ * oder in ihr betreut. Wer beides tut, bekommt die Vereinigung — den eigenen
+ * Tag vorneweg, die Lage der Schule dahinter.
  */
 export function homeProfileFor(access: HomeBlockAccess): HomeProfile {
-  return access.isAdminScope ? "lead" : "care";
+  if (!access.isAdminScope) return "care";
+  return access.caresForGroups ? "lead_care" : "lead";
 }
 
 export interface ResolvedHomeLayout {

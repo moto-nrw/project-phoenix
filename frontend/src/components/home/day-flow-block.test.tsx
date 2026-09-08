@@ -76,7 +76,8 @@ describe("DayFlowBlock (#2180)", () => {
     expect(screen.getByText("13:00–14:00")).toBeInTheDocument();
     expect(screen.getByText("Lernzeit Jahrgang 1")).toBeInTheDocument();
     expect(screen.getByText("· OGS-Raum 1 · 0/18 Kinder")).toBeInTheDocument();
-    expect(screen.getByText("Geplant")).toBeInTheDocument();
+    // Die Uhr steht auf 07:00: ein Block um 13:00 beginnt in sechs Stunden.
+    expect(screen.getByText("in 6 Std")).toBeInTheDocument();
   });
 
   // Die Karte hat Platz für drei Zeilen. Nimmt sie stumpf die ersten drei des
@@ -142,7 +143,9 @@ describe("DayFlowBlock (#2180)", () => {
     expect(screen.getByText("Mittagessen")).toBeInTheDocument();
   });
 
-  it("kennzeichnet laufende, ausgefallene und überfällige Blöcke", () => {
+  // Dieselben Wörter wie im Tagesplan; für das Kommende die Zeit bis zum
+  // Beginn statt eines „Geplant", das nichts sagt (Uhr steht auf 07:00).
+  it("kennzeichnet laufende, ausgefallene und nicht gestartete Blöcke", () => {
     swr.data = [
       block({ id: "1", status: "active" }),
       block({ id: "2", status: "cancelled" }),
@@ -152,8 +155,27 @@ describe("DayFlowBlock (#2180)", () => {
     render(<DayFlowBlock />);
 
     expect(screen.getByText("Läuft")).toBeInTheDocument();
-    expect(screen.getByText("Entfällt")).toBeInTheDocument();
-    expect(screen.getByText("Überfällig")).toBeInTheDocument();
+    expect(screen.getByText("Fällt aus")).toBeInTheDocument();
+    expect(screen.getByText("Nicht gestartet")).toBeInTheDocument();
+  });
+
+  it("nennt für einen kommenden Block die Zeit bis zum Beginn", () => {
+    swr.data = [block({ startTime: "07:25", endTime: "08:00" })];
+
+    render(<DayFlowBlock />);
+
+    expect(screen.getByText("in 25 Min")).toBeInTheDocument();
+  });
+
+  // Jede Zeile führt in den Tagesplan, wo der Block bedient wird.
+  it("macht jede Zeile im Tagesplan anklickbar", () => {
+    swr.data = [block({ id: "1", title: "Lernzeit" })];
+
+    render(<DayFlowBlock />);
+
+    expect(
+      screen.getByRole("link", { name: "Lernzeit: im Tagesplan öffnen" }),
+    ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 
   it("sagt es, wenn gerade nichts ansteht", () => {

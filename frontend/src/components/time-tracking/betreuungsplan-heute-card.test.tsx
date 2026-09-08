@@ -110,6 +110,37 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.queryByText(/Noch \d+ Einsä?tz/)).not.toBeInTheDocument();
   });
 
+  // Auf der Startseite trägt jede Zeile ihren Zustand relativ zur Uhr (07:00):
+  // „Läuft" für den Moment, die Zeit bis zum Beginn für das Kommende.
+  it("zeigt auf der Startseite den Zustand jeder Zeile", () => {
+    swr.data = [
+      assignment({ instanceId: "1", startTime: "06:30", endTime: "07:30" }),
+      assignment({
+        instanceId: "2",
+        startTime: "07:45",
+        endTime: "08:30",
+        title: "Frühstück",
+      }),
+    ];
+
+    render(<BetreuungsplanHeuteCard maxRows={3} />);
+
+    expect(screen.getByText("Läuft")).toBeInTheDocument();
+    expect(screen.getByText("in 45 Min")).toBeInTheDocument();
+  });
+
+  // Auf der Zeiterfassung steht der Tag als Liste; dort wäre „vorbei" an
+  // jeder zweiten Zeile nur Rauschen.
+  it("zeigt auf der Zeiterfassung keinen Zustand", () => {
+    swr.data = [
+      assignment({ instanceId: "1", startTime: "06:30", endTime: "07:30" }),
+    ];
+
+    render(<BetreuungsplanHeuteCard />);
+
+    expect(screen.queryByText("Läuft")).not.toBeInTheDocument();
+  });
+
   // Ohne Höhenvorgabe (Zeiterfassung) steht der ganze Tag da.
   it("kappt ohne maxRows nichts", () => {
     swr.data = [

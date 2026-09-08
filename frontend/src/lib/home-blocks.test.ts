@@ -18,12 +18,25 @@ const leadAccess: HomeBlockAccess = {
   isAdminScope: true,
   has: () => true,
   canOpenRequestsPage: true,
+  caresForGroups: false,
+  hasOwnGroups: false,
 };
 
 const careAccess: HomeBlockAccess = {
   isAdminScope: false,
   has: () => true,
   canOpenRequestsPage: true,
+  caresForGroups: true,
+  hasOwnGroups: true,
+};
+
+/** Führt die Einrichtung UND betreut selbst: bekommt die Vereinigung. */
+const leadCareAccess: HomeBlockAccess = {
+  isAdminScope: true,
+  has: () => true,
+  canOpenRequestsPage: true,
+  caresForGroups: true,
+  hasOwnGroups: true,
 };
 
 const fullContext: HomeBlockContext = {
@@ -33,6 +46,8 @@ const fullContext: HomeBlockContext = {
   birthdaysEnabled: true,
   timetableEnabled: true,
   remindersEnabled: true,
+  messagingEnabled: true,
+  staffMessagingEnabled: true,
   access: leadAccess,
 };
 
@@ -65,17 +80,79 @@ describe("resolveHomeLayout — Standardansicht", () => {
     // Die Startseite ist ein Einstieg, keine Liste von allem: die
     // Standardansicht bleibt kurz, der Rest steht im Hinzufügen-Menü.
     expect(placements.length).toBeLessThanOrEqual(6);
+    // Auf die Person zugeschnitten: der eigene Tag und die eigene Gruppe,
+    // nicht die schulweite Betreuung.
+    expect(keysOf(placements)).toContain("section.my_day");
+    expect(keysOf(placements)).toContain("section.my_group");
+    expect(keysOf(placements)).not.toContain("section.active_groups");
   });
 
   // Zwei Bausteine, die dieselben Zeilen zeigen, gehören nicht zusammen in
   // einen Standard: „Mein Tag" ist der eigene Ausschnitt des Ablaufs.
-  it("stellt Mein Tag und Ablauf des Tages nie zusammen auf", () => {
-    for (const layout of Object.values(DEFAULT_LAYOUTS)) {
-      const keys = keysOf(layout);
+  it("stellt Mein Tag und Ablauf des Tages nicht zusammen auf, wer nur eines ist", () => {
+    for (const profile of ["care", "lead"] as const) {
+      const keys = keysOf(DEFAULT_LAYOUTS[profile]);
       expect(
         keys.includes("section.my_day") && keys.includes("section.day_flow"),
       ).toBe(false);
     }
+  });
+
+  // Das Issue verlangt für Mischrollen die Vereinigung: die Gruppenleitung
+  // mit Adminrecht verliert ihren eigenen Tag nicht an die Leitungsansicht.
+  it("gibt der Leitung, die selbst betreut, beides", () => {
+    const { placements } = resolveHomeLayout(
+      { ...fullContext, access: leadCareAccess },
+      [],
+      {},
+      {},
+    );
+
+    expect(homeProfileFor(leadCareAccess)).toBe("lead_care");
+    const keys = keysOf(placements);
+    expect(keys[0]).toBe("section.my_day");
+    expect(keys).toContain("section.my_group");
+    expect(keys).toContain("section.open_requests");
+    expect(keys).toContain("section.day_flow");
+    expect(keys).toContain("tile.students_present");
+  });
+
+  // Ohne eigene Gruppe wäre „Meine Gruppe" eine Karte, die nur sagt, dass sie
+  // leer ist.
+  it("lässt Meine Gruppe weg, wer heute keine Gruppe hat", () => {
+    const { placements, available } = resolveHomeLayout(
+      { ...fullContext, access: { ...careAccess, hasOwnGroups: false } },
+      [],
+      {},
+      {},
+    );
+
+    expect(keysOf(placements)).not.toContain("section.my_group");
+    expect(available.map((block) => block.key)).not.toContain(
+      "section.my_group",
+    );
+  });
+
+  it("bietet die Nachrichten nur an, wo die Schule eine der beiden Arten eingeschaltet hat", () => {
+    const off = resolveHomeLayout(
+      { ...fullContext, messagingEnabled: false, staffMessagingEnabled: false },
+      [],
+      {},
+      {},
+    );
+    expect(off.available.map((block) => block.key)).not.toContain(
+      "section.messages",
+    );
+
+    const teamOnly = resolveHomeLayout(
+      { ...fullContext, messagingEnabled: false },
+      [],
+      {},
+      {},
+    );
+    expect(teamOnly.available.map((block) => block.key)).toContain(
+      "section.messages",
+    );
   });
 
   it("lässt jeden Baustein der Standardansicht auch wirklich existieren", () => {
@@ -161,7 +238,9 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
     );
 
     expect(keysOf(placements)).not.toContain("section.open_requests");
-    expect(addable.map((block) => block.key)).toContain("section.open_requests");
+    expect(addable.map((block) => block.key)).toContain(
+      "section.open_requests",
+    );
   });
 
   it("korrigiert eine Breite, die es für den Baustein nicht gibt", () => {
@@ -200,6 +279,8 @@ describe("resolveHomeLayout — Berechtigung", () => {
     isAdminScope: false,
     has: (permission: string) => permissions.includes(permission),
     canOpenRequestsPage,
+    caresForGroups: true,
+    hasOwnGroups: true,
   });
 
   const resolveFor = (
@@ -226,9 +307,9 @@ describe("resolveHomeLayout — Berechtigung", () => {
 
   it("zeigt Mein Tag nur mit time_tracking:own", () => {
     expect(keysOf(resolveFor([]).placements)).not.toContain("section.my_day");
-    expect(
-      keysOf(resolveFor(["time_tracking:own"]).placements),
-    ).toContain("section.my_day");
+    expect(keysOf(resolveFor(["time_tracking:own"]).placements)).toContain(
+      "section.my_day",
+    );
   });
 
   // In der Betreuungsansicht steht der Ablauf des Tages nicht: er zeigt
@@ -246,9 +327,9 @@ describe("resolveHomeLayout — Berechtigung", () => {
   // In der Betreuungsansicht stehen die offenen Anfragen nicht von Haus aus:
   // sie betreffen nur Gruppenleitungen, die sie sich dazuholen können.
   it("bietet offene Anfragen nur an, wer das Anfragen-Modul öffnen darf", () => {
-    expect(
-      resolveFor([]).addable.map((block) => block.key),
-    ).not.toContain("section.open_requests");
+    expect(resolveFor([]).addable.map((block) => block.key)).not.toContain(
+      "section.open_requests",
+    );
     expect(resolveFor([], true).addable.map((block) => block.key)).toContain(
       "section.open_requests",
     );
@@ -293,7 +374,9 @@ describe("resolveHomeLayout — Vorgabe der Einrichtung", () => {
     );
 
     expect(keysOf(placements)).toContain("section.birthdays");
-    expect(addable.map((block) => block.key)).not.toContain("section.birthdays");
+    expect(addable.map((block) => block.key)).not.toContain(
+      "section.birthdays",
+    );
   });
 
   it("lässt einen abgeschalteten Baustein trotz Anordnung weg", () => {

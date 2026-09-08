@@ -3,9 +3,14 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 
-import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import type { HomeBlockAccess } from "~/lib/home-blocks";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 
 /**
  * Die Rechte der angemeldeten Person in der Form, die der Bausteinkatalog der
@@ -16,11 +21,18 @@ import type { HomeBlockAccess } from "~/lib/home-blocks";
  * bekommen. Deshalb entscheidet ausschliesslich das Recht, an dem auch der
  * Endpunkt hinter dem Baustein hängt. Was hier durchkommt, prüft der Server
  * anschliessend noch einmal selbst.
+ *
+ * Zwei Angaben sind keine Rechte, sondern Zuschnitt: ob die Person selbst
+ * betreut (Basisrolle `user`/`teacher`) und ob sie heute eine eigene Gruppe
+ * hat. Beides entscheidet nur, welche Standardansicht sie bekommt und ob
+ * „Meine Gruppe" etwas zu zeigen hätte.
  */
 export function useHomeBlockAccess(): HomeBlockAccess {
   const { data: session } = useSession();
   const requestsPage = canOpenRequestsPage(session);
   const adminScope = hasEffectiveAdminScope(session);
+  const caresForGroups = isCaregiver(session);
+  const { hasGroups } = useOptionalSupervision();
 
   return useMemo(
     () => ({
@@ -30,7 +42,9 @@ export function useHomeBlockAccess(): HomeBlockAccess {
       has: (permission: string) =>
         adminScope || hasPermission(session, permission),
       canOpenRequestsPage: requestsPage,
+      caresForGroups,
+      hasOwnGroups: hasGroups,
     }),
-    [session, adminScope, requestsPage],
+    [session, adminScope, requestsPage, caresForGroups, hasGroups],
   );
 }
