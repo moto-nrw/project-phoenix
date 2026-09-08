@@ -473,10 +473,15 @@ func historyQueryTime(r *http.Request, name string, fallback time.Time) (time.Ti
 }
 
 func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
+	kind, code := classifyFailure(err)
+	rs.runtime.Failure(w, r, kind, err, code)
+}
+
+func classifyFailure(err error) (FailureKind, string) {
 	kind, code := FailureInternal, facilities.ErrorCode(err)
 	switch {
 	case errors.Is(err, facilities.ErrInvalidRoom), errors.Is(err, facilities.ErrSystemRoomNameReserved),
-		errors.Is(err, facilities.ErrRoomColorReserved):
+		errors.Is(err, facilities.ErrRoomColorReserved), errors.Is(err, facilities.ErrToiletRoomNotReleasable):
 		kind = FailureInvalid
 	case errors.Is(err, facilities.ErrRoomNotFound):
 		kind = FailureNotFound
@@ -487,5 +492,5 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, facilities.ErrRoomRequiredByOffering):
 		kind = FailureConflict
 	}
-	rs.runtime.Failure(w, r, kind, err, code)
+	return kind, code
 }
