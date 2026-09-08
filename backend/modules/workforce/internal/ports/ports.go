@@ -53,8 +53,8 @@ type ShiftStore interface {
 	// with their identities.
 	CreateStaffShifts(context.Context, []domain.StaffShift) ([]domain.StaffShift, domain.OperationStats, error)
 	UpdateStaffShift(context.Context, domain.StaffShift) (domain.StaffShift, bool, domain.OperationStats, error)
-	// UpdateStaffShiftColumns stamps only the named columns of the row.
-	UpdateStaffShiftColumns(ctx context.Context, shift domain.StaffShift, columns []string) (int64, domain.OperationStats, error)
+	// SetStaffShiftSickAbsence writes only the sick-absence association.
+	SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, domain.OperationStats, error)
 	DeleteStaffShift(context.Context, int64) (domain.OperationStats, error)
 	DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error)
 	// DeleteRegenerableSeriesShifts removes a series' non-detached rows on or

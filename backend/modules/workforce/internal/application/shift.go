@@ -112,17 +112,11 @@ func (s *Service) UpdateStaffShift(ctx context.Context, shift domain.StaffShift)
 	return result, err
 }
 
-func (s *Service) UpdateStaffShiftColumns(ctx context.Context, shift domain.StaffShift, columns []string) (result int64, err error) {
-	if validationErr := domain.ValidateStaffShiftColumns(columns); validationErr != nil {
-		return 0, validationErr
-	}
-	if validationErr := domain.ValidateStaffShift(shift); validationErr != nil {
-		return 0, validationErr
-	}
-	err = s.run("update_staff_shift_columns", func(stats *domain.OperationStats) error {
+func (s *Service) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (result int64, err error) {
+	err = s.run("set_staff_shift_sick_absence", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.UpdateStaffShiftColumns(txCtx, shift, columns)
+			result, writeStats, err = s.store.SetStaffShiftSickAbsence(txCtx, shiftID, absenceID)
 			stats.Add(writeStats)
 			return err
 		})

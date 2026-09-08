@@ -188,33 +188,6 @@ type ShiftType struct {
 	UpdatedAt   time.Time
 }
 
-// StaffShiftUpdatableColumns lists the columns a partial update may stamp
-// without rewriting the whole row. Anything else is a whole-row update.
-var StaffShiftUpdatableColumns = map[string]bool{
-	"sick_absence_id": true,
-	"cancelled":       true,
-	"change_reason":   true,
-	"shift_type_id":   true,
-	"notes":           true,
-	"updated_by":      true,
-	"detached":        true,
-	"series_id":       true,
-}
-
-// ValidateStaffShiftColumns rejects a partial update that names a column the
-// capability does not expose for stamping.
-func ValidateStaffShiftColumns(columns []string) error {
-	if len(columns) == 0 {
-		return invalidShift("at least one column is required")
-	}
-	for _, column := range columns {
-		if !StaffShiftUpdatableColumns[column] {
-			return invalidShift("column " + column + " cannot be updated partially")
-		}
-	}
-	return nil
-}
-
 // ValidateStaffShift enforces the row rules shared with the legacy model:
 // a staff member, a calendar day, a wall-clock window whose break fits, and
 // the creating staff member.

@@ -118,10 +118,10 @@ func (r workforceStaffShiftRepository) UpdateColumns(ctx context.Context, shift 
 	if shift == nil {
 		return 0, errors.New("StaffShift cannot be nil or zero value")
 	}
-	if len(columns) == 0 {
-		return 0, errors.New("update columns StaffShift: at least one column required")
+	if len(columns) != 1 || columns[0] != "sick_absence_id" {
+		return 0, errors.New("update columns StaffShift: only sick_absence_id is supported; use Update for other changes")
 	}
-	affected, err := r.workforce.UpdateStaffShiftColumns(ctx, shiftToCapability(shift), columns)
+	affected, err := r.workforce.SetStaffShiftSickAbsence(ctx, shift.ID, shift.SickAbsenceID)
 	if err != nil {
 		return 0, shiftWriteError("update columns", err)
 	}

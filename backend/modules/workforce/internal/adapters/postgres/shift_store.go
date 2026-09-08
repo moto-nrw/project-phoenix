@@ -337,24 +337,17 @@ func (s *Store) UpdateStaffShift(ctx context.Context, value domain.StaffShift) (
 	return staffShiftToDomain(*row), true, stats, nil
 }
 
-func (s *Store) UpdateStaffShiftColumns(ctx context.Context, value domain.StaffShift, columns []string) (int64, domain.OperationStats, error) {
+func (s *Store) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	row, err := staffShiftFromDomain(value)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	query := db.NewUpdate().
-		Model(row).
-		ModelTableExpr(tableStaffShifts + ` AS "staff_shift"`).
-		Column(columns...).
-		WherePK()
-	if tenantID > 0 {
-		query = query.Where(`"staff_shift".tenant_id = ?`, tenantID)
-	}
-	return execCount(ctx, query, "update staff shift columns")
+	query := withTenant(db.NewUpdate().
+		Model((*staffShiftRow)(nil)).
+		ModelTableExpr(tableStaffShifts+` AS "staff_shift"`).
+		Set("sick_absence_id = ?", absenceID).
+		Where(`"staff_shift".id = ?`, shiftID), aliasStaffShift, tenantID)
+	return execCount(ctx, query, "set staff shift sick absence")
 }
 
 func (s *Store) DeleteStaffShift(ctx context.Context, id int64) (domain.OperationStats, error) {
