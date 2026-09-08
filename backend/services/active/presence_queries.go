@@ -8,6 +8,8 @@ import (
 )
 
 type StudentPresence interface {
+	UnclaimedGroups(context.Context, string) ([]studentpresence.UnclaimedGroup, error)
+	ClaimGroup(context.Context, studentpresence.GroupClaim) (studentpresence.ClaimedSupervision, error)
 	FindVisit(context.Context, int64) (*studentpresence.Visit, error)
 	DeleteVisit(context.Context, int64) error
 	CloseVisits(context.Context, []int64, time.Time) ([]studentpresence.Visit, error)
