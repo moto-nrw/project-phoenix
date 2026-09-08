@@ -40,6 +40,13 @@ type StaffMessagingRouter interface {
 	SchoolRouter() chi.Router
 }
 
+// StaffNoticesRouter is the school-portal mount of the Tagesinformationen
+// (#2208), supplied by the composition root for the same reason as
+// StaffMessagingRouter.
+type StaffNoticesRouter interface {
+	SchoolRouter() chi.Router
+}
+
 // Resource bundles the school-portal HTTP handlers + their deps.
 type Resource struct {
 	AuthService     authService.AuthService
@@ -47,6 +54,7 @@ type Resource struct {
 	ClassDay        *classdayAPI.Resource
 	Timetable       *timetableAPI.Resource
 	StaffMessaging  StaffMessagingRouter
+	StaffNotices    StaffNoticesRouter
 	Notifications   *notificationsAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -58,6 +66,7 @@ func NewResource(
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
 	staffMessaging StaffMessagingRouter,
+	staffNotices StaffNoticesRouter,
 	notifications *notificationsAPI.Resource,
 ) *Resource {
 	return &Resource{
@@ -66,6 +75,7 @@ func NewResource(
 		ClassDay:       classDay,
 		Timetable:      timetable,
 		StaffMessaging: staffMessaging,
+		StaffNotices:   staffNotices,
 		Notifications:  notifications,
 	}
 }
@@ -149,6 +159,14 @@ func (rs *Resource) Router() chi.Router {
 	// same conversation from their respective portals.
 	if rs.StaffMessaging != nil {
 		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter())
+	}
+
+	// Tagesinformationen for Lehrkräfte (#2208): the notices the OGS
+	// leadership addressed to "alle" or "nur Lehrkräfte", read and
+	// acknowledged with a school token behind staff_notices:read. Writing
+	// stays in the OGS portal.
+	if rs.StaffNotices != nil {
+		r.Mount("/staff-notices", rs.StaffNotices.SchoolRouter())
 	}
 
 	// Own notification decisions and devices (#2208): the same handlers as

@@ -333,6 +333,7 @@ GET /api/staff-messages/threads/{threadID}
 GET /api/staff-messages/unread-count
 GET /api/staff-notices/
 GET /api/staff-notices/today
+GET /api/staff-notices/{noticeId}/acknowledgements
 GET /api/staff-shifts/
 GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
@@ -577,6 +578,7 @@ GET /school/staff-messages/
 GET /school/staff-messages/recipients
 GET /school/staff-messages/threads/{threadID}
 GET /school/staff-messages/unread-count
+GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
@@ -940,6 +942,7 @@ POST /school/notifications/push/subscriptions
 POST /school/notifications/test
 POST /school/staff-messages/threads/open
 POST /school/staff-messages/threads/{threadID}
+POST /school/staff-notices/{noticeId}/acknowledge
 POST /school/supervisions/{id}/complete
 POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in

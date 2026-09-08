@@ -56,15 +56,23 @@ func (r *StaffNoticeRepository) List(ctx context.Context, includeInactive bool) 
 }
 
 // ListValidOn grenzt auf die aktiven Hinweise ein, deren Zeitraum den Tag
-// enthält. Wochentag und Wochenmuster prüft der Service: der Wochentag ist eine
-// Array-Abfrage, die kein Index bedient, und das Wochenmuster braucht den
-// Kalenderzeitraum. Die Datenbank soll nur die Menge klein machen.
-func (r *StaffNoticeRepository) ListValidOn(ctx context.Context, date timezone.Date) ([]*users.StaffNotice, error) {
+// enthält und deren Zielgruppe die Leserart einschließt (#2208). Wochentag und
+// Wochenmuster prüft der Service: der Wochentag ist eine Array-Abfrage, die
+// kein Index bedient, und das Wochenmuster braucht den Kalenderzeitraum. Die
+// Datenbank soll nur die Menge klein machen.
+//
+// Eine unbekannte Leserart liefert nichts: ein Portal, das sich nicht
+// ausweist, bekommt keinen breiteren Verteiler geschenkt.
+func (r *StaffNoticeRepository) ListValidOn(ctx context.Context, date timezone.Date, reader string) ([]*users.StaffNotice, error) {
+	if !users.ValidStaffNoticeReader(reader) {
+		return []*users.StaffNotice{}, nil
+	}
 	var rows []*users.StaffNotice
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.staff_notices AS "staff_notice"`).
 		Where(`"staff_notice".active`).
+		Where(`"staff_notice".audience IN (?, ?)`, users.StaffNoticeAudienceAll, reader).
 		Where(`"staff_notice".valid_from <= ?`, date).
 		Where(`("staff_notice".valid_until IS NULL OR "staff_notice".valid_until >= ?)`, date).
 		// Wichtiges zuerst. Nicht nach der Spalte sortieren: alphabetisch käme
@@ -146,4 +154,24 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		result[row.NoticeID] = row.Count
 	}
 	return result, nil
+}
+
+// Acknowledgements gibt alle Kenntnisnahmen eines Hinweises zurück, neueste
+// zuerst — die Bestätigungsliste der Leitung (#2208). Nur Konto und Zeitpunkt:
+// die Namen gehören dem Personenverzeichnis, der Service holt sie dort.
+func (r *StaffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*users.StaffNoticeAck, error) {
+	var rows []*users.StaffNoticeAck
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		Where(`"sna".notice_id = ?`, noticeID).
+		OrderExpr(`"sna".acknowledged_at DESC, "sna".account_id ASC`)
+	query = base.WithTenantFilter(ctx, query, "sna")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list staff notice acknowledgements", Err: base.TranslateNotFound(err)}
+	}
+	if rows == nil {
+		rows = []*users.StaffNoticeAck{}
+	}
+	return rows, nil
 }

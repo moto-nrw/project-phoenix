@@ -34,7 +34,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *school.Resour
 	db, services := testutil.SetupSchoolModule(t)
 	classDay := classday.NewResource(services.EnrollmentReport, services.UserContext, db, nil,
 		classday.WithArrivalExceptions(services.ClassDayArrivalExceptions))
-	return db, school.NewResource(services.Auth, services.MFA, classDay, nil, nil, nil)
+	return db, school.NewResource(services.Auth, services.MFA, classDay, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {

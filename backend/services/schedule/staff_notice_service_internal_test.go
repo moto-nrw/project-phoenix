@@ -23,6 +23,7 @@ type fakeNoticeRepo struct {
 	counts      map[int64]int
 	countsCalls int
 	acked       []int64
+	ackRows     []*usersModels.StaffNoticeAck
 	createdWith *usersModels.StaffNotice
 }
 
@@ -46,7 +47,9 @@ func (f *fakeNoticeRepo) Delete(context.Context, int64) error { return nil }
 func (f *fakeNoticeRepo) List(context.Context, bool) ([]*usersModels.StaffNotice, error) {
 	return f.notices, nil
 }
-func (f *fakeNoticeRepo) ListValidOn(context.Context, timezone.Date) ([]*usersModels.StaffNotice, error) {
+func (f *fakeNoticeRepo) ListValidOn(context.Context, timezone.Date, string) ([]*usersModels.StaffNotice, error) {
+	// Bewusst ohne Zielgruppenfilter: der Service muss die Leserart selbst
+	// prüfen, siehe TestStaffNoticeTodayFiltersByReader.
 	return f.notices, nil
 }
 func (f *fakeNoticeRepo) Acknowledge(_ context.Context, noticeID, _ int64) error {
@@ -90,6 +93,7 @@ func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *users
 	t.Helper()
 	n := &usersModels.StaffNotice{
 		Title:       "Hinweis",
+		Audience:    usersModels.StaffNoticeAudienceAll,
 		Priority:    usersModels.StaffNoticePriorityInfo,
 		ValidFrom:   noticeMustDate(t, "2026-08-01"),
 		Weekdays:    weekdays,
@@ -112,7 +116,7 @@ func TestStaffNoticeTodayFiltersByWeekday(t *testing.T) {
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{monTue, fridayOnly, everyDay}}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	views, err := svc.Today(ctx, 42, tuesday)
+	views, err := svc.Today(ctx, 42, tuesday, usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 
 	got := make([]int64, 0, len(views))
@@ -129,7 +133,7 @@ func TestStaffNoticeTodaySkipsPeriodLookupWithoutWeekPattern(t *testing.T) {
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{newNotice(t, 21, nil, 0)}}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	_, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"))
+	_, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"), usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 	assert.Zero(t, periods.calls, "ohne Wochenmuster darf die Startseite keine Zeiträume laden")
 }
@@ -165,12 +169,12 @@ func TestStaffNoticeTodayHonoursWeekPattern(t *testing.T) {
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{weekA, weekB}}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	inWeekA, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"))
+	inWeekA, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"), usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 	require.Len(t, inWeekA, 1)
 	assert.Equal(t, int64(31), inWeekA[0].ID)
 
-	inWeekB, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-12"))
+	inWeekB, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-12"), usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 	require.Len(t, inWeekB, 1)
 	assert.Equal(t, int64(32), inWeekB[0].ID)
@@ -188,7 +192,7 @@ func TestStaffNoticeTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
 	}}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"))
+	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"), usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 	assert.Len(t, views, 1)
 }
@@ -204,7 +208,7 @@ func TestStaffNoticeTodayAttachesOwnAcknowledgement(t *testing.T) {
 	}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"))
+	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"), usersModels.StaffNoticeAudienceStaff)
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	require.NotNil(t, views[0].AcknowledgedAt)
@@ -235,19 +239,19 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{notice}}
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	err := svc.Acknowledge(ctx, 61, 42)
+	err := svc.Acknowledge(ctx, 61, 42, usersModels.StaffNoticeAudienceStaff)
 	assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 	assert.Empty(t, repo.acked)
 
 	notice.RequiresAcknowledgement = true
-	require.NoError(t, svc.Acknowledge(ctx, 61, 42))
+	require.NoError(t, svc.Acknowledge(ctx, 61, 42, usersModels.StaffNoticeAudienceStaff))
 	assert.Equal(t, []int64{61}, repo.acked)
 }
 
 func TestStaffNoticeAcknowledgeUnknownNotice(t *testing.T) {
 	t.Parallel()
 	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: &fakeNoticeRepo{}})
-	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42), ErrStaffNoticeNotFound)
+	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42, usersModels.StaffNoticeAudienceStaff), ErrStaffNoticeNotFound)
 }
 
 func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
@@ -267,6 +271,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			name: "inactive",
 			notice: &usersModels.StaffNotice{
 				Title:                   "Abgeschaltet",
+				Audience:                usersModels.StaffNoticeAudienceAll,
 				ValidFrom:               today.AddDays(-1),
 				RequiresAcknowledgement: true,
 			},
@@ -275,6 +280,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			name: "future",
 			notice: &usersModels.StaffNotice{
 				Title:                   "Zukünftig",
+				Audience:                usersModels.StaffNoticeAudienceAll,
 				ValidFrom:               today.AddDays(1),
 				RequiresAcknowledgement: true,
 				Active:                  true,
@@ -284,6 +290,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			name: "expired",
 			notice: &usersModels.StaffNotice{
 				Title:                   "Abgelaufen",
+				Audience:                usersModels.StaffNoticeAudienceAll,
 				ValidFrom:               today.AddDays(-2),
 				ValidUntil:              noticeDatePtr(today.AddDays(-1)),
 				RequiresAcknowledgement: true,
@@ -294,6 +301,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			name: "different weekday",
 			notice: &usersModels.StaffNotice{
 				Title:                   "Anderer Wochentag",
+				Audience:                usersModels.StaffNoticeAudienceAll,
 				ValidFrom:               today.AddDays(-1),
 				Weekdays:                []int16{otherWeekday},
 				RequiresAcknowledgement: true,
@@ -304,6 +312,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			name: "different week pattern",
 			notice: &usersModels.StaffNotice{
 				Title:                   "Woche B",
+				Audience:                usersModels.StaffNoticeAudienceAll,
 				ValidFrom:               today.AddDays(-1),
 				WeekPattern:             scheduleModels.WeekPatternB,
 				RequiresAcknowledgement: true,
@@ -330,7 +339,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 				CurrentDate: func() timezone.Date { return today },
 			})
 
-			err := svc.Acknowledge(ctx, tt.notice.ID, 42)
+			err := svc.Acknowledge(ctx, tt.notice.ID, 42, usersModels.StaffNoticeAudienceStaff)
 			assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 			assert.Empty(t, repo.acked)
 		})
@@ -383,4 +392,165 @@ func TestStaffNoticeCreateRejectsUnknownWeekday(t *testing.T) {
 		Active:    true,
 	})
 	assert.ErrorIs(t, err, ErrStaffNoticeInvalid, "ein unbekannter Wochentag darf nicht stumm verschwinden")
+}
+
+// --- Zielgruppe und Bestätigungsliste (#2208) ---
+
+func (f *fakeNoticeRepo) Acknowledgements(_ context.Context, noticeID int64) ([]*usersModels.StaffNoticeAck, error) {
+	out := make([]*usersModels.StaffNoticeAck, 0, len(f.ackRows))
+	for _, ack := range f.ackRows {
+		if ack.NoticeID == noticeID {
+			out = append(out, ack)
+		}
+	}
+	return out, nil
+}
+
+type fakeNoticeNames struct {
+	names map[int64]string
+	calls int
+	asked []int64
+}
+
+func (f *fakeNoticeNames) ListPersonNamesByAccount(_ context.Context, accountIDs []int64) (map[int64]string, error) {
+	f.calls++
+	f.asked = append(f.asked, accountIDs...)
+	if f.names == nil {
+		return map[int64]string{}, nil
+	}
+	return f.names, nil
+}
+
+func newNoticeFor(t *testing.T, id int64, audience string) *usersModels.StaffNotice {
+	t.Helper()
+	n := newNotice(t, id, nil, 0)
+	n.Audience = audience
+	return n
+}
+
+// Die Datenbank grenzt die Zielgruppe schon ein; der Service prüft sie
+// trotzdem noch einmal, damit eine Attrappe ohne Filter (wie hier) nichts
+// durchlässt, was das Portal nicht erreichen darf.
+func TestStaffNoticeTodayFiltersByReader(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	day := noticeMustDate(t, "2026-08-04")
+	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{
+		newNoticeFor(t, 71, usersModels.StaffNoticeAudienceAll),
+		newNoticeFor(t, 72, usersModels.StaffNoticeAudienceStaff),
+		newNoticeFor(t, 73, usersModels.StaffNoticeAudienceLehrkraft),
+	}}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	ids := func(views []*usersModels.StaffNoticeView) []int64 {
+		out := make([]int64, 0, len(views))
+		for _, v := range views {
+			out = append(out, v.ID)
+		}
+		return out
+	}
+
+	staffViews, err := svc.Today(ctx, 42, day, usersModels.StaffNoticeAudienceStaff)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{71, 72}, ids(staffViews), "die Betreuung sieht 'alle' und 'nur Betreuung'")
+
+	teacherViews, err := svc.Today(ctx, 42, day, usersModels.StaffNoticeAudienceLehrkraft)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{71, 73}, ids(teacherViews), "eine Lehrkraft sieht 'alle' und 'nur Lehrkräfte'")
+
+	none, err := svc.Today(ctx, 42, day, usersModels.StaffNoticeAudienceAll)
+	require.NoError(t, err)
+	assert.Empty(t, none, "'all' ist Zielgruppe, keine Leserart — fail-closed")
+}
+
+func TestStaffNoticeAcknowledgeRejectsForeignAudience(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	notice := newNoticeFor(t, 81, usersModels.StaffNoticeAudienceLehrkraft)
+	notice.RequiresAcknowledgement = true
+	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{notice}}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{
+		Repo:        repo,
+		CurrentDate: func() timezone.Date { return noticeMustDate(t, "2026-08-04") },
+	})
+
+	err := svc.Acknowledge(ctx, 81, 42, usersModels.StaffNoticeAudienceStaff)
+	assert.ErrorIs(t, err, ErrStaffNoticeNotFound, "im OGS-Portal existiert ein Lehrkräfte-Hinweis nicht")
+	assert.Empty(t, repo.acked)
+
+	require.NoError(t, svc.Acknowledge(ctx, 81, 42, usersModels.StaffNoticeAudienceLehrkraft))
+	assert.Equal(t, []int64{81}, repo.acked)
+}
+
+func TestStaffNoticeAcknowledgersResolvesNames(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	later := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
+	earlier := later.Add(-time.Hour)
+	repo := &fakeNoticeRepo{
+		notices: []*usersModels.StaffNotice{newNoticeFor(t, 91, usersModels.StaffNoticeAudienceAll)},
+		ackRows: []*usersModels.StaffNoticeAck{
+			{NoticeID: 91, AccountID: 7, AcknowledgedAt: later},
+			{NoticeID: 91, AccountID: 8, AcknowledgedAt: earlier},
+			{NoticeID: 92, AccountID: 9, AcknowledgedAt: earlier},
+		},
+	}
+	names := &fakeNoticeNames{names: map[int64]string{7: "Anna Beispiel"}}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Names: names})
+
+	rows, err := svc.Acknowledgers(ctx, 91)
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "die Kenntnisnahme des anderen Hinweises zählt nicht mit")
+	assert.Equal(t, int64(7), rows[0].AccountID)
+	assert.Equal(t, "Anna Beispiel", rows[0].Name)
+	assert.Equal(t, later, rows[0].AcknowledgedAt)
+	assert.Equal(t, int64(8), rows[1].AccountID)
+	assert.Equal(t, StaffNoticeUnknownAcknowledgerName, rows[1].Name,
+		"ein Konto ohne Person bleibt in der Liste, mit Platzhalter statt Lücke")
+
+	assert.Equal(t, 1, names.calls, "eine Namensabfrage für die ganze Liste, kein N+1")
+	assert.ElementsMatch(t, []int64{7, 8}, names.asked)
+
+	_, err = svc.Acknowledgers(ctx, 999)
+	assert.ErrorIs(t, err, ErrStaffNoticeNotFound)
+}
+
+func TestStaffNoticeAcknowledgersWithoutNameLookup(t *testing.T) {
+	t.Parallel()
+	repo := &fakeNoticeRepo{
+		notices: []*usersModels.StaffNotice{newNoticeFor(t, 93, usersModels.StaffNoticeAudienceAll)},
+		ackRows: []*usersModels.StaffNoticeAck{{NoticeID: 93, AccountID: 7, AcknowledgedAt: time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)}},
+	}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	rows, err := svc.Acknowledgers(context.Background(), 93)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, StaffNoticeUnknownAcknowledgerName, rows[0].Name)
+}
+
+func TestStaffNoticeCreateAudience(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repo := &fakeNoticeRepo{}
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
+
+	created, err := svc.Create(ctx, 42, StaffNoticeInput{
+		Title: "Ohne Zielgruppe", ValidFrom: noticeMustDate(t, "2026-08-01"), Active: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StaffNoticeAudienceAll, created.Audience, "leer heißt 'alle', wie vor der Zielgruppe")
+
+	created, err = svc.Create(ctx, 42, StaffNoticeInput{
+		Title: "Nur Lehrkräfte", Audience: usersModels.StaffNoticeAudienceLehrkraft,
+		ValidFrom: noticeMustDate(t, "2026-08-01"), Active: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StaffNoticeAudienceLehrkraft, created.Audience)
+
+	_, err = svc.Create(ctx, 42, StaffNoticeInput{
+		Title: "Falsche Zielgruppe", Audience: "eltern",
+		ValidFrom: noticeMustDate(t, "2026-08-01"), Active: true,
+	})
+	assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 }

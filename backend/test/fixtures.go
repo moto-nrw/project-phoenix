@@ -2671,7 +2671,8 @@ func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time
 
 // StaffNoticeOpts controls optional fields for NewTestStaffNotice.
 type StaffNoticeOpts struct {
-	Important               bool // default priority is "info"
+	Important               bool   // default priority is "info"
+	Audience                string // default users.StaffNoticeAudienceAll
 	ValidUntil              *timezone.Date
 	Inactive                bool
 	RequiresAcknowledgement bool
@@ -2688,9 +2689,14 @@ func NewTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, cr
 	if opts.Important {
 		priority = users.StaffNoticePriorityImportant
 	}
+	audience := opts.Audience
+	if audience == "" {
+		audience = users.StaffNoticeAudienceAll
+	}
 	return &users.StaffNotice{
 		Title:                   title,
 		Priority:                priority,
+		Audience:                audience,
 		ValidFrom:               validFrom,
 		ValidUntil:              opts.ValidUntil,
 		Weekdays:                []int16{},

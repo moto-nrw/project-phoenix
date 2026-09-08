@@ -56,7 +56,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	testpkg.EnsureWebManualDevice(t, db)
 
 	classDayResource := classday.NewResource(resource.ClassDay.ReportService, resource.ClassDay.UserContextService, db, nil)
-	router := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil).Router()
+	router := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil, nil).Router()
 
 	return &supervisionFixture{
 		db:       db,
