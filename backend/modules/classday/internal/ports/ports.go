@@ -128,7 +128,9 @@ type DayReports interface {
 type ArrivalExceptions interface {
 	SchoolMayWrite(ctx context.Context) (bool, error)
 	ListForClass(ctx context.Context, schoolClass string, from, to timezone.Date) ([]classday.ArrivalException, error)
-	Set(ctx context.Context, in classday.ArrivalExceptionWrite) (*classday.ArrivalException, error)
+	// Set stores the exception; date is the already resolved calendar day of
+	// in.Date.
+	Set(ctx context.Context, in classday.ArrivalExceptionWrite, date timezone.Date) (*classday.ArrivalException, error)
 	Clear(ctx context.Context, schoolClass string, date timezone.Date) error
 	EarliestBlockStart(ctx context.Context, schoolClass string, date timezone.Date) (string, error)
 }

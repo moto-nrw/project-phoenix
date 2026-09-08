@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -184,11 +183,7 @@ func (b arrivalExceptionBinding) ListForClass(ctx context.Context, schoolClass s
 	return out, nil
 }
 
-func (b arrivalExceptionBinding) Set(ctx context.Context, in classday.ArrivalExceptionWrite) (*classday.ArrivalException, error) {
-	date, err := timezone.ParseDate(strings.TrimSpace(string(in.Date)))
-	if err != nil {
-		return nil, err
-	}
+func (b arrivalExceptionBinding) Set(ctx context.Context, in classday.ArrivalExceptionWrite, date timezone.Date) (*classday.ArrivalException, error) {
 	entry, err := b.service.Set(ctx, enrollment.ClassDayArrivalExceptionWrite{
 		SchoolClass: in.SchoolClass, Date: date, ArrivalTime: in.ArrivalTime, Reason: in.Reason, CreatedBy: in.CreatedBy,
 	})

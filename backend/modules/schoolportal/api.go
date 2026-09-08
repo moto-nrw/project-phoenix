@@ -1,4 +1,4 @@
-// Package school holds the school-portal HTTP layer (#2207) — the fourth
+// Package schoolportal holds the school-portal HTTP layer (#2207) — the fourth
 // portal next to tenant, operator, and parents ("moto schule").
 //
 // All routes mounted by this Resource sit under /school on the API surface

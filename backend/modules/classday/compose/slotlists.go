@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -83,7 +82,6 @@ type SlotListDependencies struct {
 	// admin permission alone.
 	UserContext StaffReader
 	ListExport  *listexport.RendererService
-	Logger      *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -124,7 +122,6 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		Settings:        settings,
 		Access:          accessBinding{staff: deps.UserContext},
 		ListExport:      deps.ListExport,
-		Logger:          deps.Logger,
 		Now:             deps.Now,
 	})
 }

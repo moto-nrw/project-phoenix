@@ -2853,7 +2853,6 @@ func newFactory(
 		Settings:        settingsService,
 		UserContext:     userContextService,
 		ListExport:      listExportService,
-		Logger:          logger.With("service", "slot_lists"),
 	})
 
 	// Printable weekly plans (#2079). A pure projection over the same reads

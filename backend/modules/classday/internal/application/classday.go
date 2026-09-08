@@ -103,10 +103,11 @@ func (s *classDayService) SetArrivalException(ctx context.Context, in classday.A
 	if s.arrivalExceptions == nil {
 		return nil, classday.ErrArrivalExceptionsNotConfigured
 	}
-	if _, err := parseDate(in.Date); err != nil {
+	day, err := parseDate(in.Date)
+	if err != nil {
 		return nil, err
 	}
-	return s.arrivalExceptions.Set(ctx, in)
+	return s.arrivalExceptions.Set(ctx, in, day)
 }
 
 func (s *classDayService) ClearArrivalException(ctx context.Context, schoolClass string, date classday.Date) error {

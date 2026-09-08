@@ -261,6 +261,10 @@ func (rs *Resource) putArrivalException(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, arrivalExceptionErrorRenderer(err))
 		return
 	}
+	if entry == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("arrival exception was not returned")))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, mapArrivalException(*entry), "Class arrival exception saved successfully")
 }
 

@@ -15,7 +15,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,7 +103,6 @@ type SlotListDependencies struct {
 	Settings        ports.Settings
 	Access          ports.ReadAccess
 	ListExport      *listexport.RendererService
-	Logger          *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -125,7 +123,6 @@ type service struct {
 	settings        ports.Settings
 	access          ports.ReadAccess
 	listExport      *listexport.RendererService
-	logger          *slog.Logger
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
 	// instant so the pickup suite is not at the mercy of the weekday CI runs on.
@@ -161,7 +158,6 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		settings:        deps.Settings,
 		access:          deps.Access,
 		listExport:      deps.ListExport,
-		logger:          deps.Logger,
 		now:             now,
 	}
 }
