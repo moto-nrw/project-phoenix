@@ -11,27 +11,26 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockSlotListsService struct {
-	optionsResult *slotlists.OptionsResult
+	optionsResult *classday.OptionsResult
 	optionsErr    error
-	buildResult   *slotlists.Result
+	buildResult   *classday.Result
 	buildErr      error
 	renderFile    listexport.File
 	renderErr     error
 	buildCalled   bool
-	lastDate      timezone.Date
-	lastParams    slotlists.Params
+	lastDate      classday.Date
+	lastParams    classday.Params
 	lastFormat    listexport.Format
 }
 
-func (m *mockSlotListsService) BuildList(_ context.Context, params slotlists.Params) (*slotlists.Result, error) {
+func (m *mockSlotListsService) BuildList(_ context.Context, params classday.Params) (*classday.Result, error) {
 	m.buildCalled = true
 	m.lastParams = params
 	if m.buildErr != nil {
@@ -40,7 +39,7 @@ func (m *mockSlotListsService) BuildList(_ context.Context, params slotlists.Par
 	return m.buildResult, nil
 }
 
-func (m *mockSlotListsService) ListOptions(_ context.Context, date timezone.Date) (*slotlists.OptionsResult, error) {
+func (m *mockSlotListsService) ListOptions(_ context.Context, date classday.Date) (*classday.OptionsResult, error) {
 	m.lastDate = date
 	if m.optionsErr != nil {
 		return nil, m.optionsErr
@@ -48,7 +47,7 @@ func (m *mockSlotListsService) ListOptions(_ context.Context, date timezone.Date
 	return m.optionsResult, nil
 }
 
-func (m *mockSlotListsService) RenderList(_ context.Context, params slotlists.Params, format listexport.Format) (listexport.File, error) {
+func (m *mockSlotListsService) RenderList(_ context.Context, params classday.Params, format listexport.Format) (listexport.File, error) {
 	m.lastParams = params
 	m.lastFormat = format
 	if m.renderErr != nil {
@@ -80,11 +79,11 @@ func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockSlotListsService{
-		buildResult: &slotlists.Result{
+		buildResult: &classday.Result{
 			Date:   "2030-09-04",
-			Target: slotlists.TargetSlots,
-			Source: slotlists.SourceReconciliation,
-			Rows:   []slotlists.Row{},
+			Target: classday.TargetSlots,
+			Source: classday.SourceReconciliation,
+			Rows:   []classday.Row{},
 		},
 	}
 	rs := NewResource(Dependencies{SlotListsService: mock})
@@ -100,19 +99,19 @@ func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.True(t, mock.lastParams.InstanceIDsSet, "explicit [] must not be treated like omitted instance_ids")
 	assert.Empty(t, mock.lastParams.InstanceIDs)
-	assert.Equal(t, slotlists.TargetSlots, mock.lastParams.Target)
-	assert.Equal(t, slotlists.SourceReconciliation, mock.lastParams.Source)
+	assert.Equal(t, classday.TargetSlots, mock.lastParams.Target)
+	assert.Equal(t, classday.SourceReconciliation, mock.lastParams.Source)
 }
 
 func TestPreviewSlotListParsesStringIDs(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockSlotListsService{
-		buildResult: &slotlists.Result{
+		buildResult: &classday.Result{
 			Date:   "2030-09-04",
-			Target: slotlists.TargetSlots,
-			Source: slotlists.SourcePlanned,
-			Rows:   []slotlists.Row{},
+			Target: classday.TargetSlots,
+			Source: classday.SourcePlanned,
+			Rows:   []classday.Row{},
 		},
 	}
 	rs := NewResource(Dependencies{SlotListsService: mock})
@@ -197,7 +196,7 @@ func TestExportSlotListReportsRenderErrors(t *testing.T) {
 func TestExportSlotListMapsDriftToConflict(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockSlotListsService{renderErr: slotlists.ErrListDrifted}
+	mock := &mockSlotListsService{renderErr: classday.ErrListDrifted}
 	rs := NewResource(Dependencies{SlotListsService: mock})
 	router := slotListTestRouter(rs.exportSlotList, "/export")
 
@@ -252,14 +251,14 @@ func TestSlotListHandlersMapDisabledTimetableToForbidden(t *testing.T) {
 			name:    "options",
 			path:    "/options",
 			handler: func(rs *Resource) http.HandlerFunc { return rs.listSlotListOptions },
-			service: &mockSlotListsService{optionsErr: slotlists.ErrTimetableDisabled},
+			service: &mockSlotListsService{optionsErr: classday.ErrTimetableDisabled},
 			body:    map[string]any{"date": "2030-09-04"},
 		},
 		{
 			name:    "preview",
 			path:    "/preview",
 			handler: func(rs *Resource) http.HandlerFunc { return rs.previewSlotList },
-			service: &mockSlotListsService{buildErr: slotlists.ErrTimetableDisabled},
+			service: &mockSlotListsService{buildErr: classday.ErrTimetableDisabled},
 			body: map[string]any{
 				"date":   "2030-09-04",
 				"target": "slots",
@@ -270,7 +269,7 @@ func TestSlotListHandlersMapDisabledTimetableToForbidden(t *testing.T) {
 			name:    "export",
 			path:    "/export",
 			handler: func(rs *Resource) http.HandlerFunc { return rs.exportSlotList },
-			service: &mockSlotListsService{renderErr: slotlists.ErrTimetableDisabled},
+			service: &mockSlotListsService{renderErr: classday.ErrTimetableDisabled},
 			body: map[string]any{
 				"date":   "2030-09-04",
 				"target": "slots",

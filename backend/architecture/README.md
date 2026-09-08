@@ -268,6 +268,25 @@ existing imports; it adds no runtime dependency or composition caller.
 exact imports as orange-red `legacy` debt, separate from gray target-valid
 imports and dashed-red new violations, even when they share owner endpoints.
 
+The class-day read projection (`modules/classday`, #2701) is the `class-day-view`
+projection owner: `modules/classday` is its public contract, `internal/application`
+builds the slot lists and the school-portal day view, `internal/ports` declares
+the consumer-owned read seams, and `compose` binds them. The projection reads
+`schedule.activity_instances`, `schedule.instance_students`, `active.visits`,
+`active.attendance`, `users.students`, `users.persons`, `education.groups`, the
+rooms and the Care Plan status days and pickup exceptions only through the public
+owner facades (`class-day-view.from.*`). Its `class-day-view.compose.*`
+permissions for the retained schedule services (care-day derivation, effective
+times, pickup baselines), the enrollment report and class-day write seam, the
+settings service, the user context and the JWT permission check exist only
+because PR mode cannot record debt for a package the candidate creates. They are
+compatibility bindings, not target dependencies: convert them to exact debt with
+the rule above once the packages exist at a base SHA, and remove each binding
+when its owner exposes the read publicly. The same applies to the
+`inbound-school.identity-application` and `inbound-school.orm-sql` permissions
+of the school portal (`modules/schoolportal`) and to the retained-repository and
+retained-service permissions of the projection's integration tests.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the
