@@ -706,7 +706,8 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	svc := newCareLifecycleService(t, db)
+	today := timezone.NewDate(2030, 8, 26)
+	svc := newCareLifecycleServiceAt(t, db, today)
 	actorID := careActor(t, db)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
@@ -714,7 +715,6 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Plan", "Verantwortlich")
 	room := testpkg.CreateTestRoom(t, db, "Atelier")
 	group := testpkg.CreateTestActivityGroup(t, db, "Theater")
-	today := timezone.TodayDate()
 
 	// A block after the planned exit, carrying a status somebody set by hand —
 	// the case a rebuild-from-enrollments restore would silently flatten.

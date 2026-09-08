@@ -21,7 +21,7 @@ import (
 // and the pulled-forward start both stay strictly in the future on every
 // weekday the suite runs.
 func futureMondayForPull() timezone.Date {
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2030, 8, 26)
 	daysAhead := (int(time.Monday) - int(today.Weekday()) + 7) % 7
 	if daysAhead == 0 {
 		daysAhead = 7
@@ -32,7 +32,10 @@ func futureMondayForPull() timezone.Date {
 func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateModule(t, nil)
+	clock := func() time.Time {
+		return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour)
+	}
+	s := buildTemplateModule(t, nil, clock)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
@@ -73,7 +76,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "vorgezogen")
 
 	// In the past → German rejection with a stable code.
-	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(timezone.TodayDate().AddDays(-1).String()))
+	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(timezone.NewDate(2030, 1, 1).String()))
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), ErrCodeTemplateStartInPast)
 	assert.Contains(t, w.Body.String(), "Vergangenheit")
