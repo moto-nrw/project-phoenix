@@ -318,9 +318,9 @@ above once the package exists at a base SHA, rebind each port to its owner's
 public capability as it appears, and delete the adapter with the last legacy
 source. The same applies to the staff calendar HTTP adapter
 (`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
-rendering, the permission contract, the JWT middleware, the calendar-date type
-and, as the one compatibility binding, the retained `services/calendar`
-until School Calendar exposes the staff calendar publicly) and to the
+rendering, the permission contract, the JWT middleware, and the calendar-date
+type; its calendar binding now uses the native
+`modules/schoolcalendar/portal` contract) and to the
 statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
 the same shared HTTP dependencies, the Bun database the tenant middleware
 takes, the Document Rendering renderer and, as compatibility binding, the

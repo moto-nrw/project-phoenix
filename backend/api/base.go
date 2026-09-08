@@ -49,9 +49,9 @@ import (
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
