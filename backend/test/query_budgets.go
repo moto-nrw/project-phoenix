@@ -108,6 +108,11 @@ var queryBudgets = map[string]queryBudget{
 	// modules/schoolmembership — assignment lists, 8 rows each.
 	"modules.schoolmembership.list_class_assignments": {max: 5},
 	"modules.schoolmembership.list_group_assignments": {max: 5},
+	// modules/classday — one slot reconciliation over the owner facades
+	// inside its tenant transaction, 3 and then 8 planned children (#2701).
+	// Every read is a bulk load by ID set; the count must not move with the
+	// roster.
+	"modules.classday.slot_list.build": {max: 16},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},

@@ -3,7 +3,6 @@ package repositories
 import (
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -37,13 +36,17 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	workTime, err := NewWorkforce(db, membership)
+	var now func() time.Time
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	workTime, err := NewWorkforceWithClock(db, membership, now)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		WorkSession:       activeRepo.NewWorkSessionRepository(db, clocks...),
-		WorkSessionBreak:  activeRepo.NewWorkSessionBreakRepository(db),
+		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
+		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
 		WorkSessionEdit:   auditRepo.NewWorkSessionEditRepository(newTestAuditRuntime(db)),
 		StaffAbsence:      workforceLegacy.NewStaffAbsenceRepository(workTime),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),

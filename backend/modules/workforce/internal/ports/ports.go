@@ -36,6 +36,111 @@ type Store interface {
 	AbsenceStore
 	SubstitutionStore
 	ShiftStore
+	WorkSessionStore
+	StaffRecordStore
+}
+
+// WorkSessionStore is the persistence port over active.work_sessions,
+// active.work_session_breaks, active.staff_balance_adjustments,
+// active.staff_vacation_openings and active.staff_vacation_quota. A missing
+// row reports found=false; a rejected duplicate reports domain.ConflictError.
+type WorkSessionStore interface {
+	FindWorkSession(context.Context, int64) (domain.WorkSession, bool, domain.OperationStats, error)
+	// LockOpenWorkSession returns and row-locks a still running block.
+	LockOpenWorkSession(context.Context, int64) (domain.WorkSession, bool, domain.OperationStats, error)
+	// OpenWorkSessionOn returns the running block of a staff member filed on
+	// the day, optionally row-locked.
+	OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (domain.WorkSession, bool, domain.OperationStats, error)
+	// LatestOpenWorkSession returns the most recent block that is still
+	// running inside the live window as of now, whatever day it was filed on;
+	// today is the calendar day of now.
+	LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (domain.WorkSession, bool, domain.OperationStats, error)
+	ListWorkSessions(context.Context, domain.WorkSessionFilter) ([]domain.WorkSession, domain.OperationStats, error)
+	// ListOverlappingWorkSessions returns the blocks of the staff members
+	// whose [check-in, check-out) interval intersects [from, to); a nil to is
+	// open-ended. Ordered by staff, then check-in.
+	ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]domain.WorkSession, domain.OperationStats, error)
+	CountWorkSessions(context.Context, domain.WorkSessionFilter) (int, domain.OperationStats, error)
+	OldestWorkSessionDate(ctx context.Context, before string) (string, domain.OperationStats, error)
+	DeleteWorkSessionsOlderThan(ctx context.Context, cutoff string) (int64, domain.OperationStats, error)
+	// WorkPresenceMap maps staff to their work status as of now: the status of
+	// a live open block, otherwise checked_out for a block filed today.
+	WorkPresenceMap(ctx context.Context, today string, now time.Time) (map[int64]string, domain.OperationStats, error)
+	CreateWorkSession(context.Context, domain.WorkSession) (domain.WorkSession, domain.OperationStats, error)
+	UpdateWorkSession(context.Context, domain.WorkSession) (domain.WorkSession, bool, domain.OperationStats, error)
+	DeleteWorkSession(context.Context, int64) (domain.OperationStats, error)
+	SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, domain.OperationStats, error)
+	// CloseWorkSession stamps the check-out on a still open block; closed
+	// reports whether a row was actually closed.
+	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, domain.OperationStats, error)
+
+	FindWorkSessionBreak(context.Context, int64) (domain.WorkSessionBreak, bool, domain.OperationStats, error)
+	ListWorkSessionBreaks(context.Context, domain.WorkSessionBreakFilter) ([]domain.WorkSessionBreak, domain.OperationStats, error)
+	// ExpiredWorkSessionBreaks returns the running breaks whose planned end
+	// has passed.
+	ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]domain.WorkSessionBreak, domain.OperationStats, error)
+	CreateWorkSessionBreak(context.Context, domain.WorkSessionBreak) (domain.WorkSessionBreak, domain.OperationStats, error)
+	UpdateWorkSessionBreak(context.Context, domain.WorkSessionBreak) (domain.WorkSessionBreak, bool, domain.OperationStats, error)
+	DeleteWorkSessionBreak(context.Context, int64) (domain.OperationStats, error)
+	// EndWorkSessionBreak stamps the end on a still running break only.
+	EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, domain.OperationStats, error)
+	// SetWorkSessionBreakDuration rewrites the length and end of a break.
+	SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, domain.OperationStats, error)
+
+	FindStaffBalanceAdjustment(context.Context, int64) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error)
+	ListStaffBalanceAdjustments(context.Context, domain.StaffBalanceAdjustmentFilter) ([]domain.StaffBalanceAdjustment, domain.OperationStats, error)
+	CreateStaffBalanceAdjustment(context.Context, domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, domain.OperationStats, error)
+	UpdateStaffBalanceAdjustment(context.Context, domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error)
+	DeleteStaffBalanceAdjustment(context.Context, int64) (domain.OperationStats, error)
+
+	FindStaffVacationOpening(context.Context, int64) (domain.StaffVacationOpening, bool, domain.OperationStats, error)
+	ListStaffVacationOpenings(context.Context, domain.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error)
+	CreateStaffVacationOpening(context.Context, domain.StaffVacationOpening) (domain.StaffVacationOpening, domain.OperationStats, error)
+	UpdateStaffVacationOpening(context.Context, domain.StaffVacationOpening) (domain.StaffVacationOpening, bool, domain.OperationStats, error)
+	DeleteStaffVacationOpening(context.Context, int64) (domain.OperationStats, error)
+
+	FindStaffVacationQuota(context.Context, int64) (domain.StaffVacationQuota, bool, domain.OperationStats, error)
+	ListStaffVacationQuotas(context.Context, domain.StaffVacationFilter) ([]domain.StaffVacationQuota, domain.OperationStats, error)
+	CreateStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.StaffVacationQuota, domain.OperationStats, error)
+	UpdateStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.StaffVacationQuota, bool, domain.OperationStats, error)
+	DeleteStaffVacationQuota(context.Context, int64) (domain.OperationStats, error)
+	// UpsertStaffVacationQuota writes the entitlement of one staff member and
+	// year, replacing the day counts of an existing row.
+	UpsertStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.OperationStats, error)
+}
+
+// StaffRecordStore is the persistence port over users.staff_master_data,
+// users.staff_qualifications, users.staff_financial_data,
+// users.staff_documents and users.staff_document_file_cleanup.
+type StaffRecordStore interface {
+	FindStaffMasterData(ctx context.Context, staffID int64) (domain.StaffMasterData, bool, domain.OperationStats, error)
+	CreateStaffMasterData(context.Context, domain.StaffMasterData) (domain.StaffMasterData, domain.OperationStats, error)
+	UpdateStaffMasterData(context.Context, domain.StaffMasterData) (domain.StaffMasterData, bool, domain.OperationStats, error)
+
+	ListStaffQualifications(ctx context.Context, staffID int64) ([]domain.StaffQualification, domain.OperationStats, error)
+	DeleteStaffQualifications(ctx context.Context, staffID int64) (domain.OperationStats, error)
+	InsertStaffQualifications(context.Context, []domain.StaffQualification) ([]domain.StaffQualification, domain.OperationStats, error)
+
+	FindStaffFinancialData(ctx context.Context, staffID int64) (domain.StaffFinancialData, bool, domain.OperationStats, error)
+	CreateStaffFinancialData(context.Context, domain.StaffFinancialData) (domain.StaffFinancialData, domain.OperationStats, error)
+	UpdateStaffFinancialData(context.Context, domain.StaffFinancialData) (domain.StaffFinancialData, bool, domain.OperationStats, error)
+
+	CreateStaffDocument(context.Context, domain.StaffDocument) (domain.StaffDocument, domain.OperationStats, error)
+	// FindStaffDocument loads one document by the staff/document pair.
+	FindStaffDocument(ctx context.Context, staffID, documentID int64, includeDeleted bool) (domain.StaffDocument, bool, domain.OperationStats, error)
+	ListStaffDocuments(context.Context, domain.StaffDocumentFilter) ([]domain.StaffDocument, domain.OperationStats, error)
+	// SoftDeleteStaffDocument stamps deleted_at and deleted_by on a live row.
+	SoftDeleteStaffDocument(ctx context.Context, id, deletedBy int64, at time.Time) (int64, domain.OperationStats, error)
+	MarkStaffDocumentFileDeleted(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
+
+	// QueueStaffDocumentFileCleanup records the intent once per stored name.
+	QueueStaffDocumentFileCleanup(context.Context, domain.StaffDocumentFileCleanup) (domain.OperationStats, error)
+	// ListQueuedStaffDocumentFileCleanups returns and row-locks the eligible
+	// intents; a positive staffID narrows them to one staff member.
+	ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID int64, now time.Time) ([]domain.StaffDocumentFileCleanup, domain.OperationStats, error)
+	CompleteStaffDocumentFileCleanup(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
+	CompleteStaffDocumentFileCleanupByFilename(ctx context.Context, filename string, at time.Time) (domain.OperationStats, error)
+	ActivateStaffDocumentFileCleanup(ctx context.Context, filename string, at time.Time) (domain.OperationStats, error)
 }
 
 // ShiftStore is the persistence port over schedule.staff_shifts,
@@ -152,9 +257,11 @@ type Transaction interface {
 	LockStaffAbsence(ctx context.Context, staffID int64) error
 }
 
-// Clock supplies the calendar day new schedule versions start on.
+// Clock supplies the calendar day new schedule versions start on and the
+// instant live work-session windows are measured against.
 type Clock interface {
 	Today() string
+	Now() time.Time
 }
 
 type Observation struct {

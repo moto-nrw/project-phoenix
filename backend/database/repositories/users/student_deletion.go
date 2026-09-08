@@ -117,10 +117,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		SELECT
 			0::int AS timetable_assignments,
 			0::int AS activity_enrollments,
-			(
-				active.count_student_visits_for_deletion(?, ?) +
-				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?)
-			)::int AS attendance_records,
+			active.count_student_visits_for_deletion(?, ?)::int AS attendance_records,
 			0::int AS care_schedules,
 			(
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
@@ -136,7 +133,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
-		tenantID, studentID, tenantID, studentID,
+		tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
 		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID,

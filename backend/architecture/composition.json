@@ -39,7 +39,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        281
+        282
       ],
       "tables": []
     },
@@ -883,26 +883,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/active/staff_vacation_quota_list_test.go",
-      "declaration": "TestStaffVacationQuotaRepositoryListPreservesEmptyNilSlice",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        44
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/staff_vacation_quota_list_test.go",
-      "declaration": "TestStaffVacationQuotaRepositoryListPreservesQueryOptionsBehavior",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/active/student_location_repository_test.go",
       "declaration": "TestGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
@@ -1045,232 +1025,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         40
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        119,
-        120
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_EndBreak",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        343,
-        344
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_EndBreakRejectsStaleState",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        386
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_GetActiveBySessionID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        286,
-        287
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_GetBySessionID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        242,
-        243
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        419,
-        420
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_break_test.go",
-      "declaration": "TestWorkSessionBreakRepository_UpdateDuration",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        25,
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_CloseSession",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        542
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_CloseSessionWrapsDatabaseError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        628
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetByStaffAndDate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetCurrentByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        134
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetHistoryByStaffID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        187
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        241
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetLatestOpenByStaffID_LiveWindow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        645
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetOpenSessions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        255
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        315
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        410
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        709
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_ListWrapsDatabaseError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        459
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_UpdateBreakMinutes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        475
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/work_session_test.go",
-      "declaration": "TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        530
       ],
       "tables": []
     },
@@ -3496,18 +3250,6 @@
       "tables": [
         "education.groups",
         "iot.devices"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/room_directory_test.go",
-      "declaration": "TestFindUnclaimedKeepsOnlySchulhofGroups",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        88
-      ],
-      "tables": [
-        "facilities.rooms"
       ]
     },
     {
@@ -6111,7 +5853,7 @@
       "declaration": "newVacationOpeningFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        52
       ],
       "tables": [
         "active.staff_absences",
@@ -27786,27 +27528,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 167,
+          "line": 168,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 444,
+          "line": 445,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 607,
+          "line": 608,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 845,
+          "line": 846,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1131,
+          "line": 1134,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27816,7 +27558,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 281,
+          "line": 282,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -27826,23 +27568,28 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 168,
+          "line": 169,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 604,
+          "line": 605,
           "declaration": "type API"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 111,
+          "line": 112,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 126,
+          "line": 129,
           "declaration": "newExportTransferModule"
+        },
+        {
+          "file": "api/time_tracking_composition.go",
+          "line": 76,
+          "declaration": "newTimeTrackingResource"
         }
       ]
     },
@@ -27931,12 +27678,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 432,
+          "line": 433,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 469,
+          "line": 470,
           "declaration": "newFactory"
         },
         {

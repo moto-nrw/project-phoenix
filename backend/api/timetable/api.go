@@ -18,12 +18,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -108,7 +108,7 @@ type Dependencies struct {
 	CareDayService          scheduleSvc.CareDayService
 	UserContextService      usercontextSvc.UserContextService
 	SettingsService         configSvc.SettingsService
-	SlotListsService        slotlists.Service
+	SlotListsService        classday.SlotLists
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint (#2137); implemented by the enrollment decision service.
 	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister

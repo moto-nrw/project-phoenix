@@ -23,7 +23,8 @@ func TestPresenceTablesEnforceRLSWithoutTenantPredicates(t *testing.T) {
 	at := time.Now().Add(-time.Hour)
 	ownAttendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, at, nil)
 	ownVisit := testpkg.CreateTestVisit(t, db, student.ID, group.ID, at, nil)
-	var foreignAttendanceID, foreignVisitID, foreignTenantID int64
+	ownCheckoutID := testpkg.CreateTestScheduledCheckout(t, db, student.ID, staff.ID, at.Add(2*time.Hour))
+	var foreignAttendanceID, foreignVisitID, foreignCheckoutID, foreignTenantID int64
 	var foreignCtx context.Context
 	t.Run("foreign fixtures", func(t *testing.T) {
 		testpkg.OwnTenant(t)
@@ -35,6 +36,7 @@ func TestPresenceTablesEnforceRLSWithoutTenantPredicates(t *testing.T) {
 		group := testpkg.CreateTestActiveGroupForTenant(t, db, foreignTenantID)
 		foreignAttendanceID = testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, at, nil).ID
 		foreignVisitID = testpkg.CreateTestVisit(t, db, student.ID, group.ID, at, nil).ID
+		foreignCheckoutID = testpkg.CreateTestScheduledCheckout(t, db, student.ID, staff.ID, at.Add(2*time.Hour))
 	})
 	for _, tc := range []struct {
 		table            string
@@ -42,6 +44,7 @@ func TestPresenceTablesEnforceRLSWithoutTenantPredicates(t *testing.T) {
 	}{
 		{table: "active.attendance", ownID: ownAttendance.ID, foreignID: foreignAttendanceID},
 		{table: "active.visits", ownID: ownVisit.ID, foreignID: foreignVisitID},
+		{table: "active.scheduled_checkouts", ownID: ownCheckoutID, foreignID: foreignCheckoutID},
 	} {
 		t.Run(tc.table, func(t *testing.T) {
 			testpkg.AssertTenantRowIsolation(t, db, ctx, foreignCtx, tc.table, tc.ownID, tc.foreignID)
@@ -69,6 +72,7 @@ func TestPresenceQueriesAndCommandsRespectTwoTenantRLS(t *testing.T) {
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, at.Add(-time.Hour), nil)
 		testpkg.CreateTestVisit(t, db, student.ID, group.ID, at.Add(-time.Hour), nil)
+		testpkg.CreateTestScheduledCheckout(t, db, student.ID, staff.ID, at.Add(time.Hour))
 		studentID, groupID = student.ID, group.ID
 	})
 	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
@@ -80,7 +84,7 @@ func TestPresenceQueriesAndCommandsRespectTwoTenantRLS(t *testing.T) {
 		assert.Nil(t, day)
 		count, err := module.CountAttendanceRecords(txCtx, studentID)
 		require.NoError(t, err)
-		assert.Zero(t, count)
+		assert.Zero(t, count, "foreign attendance and scheduled checkouts stay invisible")
 		require.NoError(t, module.LockOpenPresence(txCtx, []int64{studentID}))
 		require.NoError(t, module.LockOpenVisits(txCtx, groupID))
 		rows, err := module.CloseOpenPresence(txCtx, []int64{studentID}, at)
