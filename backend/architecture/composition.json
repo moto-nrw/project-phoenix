@@ -7218,7 +7218,7 @@
       "declaration": "TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1536
+        1537
       ],
       "tables": []
     },
@@ -7228,7 +7228,7 @@
       "declaration": "TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1438
+        1439
       ],
       "tables": []
     },
@@ -7238,7 +7238,7 @@
       "declaration": "TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        541
+        542
       ],
       "tables": []
     },
@@ -7248,7 +7248,7 @@
       "declaration": "TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        690
+        691
       ],
       "tables": []
     },
@@ -7258,7 +7258,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename",
       "target": "database/repositories.NewFactory",
       "lines": [
-        519
+        520
       ],
       "tables": []
     },
@@ -7268,7 +7268,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1597
+        1598
       ],
       "tables": []
     },
@@ -7278,7 +7278,7 @@
       "declaration": "TestChangeRequestService_Approve_RejectsStaleBaseSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        463
+        464
       ],
       "tables": []
     },
@@ -7288,7 +7288,7 @@
       "declaration": "TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1475
+        1476
       ],
       "tables": []
     },
@@ -7298,7 +7298,7 @@
       "declaration": "TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        616
+        617
       ],
       "tables": []
     },
@@ -7308,7 +7308,7 @@
       "declaration": "TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering",
       "target": "database/repositories.NewFactory",
       "lines": [
-        649
+        650
       ],
       "tables": []
     },
@@ -7318,7 +7318,7 @@
       "declaration": "TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1360
+        1361
       ],
       "tables": []
     },
@@ -7328,7 +7328,7 @@
       "declaration": "enableChangeRequestMode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        245
       ],
       "tables": []
     },
@@ -7338,7 +7338,7 @@
       "declaration": "newChangeRequestServiceForTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        27
       ],
       "tables": []
     },
@@ -7348,7 +7348,7 @@
       "declaration": "newChangeRequestServiceForTestWithAuthorizer",
       "target": "database/repositories.NewFactory",
       "lines": [
-        34
+        35
       ],
       "tables": []
     },

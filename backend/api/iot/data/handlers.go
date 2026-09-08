@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -202,7 +201,16 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 
 	// Normalize and find person by RFID tag
 	normalizedTagID := users.NormalizeTagID(tagID)
-	person := rs.findPersonByTag(r.Context(), normalizedTagID, tagID)
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedTagID)
+	if err != nil && !errors.Is(err, usersSvc.ErrPersonNotFound) {
+		rs.getLogger().ErrorContext(r.Context(), "failed to check RFID assignment", slog.String("error", err.Error()))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
+	// A free bracelet is expected during assignment, not a failed attendance scan.
+	if err != nil {
+		person = nil
+	}
 
 	// Build response based on person type
 	response := rs.buildRFIDAssignmentResponse(r.Context(), person, normalizedTagID)
@@ -319,20 +327,6 @@ func (rs *Resource) buildStudentResponses(uniqueStudents map[int64]usersSvc.Stud
 	}
 
 	return response
-}
-
-// findPersonByTag finds a person by RFID tag ID with error handling
-func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
-	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
-	if err != nil {
-		shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, slog.Default(), normalizedTagID)
-		slog.Default().WarnContext(ctx, "no person found for RFID tag",
-			slog.String("tag_id", originalTagID),
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
-	return person
 }
 
 // buildRFIDAssignmentResponse builds RFID assignment response based on person type

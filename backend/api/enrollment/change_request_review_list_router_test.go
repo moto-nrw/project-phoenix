@@ -189,15 +189,15 @@ func (env *reviewListEnv) insertChangeRequest(
 	occurredAt time.Time,
 	childID int64,
 	decided bool,
-) *enrollmentModels.ChangeRequest {
+) *capability.ChangeRequest {
 	t.Helper()
-	row := &enrollmentModels.ChangeRequest{
+	row := &capability.ChangeRequest{
 		RequestID:        env.requestID,
-		Origin:           enrollmentModels.ChangeRequestOriginParent,
+		Origin:           capability.ChangeRequestOriginParent,
 		Status:           status,
-		BaseSnapshot:     map[string]any{"guardian_first_name": "Annegret"},
-		ProposedSnapshot: map[string]any{"guardian_first_name": "Anne"},
-		Diff:             map[string]any{"changed": []string{"guardian_first_name"}},
+		BaseSnapshot:     json.RawMessage(`{"guardian_first_name":"Annegret"}`),
+		ProposedSnapshot: json.RawMessage(`{"guardian_first_name":"Anne"}`),
+		Diff:             json.RawMessage(`{"changed":["guardian_first_name"]}`),
 	}
 	if childID > 0 {
 		row.RequestChildID = &childID
@@ -212,18 +212,12 @@ func (env *reviewListEnv) insertChangeRequest(
 		row.UpdatedAt = occurredAt
 	}
 	row.TenantID = env.tenantID
-	baseSnapshot, err := json.Marshal(row.BaseSnapshot)
-	require.NoError(t, err)
-	proposedSnapshot, err := json.Marshal(row.ProposedSnapshot)
-	require.NoError(t, err)
-	diff, err := json.Marshal(row.Diff)
-	require.NoError(t, err)
-	err = env.db.NewRaw(`INSERT INTO enrollment.change_requests
+	err := env.db.NewRaw(`INSERT INTO enrollment.change_requests
 		(tenant_id, request_id, request_child_id, origin, status, base_snapshot, proposed_snapshot, diff_json,
 		reviewed_by_account_id, reviewed_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, ?) RETURNING id`,
 		row.TenantID, row.RequestID, row.RequestChildID, row.Origin, row.Status,
-		string(baseSnapshot), string(proposedSnapshot), string(diff), row.ReviewedByAccountID,
+		string(row.BaseSnapshot), string(row.ProposedSnapshot), string(row.Diff), row.ReviewedByAccountID,
 		row.ReviewedAt, row.CreatedAt, row.UpdatedAt).Scan(testpkg.TenantContext(env.tenantID), &row.ID)
 	require.NoError(t, err)
 	return row
@@ -290,7 +284,7 @@ func idsOf(page reviewListEnvelope) []string {
 	return ids
 }
 
-func idOf(row *enrollmentModels.ChangeRequest) string {
+func idOf(row *capability.ChangeRequest) string {
 	return strconv.FormatInt(row.ID, 10)
 }
 
@@ -300,9 +294,9 @@ func TestChangeRequestReviewList_OpenShowsUndecidedNewestFirst(t *testing.T) {
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
-	newer := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusPendingReview, base, 0, false)
-	older := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusNeedsParentResponse, base.Add(-time.Minute), 0, false)
-	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
+	newer := env.insertChangeRequest(t, capability.ChangeRequestStatusPendingReview, base, 0, false)
+	older := env.insertChangeRequest(t, capability.ChangeRequestStatusNeedsParentResponse, base.Add(-time.Minute), 0, false)
+	env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
 
 	page := env.fetch(t, "view=open")
 	require.Equal(t, []string{idOf(newer), idOf(older)}, idsOf(page),
@@ -327,10 +321,10 @@ func TestChangeRequestReviewList_HistoryCarriesDecisionAndCursor(t *testing.T) {
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
-	newest := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, 0, true)
-	middle := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), 0, true)
-	oldest := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
-	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusPendingReview, base.Add(time.Minute), 0, false)
+	newest := env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base, 0, true)
+	middle := env.insertChangeRequest(t, capability.ChangeRequestStatusRejected, base.Add(-time.Minute), 0, true)
+	oldest := env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
+	env.insertChangeRequest(t, capability.ChangeRequestStatusPendingReview, base.Add(time.Minute), 0, false)
 
 	pageOne := env.fetch(t, "view=history&limit=2")
 	require.Equal(t, []string{idOf(newest), idOf(middle)}, idsOf(pageOne),
@@ -350,11 +344,10 @@ func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
-	newerDecision := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, 0, true)
-	olderDecision := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), 0, true)
+	newerDecision := env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base, 0, true)
+	olderDecision := env.insertChangeRequest(t, capability.ChangeRequestStatusRejected, base.Add(-time.Minute), 0, true)
 	_, err := env.db.NewUpdate().
-		Model((*enrollmentModels.ChangeRequest)(nil)).
-		ModelTableExpr("enrollment.change_requests").
+		TableExpr("enrollment.change_requests").
 		Set("updated_at = ?", base.Add(time.Hour)).
 		Where("id = ?", olderDecision.ID).
 		Exec(testpkg.TenantContext(env.tenantID))
@@ -364,7 +357,7 @@ func TestChangeRequestReviewList_HistoryUsesDecisionInstantForOrderAndCursor(t *
 	require.Equal(t, []string{idOf(newerDecision)}, idsOf(pageOne))
 	require.Len(t, pageOne.Data.Items, 1)
 	assert.Equal(t,
-		newerDecision.DecisionInstant().UTC().Truncate(time.Microsecond),
+		newerDecision.ReviewedAt.UTC().Truncate(time.Microsecond),
 		pageOne.Data.Items[0].OccurredAt.UTC(),
 	)
 
@@ -378,8 +371,8 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	env := setupReviewListTest(t)
 	base := timezone.NewDate(2026, 8, 19).BerlinMidnight().Add(12 * time.Hour)
 
-	approved := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, env.childIDs[0], true)
-	rejected := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)
+	approved := env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base, env.childIDs[0], true)
+	rejected := env.insertChangeRequest(t, capability.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)
 
 	// A request pinned to one child is found by that child's name only.
 	byChild := env.fetch(t, "view=history&search=Quirina")
@@ -400,7 +393,7 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	// Eine zurückgezogene Anfrage darf nicht aus jeder Liste fallen: sie steht
 	// in der Historie und trägt in der gemeinsamen Liste den Status
 	// „zurückgezogen".
-	cancelled := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusCancelled, base.Add(-2*time.Minute), 0, true)
+	cancelled := env.insertChangeRequest(t, capability.ChangeRequestStatusCancelled, base.Add(-2*time.Minute), 0, true)
 	assert.Equal(t, []string{idOf(cancelled)}, idsOf(env.fetch(t, "view=history&status=withdrawn")))
 	assert.Contains(t, idsOf(env.fetch(t, "view=history")), idOf(cancelled))
 }
@@ -411,8 +404,8 @@ func TestChangeRequestReviewList_EscapesNameSearchWildcards(t *testing.T) {
 	env := setupReviewListTest(t)
 	base := time.Now().UTC().Add(-2 * time.Hour)
 
-	percent := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, env.childIDs[0], true)
-	underscore := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)
+	percent := env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base, env.childIDs[0], true)
+	underscore := env.insertChangeRequest(t, capability.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)
 	_, err := env.db.NewUpdate().
 		TableExpr("enrollment.request_children").
 		Set("first_name = ?", `Qui%rina\`).
@@ -441,11 +434,11 @@ func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
 	base := time.Now().UTC().Add(-3 * time.Hour)
 
 	for i := range 3 {
-		env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusPendingReview, base.Add(time.Duration(i)*time.Minute), 0, false)
+		env.insertChangeRequest(t, capability.ChangeRequestStatusPendingReview, base.Add(time.Duration(i)*time.Minute), 0, false)
 	}
-	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusNeedsParentResponse, base.Add(-time.Minute), 0, false)
+	env.insertChangeRequest(t, capability.ChangeRequestStatusNeedsParentResponse, base.Add(-time.Minute), 0, false)
 	// Entschiedene zählen nicht mit: da wartet keine Arbeit mehr.
-	env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
+	env.insertChangeRequest(t, capability.ChangeRequestStatusApproved, base.Add(-2*time.Minute), 0, true)
 
 	rec := env.get(t, "", env.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

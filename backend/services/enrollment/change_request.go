@@ -2,29 +2,9 @@ package enrollment
 
 import "time"
 
-const (
-	ChangeRequestStatusPendingReview       = "pending_review"
-	ChangeRequestStatusNeedsParentResponse = "needs_parent_response"
-	ChangeRequestStatusApproved            = "approved"
-	ChangeRequestStatusRejected            = "rejected"
-	// ChangeRequestStatusCancelled is allowed by the column constraint but
-	// written by nothing today. Readers still have to account for it: a row
-	// that exists must never fall out of every list.
-	ChangeRequestStatusCancelled = "cancelled"
-)
-
-const (
-	ChangeRequestOriginParent = "parent"
-	ChangeRequestOriginAdmin  = "admin"
-)
-
-const (
-	ChangeRequestMessageAuthorParent = "parent"
-	ChangeRequestMessageAuthorStaff  = "staff"
-)
-
-// ChangeRequest is the legacy service value for a proposed enrollment correction.
-// Persistence belongs to the Enrollment capability.
+// ChangeRequest is the application value of an enrollment change request: the
+// owner's row with its snapshots decoded, because the review workflow compares
+// and applies them field by field. Persistence stays with the Enrollment owner.
 type ChangeRequest struct {
 	ID        int64     `json:"id"`
 	TenantID  int64     `json:"tenant_id"`

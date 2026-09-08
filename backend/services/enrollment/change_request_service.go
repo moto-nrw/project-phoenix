@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,7 +90,7 @@ type ChangeRequestDecisionApplier interface {
 }
 
 type ChangeRequestAggregate struct {
-	ChangeRequest *enrollmentModels.ChangeRequest
+	ChangeRequest *ChangeRequest
 	Request       *enrollmentModels.Request
 	Children      []*RequestChild
 	Messages      []*capability.ChangeRequestMessage
@@ -177,10 +178,13 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		return nil, err
 	}
 
-	var created *enrollmentModels.ChangeRequest
+	var created *ChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		lockedReq, err := intakeRequestByToken(txCtx, s.Requests, strings.TrimSpace(token), true)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		children, err := listIntakeChildren(txCtx, s.Children, lockedReq.ID, true)
@@ -224,9 +228,9 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		if note != "" {
 			notePtr = &note
 		}
-		row := &enrollmentModels.ChangeRequest{
+		row := &ChangeRequest{
 			RequestID:                      lockedReq.ID,
-			Status:                         enrollmentModels.ChangeRequestStatusPendingReview,
+			Status:                         capability.ChangeRequestStatusPendingReview,
 			ParentNote:                     notePtr,
 			BaseSnapshot:                   baseSnapshot,
 			ProposedSnapshot:               proposedSnapshot,
@@ -240,7 +244,7 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		if note != "" {
 			if err := s.Requests.InsertChangeRequestMessage(txCtx, &capability.ChangeRequestMessage{
 				ChangeRequestID: row.ID,
-				AuthorType:      enrollmentModels.ChangeRequestMessageAuthorParent,
+				AuthorType:      capability.ChangeRequestMessageAuthorParent,
 				AuthorAccountID: input.CreatedByAccountID,
 				Body:            note,
 			}); err != nil {
@@ -262,7 +266,7 @@ func (s *changeRequestService) ListPublic(ctx context.Context, token string) ([]
 	if err != nil {
 		return nil, err
 	}
-	var rows []*enrollmentModels.ChangeRequest
+	var rows []*ChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		list, listErr := readChangeRequestsForRequest(txCtx, s.Requests, req.ID)
 		rows = list
@@ -293,21 +297,24 @@ func (s *changeRequestService) ParentReply(ctx context.Context, token string, ch
 	}
 	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		row, err := readChangeRequestByIDForUpdate(txCtx, s.Requests, changeRequestID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		if err != nil || row == nil || row.RequestID != req.ID {
 			return ErrChangeRequestNotFound
 		}
-		if row.Status != enrollmentModels.ChangeRequestStatusNeedsParentResponse {
+		if row.Status != capability.ChangeRequestStatusNeedsParentResponse {
 			return ErrChangeRequestInvalidStatus
 		}
 		if err := s.Requests.InsertChangeRequestMessage(txCtx, &capability.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
-			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorParent,
+			AuthorType:      capability.ChangeRequestMessageAuthorParent,
 			AuthorAccountID: nil,
 			Body:            body,
 		}); err != nil {
 			return err
 		}
-		return s.Requests.SetChangeRequestStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusPendingReview)
+		return s.Requests.SetChangeRequestStatus(txCtx, row.ID, capability.ChangeRequestStatusPendingReview)
 	})
 	if err != nil {
 		return nil, err
@@ -350,6 +357,9 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 	}
 
 	req, err := intakeRequestByID(ctx, s.Requests, input.RequestID, true)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
 	if err != nil || req == nil {
 		return nil, ErrRequestNotFound
 	}
@@ -406,11 +416,11 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 		return nil, err
 	}
 	now := time.Now()
-	row := &enrollmentModels.ChangeRequest{
+	row := &ChangeRequest{
 		RequestID:           req.ID,
 		RequestChildID:      &child.ID,
-		Origin:              enrollmentModels.ChangeRequestOriginAdmin,
-		Status:              enrollmentModels.ChangeRequestStatusApproved,
+		Origin:              capability.ChangeRequestOriginAdmin,
+		Status:              capability.ChangeRequestStatusApproved,
 		AdminDecisionNote:   &reason,
 		BaseSnapshot:        baseSnapshot,
 		ProposedSnapshot:    proposedSnapshot,
@@ -445,7 +455,7 @@ func (s *changeRequestService) rejectOpenChangeRequestsForAdminCorrection(
 		if err := s.Requests.MarkChangeRequestReviewed(
 			ctx,
 			row.ID,
-			enrollmentModels.ChangeRequestStatusRejected,
+			capability.ChangeRequestStatusRejected,
 			&note,
 			actorAccountID,
 			now,
@@ -455,7 +465,7 @@ func (s *changeRequestService) rejectOpenChangeRequestsForAdminCorrection(
 		actorID := actorAccountID
 		if err := s.Requests.InsertChangeRequestMessage(ctx, &capability.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
-			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
+			AuthorType:      capability.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
 			Body:            note,
 		}); err != nil {
@@ -632,25 +642,28 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 		return nil, fmt.Errorf("%w: message body is required", ErrChangeRequestInvalidData)
 	}
 	var req *enrollmentModels.Request
-	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *enrollmentModels.ChangeRequest) error {
-		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
+	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
+		if row.Status != capability.ChangeRequestStatusPendingReview {
 			return ErrChangeRequestInvalidStatus
 		}
 		loadedReq, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		req = loadedReq
 		actorID := input.ActorAccountID
 		if err := s.Requests.InsertChangeRequestMessage(txCtx, &capability.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
-			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
+			AuthorType:      capability.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
 			Body:            body,
 		}); err != nil {
 			return err
 		}
-		return s.Requests.SetChangeRequestStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusNeedsParentResponse)
+		return s.Requests.SetChangeRequestStatus(txCtx, row.ID, capability.ChangeRequestStatusNeedsParentResponse)
 	})
 	if err != nil {
 		return nil, err
@@ -664,7 +677,7 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 func (s *changeRequestService) Reject(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error) {
 	return s.review(ctx, changeRequestID, input, reviewOutcome{
 		noteRequiredMsg: "rejection note is required",
-		status:          enrollmentModels.ChangeRequestStatusRejected,
+		status:          capability.ChangeRequestStatusRejected,
 		emailKind:       platformModels.EmailKindEnrollmentChangeRequestRejected,
 	})
 }
@@ -672,7 +685,7 @@ func (s *changeRequestService) Reject(ctx context.Context, changeRequestID int64
 func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error) {
 	return s.review(ctx, changeRequestID, input, reviewOutcome{
 		noteRequiredMsg: "approval note is required",
-		status:          enrollmentModels.ChangeRequestStatusApproved,
+		status:          capability.ChangeRequestStatusApproved,
 		emailKind:       platformModels.EmailKindEnrollmentChangeRequestApproved,
 		apply:           s.applyApprovedChange,
 	})
@@ -685,7 +698,7 @@ type reviewOutcome struct {
 	noteRequiredMsg string
 	status          string
 	emailKind       string
-	apply           func(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error
+	apply           func(ctx context.Context, row *ChangeRequest, input ReviewChangeRequestInput) error
 }
 
 func (s *changeRequestService) review(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput, outcome reviewOutcome) (*ChangeRequestAggregate, error) {
@@ -694,12 +707,15 @@ func (s *changeRequestService) review(ctx context.Context, changeRequestID int64
 		return nil, fmt.Errorf("%w: %s", ErrChangeRequestInvalidData, outcome.noteRequiredMsg)
 	}
 	var req *enrollmentModels.Request
-	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *enrollmentModels.ChangeRequest) error {
-		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
+	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
+		if row.Status != capability.ChangeRequestStatusPendingReview {
 			return ErrChangeRequestInvalidStatus
 		}
 		loadedReq, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		req = loadedReq
@@ -715,7 +731,7 @@ func (s *changeRequestService) review(ctx context.Context, changeRequestID int64
 		actorID := input.ActorAccountID
 		return s.Requests.InsertChangeRequestMessage(txCtx, &capability.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
-			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
+			AuthorType:      capability.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
 			Body:            note,
 		})
@@ -738,6 +754,9 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		loaded, err := intakeRequestByToken(adminCtx, s.Requests, token, false)
 		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		if loaded.StatusTokenExpires != nil && time.Now().After(*loaded.StatusTokenExpires) {
@@ -777,6 +796,9 @@ func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollm
 		return ErrChangeRequestNotAllowed
 	}
 	phase, err := s.intakePhase(ctx, req.PhaseID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 	if err != nil || phase == nil || !phase.IsActive {
 		return ErrChangeRequestNotAllowed
 	}
@@ -875,6 +897,9 @@ func (s *changeRequestService) prepareProposed(
 		}
 	}
 	phase, err := s.intakePhase(ctx, req.PhaseID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return editReq, nil, nil, nil, err
+	}
 	if err != nil || phase == nil || !phase.IsActive {
 		return editReq, nil, nil, nil, ErrEnrollmentDisabled
 	}
@@ -1352,7 +1377,7 @@ func (s *changeRequestService) verifyCompanionStrandingBatch(ctx context.Context
 	return nil
 }
 
-func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
+func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *ChangeRequest, input ReviewChangeRequestInput) error {
 	// Acquire global gates before the first request/student row lock. Direct
 	// booking writers hold the recurrence gate while their FK checks touch
 	// request_children; taking it later would invert that order.
@@ -1363,6 +1388,9 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	}
 	req, err := intakeRequestByID(ctx, s.Requests, row.RequestID, true)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		return ErrRequestNotFound
 	}
 	children, err := listIntakeChildren(ctx, s.Children, req.ID, true)
@@ -1595,7 +1623,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 
 func (s *changeRequestService) changeRequestCapacityOverrides(
 	ctx context.Context,
-	row *enrollmentModels.ChangeRequest,
+	row *ChangeRequest,
 	children []*RequestChild,
 	prepared SubmitRequest,
 	phase *capability.Phase,
@@ -1713,7 +1741,7 @@ func (s *changeRequestService) validateChangedChildIdentityEligibility(
 // mirroring the status decisions the write loop makes further down: a capacity
 // override wins, otherwise a rejected child whose own data changed is reopened
 // to under_review, otherwise the status is unchanged.
-func postApprovalChildStatus(row *enrollmentModels.ChangeRequest, existing *RequestChild, overrides map[int]string, index int) string {
+func postApprovalChildStatus(row *ChangeRequest, existing *RequestChild, overrides map[int]string, index int) string {
 	if status, ok := overrides[index]; ok {
 		return status
 	}
@@ -1754,7 +1782,7 @@ func (s *changeRequestService) reconcileMatchedStudent(
 	ctx context.Context,
 	req *enrollmentModels.Request,
 	phase *capability.Phase,
-	row *enrollmentModels.ChangeRequest,
+	row *ChangeRequest,
 	existing *RequestChild,
 	next SubmitChild,
 	overrides map[int]string,
@@ -1920,8 +1948,8 @@ func (s *changeRequestService) ensureNoOpenChangeRequest(ctx context.Context, re
 		return err
 	}
 	for _, row := range rows {
-		if row.Status == enrollmentModels.ChangeRequestStatusPendingReview ||
-			row.Status == enrollmentModels.ChangeRequestStatusNeedsParentResponse {
+		if row.Status == capability.ChangeRequestStatusPendingReview ||
+			row.Status == capability.ChangeRequestStatusNeedsParentResponse {
 			return fmt.Errorf("%w: an open change request already exists", ErrChangeRequestNotAllowed)
 		}
 	}
@@ -2131,8 +2159,11 @@ func optionalLowerEmail(value *string) string {
 	return strings.TrimSpace(strings.ToLower(*value))
 }
 
-func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *enrollmentModels.ChangeRequest) error) error {
+func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *ChangeRequest) error) error {
 	row, err := readChangeRequestByID(ctx, s.Requests, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
 	if err != nil || row == nil {
 		return ErrChangeRequestNotFound
 	}
@@ -2142,9 +2173,15 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 		// row as well: cleanup's cascading delete eventually locks this row, so
 		// the reverse order would create a parent/change-request deadlock.
 		if _, err := intakeRequestByID(txCtx, s.Requests, row.RequestID, true); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 			return ErrRequestNotFound
 		}
 		locked, err := readChangeRequestByIDForUpdate(txCtx, s.Requests, id)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 		if err != nil || locked == nil {
 			return ErrChangeRequestNotFound
 		}
@@ -2154,6 +2191,9 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 
 func (s *changeRequestService) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*ChangeRequestAggregate, error) {
 	row, err := readChangeRequestByID(ctx, s.Requests, id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
 	if err != nil || row == nil {
 		return nil, ErrChangeRequestNotFound
 	}
@@ -2170,9 +2210,12 @@ func (s *changeRequestService) loadAggregateForTenant(ctx context.Context, tenan
 	return agg, err
 }
 
-func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *enrollmentModels.ChangeRequest, includeInternal bool) (*ChangeRequestAggregate, error) {
+func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *ChangeRequest, includeInternal bool) (*ChangeRequestAggregate, error) {
 	req, err := intakeRequestByID(ctx, s.Requests, row.RequestID, false)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 		return nil, ErrRequestNotFound
 	}
 	children, err := listIntakeChildren(ctx, s.Children, req.ID, false)
@@ -2185,7 +2228,10 @@ func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *enroll
 	}
 	var phase *capability.Phase
 	if s.Catalog != nil {
-		phase, _ = s.intakePhase(ctx, req.PhaseID)
+		phase, err = s.intakePhase(ctx, req.PhaseID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
 	}
 	return &ChangeRequestAggregate{
 		ChangeRequest: row,
@@ -2551,7 +2597,7 @@ func (s *changeRequestService) emailNotificationsEnabled(ctx context.Context) bo
 	return err == nil && enabled
 }
 
-func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context, tenantID int64, req *enrollmentModels.Request, cr *enrollmentModels.ChangeRequest) {
+func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context, tenantID int64, req *enrollmentModels.Request, cr *ChangeRequest) {
 	if s.OutboxEnqueuer == nil {
 		return
 	}
