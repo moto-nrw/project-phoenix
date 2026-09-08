@@ -83,7 +83,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
 		IoTService:             svc.IoT,
-		DevicePINFallback:      testDevicePIN,
+		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), svc.Schools, nil, svc.Settings, testDevicePIN).Device(),
 		PickupScheduleService:  svc.PickupSchedule,
 		PartialAbsenceService:  svc.PartialAbsence,
 		ArrivalScheduleService: svc.ArrivalSchedule,

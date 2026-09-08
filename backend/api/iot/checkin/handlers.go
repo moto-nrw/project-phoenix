@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -64,7 +63,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		"device_name":    deviceCtx.Name,
 		"status":         deviceCtx.Status,
 		"last_seen":      deviceCtx.LastSeen,
-		"is_online":      rs.IoTService.IsDeviceOnline(r.Context(), deviceCtx),
+		"is_online":      rs.IoTService.IsLastSeenOnline(r.Context(), deviceCtx.LastSeen),
 		"ping_time":      time.Now(),
 		"session_active": sessionActive,
 	}
@@ -94,7 +93,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 			"name":        deviceCtx.Name,
 			"status":      deviceCtx.Status,
 			"last_seen":   deviceCtx.LastSeen,
-			"is_online":   rs.IoTService.IsDeviceOnline(r.Context(), deviceCtx),
+			"is_online":   rs.IoTService.IsLastSeenOnline(r.Context(), deviceCtx.LastSeen),
 			"is_active":   deviceCtx.IsActive(),
 		},
 		"authenticated_at": time.Now(),
@@ -467,7 +466,7 @@ func (rs *Resource) processBinaryModeCheckin(
 	w http.ResponseWriter,
 	r *http.Request,
 	student *users.Student,
-	deviceCtx *iot.Device,
+	deviceCtx *device.AuthenticatedDevice,
 	now time.Time,
 ) {
 	ctx := r.Context()

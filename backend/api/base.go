@@ -77,6 +77,7 @@ import (
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -1127,7 +1128,15 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) error {
-	deviceLastSeenDebouncer := iotAPI.NewDeviceLastSeenDebouncer()
+	// One device authentication composition serves every kiosk route group,
+	// so the IoT and students resources share its last-seen debouncer.
+	deviceAuth := deviceauth.New(deviceauth.Dependencies{
+		Devices:     api.Services.IoT.Fleet(),
+		Schools:     api.Services.Schools,
+		StaffPIN:    deviceauth.StaffPIN(api.Services.StaffPINAuth.AuthenticateStaffPIN),
+		Settings:    api.Services.Settings,
+		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
+	})
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
@@ -1164,9 +1173,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
 		IoTService:                   api.Services.IoT,
-		StaffPINAuthenticator:        api.Services.StaffPINAuth,
-		DevicePINFallback:            os.Getenv("OGS_DEVICE_PIN"),
-		DeviceLastSeenDebouncer:      deviceLastSeenDebouncer,
+		DeviceAuthenticator:          deviceAuth.Device(),
 		PickupScheduleService:        api.Services.PickupSchedule,
 		PartialAbsenceService:        api.Services.PartialAbsence,
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
@@ -1252,17 +1259,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), newStudentPresence(db, logger))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
-		IoTService:            api.Services.IoT,
-		StaffPINAuthenticator: api.Services.StaffPINAuth,
-		CheckinService:        api.Services.Checkin,
-		StaffClockService:     api.Services.StaffClock,
-		UsersService:          api.Services.Users,
-		ActiveService:         api.Services.Active,
-		ActivitiesService:     api.Services.Activities,
-		SettingsService:       api.Services.Settings,
-		FacilityService:       api.Services.Facilities,
-		EducationService:      api.Services.Education,
-		FeedbackService:       api.feedback,
+		IoTService:        api.Services.IoT,
+		CheckinService:    api.Services.Checkin,
+		StaffClockService: api.Services.StaffClock,
+		UsersService:      api.Services.Users,
+		ActiveService:     api.Services.Active,
+		ActivitiesService: api.Services.Activities,
+		SettingsService:   api.Services.Settings,
+		FacilityService:   api.Services.Facilities,
+		EducationService:  api.Services.Education,
+		FeedbackService:   api.feedback,
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
@@ -1274,9 +1280,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "iot"),
 		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
-		DevicePINFallback:       os.Getenv("OGS_DEVICE_PIN"),
 		DB:                      db,
-		DeviceLastSeenDebouncer: deviceLastSeenDebouncer,
+		DeviceAuthenticator:     deviceAuth.Device(),
+		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
 	api.SSE.SetSchoolAccess(api.Services.Auth)

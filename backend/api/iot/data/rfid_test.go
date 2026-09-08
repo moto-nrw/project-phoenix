@@ -97,7 +97,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("POST", "/1/rfid", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
 	// Add device context
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
+	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(testDevice))
 	req = req.WithContext(reqCtx)
 
 	rr := testutil.ExecuteRequest(router, req)

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -19,9 +18,9 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	_, feedback := testutil.SetupFeedbackModule(t)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
+	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), auth.Schools, auth.StaffPINAuth.AuthenticateStaffPIN, auth.Settings, "1234")
 	resource := NewResource(ServiceDependencies{
 		IoTService:               data.IoT,
-		StaffPINAuthenticator:    auth.StaffPINAuth,
 		UsersService:             data.Users,
 		ActivitiesService:        data.Activities,
 		SettingsService:          auth.Settings,
@@ -29,9 +28,9 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 		FeedbackService:          feedback.Feedback,
 		FeedbackResponseObserver: func(int, string) {},
 		SchoolService:            auth.Schools,
-		DevicePINFallback:        "1234",
 		DB:                       db,
-		DeviceLastSeenDebouncer:  device.NewLastSeenDebouncer(),
+		DeviceAuthenticator:      deviceAuth.Device(),
+		DeviceOnlyAuthenticator:  deviceAuth.DeviceOnly(),
 	})
 	handler := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 

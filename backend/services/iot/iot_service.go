@@ -42,6 +42,13 @@ func (s *service) IsDeviceOnline(ctx context.Context, device *iot.Device) bool {
 	return s.IsDeviceOnlineAt(ctx, device, time.Now())
 }
 
+// IsLastSeenOnline reports whether a device last seen at lastSeen counts as
+// online right now. Device-authenticated handlers hold the principal, not
+// the row, so they ask by timestamp.
+func (s *service) IsLastSeenOnline(ctx context.Context, lastSeen *time.Time) bool {
+	return s.devices.IsDeviceOnline(ctx, devicefleet.Device{LastSeen: lastSeen})
+}
+
 // IsDeviceOnlineAt reports whether the device was online at the supplied
 // observation time.
 func (s *service) IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now time.Time) bool {
@@ -334,25 +341,4 @@ func (s *service) DetectNewDevices(_ context.Context) ([]*iot.Device, error) {
 // ScanNetwork is a placeholder for network scanning.
 func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
-}
-
-// UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device,
-// addressed by its globally unique primary key for cross-tenant safety.
-func (s *service) UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error {
-	if id <= 0 {
-		return &IoTError{Op: "UpdateDeviceLastSeenAt", Err: errors.New("device ID must be positive")}
-	}
-	return s.devices.UpdateDeviceLastSeen(ctx, id, lastSeen)
-}
-
-// GetDeviceByAPIKey retrieves a device by its API key for authentication.
-func (s *service) GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
-	if apiKey == "" {
-		return nil, &IoTError{Op: "GetDeviceByAPIKey", Err: errors.New("API key cannot be empty")}
-	}
-	device, err := s.devices.FindDeviceByAPIKey(ctx, apiKey)
-	if err != nil {
-		return nil, &IoTError{Op: "GetDeviceByAPIKey", Err: err}
-	}
-	return toModel(device), nil
 }

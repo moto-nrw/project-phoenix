@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
@@ -78,7 +77,7 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -125,7 +124,7 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -155,7 +154,7 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -193,7 +192,7 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -224,7 +223,7 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -250,7 +249,7 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings, DailyCheckoutFallback: "14:00"}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -286,7 +285,7 @@ func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: nil}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
-	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantID: mockDeviceTenantID})
+	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 

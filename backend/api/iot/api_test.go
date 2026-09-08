@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -325,7 +326,7 @@ func TestResource_Router_SchoolNameRoute(t *testing.T) {
 
 // withDeviceCtx injects a device model into the request context.
 func withDeviceCtx(req *http.Request, d *iotModel.Device) *http.Request {
-	ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+	ctx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(d))
 	return req.WithContext(ctx)
 }
 

@@ -85,7 +85,7 @@ func TestStartSession_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/start", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
+	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(testDevice))
 	req = req.WithContext(reqCtx)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -323,7 +323,7 @@ func TestCheckConflict_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/check-conflict", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
+	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(testDevice))
 	req = req.WithContext(reqCtx)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -708,7 +708,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 	// Send invalid JSON body
 	req := httptest.NewRequest("PUT", "/1/supervisors", bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
-	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testDevice)
+	reqCtx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(testDevice))
 	req = req.WithContext(reqCtx)
 
 	rr := testutil.ExecuteRequest(router, req)

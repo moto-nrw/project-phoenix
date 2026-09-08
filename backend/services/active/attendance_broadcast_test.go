@@ -557,7 +557,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 
 	staff := &usersModels.Staff{}
 	staff.ID = f.staffID
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 	broadcaster.Reset()
 
 	visit := &studentpresence.Visit{

@@ -2671,6 +2671,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/devicefleet/deviceauth",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/devicefleet/internal/adapters/postgres",
       "owner": "device-fleet",
       "role": "postgres",
@@ -13896,6 +13903,139 @@
       "source_owner": "observability",
       "source_role": "workflow-integration-test",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.device-auth.device-fleet-adapter",
+      "description": "The device authentication composition constructs the device adapter over its consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.device-auth.public",
+      "description": "The device authentication composition resolves API keys and records last-seen through the public Device Fleet capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.device-auth.tenant-runtime",
+      "description": "The device authentication composition binds the device school as the ambient tenant of device routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.device-auth.settings-domain",
+      "description": "The device authentication composition names the tenant device PIN setting.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.device-auth.organization-domain",
+      "description": "The device authentication composition reads the device school row to reject deleted schools.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.device-auth.orm-sql",
+      "description": "The device authentication composition classifies missing rows and connection-class driver failures of the school read.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.device-auth-test.http-router",
+      "description": "Device authentication tests drive the composed middleware over the real HTTP contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "device-fleet.device-auth-test.device-fleet-adapter",
+      "description": "Device authentication tests read the principals the adapter binds to the request.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "adapter-test",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.device-auth-test.organization-domain",
+      "description": "Device authentication tests supply school rows to the deleted-school guard.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "adapter-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.device-auth-test.orm-sql",
+      "description": "Device authentication tests exercise the driver-level failure classification.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "root-composition.to.device-fleet-device-auth",
+      "description": "The production root composes the device authenticators once and mounts them on the IoT and student RFID routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.to.device-fleet-device-auth",
+      "description": "API test composition constructs the real device authenticators for device-authenticated handler tests.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "device-fleet",
+      "target_role": "http"
     }
   ]
 }

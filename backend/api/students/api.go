@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -52,7 +51,6 @@ type ResourceConfig struct {
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
-	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
 	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
@@ -121,13 +119,14 @@ type ResourceConfig struct {
 	StudentPhotos      userService.StudentPhotoService
 	StudentConsents    userService.StudentConsentService
 	// StudentDocumentService backs the child's Dokumente tab (#777).
-	StudentDocumentService  userService.StudentDocumentService
-	ListExportService       *listexport.RendererService
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	DB                      *bun.DB
-	DevicePINFallback       string
-	DeviceLastSeenDebouncer *device.LastSeenDebouncer
+	StudentDocumentService userService.StudentDocumentService
+	ListExportService      *listexport.RendererService
+	Logger                 *slog.Logger
+	Now                    func() time.Time
+	DB                     *bun.DB
+	// DeviceAuthenticator guards the RFID routes. The Device Fleet
+	// composition builds it; this resource only mounts it.
+	DeviceAuthenticator common.Middleware
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -411,7 +410,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil, rs.DevicePINFallback, rs.DeviceLastSeenDebouncer))
+		r.Use(device.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
 		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint

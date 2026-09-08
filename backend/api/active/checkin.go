@@ -54,7 +54,7 @@ func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the visit with staff context
-	ctx = context.WithValue(ctx, device.CtxStaff, checkinCtx.staff)
+	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(checkinCtx.staff))
 	visit, err := rs.createCheckinVisit(ctx, checkinCtx)
 	if err != nil {
 		err.respond(w, r)
