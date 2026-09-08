@@ -965,9 +965,9 @@ function StaffPageContent() {
 
                               <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
                                 {/* Dieselbe Pille wie beim Kind: helle Fläche,
-                                farbiger Punkt, dunkle Schrift. Vollflächige
-                                Badges in Signalfarbe waren auf einer Liste mit
-                                24 Personen eine Wand aus Rot. */}
+                                dunkle farbige Schrift. Vollflächige Badges in
+                                Signalfarbe waren auf einer Liste mit 24
+                                Personen eine Wand aus Rot. */}
                                 <StatusColorBadge
                                   label={locationStatus.label}
                                   color={locationStatus.customBgColor}

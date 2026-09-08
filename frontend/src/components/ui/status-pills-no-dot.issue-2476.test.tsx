@@ -6,7 +6,11 @@ import { LocationBadge } from "./location-badge";
 import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
-import { LOCATION_COLORS, LOCATION_STATUSES } from "~/lib/location-helper";
+import {
+  getAccessibleTextColor,
+  LOCATION_COLORS,
+  LOCATION_STATUSES,
+} from "~/lib/location-helper";
 
 // #2476: a status pill is text on a tinted surface, nothing else. The leading
 // dot repeated what tint and label already said, so every kit pill renders its
@@ -152,16 +156,18 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
     expectPlainPill(screen.getByText("Bauraum"), "Bauraum");
   });
 
-  it("DataTableStatusBadge renders all three states as plain text", () => {
-    const active = render(<DataTableStatusBadge active />);
-    expectPlainPill(screen.getByText("Aktiv"), "Aktiv");
-    active.unmount();
-
-    const inactive = render(<DataTableStatusBadge active={false} />);
-    expectPlainPill(screen.getByText("Inaktiv"), "Inaktiv");
-    inactive.unmount();
-
-    render(<DataTableStatusBadge active={false} unknown />);
-    expectPlainPill(screen.getByText("Unbekannt"), "Unbekannt");
-  });
+  it.each([
+    ["Aktiv", { active: true }, LOCATION_COLORS.GROUP_ROOM],
+    ["Inaktiv", { active: false }, LOCATION_COLORS.DANGER],
+    ["Unbekannt", { active: false, unknown: true }, LOCATION_COLORS.UNKNOWN],
+  ] as const)(
+    "DataTableStatusBadge renders %s as plain text with accessible color",
+    (label, props, color) => {
+      const view = render(<DataTableStatusBadge {...props} />);
+      const pill = screen.getByText(label);
+      expectPlainPill(pill, label);
+      expect(pill.style.color).toBe(getAccessibleTextColor(color, "#F9FAFB"));
+      view.unmount();
+    },
+  );
 });
