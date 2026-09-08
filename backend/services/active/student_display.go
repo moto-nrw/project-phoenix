@@ -25,10 +25,22 @@ type StudentDisplayReader interface {
 // GetActiveGroupVisitsWithDisplay keeps visit ordering and drops students
 // absent from the tenant-scoped directory, matching the original inner join.
 func (s *service) GetActiveGroupVisitsWithDisplay(ctx context.Context, groupID int64) ([]*VisitWithStudentDisplay, error) {
+	return s.GetActiveGroupVisitsWithDisplayForGroups(ctx, []int64{groupID})
+}
+
+// GetActiveGroupVisitsWithDisplayForGroups is the batch form: one visit query
+// and one directory query regardless of how many sessions are asked for. A
+// caller aggregating several rooms (the shared open-room view, #3065) would
+// otherwise issue a pair of queries per session, which grows with the school's
+// timetable rather than with its configuration.
+func (s *service) GetActiveGroupVisitsWithDisplayForGroups(ctx context.Context, groupIDs []int64) ([]*VisitWithStudentDisplay, error) {
 	if s.StudentDisplay == nil {
 		return nil, errors.New("student display directory is required")
 	}
-	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}, OpenOnly: true, NewestFirst: true})
+	if len(groupIDs) == 0 {
+		return nil, nil
+	}
+	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: groupIDs, OpenOnly: true, NewestFirst: true})
 	if err != nil {
 		return nil, err
 	}

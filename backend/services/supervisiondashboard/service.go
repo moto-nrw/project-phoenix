@@ -72,11 +72,17 @@ type Dependencies struct {
 	UserContext userContextService.UserContextService
 	Education   educationService.Service
 	Schulhof    facilitiesService.SchulhofService
-	Operations  scheduleService.TimetableOperationsService
-	Settings    configService.SettingsService
-	Pickups     scheduleService.PickupScheduleService
-	Arrivals    scheduleService.ArrivalScheduleService
-	Now         func() time.Time
+	// OpenRoomDirectory and OpenRoomSessions are consumer-owned ports for the
+	// shared open-room view. Both are optional so a composition that does not
+	// need the view (tests, narrow callers) simply omits them.
+	OpenRoomDirectory OpenRoomDirectory
+	OpenRoomSessions  OpenRoomSessions
+	OpenRoomVisits    OpenRoomVisits
+	Operations        scheduleService.TimetableOperationsService
+	Settings          configService.SettingsService
+	Pickups           scheduleService.PickupScheduleService
+	Arrivals          scheduleService.ArrivalScheduleService
+	Now               func() time.Time
 }
 
 type service struct{ deps Dependencies }
@@ -176,7 +182,10 @@ type Projection struct {
 	EducationalGroups            []EducationalGroup           `json:"educational_groups"`
 	// Schulhof is nil only when the caller has no staff identity (and thus no
 	// Schulhof workflow) — never because a sub-load failed.
-	Schulhof           *facilitiesService.SchulhofStatus          `json:"schulhof_status"`
+	Schulhof *facilitiesService.SchulhofStatus `json:"schulhof_status"`
+	// OpenRooms is the shared view of every permanently released room (#3065):
+	// reachable while empty, one entry per room, each child listed once.
+	OpenRooms          []OpenRoom                                 `json:"open_rooms"`
 	Capabilities       Capabilities                               `json:"capabilities"`
 	ActiveSessions     []scheduleService.OperationActiveSession   `json:"active_sessions"`
 	PlannedNow         []scheduleService.OperationPlannedInstance `json:"planned_now"`
@@ -189,6 +198,7 @@ type Projection struct {
 func emptyProjection() *Projection {
 	return &Projection{
 		Groups:             []Group{},
+		OpenRooms:          []OpenRoom{},
 		UnclaimedGroups:    []UnclaimedGroup{},
 		EducationalGroups:  []EducationalGroup{},
 		ActiveSessions:     []scheduleService.OperationActiveSession{},
@@ -238,6 +248,10 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 			return nil, fmt.Errorf("load schulhof status: %w", err)
 		}
 		projection.Schulhof = schulhof
+	}
+
+	if err := s.loadOpenRooms(ctx, projection, staffID); err != nil {
+		return nil, err
 	}
 
 	selected, err := selectGroup(groups, projection.Schulhof, requestedGroupID)
