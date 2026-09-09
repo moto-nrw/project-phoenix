@@ -72,7 +72,9 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
-	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.care_offering_auto_triggers":       "empty in prod too",
+	"enrollment.care_offering_bookings":            "#2712 Expand requires empty target storage and forbids application dual writes; remove at Cutover",
+	"enrollment.request_child_offering_selections": "#2712 Expand requires empty target storage and forbids application dual writes; remove at Cutover",
 
 	"feedback.entries": "empty in prod too",
 
@@ -105,6 +107,8 @@ var seedCoverageExemptions = map[string]string{
 	"users.profiles":                          "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":       "empty in prod too",
 	"users.staff_documents":                   "empty in prod too",
+	"users.staff_school_memberships":          "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
+	"users.staff_employment_profiles":         "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
 	"users.staff_financial_data":              "empty in prod too",
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
