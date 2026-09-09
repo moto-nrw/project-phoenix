@@ -2,7 +2,6 @@ package data_test
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -35,12 +34,12 @@ func TestTeacherStudentsQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueriesForContext(t, tc.db)
 	run := func() []string {
 		counter.Reset()
-		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/students?teacher_ids="+strings.Join(teacherIDs, ","), nil,
+		req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids="+strings.Join(teacherIDs, ","), nil,
 			testutil.WithDeviceContext(device),
 		)
 		req = req.WithContext(counter.Context(req.Context()))
 		rr := testutil.ExecuteRequest(tc.resource.Router(), req)
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+		testutil.AssertSuccessResponse(t, rr, 200)
 		return counter.Operation("SELECT")
 	}
 	small := run()

@@ -3,18 +3,23 @@ package data
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // RFIDResource defines the RFID API resource
 type RFIDResource struct {
-	UsersService usersSvc.PersonService
+	runtime Runtime
+	Tags    devicescan.StaffTagAssignments
 }
 
 // NewRFIDResource creates a new RFID resource
-func NewRFIDResource(usersService usersSvc.PersonService) *RFIDResource {
+func NewRFIDResource(tags devicescan.StaffTagAssignments, runtime Runtime) *RFIDResource {
+	if !runtime.valid() {
+		panic("IoT RFID: runtime is required")
+	}
 	return &RFIDResource{
-		UsersService: usersService,
+		runtime: runtime,
+		Tags:    tags,
 	}
 }
 

@@ -18,7 +18,7 @@ func (principals) Device(ctx context.Context) (*ports.Device, bool) {
 		return nil, false
 	}
 	return &ports.Device{
-		ID: principal.ID, DeviceID: principal.DeviceID, DeviceType: principal.DeviceType, Name: principal.Name,
+		ID: principal.ID, TenantID: principal.TenantID, DeviceID: principal.DeviceID, DeviceType: principal.DeviceType, Name: principal.Name,
 		Status: principal.Status, LastSeen: principal.LastSeen, Active: principal.IsActive(),
 	}, true
 }

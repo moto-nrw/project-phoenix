@@ -6,6 +6,7 @@ import (
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // SessionStartRequest represents a request to start an activity session
@@ -27,50 +28,23 @@ func (req *SessionStartRequest) Bind(_ *http.Request) error {
 }
 
 // SupervisorInfo represents information about a supervisor
-type SupervisorInfo struct {
-	StaffID     int64  `json:"staff_id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	DisplayName string `json:"display_name"`
-	Role        string `json:"role"`
-}
+type SupervisorInfo = devicescan.SupervisorInfo
 
 // SessionStartResponse represents the response when starting an activity session.
 // ActivityID is nullable (WP-B6): an API client that triggers a spontaneous
 // session still receives a response, but with `activity_id: null`. The
 // existing IoT start flow always carries a template id, so `null` never
 // appears for today's NFC path.
-type SessionStartResponse struct {
-	ActiveGroupID int64                 `json:"active_group_id"`
-	ActivityID    *int64                `json:"activity_id"`
-	DeviceID      int64                 `json:"device_id"`
-	StartTime     time.Time             `json:"start_time"`
-	ConflictInfo  *ConflictInfoResponse `json:"conflict_info,omitempty"`
-	Supervisors   []SupervisorInfo      `json:"supervisors,omitempty"`
-	Status        string                `json:"status"`
-	Message       string                `json:"message"`
-}
+type SessionStartResponse = devicescan.SessionStartResponse
 
 // ConflictInfoResponse represents conflict information for API responses
-type ConflictInfoResponse struct {
-	HasConflict       bool   `json:"has_conflict"`
-	ConflictingDevice *int64 `json:"conflicting_device,omitempty"`
-	ConflictMessage   string `json:"conflict_message"`
-	CanOverride       bool   `json:"can_override"`
-}
+type ConflictInfoResponse = devicescan.ConflictInfoResponse
 
 // SessionTimeoutResponse represents the result of processing a session timeout.
 // ActivityID is nullable (WP-B6): a timed-out spontaneous session has no parent
 // template. Serialized as `null` on the wire (no omitempty) so clients must
 // handle both shapes explicitly.
-type SessionTimeoutResponse struct {
-	SessionID          int64     `json:"session_id"`
-	ActivityID         *int64    `json:"activity_id"`
-	StudentsCheckedOut int       `json:"students_checked_out"`
-	TimeoutAt          time.Time `json:"timeout_at"`
-	Status             string    `json:"status"`
-	Message            string    `json:"message"`
-}
+type SessionTimeoutResponse = devicescan.SessionTimeoutResponse
 
 // SessionActivityRequest represents a session activity update request
 type SessionActivityRequest struct {
@@ -110,32 +84,10 @@ func (req *TimeoutValidationRequest) Bind(_ *http.Request) error {
 
 // SessionTimeoutInfoResponse provides comprehensive timeout information.
 // ActivityID is nullable per WP-B6 — see SessionTimeoutResponse above.
-type SessionTimeoutInfoResponse struct {
-	SessionID               int64     `json:"session_id"`
-	ActivityID              *int64    `json:"activity_id"`
-	StartTime               time.Time `json:"start_time"`
-	LastActivity            time.Time `json:"last_activity"`
-	TimeoutMinutes          int       `json:"timeout_minutes"`
-	InactivitySeconds       int       `json:"inactivity_seconds"`
-	TimeUntilTimeoutSeconds int       `json:"time_until_timeout_seconds"`
-	IsTimedOut              bool      `json:"is_timed_out"`
-	ActiveStudentCount      int       `json:"active_student_count"`
-}
+type SessionTimeoutInfoResponse = devicescan.SessionTimeoutInfoResponse
 
 // SessionCurrentResponse represents the current session information
-type SessionCurrentResponse struct {
-	ActiveGroupID  *int64           `json:"active_group_id,omitempty"`
-	ActivityID     *int64           `json:"activity_id,omitempty"`
-	ActivityName   *string          `json:"activity_name,omitempty"`
-	RoomID         *int64           `json:"room_id,omitempty"`
-	RoomName       *string          `json:"room_name,omitempty"`
-	DeviceID       int64            `json:"device_id"`
-	StartTime      *time.Time       `json:"start_time,omitempty"`
-	Duration       *string          `json:"duration,omitempty"`
-	IsActive       bool             `json:"is_active"`
-	ActiveStudents *int             `json:"active_students,omitempty"`
-	Supervisors    []SupervisorInfo `json:"supervisors,omitempty"`
-}
+type SessionCurrentResponse = devicescan.SessionCurrentResponse
 
 // UpdateSupervisorsRequest represents a request to update supervisors for an active session
 type UpdateSupervisorsRequest struct {
@@ -151,9 +103,4 @@ func (req *UpdateSupervisorsRequest) Bind(_ *http.Request) error {
 }
 
 // UpdateSupervisorsResponse represents the response when updating supervisors
-type UpdateSupervisorsResponse struct {
-	ActiveGroupID int64            `json:"active_group_id"`
-	Supervisors   []SupervisorInfo `json:"supervisors"`
-	Status        string           `json:"status"`
-	Message       string           `json:"message"`
-}
+type UpdateSupervisorsResponse = devicescan.UpdateSupervisorsResponse

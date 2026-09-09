@@ -28,14 +28,7 @@ type Service interface {
 	GetRoomHistory(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error)
 }
 
-type RoomWithOccupancy struct {
-	*facilitiesModule.Room
-	IsOccupied      bool    `json:"is_occupied"`
-	GroupName       *string `json:"group_name,omitempty"`
-	CategoryName    *string `json:"category_name,omitempty"`
-	StudentCount    int     `json:"student_count"`
-	SupervisorNames *string `json:"supervisor_names,omitempty"`
-}
+type RoomWithOccupancy = facilitiesModule.RoomWithOccupancy
 
 type RoomSessionEntry struct {
 	SessionID       int64      `json:"session_id"`

@@ -1,138 +1,13 @@
-// Package sessions internal tests for pure helper functions.
-// These tests verify logic that doesn't require database access.
 package sessions
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
-
-type stubStaffRepository struct {
-	userModels.StaffRepository
-	findWithPersonByIDs func(context.Context, []int64) (map[int64]*userModels.Staff, error)
-}
-
-func (s *stubStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return s.findWithPersonByIDs(ctx, ids)
-}
-
-type stubPersonService struct {
-	usersService.PersonService
-	staffRepo userModels.StaffRepository
-}
-
-func (s *stubPersonService) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return s.staffRepo.FindWithPersonByIDs(ctx, ids)
-}
-
-// =============================================================================
-// filterActiveSupervisors TESTS
-// =============================================================================
-
-func TestFilterActiveSupervisors_AllActive(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-	supervisors := []*active.GroupSupervisor{
-		{StaffID: 1, EndDate: nil},
-		{StaffID: 2, EndDate: nil},
-		{StaffID: 3, EndDate: nil},
-	}
-
-	result := rs.filterActiveSupervisors(supervisors)
-
-	assert.Len(t, result, 3)
-}
-
-func TestFilterActiveSupervisors_SomeEnded(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-	endDate := timezone.TodayDate()
-	supervisors := []*active.GroupSupervisor{
-		{StaffID: 1, EndDate: nil},
-		{StaffID: 2, EndDate: &endDate}, // Ended
-		{StaffID: 3, EndDate: nil},
-	}
-
-	result := rs.filterActiveSupervisors(supervisors)
-
-	assert.Len(t, result, 2)
-	assert.Equal(t, int64(1), result[0].StaffID)
-	assert.Equal(t, int64(3), result[1].StaffID)
-}
-
-func TestFilterActiveSupervisors_AllEnded(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-	endDate := timezone.TodayDate()
-	supervisors := []*active.GroupSupervisor{
-		{StaffID: 1, EndDate: &endDate},
-		{StaffID: 2, EndDate: &endDate},
-	}
-
-	result := rs.filterActiveSupervisors(supervisors)
-
-	assert.Empty(t, result)
-}
-
-func TestFilterActiveSupervisors_Empty(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-
-	result := rs.filterActiveSupervisors([]*active.GroupSupervisor{})
-
-	assert.Empty(t, result)
-}
-
-func TestFilterActiveSupervisors_ZeroStaffID(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{}
-	supervisors := []*active.GroupSupervisor{
-		{StaffID: 1, EndDate: nil},
-		{StaffID: 0, EndDate: nil}, // Invalid StaffID
-		{StaffID: 2, EndDate: nil},
-	}
-
-	result := rs.filterActiveSupervisors(supervisors)
-
-	assert.Len(t, result, 2)
-}
-
-func TestBuildSupervisorInfos_ReturnsEmptySliceWhenStaffLookupFails(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{
-		UsersService: &stubPersonService{
-			staffRepo: &stubStaffRepository{
-				findWithPersonByIDs: func(context.Context, []int64) (map[int64]*userModels.Staff, error) {
-					return nil, errors.New("database unavailable")
-				},
-			},
-		},
-	}
-
-	infos := rs.buildSupervisorInfos(context.Background(), []*active.GroupSupervisor{
-		{StaffID: 303, Role: "supervisor"},
-	})
-
-	require.NotNil(t, infos)
-	assert.Empty(t, infos)
-}
 
 func TestUpdateSupervisorsResponse_EmptySupervisorSliceSerializesAsJSONArray(t *testing.T) {
 	t.Parallel()

@@ -3,15 +3,17 @@ package data
 import (
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 )
+
+type tagAssignmentStub func(context.Context, string) (RFIDTagAssignmentResponse, error)
+
+func (q tagAssignmentStub) LookupTagAssignment(ctx context.Context, tag string) (RFIDTagAssignmentResponse, error) {
+	return q(ctx, tag)
+}
 
 // The assignment check answers a free bracelet without a failed-scan record;
 // the data resource has no scan recorder at all since #2698.
@@ -22,22 +24,23 @@ func TestRFIDAssignmentCheckDoesNotReportFailedScan(t *testing.T) {
 		err    error
 		status int
 	}{
-		{"free tag", &usersSvc.UsersError{Op: "find person by tag ID", Err: usersSvc.ErrPersonNotFound}, http.StatusOK},
-		{"lookup unavailable", errors.New("database unavailable"), http.StatusInternalServerError},
+		{"free tag", nil, 200},
+		{"lookup unavailable", errors.New("database unavailable"), 500},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			resource := &Resource{
-				UsersService: &userstest.PersonServiceMock{FindByTagIDFn: func(_ context.Context, tag string) (*users.Person, error) {
-					assert.Equal(t, "A1B2C3D4", tag)
-					return nil, tc.err
-				}},
+				runtime: testRuntime(),
+				TagAssignments: tagAssignmentStub(func(_ context.Context, tag string) (RFIDTagAssignmentResponse, error) {
+					assert.Equal(t, "a1:b2:c3:d4", tag)
+					return RFIDTagAssignmentResponse{Assigned: false}, tc.err
+				}),
 			}
-			req := httptest.NewRequest(http.MethodGet, "/rfid/a1:b2:c3:d4", nil).WithContext(requestWithDeviceContext().Context())
+			req := httptest.NewRequest("GET", "/rfid/a1:b2:c3:d4", nil).WithContext(requestWithDeviceContext().Context())
 			rr := httptest.NewRecorder()
 			resource.Router().ServeHTTP(rr, req)
 			assert.Equal(t, tc.status, rr.Code, rr.Body.String())
-			if tc.status == http.StatusOK {
+			if tc.status == 200 {
 				assert.Contains(t, rr.Body.String(), `"assigned":false`)
 			} else {
 				assert.NotContains(t, rr.Body.String(), "database unavailable")

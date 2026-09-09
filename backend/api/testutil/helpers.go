@@ -439,6 +439,16 @@ func RecordingUnprotectedGroupFunc(called *bool) func(chi.Router, func(chi.Route
 
 func IdentityMiddleware(next http.Handler) http.Handler { return next }
 
+// DeviceIdentity exposes the authenticated principal facts to HTTP adapter
+// runtimes without making each adapter test import the device middleware.
+func DeviceIdentity(ctx context.Context) (int64, string, bool) {
+	principal := device.DeviceFromCtx(ctx)
+	if principal == nil {
+		return 0, "", false
+	}
+	return principal.ID, principal.DeviceID, true
+}
+
 func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
 	render.Status(r, status)
 	render.JSON(w, r, Response{Status: "success", Data: data, Message: message})
@@ -593,6 +603,20 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 		*req = *req.WithContext(ctx)
 	}
 }
+
+// WithDeviceIdentity supplies a device principal to hermetic HTTP adapter tests
+// that do not need a persisted device or a tenant transaction.
+func WithDeviceIdentity(id int64, deviceID string) RequestOption {
+	return func(req *http.Request) {
+		principal := &device.AuthenticatedDevice{ID: id, DeviceID: deviceID}
+		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxDevice, principal))
+	}
+}
+
+// Rollback helpers exercise the same tenant marker as production middleware.
+func MarkRollback(ctx context.Context)                       { tenant.MarkRollback(ctx) }
+func WithRollbackMarker(ctx context.Context) context.Context { return tenant.WithRollbackMarker(ctx) }
+func RollbackRequested(ctx context.Context) bool             { return tenant.RollbackRequested(ctx) }
 
 // WithIoTDeviceRequest marks the request as a kiosk request, the way the
 // device middleware does, so services authorize through the device session.

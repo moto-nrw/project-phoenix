@@ -28,7 +28,7 @@ func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person,
 	if person == nil {
 		return nil, ports.ErrPersonNotFound
 	}
-	return &ports.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, HasTag: person.TagID != nil}, nil
+	return &ports.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, HasTag: person.TagID != nil, TagID: person.TagID}, nil
 }
 
 func (p people) FindStudentByPerson(ctx context.Context, personID int64) (*ports.Student, error) {
@@ -44,7 +44,8 @@ func (p people) FindStudentByPerson(ctx context.Context, personID int64) (*ports
 	}
 	return &ports.Student{
 		ID: student.ID, PersonID: student.PersonID, GroupID: student.GroupID, SchoolClass: student.SchoolClass,
-		Alumnus: student.Status == users.StudentStatusAlumnus,
+		Alumnus:       student.Status == users.StudentStatusAlumnus,
+		EnrolledUntil: student.EnrolledUntil,
 	}, nil
 }
 
@@ -59,5 +60,5 @@ func (p people) FindStaffByPerson(ctx context.Context, personID int64) (*ports.S
 	if staff == nil {
 		return nil, nil
 	}
-	return &ports.StaffMember{ID: staff.ID}, nil
+	return &ports.StaffMember{ID: staff.ID, PersonID: staff.PersonID}, nil
 }

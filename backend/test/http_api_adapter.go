@@ -9,14 +9,24 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type HTTPRequest = http.Request
 type HTTPResponseWriter = http.ResponseWriter
 type HTTPClient = http.Client
 type HTTPServer = HTTPTestServer
+
+// ParseHTTPIDParam is the test runtime's URL-ID parser. Production adapters
+// receive api/common.ParseIDParam from their composition root; isolated
+// adapter tests cannot import that root or its HTTP middleware.
+func ParseHTTPIDParam(r *HTTPRequest, param string) (int64, error) {
+	return strconv.ParseInt(chi.URLParam(r, param), 10, 64)
+}
 
 type HTTPTestServer struct {
 	URL      string
