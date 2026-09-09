@@ -20,6 +20,35 @@ func newGuardianAccess(t *testing.T, db *bun.DB) identityaccess.GuardianAccess {
 	return module
 }
 
+func TestGuardianAccessObservationsCountOnlyWrittenRows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	account := testpkg.CreateTestAccount(t, db, "guardian-observations")
+	var observations []identityCompose.Observation
+	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(observation identityCompose.Observation) {
+		observations = append(observations, observation)
+	}})
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	_, err = access.FindAccount(ctx, account.ID)
+	require.NoError(t, err)
+	_, err = access.FindAccountByEmail(ctx, account.Email)
+	require.NoError(t, err)
+	first, err := access.GrantGuardianTenantAccess(ctx, account.ID)
+	require.NoError(t, err)
+	_, err = access.GrantGuardianTenantAccess(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, observations, 4)
+	require.Zero(t, observations[0].Stats.Rows, "account SELECT changes no row")
+	require.Zero(t, observations[1].Stats.Rows, "email SELECT changes no row")
+	var expectedFirstWrites int64 = 1
+	if first.RoleAssigned {
+		expectedFirstWrites++
+	}
+	require.Equal(t, expectedFirstWrites, observations[2].Stats.Rows, "only mapping and role writes count")
+	require.EqualValues(t, 1, observations[3].Stats.Rows, "repeat grant only updates the mapping")
+}
+
 type tenantAccessRow struct {
 	Status        string
 	DeactivatedAt *time.Time

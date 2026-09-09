@@ -6799,7 +6799,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        840
+        849
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6812,7 +6812,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        786
+        795
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6825,7 +6825,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        603
+        612
       ],
       "tables": []
     },
@@ -6835,7 +6835,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        573
+        582
       ],
       "tables": []
     },
@@ -6845,7 +6845,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        514
+        523
       ],
       "tables": []
     },
@@ -6855,7 +6855,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        418
+        427
       ],
       "tables": []
     },
@@ -6865,7 +6865,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        135
+        144
       ],
       "tables": [
         "activities.schedules"
@@ -6877,7 +6877,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        117
+        126
       ],
       "tables": []
     },
@@ -6887,7 +6887,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        64
+        73
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -7080,7 +7080,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3862
+        3870
       ],
       "tables": []
     },

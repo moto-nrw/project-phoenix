@@ -1,15 +1,22 @@
-# Enrollment #2699: acceptance over the Identity & Access capability
+# Enrollment #2699: acceptance through owner capabilities
 
 This records local development verification of the enrollment acceptance
 workflow after its account, tenant-mapping and role repositories were
 replaced by the public Identity & Access guardian-access capability
-(`modules/identityaccess`). The other tables #2699 names stay where they
-were: `users.students` on the retained `models/users` repository, and
+(`modules/identityaccess`). The completed cutover also routes acceptance
+student reads, locks, creation, renewal and profile writes through People
+Directory. Departure reconciliation coordinates People Directory and Care Plan
+under the existing graph-lock protocol. The other tables #2699 names,
 `users.class_list_entries`, `enrollment.request_child_offerings` and
-`schedule.instance_students` behind the legacy-composition adapters over
-their owner facades (see `backend/architecture/README.md`). It is not a
-deployment observation. The change
-set is based on `116cd0b0026baaa927b65b2efaed90baf1ceee32`.
+`schedule.instance_students`, remain behind the legacy-composition adapters over
+their owner facades (see `backend/architecture/README.md`). This is not a
+deployment observation. The original measurement below predates the student
+cutover and used base `116cd0b0026baaa927b65b2efaed90baf1ceee32`.
+The integration review rebased the PR onto
+`a45d4fe3dc29141762709dd48eef82683b4a3210`.
+Before push, PR #3123 advanced development; both acceptance commits were
+then rebased without conflict or patch changes onto
+`36429d4a58ec68432d5d8bdb9d5a319af47709b1`.
 
 ## Reproduce
 
@@ -34,7 +41,7 @@ concurrency one, three runs, five warmups and 30 measured requests per
 scenario. Raw JSON, summary and test log are retained locally outside the
 repository.
 
-## Measured results
+## Original Identity-only measurement
 
 Median / worst across the three runs. Queries are per request; the report's
 per-run totals divided by 30. Every scenario returned its expected status in
@@ -107,3 +114,63 @@ optional selection mode and the submissions select no offerings), concurrent
 decisions on one request, or an injected database failure. The Identity &
 Access integration tests cover tenant scoping, reactivation, role idempotency,
 rollback with the caller's transaction and failure propagation separately.
+
+## Final owner-cutover measurement, 2026-09-09
+
+The workload was rerun after the integration fixes and after the broad test,
+lint and architecture processes had finished. The same workload version,
+three runs, five warmups and 30 measured requests per scenario were used.
+The production-router golden passed. A preceding run that overlapped the
+quality checks is excluded from latency comparison.
+
+Median / worst across the three isolated runs:
+
+| Operation suffix | Expected | p50 ms | p95 ms | Queries | Write rows |
+|---|---:|---:|---:|---:|---:|
+| approve | 200 | 12.524 / 13.064 | 13.548 / 15.772 | 41 to 42 | 7 |
+| approve-parent-account | 200 | 12.800 / 12.895 | 14.367 / 14.431 | 42 | 7 |
+| reject | 200 | 3.848 / 3.867 | 4.275 / 4.587 | 13 | 1 |
+| waitlist | 200 | 4.138 / 4.152 | 4.635 / 4.736 | 14 | 1 |
+| approve-terminal | 400 | 1.514 / 1.562 | 1.634 / 1.830 | 6 | 0 |
+| invalid-status | 400 | 0.885 / 0.909 | 1.004 / 1.025 | 4 | 0 |
+| child-not-found | 404 | 1.493 / 1.555 | 1.692 / 1.966 | 6 | 0 |
+
+Every operation has the prefix `enrollment.acceptance.`. Unexpected status
+rate was zero in all 630 measured requests. Expected-error rates remain one
+for the three refusal scenarios and zero for the other four. All pool-wait
+counts and durations were zero. No sampled backend waited on a lock; the
+largest sampling gap was 3.965 ms. No deadlocks were reported.
+
+Approvals now execute one additional query: People Directory verifies and
+key-share-locks the same-tenant person before creating its student. This
+closes the cross-tenant foreign-key gap at the new public write boundary.
+Write-row counts did not grow. Parent-account approval median p95 is
+14.367 ms versus 14.283 ms in the original measurement; the other timing
+differences do not demonstrate a material regression in this local workload.
+The historical and current runs were not a controlled same-session A/B test.
+
+Artifacts are retained outside the repository under
+`/tmp/backend-refactor-wave-20260909/`: `3129-runtime-isolated.json`,
+`3129-runtime-isolated.log`, and `3129-runtime-isolated-report/`.
+These are local evidence, not staging or production verification.
+
+### Additional acceptance evidence
+
+`services/enrollment/decision_approval_rollback_test.go` selects a fixed-day
+offering with a future instance and injects failure at the final notification.
+The test observes actual pending writes to student/person, guardian
+relationship, activity enrollment, instance roster, tenant mapping and role
+before returning the error. It then compares complete tenant-table snapshots
+against the pre-decision state, checks unchanged global account data and a
+foreign tenant, and verifies successful retry and repeated-approval
+idempotency. The fixture observes `users.class_list_entries` unchanged:
+that table is not written by this approval, and its existing Membership
+isolation tests remain the named-table access evidence.
+
+People Directory contract tests additionally cover cross-tenant rejection,
+NULL patches, unrelated-field preservation, mixed departure-mode mirrors,
+per-day companion coverage and rollback. Existing enrollment companion tests
+exercise stranding refusals and change-notification behavior through the new
+owner write path. These behavior tests complement the seven timed scenarios;
+care-offering materialization, concurrent graph edits and injected failures
+are not represented in the latency table.

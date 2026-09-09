@@ -52,7 +52,7 @@ func (s *Store) FindAccount(ctx context.Context, id int64) (domain.Account, bool
 	var rows []accountRow
 	started := time.Now()
 	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE id = ?`, id).Scan(ctx, &rows)
-	stats := domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account: %w", err)
 	}
@@ -72,7 +72,7 @@ func (s *Store) FindAccountByEmail(ctx context.Context, email string) (domain.Ac
 	var rows []accountRow
 	started := time.Now()
 	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE LOWER(email) = ? ORDER BY id LIMIT 1`, email).Scan(ctx, &rows)
-	stats := domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return domain.Account{}, false, stats, fmt.Errorf("identity access postgres: find account by email: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *Store) FindRoleByName(ctx context.Context, name string, tenantID int64)
 	err = db.NewRaw(`SELECT id FROM auth.roles
 		WHERE LOWER(name) = LOWER(?) AND (tenant_id = ? OR tenant_id IS NULL)
 		ORDER BY tenant_id IS NULL ASC, id ASC LIMIT 1`, name, tenantID).Scan(ctx, &ids)
-	stats := domain.OperationStats{Queries: 1, Rows: int64(len(ids)), StatementDuration: time.Since(started)}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return 0, false, stats, fmt.Errorf("identity access postgres: find role by name: %w", err)
 	}

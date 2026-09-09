@@ -27,6 +27,7 @@ type stubGuardianProfileRepo struct {
 	// byAccountErr simulates an operational (non-not-found) failure of the
 	// by-account lookup.
 	byAccountErr error
+	byEmailErr   error
 	emailLookups int
 	created      int
 	updated      int
@@ -44,6 +45,9 @@ func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID i
 
 func (s *stubGuardianProfileRepo) FindByEmail(_ context.Context, email string) (*usersModels.GuardianProfile, error) {
 	s.emailLookups++
+	if s.byEmailErr != nil {
+		return nil, s.byEmailErr
+	}
 	if p, ok := s.byEmail[strings.ToLower(strings.TrimSpace(email))]; ok {
 		return p, nil
 	}
@@ -61,6 +65,53 @@ func (s *stubGuardianProfileRepo) Update(_ context.Context, _ *usersModels.Guard
 }
 
 func int64Ptr(v int64) *int64 { return &v }
+
+func TestResolveGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("guardian storage unavailable")
+	repo := &stubGuardianProfileRepo{byEmailErr: failure}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	profile, created, err := svc.resolveGuardianProfile(context.Background(), &enrollmentModels.Request{
+		GuardianEmail: "guardian@example.test", GuardianFirstName: "Anna", GuardianLastName: "Test",
+	})
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, profile)
+	require.False(t, created)
+	require.Zero(t, repo.created)
+}
+
+func TestResolveAdditionalGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("guardian storage unavailable")
+	repo := &stubGuardianProfileRepo{byEmailErr: failure}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	email := "guardian@example.test"
+	id, err := svc.resolveAdditionalGuardianProfile(context.Background(), &capability.RequestGuardian{
+		Email: &email, FirstName: "Anna", LastName: "Test",
+	})
+	require.ErrorIs(t, err, failure)
+	require.Zero(t, id)
+	require.Zero(t, repo.created)
+}
+
+type failingDecisionRequestReader struct {
+	DecisionRequests
+	err error
+}
+
+func (r failingDecisionRequestReader) RequestByID(context.Context, int64, bool) (*capability.Request, error) {
+	return nil, r.err
+}
+
+func TestDecide_PreservesRequestReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("request storage unavailable")
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{Requests: failingDecisionRequestReader{err: failure}}}
+	outcome, err := svc.Decide(context.Background(), DecideInput{RequestID: 10, ChildID: 20, Status: DecisionApproved})
+	require.ErrorIs(t, err, failure)
+	require.NotErrorIs(t, err, ErrDecisionRequestNotFound)
+	require.Nil(t, outcome)
+}
 
 type stubLateInviteRepo struct {
 	invite  *capability.LateInvite

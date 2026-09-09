@@ -5,10 +5,12 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 )
 
 var (
-	ErrStudentNotFound = errors.New("student not found")
+	ErrStudentNotFound = enrollment.ErrStudentNotFound
 	ErrInvalidStudent  = errors.New("invalid student")
 )
 
@@ -78,6 +80,11 @@ type StudentQuery interface {
 // StudentCommand changes student rows. Every command runs in the caller's
 // transaction or opens one for the tenant in context.
 type StudentCommand interface {
+	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
+	LockEnrollmentClassWrites(context.Context) error
+	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
+	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
+	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
 	// LockStudent takes the student row FOR UPDATE; it is the first lock of
 	// every care-day writer. ErrStudentNotFound when the tenant has no such
 	// row.
@@ -108,6 +115,11 @@ type StudentStatusFlagCapability interface {
 }
 
 type studentEngine interface {
+	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
+	LockEnrollmentClassWrites(context.Context) error
+	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
+	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
+	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
 	ListStudentsByIDs(context.Context, []int64) ([]Student, error)
 	ListStudentNamesByIDs(context.Context, []int64) ([]StudentName, error)
 	ListStudentsAcrossTenantsByIDs(context.Context, []int64) ([]Student, error)

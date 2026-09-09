@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -390,34 +391,37 @@ type DecisionLateInvites interface {
 }
 
 type DecisionServiceConfig struct {
-	ApprovedOfferings      ApprovedOfferingReader
-	Requests               DecisionRequests
-	Children               DecisionChildren
-	Guardians              DecisionGuardians
-	LateInviteRepo         DecisionLateInvites
-	CareOfferingRepo       enrollmentModels.CareOfferingRepository
-	Phases                 PhaseBatchReader
-	Schemas                SchemaReader                        // needed to look up FormField.Target for each submitted answer
-	DataAccessLogRepo      auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
-	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
-	RestorationAuditRepo   auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
-	SchoolRepo             platformModels.SchoolRepository
-	PersonRepo             users.PersonRepository
-	StaffRepo              users.StaffRepository
-	StudentRepo            users.StudentRepository
-	StudentGuardianRepo    users.StudentGuardianRepository
-	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
-	GuardianProfileRepo    users.GuardianProfileRepository
-	GuardianPhoneRepo      users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
-	PickupScheduleRepo     scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
-	PickupBaselines        OfferingPickupBaselineReader
-	ArrivalScheduleRepo    scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
-	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
-	ActivityGroupRepo      activities.GroupRepository
-	ActivityScheduleRepo   activities.ScheduleRepository
-	CalendarPeriodRepo     scheduleModels.CalendarPeriodRepository
-	TimeframeRepo          scheduleModels.TimeframeRepository
-	ActivityExceptionRepo  scheduleModels.ActivityExceptionRepository
+	ApprovedOfferings         ApprovedOfferingReader
+	Requests                  DecisionRequests
+	Children                  DecisionChildren
+	Guardians                 DecisionGuardians
+	LateInviteRepo            DecisionLateInvites
+	CareOfferingRepo          enrollmentModels.CareOfferingRepository
+	Phases                    PhaseBatchReader
+	Schemas                   SchemaReader                        // needed to look up FormField.Target for each submitted answer
+	DataAccessLogRepo         auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
+	OfferingAdjustmentRepo    auditModels.EnrollmentOfferingAdjustmentRepository
+	RestorationAuditRepo      auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
+	SchoolRepo                platformModels.SchoolRepository
+	PersonRepo                users.PersonRepository
+	StaffRepo                 users.StaffRepository
+	StudentRepo               users.StudentRepository
+	StudentEnrollment         DecisionStudentEnrollment
+	DepartureCompanions       DecisionDepartureCompanions
+	DeleteDepartureCompanions func(context.Context, []int64) error
+	StudentGuardianRepo       users.StudentGuardianRepository
+	GuardianFinancialAudit    auditModels.GuardianFinancialChangeCreator
+	GuardianProfileRepo       users.GuardianProfileRepository
+	GuardianPhoneRepo         users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo        scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
+	PickupBaselines           OfferingPickupBaselineReader
+	ArrivalScheduleRepo       scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
+	StudentEnrollmentRepo     activities.StudentEnrollmentRepository
+	ActivityGroupRepo         activities.GroupRepository
+	ActivityScheduleRepo      activities.ScheduleRepository
+	CalendarPeriodRepo        scheduleModels.CalendarPeriodRepository
+	TimeframeRepo             scheduleModels.TimeframeRepository
+	ActivityExceptionRepo     scheduleModels.ActivityExceptionRepository
 	// GuardianAccess is the Identity & Access capability an approval uses to
 	// recognise a parent's existing portal account and grant it access to
 	// this school. Required: an approval without it fails instead of silently
@@ -1169,7 +1173,10 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// must not introduce a parent/child lock inversion.
 	request, err := intakeRequestByID(ctx, s.Requests, input.RequestID, true)
 	if err != nil {
-		return nil, ErrDecisionRequestNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrDecisionRequestNotFound
+		}
+		return nil, fmt.Errorf("decision: load request: %w", err)
 	}
 	// Lock every sibling, in the repository's stable sort_order/id order, before
 	// inspecting or changing any status. Decisions for two children in the same
@@ -1458,12 +1465,15 @@ func (s *decisionService) applyApproval(
 	phase *capability.Phase,
 	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
-	if s.PersonRepo == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil ||
+	if s.PersonRepo == nil || s.GuardianProfileRepo == nil ||
 		s.StudentGuardianRepo == nil {
 		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
 	}
 	if s.GuardianAccess == nil {
 		return nil, errDecisionGuardianAccessRequired
+	}
+	if s.StudentEnrollment == nil {
+		return nil, errors.New("decision: student enrollment capability is required")
 	}
 
 	// Rollover branch (migration 1.15.62): when this request_child was
@@ -1575,9 +1585,12 @@ func (s *decisionService) applyApproval(
 	if err := student.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
 	}
-	if err := s.StudentRepo.Create(ctx, student); err != nil {
+	created, err := s.StudentEnrollment.CreateEnrollmentStudent(ctx, enrollmentStudentInput(student))
+	if err != nil {
 		return nil, fmt.Errorf("decision: create student: %w", err)
 	}
+	student.ID, student.CreatedAt, student.UpdatedAt = created.ID, created.CreatedAt, created.UpdatedAt
+	student.SetTenantID(created.TenantID)
 
 	// 4. Link student ↔ guardian as the primary relationship.
 	rel := &users.StudentGuardian{
@@ -1828,14 +1841,14 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// rewrites school_class below, and the class-change resync needs the
 	// recurrence gate; acquiring both up front keeps the approval deadlock-free
 	// against a concurrent direct PUT or grade transition on the same student.
-	if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
+	if err := s.StudentEnrollment.LockEnrollmentClassWrites(ctx); err != nil {
 		return nil, fmt.Errorf("decision: lock class writes for existing-student approval: %w", err)
 	}
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return nil, err
 	}
 
-	existing, err := s.StudentRepo.FindByID(ctx, studentID)
+	existing, err := s.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
 		return nil, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
 	}
@@ -1870,7 +1883,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		}
 		existing.GuardianPhone = request.GuardianPhone
 	}
-	if err := s.StudentRepo.Update(ctx, existing); err != nil {
+	if err := s.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
 		return nil, fmt.Errorf("decision: update existing student: %w", err)
 	}
 	if beforeStatus != existing.Status && s.StudentAudit != nil {
@@ -2126,6 +2139,9 @@ func (s *decisionService) resolveGuardianProfile(
 
 	if email != "" {
 		existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
+		if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) && !errors.Is(err, sql.ErrNoRows) {
+			return nil, false, fmt.Errorf("decision: resolve guardian profile by email: %w", err)
+		}
 		if err == nil && existing != nil {
 			// Guard against an authenticated parent claiming an email that
 			// already belongs to a DIFFERENT account's guardian profile at this
@@ -2157,8 +2173,6 @@ func (s *decisionService) resolveGuardianProfile(
 			}
 			return existing, false, nil
 		}
-		// errors.Is(sql.ErrNoRows) and "not found" both flow through;
-		// we don't distinguish - if the lookup fails we still create.
 	}
 
 	// Build a fresh profile.
@@ -2656,7 +2670,11 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 
 	var profileID int64
 	if email != "" {
-		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+		existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
+		if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) && !errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("resolve co-guardian profile by email: %w", err)
+		}
+		if err == nil && existing != nil {
 			if err := s.applyStandaloneGuardianProfileNameCorrection(ctx, existing, extra.FirstName, extra.LastName); err != nil {
 				return 0, err
 			}
@@ -3287,10 +3305,10 @@ func (s *decisionService) loadSourcedTemplateDraftInputs(
 // studentCareDraftBounds derives the child's grade filter and exclusive care
 // end. A missing row yields open bounds for legacy compatibility.
 func (s *decisionService) studentCareDraftBounds(ctx context.Context, studentID int64) (*int16, *timezone.Date, error) {
-	if studentID <= 0 || s.StudentRepo == nil {
+	if studentID <= 0 {
 		return nil, nil, nil
 	}
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
+	student, err := s.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return nil, nil, nil
@@ -3941,7 +3959,7 @@ func (s *decisionService) applyTargetedFields(
 
 	departurePlanSynced := false
 	// The companion refusals are kept as a WRAPPED error, not flattened into
-	// the string list: StudentRepository.Update reconciles the "läuft mit"
+	// the string list: the enrollment departure workflow reconciles the "läuft mit"
 	// edges for every caller, and these two sentinels are expected,
 	// user-actionable refusals (fix the other child's Heimweg first / retry
 	// after the concurrent edit). Reducing them to text — as every other
@@ -3957,7 +3975,20 @@ func (s *decisionService) applyTargetedFields(
 		// Only the write path knows the difference, so read it from there
 		// (users.CompanionChangeRecorder) instead of inferring it from the payload.
 		updateCtx, companionChanges := users.ContextWithCompanionChangeRecorder(ctx)
-		if err := s.StudentRepo.Update(updateCtx, student); err != nil {
+		departureChanged := !reflect.DeepEqual(consentBefore.AllowedDepartureModes, student.AllowedDepartureModes) ||
+			!reflect.DeepEqual(consentBefore.DepartureDays, student.DepartureDays) ||
+			!reflect.DeepEqual(consentBefore.BusDays, student.BusDays) ||
+			!reflect.DeepEqual(consentBefore.PickupDays, student.PickupDays) ||
+			enrollmentValueChanged(consentBefore.DepartureCompanionNote, student.DepartureCompanionNote)
+		var updateErr error
+		if s.StudentEnrollment == nil {
+			updateErr = errors.New("decision: student enrollment capability is required")
+		} else if departureChanged {
+			updateErr = s.applyEnrollmentDeparture(updateCtx, &consentBefore, student)
+		} else {
+			updateErr = s.StudentEnrollment.ApplyEnrollmentProfile(updateCtx, student.ID, enrollmentProfilePatch(&consentBefore, student))
+		}
+		if err := updateErr; err != nil {
 			if errors.Is(err, users.ErrCompanionWouldLoseDeparture) || errors.Is(err, users.ErrCompanionLockBusy) {
 				companionRefusal = fmt.Errorf("update student: %w", err)
 			} else {
