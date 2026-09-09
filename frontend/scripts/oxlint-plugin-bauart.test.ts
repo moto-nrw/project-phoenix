@@ -150,3 +150,118 @@ describe("bauart/one-delete-confirm", () => {
     ).not.toContain("bauart(one-delete-confirm)");
   });
 });
+
+describe("bauart/no-unconfirmed-destructive-click", () => {
+  it("rejects a delete button that fires the removal from the click", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({ remove }: { remove: () => Promise<void> }) {
+        return (
+          <Button type="button" onClick={() => void remove()}>
+            Entfernen
+          </Button>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+    expect(output).toContain("„Entfernen“");
+  });
+
+  it("sees the removal inside a branch, an aria-label and an async handler", () => {
+    const { status, output } = lintSource(
+      `export function Probe({
+        archive,
+        ready,
+      }: {
+        archive: () => Promise<void>;
+        ready: boolean;
+      }) {
+        return (
+          <button
+            type="button"
+            aria-label="Spur archivieren"
+            onClick={async () => {
+              if (ready) await archive();
+            }}
+          />
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+  });
+
+  it("rejects a menu item that deletes from its click", () => {
+    const { status, output } = lintSource(
+      `export function items(remove: () => Promise<void>) {
+        return [
+          { label: "Bearbeiten", onClick: () => {} },
+          { label: "Löschen", destructive: true, onClick: () => void remove() },
+        ];
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("Menüeintrag „Löschen“");
+  });
+
+  it("accepts a click that only opens the confirmation", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({
+        setTarget,
+      }: {
+        setTarget: (id: string) => void;
+      }) {
+        return (
+          <>
+            <Button type="button" onClick={() => setTarget("1")}>
+              Löschen
+            </Button>
+            {[{ label: "Entfernen", onClick: () => setTarget("2") }].map(
+              (item) => item.label,
+            )}
+          </>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+    expect(status).toBe(0);
+  });
+
+  it("accepts a non-destructive action fired from the click", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({ save }: { save: () => Promise<void> }) {
+        return (
+          <Button type="button" onClick={() => void save()}>
+            Speichern
+          </Button>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+    expect(status).toBe(0);
+  });
+
+  it("leaves the kit directory alone", () => {
+    const { output } = lintSource(
+      `import { Button } from "./button";
+      export function Probe({ remove }: { remove: () => Promise<void> }) {
+        return (
+          <Button type="button" onClick={() => void remove()}>
+            Endgültig löschen
+          </Button>
+        );
+      }`,
+      "src/components/ui/confirm-delete-modal.tsx",
+    );
+
+    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+  });
+});
