@@ -2,7 +2,7 @@
 
 ## Scope and rollout order
 
-1. Apply **1.15.375**, the separately approved prerequisite unique index on
+1. Apply **1.15.377**, the separately approved prerequisite unique index on
    `schedule.instance_students (tenant_id, id)`. The existing global primary
    key already guarantees uniqueness. This migration changes no rows, columns,
    or write paths. It waits at most five seconds for a lock and limits the
@@ -10,7 +10,7 @@
    while building; measure this step separately from Expand and schedule it
    for a quiet window. Failure rolls back the index build; do not bypass the
    timeout without first investigating contention and table size.
-2. Apply **1.15.376**, which creates empty `active.activity_sessions` and
+2. Apply **1.15.378**, which creates empty `active.activity_sessions` and
    `active.activity_session_attendance` tables, their keys, indexes, grants and
    forced tenant RLS in one transaction. Lock acquisition is limited to five
    seconds. The migration does not copy data or change old-table definitions.
@@ -107,7 +107,7 @@ interpreting a successful migration as evidence of application compatibility.
 
 | Evidence | Status |
 | --- | --- |
-| Local migrated-clone column/FK/RLS/default/rollback tests | Automated in `001015375_instance_students_tenant_key_test.go` and `001015376_presence_expand_test.go` |
+| Local migrated-clone column/FK/RLS/default/rollback tests | Automated in `001015377_instance_students_tenant_key_test.go` and `001015378_presence_expand_test.go` |
 | Local old SQL shape preservation | Automated, including planning/attendance writes and empty-target assertions |
 | Staging old image digest and workload result | Pending deployment; local SQL tests do not prove this |
 | Staging migration durations, lock waits, blocked sessions, deadlock deltas | Pending deployment; no values fabricated |
@@ -121,7 +121,7 @@ precedence in `backend/CLAUDE.md` over the general external-test guideline.
 
 ## Rollback
 
-Rollback 1.15.376 before 1.15.375 using the migration runner's dependency order.
+Rollback 1.15.378 before 1.15.377 using the migration runner's dependency order.
 Expand rollback locks both targets, verifies that both are empty, and drops only
 those tables and their dependent indexes, policies and owned sequences. It
 leaves the prerequisite index and all old data intact. The separate prerequisite

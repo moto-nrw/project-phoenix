@@ -269,10 +269,10 @@ func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := createPresenceExpandFixture(t, db)
 	assertPresenceTargetsEmpty(t, db)
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015376", false))
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015375", false))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015377", false))
 	beforePrerequisite := presenceOldStorageSnapshot(t, db)
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015375", true))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015377", true))
 	afterPrerequisite := presenceOldStorageSnapshot(t, db)
 	// The approved prerequisite changes exactly one index inventory, not data,
 	// columns, constraints, or application triggers on either old table.
@@ -282,7 +282,7 @@ func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 		}
 	}
 	require.NotEqual(t, beforePrerequisite[8], afterPrerequisite[8])
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015376", true))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", true))
 	require.Equal(t, afterPrerequisite, presenceOldStorageSnapshot(t, db))
 	assertPresenceTargetsEmpty(t, db)
 	// The previous application's SQL shape can still complete, reopen, plan,
@@ -303,15 +303,15 @@ func TestPresenceExpandUpDownPreservesOldAuthority(t *testing.T) {
 	}))
 	assertPresenceTargetsEmpty(t, db)
 	beforeDown := presenceOldStorageSnapshot(t, db)
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015376", false))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))
 	require.Equal(t, beforeDown, presenceOldStorageSnapshot(t, db))
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = 'active' AND (c.relname LIKE '%activity_sessions%' OR c.relname LIKE '%activity_session_attendance%')`).Scan(t.Context(), &remaining))
 	require.Zero(t, remaining, "tables, indexes and owned sequences must all be gone")
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015375", false))
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015375", true))
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015376", true))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015377", false))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015377", true))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", true))
 	assertPresenceTargetsEmpty(t, db)
 }
 
@@ -328,7 +328,7 @@ func TestPresenceExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 	} {
 		_, err := db.ExecContext(t.Context(), fmt.Sprintf("INSERT INTO active.%s (tenant_id, %s) VALUES (?, ?)", tc.table, tc.column), f.tenant, tc.parent)
 		require.NoError(t, err)
-		require.ErrorContains(t, runPresenceMigration(t.Context(), db, "001015376", false), "requires empty target tables")
+		require.ErrorContains(t, runPresenceMigration(t.Context(), db, "001015378", false), "requires empty target tables")
 		var count int
 		require.NoError(t, db.NewRaw("SELECT count(*) FROM active."+tc.table).Scan(t.Context(), &count))
 		require.Equal(t, 1, count)
@@ -336,7 +336,7 @@ func TestPresenceExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 		require.NoError(t, err)
 	}
 	// The prerequisite also refuses to cascade through the target FK.
-	require.Error(t, runPresenceMigration(t.Context(), db, "001015375", false))
+	require.Error(t, runPresenceMigration(t.Context(), db, "001015377", false))
 	assertPresenceTargetsEmpty(t, db)
 }
 
@@ -436,11 +436,11 @@ func TestPresenceExpandCatalogAndDefaults(t *testing.T) {
 func TestPresenceExpandFailureIsAtomic(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	require.NoError(t, runPresenceMigration(t.Context(), db, "001015376", false))
+	require.NoError(t, runPresenceMigration(t.Context(), db, "001015378", false))
 	// Fail after the first table has been created, before RLS provisioning.
 	_, err := db.ExecContext(t.Context(), `CREATE TABLE active.activity_session_attendance (probe BOOLEAN)`)
 	require.NoError(t, err)
-	require.Error(t, runPresenceMigration(t.Context(), db, "001015376", true))
+	require.Error(t, runPresenceMigration(t.Context(), db, "001015378", true))
 	var absent bool
 	require.NoError(t, db.NewRaw(`SELECT to_regclass('active.activity_sessions') IS NULL`).Scan(t.Context(), &absent))
 	require.True(t, absent, "a failed Expand must leave no partially provisioned session table")

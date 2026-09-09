@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const instanceStudentsTenantKeyVersion = "1.15.375"
+const instanceStudentsTenantKeyVersion = "1.15.377"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

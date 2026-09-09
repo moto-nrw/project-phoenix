@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const presenceExpandVersion = "1.15.376"
+const presenceExpandVersion = "1.15.378"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
