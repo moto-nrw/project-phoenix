@@ -138,6 +138,8 @@ function rowClass(definition: HomeBlockDefinition | null): string {
 export interface HomeBoardProps {
   readonly placements: readonly HomeBlockPlacement[];
   readonly addable: readonly HomeBlockDefinition[];
+  /** Bausteine, die die Schule für alle Personen verlangt. */
+  readonly requiredKeys: ReadonlySet<HomeBlockKey>;
   readonly editing: boolean;
   /**
    * Legt einen Baustein in eine Zelle. `base` ist die Anordnung, von der aus
@@ -213,6 +215,7 @@ interface DragSession {
 export function HomeBoard({
   placements,
   addable,
+  requiredKeys,
   editing,
   onMove,
   onMoveBy,
@@ -488,6 +491,7 @@ export function HomeBoard({
           <SelectionBar
             definition={selectedDefinition}
             placement={selected}
+            isRequired={selected ? requiredKeys.has(selected.key) : false}
             onSpanChange={onSpanChange}
             onRemove={(key) => {
               setSelectedKey(null);
@@ -746,6 +750,7 @@ function ArrangeTile({
 function SelectionBar({
   definition,
   placement,
+  isRequired,
   onSpanChange,
   onRemove,
   onRestoreDefault,
@@ -756,6 +761,7 @@ function SelectionBar({
 }: {
   readonly definition: HomeBlockDefinition | null;
   readonly placement: HomeBlockPlacement | undefined;
+  readonly isRequired: boolean;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onRestoreDefault: () => void;
@@ -801,16 +807,22 @@ function SelectionBar({
             </span>
           )}
 
-          <Button
-            type="button"
-            variant="outline_danger"
-            size="md"
-            className="gap-1"
-            onClick={() => onRemove(placement.key)}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Entfernen
-          </Button>
+          {isRequired ? (
+            <span className="text-sm text-gray-500">
+              Die Schule zeigt diesen Baustein immer.
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="outline_danger"
+              size="md"
+              className="gap-1"
+              onClick={() => onRemove(placement.key)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Entfernen
+            </Button>
+          )}
         </>
       ) : (
         <span className="min-w-0 flex-1 text-sm text-gray-600">

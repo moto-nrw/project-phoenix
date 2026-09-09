@@ -484,6 +484,19 @@ describe("Startseite anpassen", () => {
     ).toBeInTheDocument();
   });
 
+  it("erklärt verpflichtende Bausteine statt ein wirkungsloses Entfernen anzubieten", () => {
+    layoutState.policies = { "tile.students_present": "required" };
+    startEditing();
+    select("Kinder anwesend");
+
+    expect(
+      screen.getByText("Die Schule zeigt diesen Baustein immer."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
   // Gezogen wird mit Zeigerereignissen, nicht mit dem nativen HTML5-Ziehen:
   // das kennt kein Tablet und lässt sich nicht prüfen.
   it("sortiert eine gezogene Karte an den Platz um, auf dem sie landet", async () => {

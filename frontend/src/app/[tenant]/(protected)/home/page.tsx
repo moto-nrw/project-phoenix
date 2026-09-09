@@ -166,6 +166,15 @@ function HomeContent() {
       !placedKeys.has(block.key) &&
       (homeLayout.policies[block.key] ?? "optional") !== "disabled",
   );
+  const requiredKeys = useMemo(
+    () =>
+      new Set<HomeBlockKey>(
+        Object.entries(homeLayout.policies)
+          .filter(([, policy]) => policy === "required")
+          .map(([key]) => key as HomeBlockKey),
+      ),
+    [homeLayout.policies],
+  );
 
   const wantsBirthdayData = placedKeys.has("section.birthdays");
   // Das Analytics-Endpunkt verlangt groups:read. „Personal heute" bleibt
@@ -443,6 +452,7 @@ function HomeContent() {
         <HomeBoard
           placements={placements}
           addable={addable}
+          requiredKeys={requiredKeys}
           editing={editing}
           onMove={move}
           onMoveBy={moveBy}
