@@ -22,6 +22,7 @@ type ClassAssignment struct {
 }
 
 type ClassAssignmentFilter struct {
+	ForUpdate bool
 	IDs       []int64
 	StaffIDs  []int64
 	ClassKeys []string
@@ -37,6 +38,7 @@ type GroupAssignment struct {
 }
 
 type GroupAssignmentFilter struct {
+	ForUpdate       bool
 	IDs             []int64
 	GroupIDs        []int64
 	TeacherIDs      []int64

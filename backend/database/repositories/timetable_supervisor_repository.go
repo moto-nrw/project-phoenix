@@ -128,14 +128,6 @@ func (r timetableActivitySupervisorRepository) SetPrimary(ctx context.Context, i
 	return nil
 }
 
-func (r timetableActivitySupervisorRepository) DeleteByStaffID(ctx context.Context, staffID int64) (int64, error) {
-	rows, err := r.timetable.DeletePlannedSupervisorsByStaff(ctx, staffID)
-	if err != nil {
-		return 0, legacyDatabaseError("delete by staff id", err)
-	}
-	return rows, nil
-}
-
 func (r timetableActivitySupervisorRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil activitiesModels.SupervisorDate) (int64, error) {
 	rows, err := r.timetable.CapActivePlannedSupervisors(ctx, groupID, validUntil.String())
 	if err != nil {

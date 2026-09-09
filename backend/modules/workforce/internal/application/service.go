@@ -15,27 +15,39 @@ import (
 
 // Service is the single entry point behind the Workforce facade.
 type Service struct {
-	store       ports.Store
-	transaction ports.Transaction
-	assignments ports.StaffAssignments
-	clock       ports.Clock
-	observe     ports.Observer
+	store               ports.Store
+	transaction         ports.Transaction
+	assignments         ports.StaffAssignments
+	lockStaffAssignment func(context.Context, int64) error
+	clock               ports.Clock
+	observe             ports.Observer
 }
 
 func New(
 	store ports.Store,
 	transaction ports.Transaction,
 	assignments ports.StaffAssignments,
+	lockStaffAssignment func(context.Context, int64) error,
 	clock ports.Clock,
 	observe ports.Observer,
 ) *Service {
-	if store == nil || transaction == nil || assignments == nil || clock == nil || observe == nil {
+	if store == nil || transaction == nil || assignments == nil || lockStaffAssignment == nil || clock == nil || observe == nil {
 		panic("workforce application: all dependencies are required")
 	}
-	return &Service{store: store, transaction: transaction, assignments: assignments, clock: clock, observe: observe}
+	return &Service{store: store, transaction: transaction, assignments: assignments, lockStaffAssignment: lockStaffAssignment, clock: clock, observe: observe}
 }
 
 // --- work-time templates ---
+
+func (s *Service) lockAssignmentStaff(ctx context.Context, ids []int64) error {
+	slices.Sort(ids)
+	for _, id := range slices.Compact(ids) {
+		if err := s.lockStaffAssignment(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (s *Service) ListWorkTimeModels(ctx context.Context) (result []domain.WorkTimeModel, err error) {
 	err = s.run("list_work_time_models", func(stats *domain.OperationStats) error {

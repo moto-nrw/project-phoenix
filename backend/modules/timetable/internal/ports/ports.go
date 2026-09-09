@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
 	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, domain.OperationStats, error)
 	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)

@@ -20,12 +20,13 @@ import (
 )
 
 type seriesTestEnv struct {
-	db     *bun.DB
-	scope  testpkg.TenantScope
-	staff  *usersModels.Staff
-	repos  *repositories.Factory
-	series scheduleSvc.StaffShiftSeriesService
-	shifts scheduleSvc.StaffShiftService
+	db             *bun.DB
+	scope          testpkg.TenantScope
+	staff          *usersModels.Staff
+	repos          *repositories.Factory
+	series         scheduleSvc.StaffShiftSeriesService
+	shifts         scheduleSvc.StaffShiftService
+	capStaffSeries func(context.Context, int64, string) (int64, error)
 }
 
 func setupSeriesTest(t *testing.T) *seriesTestEnv {
@@ -34,19 +35,21 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	dependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, dependencies)
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 
 	env := &seriesTestEnv{
-		db:     db,
-		scope:  scope,
-		staff:  staff,
-		repos:  repoFactory,
-		series: serviceFactory.StaffShiftSeries,
-		shifts: serviceFactory.StaffShifts,
+		db:             db,
+		scope:          scope,
+		staff:          staff,
+		repos:          repoFactory,
+		series:         serviceFactory.StaffShiftSeries,
+		shifts:         serviceFactory.StaffShifts,
+		capStaffSeries: dependencies.Workforce.CapStaffShiftSeriesForStaff,
 	}
 	return env
 }
@@ -914,7 +917,7 @@ func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
 		return err
 	})
 
-	capped, err := env.repos.StaffShiftSeries.CapAllByStaffID(env.scope.Context(), env.staff.ID, scheduleModels.Date(today))
+	capped, err := env.capStaffSeries(env.scope.Context(), env.staff.ID, today.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), capped)
 

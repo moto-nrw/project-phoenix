@@ -26,10 +26,11 @@ type Observation = ports.Observation
 // rows; both are required so a missing wiring fails at startup instead of
 // silently skipping the assigned-staff refresh.
 type Dependencies struct {
-	DB                *bun.DB
-	AssignedStaffIDs  func(ctx context.Context, workTimeModelID int64) ([]int64, error)
-	RebaseStaffAnchor func(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
-	Observe           func(Observation)
+	DB                  *bun.DB
+	AssignedStaffIDs    func(ctx context.Context, workTimeModelID int64) ([]int64, error)
+	RebaseStaffAnchor   func(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
+	LockStaffAssignment func(context.Context, int64) error
+	Observe             func(Observation)
 	// Now is the clock the live work-session window and the calendar day
 	// are measured against; nil means the wall clock. Tests pin it.
 	Now func() time.Time
@@ -40,8 +41,16 @@ type Dependencies struct {
 // so row-level security decides visibility exactly as it did for the legacy
 // repositories.
 func New(dependencies Dependencies) (*workforce.Module, error) {
+	service, err := newApplication(dependencies)
+	if err != nil {
+		return nil, err
+	}
+	return workforce.NewModule(engine{service: service}), nil
+}
+
+func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.AssignedStaffIDs == nil ||
-		dependencies.RebaseStaffAnchor == nil || dependencies.Observe == nil {
+		dependencies.RebaseStaffAnchor == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("workforce compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -57,10 +66,11 @@ func New(dependencies Dependencies) (*workforce.Module, error) {
 		store,
 		transaction{lock: store.AcquireXactLock},
 		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
+		dependencies.LockStaffAssignment,
 		clock{now: now},
 		observe,
 	)
-	return workforce.NewModule(engine{service: service}), nil
+	return service, nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -127,6 +137,13 @@ func (t transaction) acquireXactLock(ctx context.Context, key string) error {
 		}
 	}
 	return t.lock(ctx, key)
+}
+
+func (t transaction) LockStaffShifts(ctx context.Context, staffID int64) error {
+	if staffID <= 0 || tenant.FromContext(ctx) <= 0 {
+		return errors.New("workforce: staff and tenant are required")
+	}
+	return t.acquireXactLock(ctx, fmt.Sprintf("staff-shift:%d:%d", tenant.FromContext(ctx), staffID))
 }
 
 // clock derives the calendar day from the same instant the live windows use,
@@ -278,6 +295,10 @@ func schedulesToPublic(values []domain.StaffWorkSchedule) []workforce.StaffWorkS
 
 func mapError(err error) error {
 	switch {
+	case errors.Is(err, domain.ErrOffboardingConflict):
+		return workforce.ErrOffboardingConflict
+	case errors.Is(err, domain.ErrOffboardingInUse):
+		return workforce.ErrOffboardingInUse
 	case err == nil:
 		return nil
 	case errors.Is(err, domain.ErrWorkTimeModelNotFound):

@@ -66,11 +66,19 @@ func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
 // NewTimetable composes the owner behind legacy repository adapters for test
 // and CLI graphs. The production root replaces it with the observed module.
 func NewTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facilities.Query, careDays timetable.CareDayLocker) (timetable.Capability, error) {
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return nil, err
+	}
 	queries, err := NewTimetableCarePlanQueries(db, func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
 	return timetableCompose.New(timetableCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
 		DB:       db,
 		Students: repositoryTimetableStudents{students: students},
 		Rooms:    repositoryTimetableRooms{rooms: rooms},

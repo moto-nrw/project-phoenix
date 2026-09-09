@@ -990,7 +990,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 	}
 	var result *active.GroupSupervisor
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		if err := s.validateStaffExists(txCtx, staffID); err != nil {
+		if err := s.lockStaffForSupervision(txCtx, staffID); err != nil {
 			return err
 		}
 		row, err := s.SchoolPresence.ClaimGroup(txCtx, studentpresence.GroupClaim{GroupID: groupID, StaffID: staffID, Role: role, Date: s.todayDate().String()})

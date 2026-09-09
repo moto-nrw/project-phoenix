@@ -16,11 +16,14 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -34,18 +37,22 @@ type offboardingScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
 	authSvc authSvcPkg.AuthService
-	svc     usersSvc.StaffOffboardingService
-	deps    usersSvc.StaffOffboardingServiceDependencies
+	svc     *offboardingTestRunner
+	deps    offboardingcompose.Dependencies
 	ctx     context.Context
 }
 
-func newOffboardingScenario(t *testing.T) *offboardingScenario {
+func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
+	var db *bun.DB
+	if len(databases) == 0 {
+		db = testpkg.SetupTestDB(t)
+	} else {
+		db = databases[0]
+	}
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
@@ -55,28 +62,18 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, authService, db)
 
-	deps := usersSvc.StaffOffboardingServiceDependencies{
-		PersonRepo:             repos.Person,
-		StaffRepo:              repos.Staff,
-		TeacherRepo:            repos.Teacher,
-		GroupSupervisorRepo:    repos.GroupSupervisor,
-		GroupTeacherRepo:       repos.GroupTeacher,
-		ClassTeacherRepo:       repos.ClassTeacher,
-		GroupSubstitutionRepo:  repos.GroupSubstitution,
-		ActivitySupervisorRepo: repos.ActivitySupervisor,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		StaffShiftRepo:         repos.StaffShift,
-		StaffAbsenceRepo:       repos.StaffAbsence,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		RoleRepo:               repos.Role,
-		AccountPermissionRepo:  repos.AccountPermission,
-		DataDeletionRepo:       repos.DataDeletion,
-		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
-		AuthService:            authService,
-		DB:                     db,
+	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
+	deps := offboardingcompose.Dependencies{
+		DB: db, Access: authService,
+		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
+			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
+			actor.AccountID = actorAccount.ID
+			actor.TenantID = tenant.FromContext(ctx)
+			return actor, nil
+		},
+		Cleanup: func(context.Context, int64) error { return nil },
 	}
-	svc := usersSvc.NewStaffOffboardingService(deps)
+	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
 		db:      db,
@@ -88,12 +85,269 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	}
 }
 
-type failingDataDeletionRepository struct {
-	auditModels.DataDeletionRepository
+// This test-only adapter preserves the scenario call shape while invoking
+// the production owner-workflow composition. It is not a runtime provider.
+type offboardingTestActorKey struct{}
+type offboardingTestRunner struct {
+	deps offboardingcompose.Dependencies
 }
 
-func (r *failingDataDeletionRepository) Create(context.Context, *auditModels.DataDeletion) error {
+func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, actorID int64, username string) error {
+	workflow, err := offboardingcompose.New(r.deps)
+	if err != nil {
+		return err
+	}
+	ctx = context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actorID, Username: username})
+	_, err = workflow.Offboard(ctx, staffID)
+	if errors.Is(err, staffoffboarding.ErrInUse) {
+		return usersSvc.ErrStaffInUse
+	}
+	return err
+}
+
+type failingOffboardingAudit struct{}
+
+func (failingOffboardingAudit) Append(context.Context, any) error {
 	return errors.New("forced audit failure")
+}
+
+func TestOffboardStaff_ConcurrentSupervisionCannotAttachAfterRetirement(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"create", "replace"} {
+		t.Run(operation, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			assertConcurrentSupervisionRejected(t, operation)
+		})
+	}
+}
+
+func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
+	t.Helper()
+	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
+	active, err := services.NewActiveTestModule(sc.db, testpkg.TenantRuntime(t, sc.db))
+	require.NoError(t, err)
+	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Supervisor")
+	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
+	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent supervision")
+	group := testpkg.CreateTestActiveGroup(t, sc.db, activity.ID, room.ID)
+	workflow, err := offboardingcompose.New(sc.deps)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
+	defer cancel()
+	actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: staff.ID, Username: "test-admin"})
+	writerDone := make(chan error, 1)
+	err = tenant.WithinCurrentTenant(actorCtx, func(txCtx context.Context) error {
+		preview, err := workflow.Preview(txCtx, staff.ID)
+		if err != nil {
+			return err
+		}
+		go func() {
+			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
+				if operation == "replace" {
+					_, err := active.Active.UpdateActiveGroupSupervisors(writerCtx, group.ID, []int64{staff.ID})
+					return err
+				}
+				return active.Active.CreateGroupSupervisor(writerCtx, &activeModels.GroupSupervisor{
+					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate(),
+				})
+			})
+		}()
+		require.Eventually(t, func() bool {
+			var waiting int
+			err := sc.db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(ctx, &waiting)
+			return err == nil && waiting > 0
+		}, 5*time.Second, 10*time.Millisecond)
+		_, err = workflow.Execute(txCtx, staff.ID, preview.Revision)
+		return err
+	})
+	require.NoError(t, err)
+	select {
+	case err := <-writerDone:
+		require.Error(t, err, "supervision writer must recheck live staff after waiting for offboarding")
+	case <-ctx.Done():
+		t.Fatal("supervision writer did not finish after retirement")
+	}
+	var supervisors int
+	require.NoError(t, sc.db.NewSelect().TableExpr("active.group_supervisors").ColumnExpr("count(*)").Where("staff_id = ?", staff.ID).Scan(ctx, &supervisors))
+	require.Zero(t, supervisors)
+}
+
+func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *testing.T) {
+	t.Parallel()
+	sc := newOffboardingScenario(t)
+	staff, account := testpkg.CreateTestCalendarStaff(t, sc.db, "Atomic", "Offboarding")
+	token := testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
+	shift := testpkg.CreateTestStaffShift(t, sc.db, staff.ID, testpkg.TodayDate().AddDays(1), testpkg.StaffShiftOpts{})
+	room := testpkg.CreateTestRoom(t, sc.db, "Atomic offboarding")
+	instance := testpkg.CreateTestActivityInstance(t, sc.db, testpkg.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{})
+	assignment := testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	failure := errors.New("cleanup intent unavailable")
+	sc.svc.deps.Cleanup = func(context.Context, int64) error { return failure }
+	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	require.ErrorIs(t, err, failure)
+	_, err = sc.repos.Staff.FindByID(sc.ctx, staff.ID)
+	require.NoError(t, err)
+	_, err = sc.repos.StaffShift.FindByID(sc.ctx, shift.ID)
+	require.NoError(t, err)
+	_, err = sc.repos.InstanceStaff.FindByID(sc.ctx, assignment.ID)
+	require.NoError(t, err)
+	person, err := sc.repos.Person.FindByID(sc.ctx, staff.PersonID)
+	require.NoError(t, err)
+	require.NotNil(t, person.AccountID)
+	require.Equal(t, account.ID, *person.AccountID)
+	roles, err := sc.authSvc.GetAccountRoles(sc.ctx, int(account.ID))
+	require.NoError(t, err)
+	require.NotEmpty(t, roles)
+	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	require.True(t, active)
+	tokens, err := sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
+	require.NoError(t, err)
+	require.Len(t, tokens, 1, "rolled-back account cleanup must not revoke credentials after commit")
+	require.Equal(t, token.ID, tokens[0].ID)
+	var auditRows int
+	require.NoError(t, sc.db.NewSelect().TableExpr("audit.data_deletions").ColumnExpr("count(*)").Where("staff_id = ?", staff.ID).Scan(sc.ctx, &auditRows))
+	require.Zero(t, auditRows, "the deletion audit and owner writes must roll back together")
+
+	sc.svc.deps.Cleanup = func(context.Context, int64) error { return nil }
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
+	tokens, err = sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
+	require.NoError(t, err)
+	require.Empty(t, tokens)
+}
+
+func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"timetable", "shift", "move_history"} {
+		t.Run(operation, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			assertConcurrentPlanningRejected(t, operation)
+		})
+	}
+}
+
+func assertConcurrentPlanningRejected(t *testing.T, operation string) {
+	t.Helper()
+	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
+	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Timetable")
+	room := testpkg.CreateTestRoom(t, sc.db, "Concurrent timetable")
+	date := testpkg.TodayDate().AddDays(1)
+	if operation == "move_history" {
+		date = testpkg.TodayDate().AddDays(-1)
+	}
+	instance := testpkg.CreateTestActivityInstance(t, sc.db, date, room.ID, testpkg.ActivityInstanceOpts{})
+	if operation == "move_history" {
+		testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	}
+	workflow, err := offboardingcompose.New(sc.deps)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(sc.ctx, 15*time.Second)
+	defer cancel()
+	actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: staff.ID, Username: "test-admin"})
+	writerDone := make(chan error, 1)
+	err = tenant.WithinCurrentTenant(actorCtx, func(txCtx context.Context) error {
+		preview, err := workflow.Preview(txCtx, staff.ID)
+		if err != nil {
+			return err
+		}
+		go func() {
+			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
+				if operation == "shift" {
+					return sc.repos.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
+				}
+				if operation == "move_history" {
+					instance.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
+					return sc.repos.ActivityInstance.Update(writerCtx, instance)
+				}
+				return sc.repos.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
+			})
+		}()
+		require.Eventually(t, func() bool {
+			var waiting int
+			err := sc.db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(ctx, &waiting)
+			return err == nil && waiting > 0
+		}, 5*time.Second, 10*time.Millisecond)
+		_, err = workflow.Execute(txCtx, staff.ID, preview.Revision)
+		return err
+	})
+	require.NoError(t, err)
+	select {
+	case err := <-writerDone:
+		require.Error(t, err, "assignment must revalidate live staff after retirement releases its lock")
+	case <-ctx.Done():
+		t.Fatal("assignment writer did not finish")
+	}
+	rows, err := sc.repos.InstanceStaff.FindByInstanceID(ctx, instance.ID)
+	require.NoError(t, err)
+	if operation == "move_history" {
+		require.Len(t, rows, 1, "the historical assignment is retained")
+		persisted, err := sc.repos.ActivityInstance.FindByID(ctx, instance.ID)
+		require.NoError(t, err)
+		require.Equal(t, scheduleModels.Date(date), persisted.Date, "history cannot be moved back into an operational assignment")
+	} else {
+		require.Empty(t, rows)
+	}
+	var shifts int
+	require.NoError(t, sc.db.NewRaw("SELECT count(*) FROM schedule.staff_shifts WHERE tenant_id = ? AND staff_id = ?", testpkg.Tenant(t), staff.ID).Scan(ctx, &shifts))
+	require.Zero(t, shifts)
+}
+
+func TestOffboardingRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
+	actor := testpkg.CreateTestStaff(t, sc.db, "Runtime", "Actor")
+	queue, err := repositories.NewStaffDocumentCleanup(sc.db, nil)
+	require.NoError(t, err)
+	sc.deps.Cleanup = queue.Enqueue
+	workflow, err := offboardingcompose.New(sc.deps)
+	require.NoError(t, err)
+	ctx := context.WithValue(sc.ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "runtime-actor"})
+	counter := testpkg.CaptureQueriesForContext(t, sc.db)
+	testpkg.AttachLockWaitEvidence(sc.db)
+	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(ctx))
+	var version string
+	require.NoError(t, sc.db.NewRaw("SHOW server_version").Scan(sc.ctx, &version))
+	deadlocks := func() int64 {
+		var count int64
+		require.NoError(t, sc.db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(sc.ctx, &count))
+		return count
+	}
+	beforeDeadlocks := deadlocks()
+	samples := map[string][]testpkg.RuntimeCheckpointSample{}
+	measure := func(operation string, iteration int, fn func() error) {
+		counter.Reset()
+		before := sc.db.Stats()
+		started := time.Now()
+		err := fn()
+		elapsed := time.Since(started)
+		after := sc.db.Stats()
+		require.NoError(t, err)
+		if iteration < 5 {
+			return
+		}
+		writes := counter.WriteRows()
+		rows, statements := counter.Rows()
+		samples[operation] = append(samples[operation], testpkg.RuntimeCheckpointSample{
+			DurationMS: float64(elapsed) / float64(time.Millisecond), Queries: counter.Total(),
+			WriteRowsAffected: &writes, RowsAffected: rows, StatementsWithRows: statements,
+			PoolWaitCount: after.WaitCount - before.WaitCount, PoolWaitMS: float64(after.WaitDuration-before.WaitDuration) / float64(time.Millisecond),
+		})
+	}
+	room := testpkg.CreateTestRoom(t, sc.db, "Offboarding runtime")
+	for iteration := range 35 {
+		staff, account := testpkg.CreateTestCalendarStaff(t, sc.db, "Runtime", "Subject")
+		testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
+		testpkg.CreateTestStaffShift(t, sc.db, staff.ID, testpkg.TodayDate().AddDays(1), testpkg.StaffShiftOpts{})
+		instance := testpkg.CreateTestActivityInstance(t, sc.db, testpkg.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{})
+		testpkg.CreateTestInstanceStaff(t, sc.db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+		var preview staffoffboarding.Preview
+		measure("preview", iteration, func() error { var err error; preview, err = workflow.Preview(ctx, staff.ID); return err })
+		measure("execute", iteration, func() error { _, err := workflow.Execute(ctx, staff.ID, preview.Revision); return err })
+	}
+	raw, err := json.Marshal(map[string]any{"postgres": version, "warmup": 5, "samples_per_operation": 30, "concurrency": 1, "samples": samples, "unit_of_work_events_including_warmup": events(), "deadlocks": deadlocks() - beforeDeadlocks})
+	require.NoError(t, err)
+	t.Logf("offboarding-runtime %s", raw)
 }
 
 // assignTenantRole links the account to a role inside the fixture tenant.
@@ -481,10 +735,7 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	broadcastAware := sc.svc.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	})
-	broadcastAware.SetBroadcaster(broadcaster)
+	sc.svc.deps.Broadcaster = broadcaster
 
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Broadcast", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardBroadcastGroup")
@@ -522,14 +773,9 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	sc.deps.DataDeletionRepo = &failingDataDeletionRepository{
-		DataDeletionRepository: sc.repos.DataDeletion,
-	}
-	svc := usersSvc.NewStaffOffboardingService(sc.deps)
-	broadcastAware := svc.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	})
-	broadcastAware.SetBroadcaster(broadcaster)
+	sc.deps.Audit = failingOffboardingAudit{}
+	svc := &offboardingTestRunner{deps: sc.deps}
+	svc.deps.Broadcaster = broadcaster
 
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Rollback", "Broadcast")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardRollbackGroup")
@@ -830,9 +1076,10 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 	}
 	require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
 
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, 0, "test-admin")
+	sc.svc.deps.Audit = failingOffboardingAudit{}
+	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "deleted_by is required")
+	assert.Contains(t, err.Error(), "forced audit failure")
 
 	var absenceCount int
 	require.NoError(t, sc.db.NewSelect().

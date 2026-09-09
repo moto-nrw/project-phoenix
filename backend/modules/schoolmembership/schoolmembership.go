@@ -648,6 +648,8 @@ func ErrorCode(err error) string {
 	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
 		errors.Is(err, ErrClassListEntryNotFound), errors.Is(err, ErrClassAssignmentNotFound), errors.Is(err, ErrGroupAssignmentNotFound):
 		return "not_found"
+	case errors.Is(err, ErrOffboardingConflict):
+		return "offboarding_conflict"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
 	case errors.Is(err, ErrStaffPersonConflict), errors.Is(err, ErrTeacherStaffConflict), errors.Is(err, ErrGuestStaffConflict):

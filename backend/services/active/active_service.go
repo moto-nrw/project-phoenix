@@ -785,6 +785,24 @@ func (s *service) validateStaffExists(ctx context.Context, staffID int64) error 
 	return nil
 }
 
+// lockStaffForSupervision serializes operational supervision writes with
+// Membership retirement. A foreign key alone cannot reject a staff tombstone.
+func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) error {
+	// Supervision may auto-open a work session later in this transaction.
+	// Take its balance lock before the staff row, matching offboarding.
+	if tenant.FromContext(ctx) <= 0 || staffID <= 0 {
+		return ErrStaffNotFound
+	}
+	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false); err != nil {
+		return err
+	}
+	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
+	if base.IsNoRows(err) || (err == nil && staff == nil) {
+		return ErrStaffNotFound
+	}
+	return err
+}
+
 // extractContextIDs extracts device and staff IDs from context
 func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int64) {
 	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
@@ -1526,17 +1544,21 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrInvalidData}
 	}
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		return s.createGroupSupervisor(txCtx, supervisor)
+	})
+}
+
+func (s *service) createGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error {
+	if err := s.lockStaffForSupervision(ctx, supervisor.StaffID); err != nil {
+		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
+	}
 
 	// Lock the group and reject ended sessions before INSERT. The same
 	// active.groups row lock serializes this write with session absorption
 	// (absorbUnsupervisedOpenGroups) and ClaimActiveGroup, so a supervisor
 	// cannot attach to a group that a concurrent absorption is ending.
 	if err := s.validateActiveGroupOpenForUpdate(ctx, supervisor.GroupID); err != nil {
-		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
-	}
-
-	// Validate staff exists before INSERT (prevents FK constraint errors in logs)
-	if err := s.validateStaffExists(ctx, supervisor.StaffID); err != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: err}
 	}
 
@@ -1581,6 +1603,11 @@ func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrGroupSupervisorNotFound}
 	}
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if supervisor.EndDate == nil || supervisor.EndDate.After(s.todayDate()) {
+			if err := s.lockStaffForSupervision(txCtx, supervisor.StaffID); err != nil {
+				return &ActiveError{Op: "UpdateGroupSupervisor", Err: err}
+			}
+		}
 		if err := s.lockGroupRows(txCtx, original.GroupID, supervisor.GroupID); err != nil {
 			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
 		}

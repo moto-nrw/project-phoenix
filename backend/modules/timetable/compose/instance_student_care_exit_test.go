@@ -19,8 +19,9 @@ func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Care exit snapshot room")
 	module, err := New(Dependencies{
-		DB:       db,
-		Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
+		LockStaffAssignment: func(context.Context, int64) error { return nil },
+		DB:                  db,
+		Students:            StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(_ context.Context, ids []int64) ([]timetable.RoomRef, error) {
 			assert.Equal(t, []int64{room.ID}, ids)
 			return []timetable.RoomRef{{ID: room.ID, TenantID: testpkg.Tenant(t)}}, nil

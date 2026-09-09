@@ -138,6 +138,11 @@ func (s *Service) CreateStaffAbsence(ctx context.Context, value domain.StaffAbse
 	}
 	err = s.run("create_staff_absence", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if value.DateEnd >= s.clock.Today() || value.Status == domain.AbsenceStatusRequested || value.Status == domain.AbsenceStatusQuestion {
+				if err := s.lockStaffAssignment(txCtx, value.StaffID); err != nil {
+					return err
+				}
+			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffAbsence(txCtx, value)
 			stats.Add(writeStats)
@@ -153,6 +158,11 @@ func (s *Service) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbse
 	}
 	err = s.run("update_staff_absence", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if value.DateEnd >= s.clock.Today() || value.Status == domain.AbsenceStatusRequested || value.Status == domain.AbsenceStatusQuestion {
+				if err := s.lockStaffAssignment(txCtx, value.StaffID); err != nil {
+					return err
+				}
+			}
 			var found bool
 			var writeStats domain.OperationStats
 			result, found, writeStats, err = s.store.UpdateStaffAbsence(txCtx, value)

@@ -1913,14 +1913,6 @@ func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, timez
 	return 0, nil
 }
 
-func (m *absStaffAbsenceRepoMock) DeleteNonHistoricalByStaffID(context.Context, int64, timezone.Date) (int64, error) {
-	return 0, nil
-}
-
-func (m *absStaffAbsenceRepoMock) ListNonHistoricalByStaffID(context.Context, int64, timezone.Date) ([]*activeModels.StaffAbsence, error) {
-	return nil, nil
-}
-
 func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
 	return 0, nil
 }

@@ -11,6 +11,7 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -145,6 +146,10 @@ type staffRepoForActiveWrapperTest struct {
 func (r *staffRepoForActiveWrapperTest) FindByID(_ context.Context, id interface{}) (*userModels.Staff, error) {
 	r.gotID = id
 	return r.staff, r.err
+}
+
+func (r *staffRepoForActiveWrapperTest) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return r.FindByID(ctx, id)
 }
 
 type groupRepoForActiveWrapperTest struct {
@@ -370,27 +375,42 @@ func (r *claimOwnerForActiveWrapperTest) ClaimGroup(_ context.Context, claim stu
 // integration test. This caller must use that command, not legacy repositories.
 func TestClaimActiveGroupUsesPresenceOwner(t *testing.T) {
 	t.Parallel()
+	runtime, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			return fn(ctx, struct{}{})
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+		func(_ context.Context, key string, shared bool) error {
+			require.Equal(t, "staff-balance:42:84", key)
+			require.False(t, shared)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	ctx := tenant.WithTenantID(tenant.WithUnitOfWork(context.Background(), runtime), 42)
 	owner := &claimOwnerForActiveWrapperTest{}
 	svc := &service{ServiceDependencies: ServiceDependencies{
 		StaffRepo:      &staffRepoForActiveWrapperTest{staff: &userModels.Staff{Model: modelBase.Model{ID: 84}}},
 		SchoolPresence: owner,
 	}}
-	row, err := svc.ClaimActiveGroup(context.Background(), 42, 84, "")
+	row, err := svc.ClaimActiveGroup(ctx, 42, 84, "")
 	require.NoError(t, err)
 	require.Equal(t, int64(42), row.GroupID)
 	require.Equal(t, int64(84), row.StaffID)
 	require.Equal(t, "supervisor", owner.claim.Role)
 	owner.err = errors.New("insert supervision: internal database detail")
-	_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+	_, err = svc.ClaimActiveGroup(ctx, 42, 84, "supervisor")
 	require.ErrorIs(t, err, ErrDatabaseOperation)
 	require.NotContains(t, err.Error(), "internal database detail")
 	for _, domainErr := range []error{studentpresence.ErrGroupNotFound, studentpresence.ErrGroupEnded} {
 		owner.err = domainErr
-		_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+		_, err = svc.ClaimActiveGroup(ctx, 42, 84, "supervisor")
 		require.ErrorIs(t, err, domainErr)
 	}
 	owner.err = studentpresence.ErrAlreadySupervising
-	_, err = svc.ClaimActiveGroup(context.Background(), 42, 84, "supervisor")
+	_, err = svc.ClaimActiveGroup(ctx, 42, 84, "supervisor")
 	require.ErrorIs(t, err, ErrStaffAlreadySupervising)
 }
 

@@ -44,6 +44,9 @@ func (s *Service) CountNonAbsentInstanceStaff(ctx context.Context, instanceIDs [
 
 func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.InstanceStaffFields) (result domain.InstanceStaff, err error) {
 	err = s.runWrite(ctx, "create_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
+			return err
+		}
 		value, queryStats, createErr := s.store.CreateInstanceStaff(txCtx, fields)
 		stats.Add(queryStats)
 		result = value
@@ -54,6 +57,9 @@ func (s *Service) CreateInstanceStaff(ctx context.Context, fields domain.Instanc
 
 func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields domain.InstanceStaffFields) (result domain.InstanceStaff, err error) {
 	err = s.runWrite(ctx, "update_instance_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
+			return err
+		}
 		value, found, queryStats, updateErr := s.store.UpdateInstanceStaff(txCtx, id, fields)
 		stats.Add(queryStats)
 		if updateErr != nil {

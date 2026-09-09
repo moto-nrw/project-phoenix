@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -95,6 +96,9 @@ func (s *Service) CreateIdempotentActivityInstance(ctx context.Context, fields d
 
 func (s *Service) UpdateActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields) (result domain.ActivityInstance, err error) {
 	err = s.runWrite(ctx, "update_activity_instance", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.lockOperationalInstanceStaff(txCtx, id, fields.Date, fields.Status, stats); err != nil {
+			return err
+		}
 		value, found, queryStats, updateErr := s.store.UpdateActivityInstance(txCtx, id, fields)
 		stats.Add(queryStats)
 		if updateErr != nil {
@@ -111,12 +115,56 @@ func (s *Service) UpdateActivityInstance(ctx context.Context, id int64, fields d
 
 func (s *Service) PatchActivityInstance(ctx context.Context, id int64, fields domain.ActivityInstanceFields, columns []string) (result int64, err error) {
 	err = s.runWrite(ctx, "patch_activity_instance", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if slices.Contains(columns, "date") || slices.Contains(columns, "status") {
+			current, found, queryStats, err := s.store.FindActivityInstance(txCtx, id)
+			stats.Add(queryStats)
+			if err != nil {
+				return err
+			}
+			if !found {
+				return domain.ErrActivityInstanceNotFound
+			}
+			date, status := current.Date, current.Status
+			if slices.Contains(columns, "date") {
+				date = fields.Date
+			}
+			if slices.Contains(columns, "status") {
+				status = fields.Status
+			}
+			if err := s.lockOperationalInstanceStaff(txCtx, id, date, status, stats); err != nil {
+				return err
+			}
+		}
 		rows, queryStats, updateErr := s.store.PatchActivityInstance(txCtx, id, fields, columns)
 		stats.Add(queryStats)
 		result = rows
 		return updateErr
 	})
 	return result, err
+}
+
+// Moving retained history back into the operational timetable must not revive
+// assignments for staff who have since retired.
+func (s *Service) lockOperationalInstanceStaff(ctx context.Context, id int64, date, status string, stats *domain.OperationStats) error {
+	if date < s.today() || (date == s.today() && status != "planned") {
+		return nil
+	}
+	assignments, queryStats, err := s.store.ListInstanceStaff(ctx, domain.InstanceStaffFilter{InstanceIDs: []int64{id}})
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	ids := make([]int64, 0, len(assignments))
+	for _, assignment := range assignments {
+		ids = append(ids, assignment.StaffID)
+	}
+	slices.Sort(ids)
+	for _, staffID := range slices.Compact(ids) {
+		if err := s.lockStaffAssignment(ctx, staffID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) DeleteActivityInstance(ctx context.Context, id int64) error {

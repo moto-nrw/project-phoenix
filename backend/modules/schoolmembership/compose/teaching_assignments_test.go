@@ -255,8 +255,9 @@ func TestModuleObservesTeachingAssignmentOperations(t *testing.T) {
 
 	require.Len(t, observations, 3)
 	assert.Equal(t, "create_class_assignment", observations[0].Operation)
-	assert.EqualValues(t, 1, observations[0].Stats.Queries)
-	assert.EqualValues(t, 1, observations[0].Stats.Rows)
+	// The live-staff locking read prevents assignments racing retirement.
+	assert.EqualValues(t, 2, observations[0].Stats.Queries)
+	assert.EqualValues(t, 2, observations[0].Stats.Rows)
 	assert.Positive(t, observations[0].Stats.StatementDuration)
 	assert.Equal(t, "list_class_assignments", observations[1].Operation)
 	assert.Equal(t, "delete_class_assignments_by_staff", observations[2].Operation)

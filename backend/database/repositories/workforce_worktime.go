@@ -17,10 +17,20 @@ func NewWorkforce(db *bun.DB, membership schoolmembership.Capability) (workforce
 	return NewWorkforceWithClock(db, membership, nil)
 }
 
+// NewStaffDocumentCleanup is the narrow Workforce cleanup composition used by
+// adapter tests and legacy roots; it does not construct a repository factory.
+func NewStaffDocumentCleanup(db *bun.DB, now func() time.Time) (*workforce.DocumentCleanup, error) {
+	return workforceCompose.NewDocumentCleanup(db, now)
+}
+
 // NewWorkforceWithClock is NewWorkforce with a pinned clock for the live
 // work-session window and the calendar day; nil means the wall clock.
 func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, now func() time.Time) (workforce.Capability, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
 		DB:                db,
 		AssignedStaffIDs:  WorkforceAssignedStaffIDs(membership),
 		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
