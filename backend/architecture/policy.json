@@ -434,6 +434,20 @@
   ],
   "packages": [
     {
+      "path": "modules/peopledirectory/enrollment",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/peopletest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/devicescan",
       "owner": "process-device-scan",
       "role": "public",
@@ -1771,6 +1785,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/contact",
+      "owner": "people-directory",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/compose",
       "owner": "people-directory",
       "role": "compose",
@@ -2748,6 +2769,55 @@
       "owner": "device-fleet",
       "role": "port",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess",
+      "owner": "identity-access",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/compose",
+      "owner": "identity-access",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/adapters/postgres",
+      "owner": "identity-access",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/application",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/domain",
+      "owner": "identity-access",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/internal/ports",
+      "owner": "identity-access",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/integration",
+      "owner": "identity-access",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     }
   ],
@@ -4209,6 +4279,61 @@
     }
   ],
   "rules": [
+    {
+      "id": "enrollment.application.student-enrollment",
+      "description": "Enrollment decisions consume only the new student enrollment command contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.behavior-test.people-test",
+      "description": "Enrollment behavior tests compose the owner through its new focused test support (#2699).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-enrollment.adapter-test.people-test",
+      "description": "Enrollment router tests compose the student owner through focused test support (#2699).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "test-support"
+    },
+    {
+      "id": "people-directory.test-support.compose",
+      "description": "Focused student test support constructs the public owner composition (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.test-support.contract",
+      "description": "Focused student test support returns the enrollment command contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "test-support",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
     {
       "id": "inbound-students.http.student-presence-public",
       "description": "Student history, exports and day logs consume the owner attendance DTOs.",
@@ -15895,6 +16020,220 @@
       "source_role": "compose",
       "target_owner": "inbound-statistics",
       "target_role": "http"
+    },
+    {
+      "id": "identity-access.port-domain",
+      "description": "Identity & Access ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "identity-access.compose.application",
+      "description": "Identity & Access composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.compose.domain",
+      "description": "Identity & Access composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.compose.orm-sql",
+      "description": "Identity & Access composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "identity-access.compose.port",
+      "description": "Identity & Access composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "port"
+    },
+    {
+      "id": "identity-access.compose.postgres",
+      "description": "Identity & Access composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "postgres"
+    },
+    {
+      "id": "identity-access.compose.public",
+      "description": "Identity & Access composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.compose.tenant-runtime",
+      "description": "Identity & Access composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.integration-test.public",
+      "description": "Identity & Access integration tests exercise the public guardian-access facade.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.integration-test.compose",
+      "description": "Identity & Access integration tests compose the owner with production composition.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "identity-access.integration-test.support",
+      "description": "Identity & Access integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "identity-access.internal-test.orm-sql",
+      "description": "Identity & Access integration tests arrange and verify PostgreSQL fixtures.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "enrollment.application.to.identity-access.public",
+      "description": "Enrollment acceptance recognises a parent's platform account and grants it guardian access through the public Identity & Access capability (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.internal-test.identity-access-public",
+      "description": "Enrollment decision unit tests stub the guardian-access seam with the public Identity & Access values.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.behavior-test.identity-access-compose",
+      "description": "Enrollment decision behavior tests compose the real Identity & Access capability.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-enrollment.adapter-test.identity-access-compose",
+      "description": "Enrollment decision router tests compose the real Identity & Access capability.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.identity-access-compose",
+      "description": "The legacy service factory composes the Identity & Access capability the enrollment decision service consumes (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.identity-access-public",
+      "description": "The legacy service factory maps Identity & Access outcomes to stable codes for the root observer (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.public.contact",
+      "description": "Enrollment student commands use the new canonical contact contract, shared with retained model consumers (#2699).",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.domain.contact",
+      "description": "Retained student/contact model validation delegates to the new owner contact contract (#2699).",
+      "scopes": ["production"],
+      "source_owner": "people-directory",
+      "source_role": "domain",
+      "target_owner": "people-directory",
+      "target_role": "contract"
     }
   ]
 }

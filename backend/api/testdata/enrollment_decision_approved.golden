@@ -1,0 +1,17 @@
+{
+  "data": {
+    "activation_mode": "scheduled",
+    "created_student_id": "STUDENT_ID",
+    "date_of_birth": "2018-04-15",
+    "first_name": "Contract",
+    "id": "CHILD_ID",
+    "last_name": "Child-parent",
+    "reviewed_at": "REVIEWED_AT",
+    "reviewed_by": "REVIEWER_ACCOUNT_ID",
+    "status": "approved",
+    "status_reason": "Contract approval",
+    "target_grade_level": 2
+  },
+  "message": "Decision applied",
+  "status": "success"
+}

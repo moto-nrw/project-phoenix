@@ -6799,7 +6799,7 @@
       "declaration": "TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases",
       "target": "database/repositories.NewFactory",
       "lines": [
-        829
+        849
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6812,7 +6812,7 @@
       "declaration": "TestCareOfferingService_Clone_RepointsToTargetPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        775
+        795
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -6825,7 +6825,7 @@
       "declaration": "TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        592
+        612
       ],
       "tables": []
     },
@@ -6835,7 +6835,7 @@
       "declaration": "TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        562
+        582
       ],
       "tables": []
     },
@@ -6845,7 +6845,7 @@
       "declaration": "TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase",
       "target": "database/repositories.NewFactory",
       "lines": [
-        503
+        523
       ],
       "tables": []
     },
@@ -6855,7 +6855,7 @@
       "declaration": "TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback",
       "target": "database/repositories.NewFactory",
       "lines": [
-        407
+        427
       ],
       "tables": []
     },
@@ -6865,7 +6865,7 @@
       "declaration": "createCareOfferingTemplateGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        144
       ],
       "tables": [
         "activities.schedules"
@@ -6877,7 +6877,7 @@
       "declaration": "createCareOfferingTestPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        126
       ],
       "tables": []
     },
@@ -6887,7 +6887,7 @@
       "declaration": "setupCareTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        73
       ],
       "tables": [
         "enrollment.care_offerings",
@@ -7080,7 +7080,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3865
+        3870
       ],
       "tables": []
     },
@@ -27513,22 +27513,22 @@
         },
         {
           "file": "api/base.go",
-          "line": 445,
+          "line": 446,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 608,
+          "line": 609,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 846,
+          "line": 847,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1134,
+          "line": 1135,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -27553,7 +27553,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 605,
+          "line": 606,
           "declaration": "type API"
         },
         {
@@ -27658,12 +27658,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 435,
+          "line": 441,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 472,
+          "line": 479,
           "declaration": "newFactory"
         },
         {
