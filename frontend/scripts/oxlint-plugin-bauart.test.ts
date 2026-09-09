@@ -169,13 +169,13 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
     expect(output).toContain("„Entfernen“");
   });
 
-  it("rejects a direct returned destructive call", () => {
+  it("rejects a direct returned action regardless of its function name", () => {
     const { status, output } = lintSource(
       `import { Button } from "~/components/ui/button";
-      export function Probe({ remove }: { remove: (id: string) => Promise<void> }) {
+      export function Probe({ archiveTrack }: { archiveTrack: (id: string) => Promise<void> }) {
         return (
-          <Button type="button" onClick={() => remove("1")}>
-            Entfernen
+          <Button type="button" onClick={() => archiveTrack("1")}>
+            Archivieren
           </Button>
         );
       }`,
@@ -185,13 +185,13 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
     expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
   });
 
-  it("rejects an implicitly returned call from an async handler", () => {
+  it("rejects an implicitly returned action from an async handler", () => {
     const { status, output } = lintSource(
       `import { Button } from "~/components/ui/button";
-      export function Probe({ remove }: { remove: (id: string) => Promise<void> }) {
+      export function Probe({ revokePasskey }: { revokePasskey: (id: string) => Promise<void> }) {
         return (
-          <Button type="button" onClick={async () => remove("1")}>
-            Entfernen
+          <Button type="button" onClick={async () => revokePasskey("1")}>
+            Passkey entfernen
           </Button>
         );
       }`,
@@ -257,6 +257,26 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
               (item) => item.label,
             )}
           </>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain("bauart(no-unconfirmed-destructive-click)");
+    expect(status).toBe(0);
+  });
+
+  it("accepts a void state setter that opens the confirmation", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({
+        setDeleteTarget,
+      }: {
+        setDeleteTarget: (id: string) => void;
+      }) {
+        return (
+          <Button type="button" onClick={() => void setDeleteTarget("1")}>
+            Löschen
+          </Button>
         );
       }`,
     );

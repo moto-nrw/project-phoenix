@@ -554,6 +554,9 @@ describe("PlannedStatusDaysModal", () => {
     expect(
       screen.getByRole("heading", { name: "Geplanten Tag entfernen?" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Entschuldigung planen" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Entfernen bestätigen" }),
     );

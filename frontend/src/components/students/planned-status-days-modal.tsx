@@ -135,6 +135,11 @@ export function PlannedStatusDaysModal({
     useState<StudentPartialAbsence | null>(null);
   const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
     useState("");
+  const [statusDayPendingDeletion, setStatusDayPendingDeletion] = useState<{
+    readonly id: string;
+    readonly date: string;
+    readonly status: StudentStatusKind;
+  } | null>(null);
   const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
@@ -355,6 +360,7 @@ export function PlannedStatusDaysModal({
       setEditingPartialAbsenceId(null);
       setPartialAbsencePendingDeletion(null);
       setPartialAbsenceDeleteError("");
+      setStatusDayPendingDeletion(null);
       setCarePlanDay(null);
     },
     [isClassTrip],
@@ -574,12 +580,6 @@ export function PlannedStatusDaysModal({
   // local clear is required on success; a failed delete must keep the row.
   // The caller owns the user-facing error toast, so failures are swallowed here.
   // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
-  const [statusDayPendingDeletion, setStatusDayPendingDeletion] = useState<{
-    readonly id: string;
-    readonly date: string;
-    readonly status: StudentStatusKind;
-  } | null>(null);
-
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
     try {
@@ -712,7 +712,11 @@ export function PlannedStatusDaysModal({
         // eigenständige Dialoge übereinander (#2774). Die Bestätigung steht
         // deshalb als Geschwister NEBEN der Schublade: ein Kind der Schublade
         // würde beim Ausblenden mit verschwinden.
-        open={isOpen && partialAbsencePendingDeletion === null}
+        open={
+          isOpen &&
+          partialAbsencePendingDeletion === null &&
+          statusDayPendingDeletion === null
+        }
         onOpenChange={(open) => {
           if (!open) handleClose();
         }}
@@ -1168,7 +1172,7 @@ export function PlannedStatusDaysModal({
         </SlideOverContent>
       </SlideOver>
       <ConfirmDeleteModal
-        isOpen={statusDayPendingDeletion !== null}
+        isOpen={isOpen && statusDayPendingDeletion !== null}
         title="Geplanten Tag entfernen?"
         description={
           statusDayPendingDeletion ? (

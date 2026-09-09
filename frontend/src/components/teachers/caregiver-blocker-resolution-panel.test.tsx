@@ -144,7 +144,7 @@ describe("CaregiverBlockerResolutionPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("ends active supervisions and removes them from the list", async () => {
+  it("confirms ending an active supervision before calling the API", async () => {
     mockFetch.mockResolvedValue({ ok: true });
 
     render(
@@ -159,6 +159,12 @@ describe("CaregiverBlockerResolutionPanel", () => {
     );
 
     fireEvent.click(screen.getByText("Beenden"));
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Gruppenaufsicht beenden?" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Aufsicht beenden" }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(

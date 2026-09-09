@@ -29,6 +29,7 @@ interface CaregiverBlockerResolutionPanelProps {
   /** Der Schritt ist sichtbar; beim Aktivieren wird die Vertretungsliste geladen. */
   readonly active: boolean;
   readonly state: CaregiverCapabilityState;
+  readonly onConfirmationVisibilityChange?: (visible: boolean) => void;
 }
 
 async function endActiveSupervision(id: string): Promise<void> {
@@ -149,6 +150,7 @@ function buildUpdatedTeacherIds(
 export function CaregiverBlockerResolutionPanel({
   active,
   state,
+  onConfirmationVisibilityChange,
 }: CaregiverBlockerResolutionPanelProps) {
   const { success: toastSuccess } = useToast();
   const [availableStaff, setAvailableStaff] = useState<
@@ -175,6 +177,7 @@ export function CaregiverBlockerResolutionPanel({
   // Rückfrage (Bauart 2 Regel 6, #3109). Ein Übertragen an eine Ersatzkraft
   // läuft direkt: die Zuordnung bleibt bestehen, nur die Person wechselt.
   const [pendingRemoval, setPendingRemoval] = useState<
+    | { readonly kind: "supervision"; readonly item: BlockerSupervision }
     | { readonly kind: "substitution"; readonly item: BlockerSubstitution }
     | { readonly kind: "activity"; readonly item: BlockerActivity }
     | { readonly kind: "group"; readonly item: BlockerGroup }
@@ -183,20 +186,34 @@ export function CaregiverBlockerResolutionPanel({
   const pendingKey =
     pendingRemoval === null
       ? null
-      : pendingRemoval.kind === "substitution"
-        ? `sub-${pendingRemoval.item.id}`
-        : pendingRemoval.kind === "activity"
-          ? `act-${pendingRemoval.item.id}`
-          : `grp-${pendingRemoval.item.id}`;
+      : pendingRemoval.kind === "supervision"
+        ? `sup-${pendingRemoval.item.id}`
+        : pendingRemoval.kind === "substitution"
+          ? `sub-${pendingRemoval.item.id}`
+          : pendingRemoval.kind === "activity"
+            ? `act-${pendingRemoval.item.id}`
+            : `grp-${pendingRemoval.item.id}`;
   const pendingProcessing =
     pendingKey !== null && processing[pendingKey] === true;
+
+  const openConfirmation = (
+    nextPendingRemoval: Exclude<typeof pendingRemoval, null>,
+  ) => {
+    onConfirmationVisibilityChange?.(true);
+    setPendingRemoval(nextPendingRemoval);
+  };
+
+  const closeConfirmation = () => {
+    onConfirmationVisibilityChange?.(false);
+    setPendingRemoval(null);
+  };
 
   const resolveActivity = (item: BlockerActivity) => {
     if (activityReplacements[item.id]) {
       void handleResolveActivity(item);
       return;
     }
-    setPendingRemoval({ kind: "activity", item });
+    openConfirmation({ kind: "activity", item });
   };
 
   const resolveGroup = (item: BlockerGroup) => {
@@ -204,12 +221,14 @@ export function CaregiverBlockerResolutionPanel({
       void handleResolveGroup(item);
       return;
     }
-    setPendingRemoval({ kind: "group", item });
+    openConfirmation({ kind: "group", item });
   };
 
   const confirmPendingRemoval = async () => {
     if (!pendingRemoval) return;
-    if (pendingRemoval.kind === "substitution") {
+    if (pendingRemoval.kind === "supervision") {
+      await handleEndSupervision(pendingRemoval.item);
+    } else if (pendingRemoval.kind === "substitution") {
       await handleEndSubstitution(pendingRemoval.item);
     } else if (pendingRemoval.kind === "activity") {
       await handleResolveActivity(pendingRemoval.item);
@@ -217,7 +236,7 @@ export function CaregiverBlockerResolutionPanel({
       await handleResolveGroup(pendingRemoval.item);
     }
     // Fehler stehen im Alert des Panels; der Dialog schließt in beiden Fällen.
-    setPendingRemoval(null);
+    closeConfirmation();
   };
 
   const totalRemaining =
@@ -431,7 +450,9 @@ export function CaregiverBlockerResolutionPanel({
                     type="button"
                     variant="outline_danger"
                     size="compact"
-                    onClick={() => void handleEndSupervision(item)}
+                    onClick={() =>
+                      openConfirmation({ kind: "supervision", item })
+                    }
                     isLoading={processing[key]}
                     loadingText="Wird beendet…"
                   >
@@ -478,7 +499,7 @@ export function CaregiverBlockerResolutionPanel({
                     variant="outline_danger"
                     size="compact"
                     onClick={() =>
-                      setPendingRemoval({ kind: "substitution", item })
+                      openConfirmation({ kind: "substitution", item })
                     }
                     isLoading={processing[key]}
                     loadingText="Wird beendet…"
@@ -628,24 +649,40 @@ export function CaregiverBlockerResolutionPanel({
       <Alert type="error" message={errorMessage || staffLoadError} />
 
       <ConfirmationModal
-        isOpen={pendingRemoval?.kind === "substitution"}
-        title="Gruppenübergabe beenden?"
-        confirmText="Übergabe beenden"
+        isOpen={
+          pendingRemoval?.kind === "supervision" ||
+          pendingRemoval?.kind === "substitution"
+        }
+        title={
+          pendingRemoval?.kind === "supervision"
+            ? "Gruppenaufsicht beenden?"
+            : "Gruppenübergabe beenden?"
+        }
+        confirmText={
+          pendingRemoval?.kind === "supervision"
+            ? "Aufsicht beenden"
+            : "Übergabe beenden"
+        }
         cancelText="Abbrechen"
         isConfirmLoading={pendingProcessing}
         isDismissDisabled={pendingProcessing}
         onConfirm={() => void confirmPendingRemoval()}
-        onClose={() => setPendingRemoval(null)}
+        onClose={closeConfirmation}
       >
         <p className="text-sm text-gray-700">
-          Die Übergabe der Gruppe{" "}
+          {pendingRemoval?.kind === "supervision"
+            ? "Die Gruppenaufsicht für "
+            : "Die Übergabe der Gruppe "}
           <strong>
-            {pendingRemoval?.kind === "substitution"
+            {pendingRemoval?.kind === "supervision" ||
+            pendingRemoval?.kind === "substitution"
               ? pendingRemoval.item.groupName
               : ""}
           </strong>{" "}
-          wird beendet. Die Gruppe liegt danach wieder bei ihrer regulären
-          Leitung.
+          wird beendet.
+          {pendingRemoval?.kind === "substitution"
+            ? " Die Gruppe liegt danach wieder bei ihrer regulären Leitung."
+            : ""}
         </p>
       </ConfirmationModal>
       <ConfirmDeleteModal
@@ -685,7 +722,7 @@ export function CaregiverBlockerResolutionPanel({
         loading={pendingProcessing}
         error=""
         onConfirm={() => void confirmPendingRemoval()}
-        onClose={() => setPendingRemoval(null)}
+        onClose={closeConfirmation}
       />
     </div>
   );

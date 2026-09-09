@@ -215,18 +215,45 @@ function isCall(node) {
   return node?.type === "CallExpression";
 }
 
-/** `void call(...)`, `await call(...)`, a directly returned `remove()` or
- *  `delete()` call, or a `.then(...)`/`.catch(...)` chain on a call: the
- *  handler itself runs an async action. Direct calls have no type information,
- *  so only the conventional destructive action names are unambiguous; state
- *  setters that open the confirmation remain synchronous and pass. */
+function calledFunctionName(call) {
+  if (call.callee?.type === "Identifier") return call.callee.name;
+  if (
+    call.callee?.type === "MemberExpression" &&
+    call.callee.property?.type === "Identifier"
+  ) {
+    return call.callee.property.name;
+  }
+  return null;
+}
+
+/** State setters and conventionally named confirmation openers are the one
+ *  direct-call form allowed in a destructive click: they only show the
+ *  confirmation, while its onConfirm owns the action. */
+function opensConfirmation(call) {
+  const name = calledFunctionName(call);
+  return (
+    name !== null &&
+    /^(?:set|open|show|begin|request|onRequest)[A-Z]/.test(name)
+  );
+}
+
+function isDelegatedHandlerCall(call) {
+  const name = calledFunctionName(call);
+  return name !== null && /^on[A-Z]/.test(name);
+}
+
+/** `void call(...)`, `await call(...)`, a directly returned call, or a
+ *  `.then(...)`/`.catch(...)` chain on a call: the handler itself runs an
+ *  action. We have no type information here: delegated `on…` handlers stay
+ *  outside this syntactic ratchet, while direct calls with irreversible verbs
+ *  are guarded unless they only open the confirmation. */
 function isFiredAsyncCall(expression) {
   if (!expression) return false;
   if (expression.type === "UnaryExpression" && expression.operator === "void") {
-    return isCall(expression.argument);
+    return isCall(expression.argument) && !opensConfirmation(expression.argument);
   }
   if (expression.type === "AwaitExpression") {
-    return isCall(expression.argument);
+    return isCall(expression.argument) && !opensConfirmation(expression.argument);
   }
   if (
     isCall(expression) &&
@@ -238,9 +265,13 @@ function isFiredAsyncCall(expression) {
     return true;
   }
   if (isCall(expression)) {
+    const name = calledFunctionName(expression);
     return (
-      expression.callee?.type === "Identifier" &&
-      /^(?:delete|remove)$/i.test(expression.callee.name)
+      !opensConfirmation(expression) &&
+      !isDelegatedHandlerCall(expression) &&
+      name !== null &&
+      (/^(?:delete|remove)$/i.test(name) ||
+        /^(?:archive|revoke|withdraw|cancel)[A-Z]/.test(name))
     );
   }
   return false;
