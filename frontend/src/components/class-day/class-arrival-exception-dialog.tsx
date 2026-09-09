@@ -7,7 +7,7 @@
 // Rückmeldungen stehen im Dialog statt als Toast: das Schul-Portal hat keine
 // Toast-Leiste.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type ClassArrivalExceptionApi,
   ClassArrivalExceptionPanel,
@@ -53,6 +53,11 @@ export function ClassArrivalExceptionDialog({
   onChanged,
 }: ClassArrivalExceptionDialogProps) {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) setConfirmationOpen(false);
+  }, [isOpen]);
   const notify = useMemo(
     () => ({
       success: (message: string) => setFeedback({ type: "success", message }),
@@ -68,6 +73,7 @@ export function ClassArrivalExceptionDialog({
   return (
     <FormModal
       isOpen={isOpen}
+      suspended={confirmationOpen}
       onClose={close}
       title={`Ankunftszeit an einem Tag für ${schoolClassLabel(schoolClass)}`}
       size="md"
@@ -94,6 +100,7 @@ export function ClassArrivalExceptionDialog({
             classLabel={schoolClassLabel(schoolClass)}
             api={schoolApi}
             notify={notify}
+            onConfirmationVisibilityChange={setConfirmationOpen}
             onChanged={onChanged}
             defaultDate={defaultDate}
             readOnlyHint="Die OGS hat das Eintragen für die Schule nicht mehr freigegeben."

@@ -121,8 +121,18 @@ describe("TrustedDevicesSection", () => {
       expect(screen.getByText("Chrome auf macOS")).toBeInTheDocument();
     });
 
+    // #3109: the row button opens the ConfirmDeleteModal; the device is only
+    // revoked after the two-step confirmation inside the dialog.
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("heading", { name: "Gerät entfernen?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /Entfernen/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig entfernen" }),
+      );
     });
 
     await waitFor(() => {

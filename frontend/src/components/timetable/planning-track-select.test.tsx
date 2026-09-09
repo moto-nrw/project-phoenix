@@ -134,14 +134,74 @@ describe("PlanningTrackSelect", () => {
     );
     await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
 
+    // #3109: Archivieren läuft nicht mehr aus dem Klick, sondern erst nach
+    // der Rückfrage. Das Popover weicht dem Dialog und kommt danach in der
+    // Verwaltung zurück.
     fireEvent.click(
       screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
     );
+    expect(archive).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Planungsspur archivieren?" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Planungsspuren verwalten" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
     await waitFor(() => expect(archive).toHaveBeenCalledWith("1"));
     expect(onTracksChanged).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Planungsspur archivieren?" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Planungsspuren verwalten" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Archivierte Planungsspuren (2)")).toBeVisible();
+  });
+
+  it("keeps the track when archiving is cancelled", () => {
+    renderSelect();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(archive).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("heading", { name: "Planungsspur archivieren?" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a failed archive inside the management view", async () => {
+    archive.mockRejectedValueOnce(new Error("Archivieren fehlgeschlagen"));
+    renderSelect();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Planungsspur" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Planungsspuren verwalten" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Archivieren fehlgeschlagen",
+    );
+    expect(
+      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps archived tracks out of selection and restores them in management", async () => {

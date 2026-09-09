@@ -493,7 +493,7 @@ src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 t
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
 src/components/students/care-schedule-manager.tsx|text-[10px]@1126 text-[11px]@1281 text-[11px]@1370 text-[11px]@1380 text-[11px]@1410
-src/components/students/planned-status-days-modal.tsx|text-[10px]@899 text-[11px]@899
+src/components/students/planned-status-days-modal.tsx|text-[10px]@913 text-[11px]@913
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@475

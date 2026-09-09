@@ -85,6 +85,10 @@ export function FilteredBulkArrivalModal({
   const { success: toastSuccess, error: toastError } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
+  const [
+    arrivalExceptionConfirmationOpen,
+    setArrivalExceptionConfirmationOpen,
+  ] = useState(false);
   const [lastChanged, setLastChanged] = useState<string | null>(null);
   const [classTimesLoading, setClassTimesLoading] = useState(false);
   const [classTimesError, setClassTimesError] = useState(false);
@@ -224,9 +228,14 @@ export function FilteredBulkArrivalModal({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) setArrivalExceptionConfirmationOpen(false);
+  }, [isOpen]);
+
   return (
     <FormModal
       isOpen={isOpen}
+      suspended={arrivalExceptionConfirmationOpen}
       onClose={onClose}
       title={
         showDayView
@@ -281,6 +290,7 @@ export function FilteredBulkArrivalModal({
             schoolClass={schoolClass}
             classLabel={targetTitle}
             onChanged={onSuccess}
+            onConfirmationVisibilityChange={setArrivalExceptionConfirmationOpen}
           />
         ) : null}
         {showDayView ? null : isClassTimetable ? (
