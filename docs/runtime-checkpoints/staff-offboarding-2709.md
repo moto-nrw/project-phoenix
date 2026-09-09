@@ -161,3 +161,9 @@ five warmups and 30 sequential samples per operation. Raw evidence:
 
 Pool waits and deadlock-counter delta were zero. These remain local capability
 measurements, not end-to-end DELETE latency or production observations.
+
+The first integrated CI seed smoke exposed a fourth regression: authenticated
+sessions with an empty display name failed the deletion audit's required
+`deleted_by` validation. The legacy provider's `system` fallback is restored
+for that exact case. The real-composition regression failed before the fix and
+passes afterward; audit-append failures still roll back the workflow.

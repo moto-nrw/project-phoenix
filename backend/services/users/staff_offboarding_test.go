@@ -804,6 +804,16 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 
 // TestOffboardStaff_Idempotent: deleting a non-existent staff member stays a
 // no-op so the HTTP handler keeps returning 200.
+func TestOffboardStaff_EmptyDisplayNameKeepsLegacyAuditAttribution(t *testing.T) {
+	t.Parallel()
+	sc := newOffboardingScenario(t)
+	staff := testpkg.CreateTestStaff(t, sc.db, "UnnamedActor", "Offboarding")
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, ""))
+	var deletedBy string
+	require.NoError(t, sc.db.NewRaw("SELECT deleted_by FROM audit.data_deletions WHERE staff_id = ? AND tenant_id = ?", staff.ID, testpkg.Tenant(t)).Scan(sc.ctx, &deletedBy))
+	require.Equal(t, "system", deletedBy)
+}
+
 func TestOffboardStaff_Idempotent(t *testing.T) {
 	t.Parallel()
 

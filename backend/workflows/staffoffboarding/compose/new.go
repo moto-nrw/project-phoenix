@@ -165,7 +165,13 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 			for _, count := range counts {
 				records += int(count)
 			}
-			event := auditModels.NewStaffDataDeletion(result.StaffID, auditModels.DeletionTypeManual, records, actor.Username)
+			deletedBy := actor.Username
+			if deletedBy == "" {
+				// Preserve the legacy provider's audit value for authenticated
+				// sessions without a display name, including the API seeder.
+				deletedBy = "system"
+			}
+			event := auditModels.NewStaffDataDeletion(result.StaffID, auditModels.DeletionTypeManual, records, deletedBy)
 			event.DeletionReason = "staff offboarding"
 			event.SetTenantID(actor.TenantID)
 			for key, count := range counts {
