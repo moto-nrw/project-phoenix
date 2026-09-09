@@ -3663,6 +3663,14 @@
       "write_owner": "school-membership"
     },
     {
+      "name": "users.staff_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_employment_profiles",
+      "write_owner": "workforce"
+    },
+    {
       "name": "users.staff_document_file_cleanup",
       "write_owner": "workforce"
     },

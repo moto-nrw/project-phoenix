@@ -101,6 +101,8 @@ var seedCoverageExemptions = map[string]string{
 	"users.profiles":                          "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":       "empty in prod too",
 	"users.staff_documents":                   "empty in prod too",
+	"users.staff_school_memberships":          "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
+	"users.staff_employment_profiles":         "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
 	"users.staff_financial_data":              "empty in prod too",
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
