@@ -94,14 +94,6 @@ func (r *classTeacherRepository) FindByStaff(ctx context.Context, staffID int64)
 	return classAssignmentModels(assignments), nil
 }
 
-func (r *classTeacherRepository) DeleteByStaffID(ctx context.Context, staffID int64) (int64, error) {
-	rows, err := r.membership.DeleteClassAssignmentsByStaff(ctx, staffID)
-	if err != nil {
-		return 0, fmt.Errorf("delete class assignments by staff ID: %w", err)
-	}
-	return rows, nil
-}
-
 type groupTeacherRepository struct {
 	membership schoolmembership.Capability
 	groups     educationModels.GroupRepository
@@ -199,14 +191,6 @@ func (r *groupTeacherRepository) list(ctx context.Context, filter schoolmembersh
 		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
 	return groupAssignmentModels(assignments), nil
-}
-
-func (r *groupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherID int64) (int64, error) {
-	rows, err := r.membership.DeleteGroupAssignmentsByTeacher(ctx, teacherID)
-	if err != nil {
-		return 0, fmt.Errorf("delete group assignments by teacher ID: %w", err)
-	}
-	return rows, nil
 }
 
 func (r *groupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error) {

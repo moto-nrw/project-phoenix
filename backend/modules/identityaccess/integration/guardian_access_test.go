@@ -49,6 +49,51 @@ func TestGuardianAccessObservationsCountOnlyWrittenRows(t *testing.T) {
 	require.EqualValues(t, 1, observations[3].Stats.Rows, "repeat grant only updates the mapping")
 }
 
+// Offboarding locks the account before changing its tenant mapping. A grant
+// must wait at that same first lock, not hold the mapping while waiting for
+// the role insert's account foreign key (#2709/#2699).
+func TestGuardianGrantUsesOffboardingAccountLockOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	access := newGuardianAccess(t, db)
+	account := testpkg.CreateTestAccount(t, db, "concurrent-offboarding-grant")
+	tenantID := testpkg.Tenant(t)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	defer cancel()
+	grantDone := make(chan error, 1)
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		var lockedID int64
+		if err := tx.NewRaw("SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE", account.ID).Scan(txCtx, &lockedID); err != nil {
+			return err
+		}
+		go func() {
+			_, err := access.GrantGuardianTenantAccess(ctx, account.ID)
+			grantDone <- err
+		}()
+		require.Eventually(t, func() bool {
+			var waiting int
+			err := db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(ctx, &waiting)
+			return err == nil && waiting > 0
+		}, 5*time.Second, 10*time.Millisecond, "grant must be waiting on the locked account")
+		if _, err := tx.NewRaw("SET LOCAL lock_timeout = '250ms'").Exec(txCtx); err != nil {
+			return err
+		}
+		_, err := tx.NewRaw("UPDATE auth.account_tenants SET status = 'inactive', deactivated_at = NOW() WHERE account_id = ? AND tenant_id = ?", account.ID, tenantID).Exec(txCtx)
+		return err
+	})
+	select {
+	case grantErr := <-grantDone:
+		require.NoError(t, grantErr)
+	case <-ctx.Done():
+		t.Fatal("grant did not finish after the account lock was released")
+	}
+	require.NoError(t, err, "offboarding must not wait on a mapping held by the blocked grant")
+	mapping, found := tenantMapping(t, db, account.ID, tenantID)
+	require.True(t, found)
+	require.Equal(t, "active", mapping.Status, "the serialized later grant reactivates this tenant only")
+	require.Len(t, guardianRoleAssignments(t, db, account.ID, tenantID), 1)
+}
+
 type tenantAccessRow struct {
 	Status        string
 	DeactivatedAt *time.Time

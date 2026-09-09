@@ -47,6 +47,9 @@ func (s *Service) CreatePlannedSupervisor(ctx context.Context, fields domain.Pla
 		fields.ValidFrom = s.today()
 	}
 	err = s.runWrite(ctx, "create_planned_supervisor", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
+			return err
+		}
 		value, queryStats, createErr := s.store.CreatePlannedSupervisor(txCtx, fields)
 		stats.Add(queryStats)
 		result = value
@@ -60,6 +63,9 @@ func (s *Service) UpdatePlannedSupervisor(ctx context.Context, id int64, fields 
 		fields.ValidFrom = s.today()
 	}
 	err = s.runWrite(ctx, "update_planned_supervisor", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.lockStaffAssignment(txCtx, fields.StaffID); err != nil {
+			return err
+		}
 		value, found, queryStats, updateErr := s.store.UpdatePlannedSupervisor(txCtx, id, fields)
 		stats.Add(queryStats)
 		if updateErr != nil {

@@ -313,15 +313,6 @@ type StaffAbsenceRepository interface {
 	// once decided, the deciding person.
 	ListRequests(ctx context.Context, filter AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
 
-	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
-	// pending/question rows or absences whose end date has not passed.
-	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)
-
-	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested' or 'question') or not yet over (date_end >= from). Past
-	// decided absences stay as history. Used by staff offboarding.
-	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
-
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the time-tracking retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)

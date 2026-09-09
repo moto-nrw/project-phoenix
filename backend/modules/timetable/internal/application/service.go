@@ -10,21 +10,22 @@ import (
 )
 
 type Service struct {
-	store    ports.Store
-	tx       ports.Transaction
-	students ports.StudentDirectory
-	rooms    ports.RoomDirectory
-	locks    ports.CareDayLocker
-	today    func() string
-	observe  ports.Observer
-	carePlan ports.CarePlanDirectory
+	store               ports.Store
+	tx                  ports.Transaction
+	students            ports.StudentDirectory
+	rooms               ports.RoomDirectory
+	locks               ports.CareDayLocker
+	today               func() string
+	observe             ports.Observer
+	carePlan            ports.CarePlanDirectory
+	lockStaffAssignment func(context.Context, int64) error
 }
 
-func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, locks ports.CareDayLocker, carePlan ports.CarePlanDirectory, today func() string, observe ports.Observer) *Service {
-	if store == nil || tx == nil || students == nil || rooms == nil || locks == nil || carePlan == nil || today == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, locks ports.CareDayLocker, carePlan ports.CarePlanDirectory, lockStaffAssignment func(context.Context, int64) error, today func() string, observe ports.Observer) *Service {
+	if store == nil || tx == nil || students == nil || rooms == nil || locks == nil || carePlan == nil || lockStaffAssignment == nil || today == nil || observe == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, students: students, rooms: rooms, locks: locks, carePlan: carePlan, today: today, observe: observe}
+	return &Service{store: store, tx: tx, students: students, rooms: rooms, locks: locks, carePlan: carePlan, lockStaffAssignment: lockStaffAssignment, today: today, observe: observe}
 }
 
 func (s *Service) carePlanDirectory() (ports.CarePlanDirectory, error) {

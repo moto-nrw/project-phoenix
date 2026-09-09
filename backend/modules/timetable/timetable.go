@@ -1866,6 +1866,8 @@ func normalizeGroupTarget(target GroupTargetInput) (GroupTargetInput, error) {
 
 func ErrorCode(err error) string {
 	switch {
+	case errors.Is(err, ErrOffboardingConflict):
+		return "offboarding_conflict"
 	case err == nil:
 		return "none"
 	case errors.Is(err, ErrCategoryNotFound):

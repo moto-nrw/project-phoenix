@@ -18,6 +18,9 @@ func (s *Service) ListClassAssignments(ctx context.Context, filter domain.ClassA
 
 func (s *Service) CreateClassAssignment(ctx context.Context, staffID int64, schoolClass string) (result domain.ClassAssignment, err error) {
 	err = s.runWrite(ctx, "create_class_assignment", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.requireStaffLocked(txCtx, staffID, stats); err != nil {
+			return err
+		}
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateClassAssignment(txCtx, staffID, schoolClass)
 		stats.Add(queryStats)
@@ -28,6 +31,9 @@ func (s *Service) CreateClassAssignment(ctx context.Context, staffID int64, scho
 
 func (s *Service) UpdateClassAssignment(ctx context.Context, id, staffID int64, schoolClass string) (result domain.ClassAssignment, err error) {
 	err = s.runWrite(ctx, "update_class_assignment", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.requireStaffLocked(txCtx, staffID, stats); err != nil {
+			return err
+		}
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.UpdateClassAssignment(txCtx, id, staffID, schoolClass)
 		stats.Add(queryStats)
@@ -66,6 +72,9 @@ func (s *Service) ListGroupAssignments(ctx context.Context, filter domain.GroupA
 
 func (s *Service) CreateGroupAssignment(ctx context.Context, groupID, teacherID int64) (result domain.GroupAssignment, err error) {
 	err = s.runWrite(ctx, "create_group_assignment", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.requireTeacherForAssignment(txCtx, teacherID, stats); err != nil {
+			return err
+		}
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateGroupAssignment(txCtx, groupID, teacherID)
 		stats.Add(queryStats)
@@ -76,6 +85,9 @@ func (s *Service) CreateGroupAssignment(ctx context.Context, groupID, teacherID 
 
 func (s *Service) UpdateGroupAssignment(ctx context.Context, id, groupID, teacherID int64) (result domain.GroupAssignment, err error) {
 	err = s.runWrite(ctx, "update_group_assignment", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.requireTeacherForAssignment(txCtx, teacherID, stats); err != nil {
+			return err
+		}
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.UpdateGroupAssignment(txCtx, id, groupID, teacherID)
 		stats.Add(queryStats)
@@ -106,4 +118,18 @@ func (s *Service) deleteGroupAssignments(ctx context.Context, operation string, 
 		return deleteErr
 	})
 	return rows, err
+}
+
+// Assignment writers and retirement serialize on the teacher row. A foreign
+// key alone cannot reject the retained tombstone after retirement commits.
+func (s *Service) requireTeacherForAssignment(ctx context.Context, teacherID int64, stats *domain.OperationStats) error {
+	_, found, queryStats, err := s.store.FindTeacher(ctx, teacherID, "SHARE")
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return domain.ErrTeacherNotFound
+	}
+	return nil
 }

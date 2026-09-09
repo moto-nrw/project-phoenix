@@ -62,6 +62,11 @@ func (s *Service) CreateStaffShift(ctx context.Context, shift domain.StaffShift)
 	}
 	err = s.run("create_staff_shift", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if shift.Date >= s.clock.Today() {
+				if err := s.lockStaffAssignment(txCtx, shift.StaffID); err != nil {
+					return err
+				}
+			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffShift(txCtx, shift)
 			stats.Add(writeStats)
@@ -84,6 +89,15 @@ func (s *Service) CreateStaffShifts(ctx context.Context, shifts []domain.StaffSh
 	}
 	err = s.run("create_staff_shifts", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			ids := make([]int64, 0, len(shifts))
+			for _, shift := range shifts {
+				if shift.Date >= s.clock.Today() {
+					ids = append(ids, shift.StaffID)
+				}
+			}
+			if err := s.lockAssignmentStaff(txCtx, ids); err != nil {
+				return err
+			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffShifts(txCtx, shifts)
 			stats.Add(writeStats)
@@ -99,6 +113,11 @@ func (s *Service) UpdateStaffShift(ctx context.Context, shift domain.StaffShift)
 	}
 	err = s.run("update_staff_shift", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if shift.Date >= s.clock.Today() {
+				if err := s.lockStaffAssignment(txCtx, shift.StaffID); err != nil {
+					return err
+				}
+			}
 			var found bool
 			var writeStats domain.OperationStats
 			result, found, writeStats, err = s.store.UpdateStaffShift(txCtx, shift)
@@ -221,6 +240,11 @@ func (s *Service) CreateStaffShiftSeries(ctx context.Context, series domain.Staf
 	}
 	err = s.run("create_staff_shift_series", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if series.ValidUntil == "" || series.ValidUntil > s.clock.Today() {
+				if err := s.lockStaffAssignment(txCtx, series.StaffID); err != nil {
+					return err
+				}
+			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateStaffShiftSeries(txCtx, series)
 			stats.Add(writeStats)
@@ -236,6 +260,11 @@ func (s *Service) UpdateStaffShiftSeries(ctx context.Context, series domain.Staf
 	}
 	err = s.run("update_staff_shift_series", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if series.ValidUntil == "" || series.ValidUntil > s.clock.Today() {
+				if err := s.lockStaffAssignment(txCtx, series.StaffID); err != nil {
+					return err
+				}
+			}
 			var found bool
 			var writeStats domain.OperationStats
 			result, found, writeStats, err = s.store.UpdateStaffShiftSeries(txCtx, series)

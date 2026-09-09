@@ -199,6 +199,9 @@ func (s *Service) ListTeachers(ctx context.Context, filter domain.TeacherFilter)
 
 func (s *Service) CreateTeacher(ctx context.Context, fields domain.TeacherFields) (result domain.Teacher, err error) {
 	err = s.runWrite(ctx, "create_teacher", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := s.requireStaffLocked(txCtx, fields.StaffID, stats); err != nil {
+			return err
+		}
 		var createStats domain.OperationStats
 		result, createStats, err = s.store.CreateTeacher(txCtx, fields)
 		stats.Add(createStats)
@@ -209,6 +212,19 @@ func (s *Service) CreateTeacher(ctx context.Context, fields domain.TeacherFields
 
 func (s *Service) UpdateTeacher(ctx context.Context, id int64, fields domain.TeacherFields) (result domain.Teacher, err error) {
 	err = s.runWrite(ctx, "update_teacher", func(txCtx context.Context, stats *domain.OperationStats) error {
+		// Preserve the missing-teacher contract before validating the target
+		// staff, but acquire write locks in staff -> teacher order.
+		_, visible, readStats, readErr := s.store.FindTeacher(txCtx, id, "")
+		stats.Add(readStats)
+		if readErr != nil {
+			return readErr
+		}
+		if !visible {
+			return domain.ErrTeacherNotFound
+		}
+		if err := s.requireStaffLocked(txCtx, fields.StaffID, stats); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindTeacher(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {

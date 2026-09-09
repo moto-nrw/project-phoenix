@@ -21,6 +21,10 @@ func NewWorkforce(db *bun.DB, membership schoolmembership.Capability) (workforce
 // work-session window and the calendar day; nil means the wall clock.
 func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, now func() time.Time) (workforce.Capability, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
 		DB:                db,
 		AssignedStaffIDs:  WorkforceAssignedStaffIDs(membership),
 		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,

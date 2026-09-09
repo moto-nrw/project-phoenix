@@ -26,7 +26,7 @@ import (
 func buildWorkforceAt(t *testing.T, db *bun.DB, now time.Time) workforce.Capability {
 	t.Helper()
 	runtime := testpkg.ConfigRuntime(db)
-	capability, err := New(Dependencies{
+	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
 		DB:                db,
 		AssignedStaffIDs:  runtime.AssignedStaffIDs,
 		RebaseStaffAnchor: runtime.RebaseAssignedStaffAnchor,

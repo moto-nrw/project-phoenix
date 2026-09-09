@@ -11,6 +11,7 @@ import (
 // config.work_time_model_entries and config.staff_work_schedules. Reads and
 // writes honour the tenant in context when one is bound.
 type Store interface {
+	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
 	ListWorkTimeModels(context.Context) ([]domain.WorkTimeModel, domain.OperationStats, error)
 	FindWorkTimeModel(context.Context, int64) (domain.WorkTimeModel, bool, domain.OperationStats, error)
 	ListWorkTimeModelsByIDs(context.Context, []int64) ([]domain.WorkTimeModel, domain.OperationStats, error)
@@ -255,6 +256,7 @@ type Transaction interface {
 	// staff member. Callers take LockStaffBalance first, because an effective
 	// absence also changes the Stundenkonto.
 	LockStaffAbsence(ctx context.Context, staffID int64) error
+	LockStaffShifts(ctx context.Context, staffID int64) error
 }
 
 // Clock supplies the calendar day new schedule versions start on and the

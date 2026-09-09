@@ -10,7 +10,8 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -115,6 +116,8 @@ type StaffMembershipHooks struct {
 	QueueOffboardedDocumentCleanup func(context.Context, int64) error
 }
 
+type staffOffboardingActorNameKey struct{}
+
 // StaffMembershipRuntime is the legacy-service side of the School Membership
 // HTTP adapter. Every closure keeps the exact semantics of the handler code
 // it replaced in api/staff.
@@ -156,6 +159,21 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	}
 	if logger == nil {
 		logger = slog.Default()
+	}
+	access, ok := f.Auth.(offboardingcompose.Access)
+	if !ok {
+		panic("staff membership runtime: identity offboarding capability is required")
+	}
+	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
+		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
+		Broadcaster: f.RealtimeHub, Logger: logger,
+		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
+			name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
+			return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
+		},
+	})
+	if err != nil {
+		panic(err)
 	}
 	return StaffMembershipRuntime{
 		Person: func(ctx context.Context, id int64) (StaffDirectoryPerson, error) {
@@ -285,17 +303,11 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 			return StaffUpdateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), Action: staffTeacherAction(action)}, nil
 		},
 		Offboard: func(ctx context.Context, staffID int64, actorUsername string) error {
-			deletedByStaffID, err := hooks.ResolveEditorStaffID(ctx)
-			if err != nil {
-				return err
+			_, err := offboarding.Offboard(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
+			if errors.Is(err, staffoffboarding.ErrInUse) {
+				return usersSvc.ErrStaffInUse
 			}
-			tenantID := tenant.FromContext(ctx)
-			return tenant.WithTenantTx(ctx, db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-				if err := f.StaffOffboarding.OffboardStaff(ctx, staffID, deletedByStaffID, actorUsername); err != nil {
-					return err
-				}
-				return hooks.QueueOffboardedDocumentCleanup(ctx, staffID)
-			})
+			return err
 		},
 
 		PINStatus: func(ctx context.Context, accountID int64) (bool, *time.Time, error) {
@@ -325,6 +337,10 @@ func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 		return StaffFailureConflict, err
 	case errors.Is(err, usersSvc.ErrStaffInUse):
 		return StaffFailureConflict, usersSvc.ErrStaffInUse
+	case errors.Is(err, staffoffboarding.ErrConflict):
+		return StaffFailureConflict, err
+	case errors.Is(err, staffoffboarding.ErrUnauthorized):
+		return StaffFailureForbidden, err
 	default:
 		return StaffFailureInternal, err
 	}

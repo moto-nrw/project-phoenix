@@ -24,7 +24,7 @@ func TestWorkforceOwnerRuntime(t *testing.T) {
 	config := testpkg.ConfigRuntime(db)
 	var measuring, observing bool
 	var operations []map[string]any
-	capability, err := New(Dependencies{DB: db, AssignedStaffIDs: config.AssignedStaffIDs, RebaseStaffAnchor: config.RebaseAssignedStaffAnchor, Observe: func(event Observation) {
+	capability, err := New(Dependencies{LockStaffAssignment: config.LockStaffAssignment, DB: db, AssignedStaffIDs: config.AssignedStaffIDs, RebaseStaffAnchor: config.RebaseAssignedStaffAnchor, Observe: func(event Observation) {
 		if observing {
 			operations = append(operations, map[string]any{"operation": event.Operation, "error_code": workforce.ErrorCode(event.Err), "queries": event.Stats.Queries, "rows": event.Stats.Rows, "duration_ms": float64(event.Duration) / float64(time.Millisecond)})
 		}

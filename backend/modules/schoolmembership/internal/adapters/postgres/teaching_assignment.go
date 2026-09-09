@@ -57,6 +57,9 @@ func (s *Store) ListClassAssignments(ctx context.Context, filter domain.ClassAss
 		query = query.Where(`LOWER(BTRIM("class_assignment".school_class)) IN (?)`, bun.List(filter.ClassKeys))
 	}
 	query = query.OrderExpr(`LOWER(BTRIM("class_assignment".school_class)) ASC, "class_assignment".id ASC`)
+	if filter.ForUpdate {
+		query = query.OrderExpr(`"class_assignment".id ASC`).For("UPDATE OF class_assignment")
+	}
 	stats, err := scanAll(ctx, query, "list class assignments")
 	if err != nil {
 		return nil, stats, err
@@ -169,6 +172,9 @@ func (s *Store) ListGroupAssignments(ctx context.Context, filter domain.GroupAss
 			Where(`"teacher".staff_id IN (?)`, bun.List(filter.TeacherStaffIDs))
 	}
 	query = query.OrderExpr(`"group_assignment".id ASC`)
+	if filter.ForUpdate {
+		query = query.For("UPDATE OF group_assignment")
+	}
 	stats, err := scanAll(ctx, query, "list group assignments")
 	if err != nil {
 		return nil, stats, err

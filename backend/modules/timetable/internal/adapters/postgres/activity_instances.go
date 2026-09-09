@@ -47,13 +47,30 @@ type activityInstanceRow struct {
 }
 
 func (s *Store) FindActivityInstance(ctx context.Context, id int64) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+	return s.findActivityInstance(ctx, id, "")
+}
+
+// Assignment writers share the instance lock; date/status writers take it
+// exclusively after their staff locks and then recheck the assignment set.
+func (s *Store) LockActivityInstance(ctx context.Context, id int64, exclusive bool) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+	mode := "KEY SHARE"
+	if exclusive {
+		mode = "UPDATE"
+	}
+	return s.findActivityInstance(ctx, id, mode)
+}
+
+func (s *Store) findActivityInstance(ctx context.Context, id int64, lock string) (domain.ActivityInstance, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.ActivityInstance{}, false, domain.OperationStats{}, err
 	}
 	row := activityInstanceRow{}
-	found, stats, err := scanOne(ctx, activityInstanceSelect(db, &row, tenantID).
-		Where(`"activity_instance".id = ?`, id), "find activity instance")
+	query := activityInstanceSelect(db, &row, tenantID).Where(`"activity_instance".id = ?`, id)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	found, stats, err := scanOne(ctx, query, "find activity instance")
 	return activityInstanceToDomain(row), found, stats, err
 }
 

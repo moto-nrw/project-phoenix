@@ -591,3 +591,10 @@ logically overlapping rules. Change
 `schema_version` only when the JSON shape changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
+
+Reviewed data-less workflow additions may register new workflow owners when
+all their packages are candidate-created and the policy epoch increases
+([ADR 0013](../../docs/adr/0013-staff-offboarding-is-an-application-workflow.md),
+[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
+permit adopting existing packages, expanding existing-owner permissions, or
+owning writable data. Those guards are checked independently.

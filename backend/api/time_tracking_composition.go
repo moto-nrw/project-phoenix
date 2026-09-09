@@ -8,6 +8,7 @@ import (
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
@@ -94,7 +95,12 @@ func newTimeTrackingResource(svc *services.Factory, db *bun.DB) *timeTrackingHTT
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from.
 func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Query, exportTransfer *exportTransferModule.Module, db *bun.DB, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
+	if err != nil {
+		panic(err)
+	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
+		OffboardingCleanup: cleanup,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,

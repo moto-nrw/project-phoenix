@@ -189,6 +189,18 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 
 func (SettingsRuntimeAdapter) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }
 
+// LockStaffAssignment mirrors Membership.FindStaffForMutation for owner tests
+// that cannot compose Membership through this package without an import cycle.
+func (r SettingsRuntimeAdapter) LockStaffAssignment(ctx context.Context, staffID int64) error {
+	if !r.HasTransaction(ctx) || r.TenantID(ctx) <= 0 {
+		return fmt.Errorf("staff assignment requires a tenant transaction")
+	}
+	var id int64
+	return r.DB(ctx).NewSelect().TableExpr("users.staff").Column("id").
+		Where("tenant_id = ?", r.TenantID(ctx)).Where("id = ?", staffID).
+		Where("deleted_at IS NULL").For("UPDATE").Scan(ctx, &id)
+}
+
 // AssignedStaffIDs and RebaseAssignedStaffAnchor stand in for the School
 // Membership capability the production settings runtime delegates to
 // (#2667). The test package cannot compose that module (its own tests import
