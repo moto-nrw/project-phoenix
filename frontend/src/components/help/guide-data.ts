@@ -1864,7 +1864,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Das gilt auch nach dem Ausschalten des Buchungsmodus.",
           "Es ist dann keine Aktion mehr nötig.",
           "Soll das Kind sofort gelöscht werden, wählen Sie in derselben Aufgabe `Kind sofort löschen`. `Löschen prüfen` öffnet erst die ausführliche Vorschau mit allen betroffenen Daten. Die Löschung entfernt das Kind sofort, auch wenn ein späterer letzter Betreuungstag geplant war.",
-          "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
+          "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag. Über `Ende stornieren` nehmen Sie das Ende zurück und bestätigen die Rückfrage. Danach gelten weggefallene Termine und Angebote wieder.",
           "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinderdaten` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
           "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
         ],
