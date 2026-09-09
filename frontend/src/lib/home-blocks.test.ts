@@ -291,6 +291,18 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
     );
   });
 
+  it("lässt eine gespeicherte Platzierung weg, die später entfernt wurde", () => {
+    const { placements, addable } = resolveHomeLayout(
+      fullContext,
+      [{ key: "section.birthdays", span: 4, col: 0, row: 0 }],
+      { "section.birthdays": false },
+      {},
+    );
+
+    expect(keysOf(placements)).not.toContain("section.birthdays");
+    expect(addable.map((block) => block.key)).toContain("section.birthdays");
+  });
+
   it("korrigiert eine Breite, die es für den Baustein nicht gibt", () => {
     const { placements } = resolveHomeLayout(
       fullContext,

@@ -1015,6 +1015,11 @@ export function resolveHomeLayout(
   const profile = homeProfileFor(ctx.access);
 
   for (const entry of stored ?? []) {
+    // Eine ältere, noch geöffnete Seite kann die Ausblendung speichern, ohne
+    // die bereits gespeicherte Platzierung zu entfernen. Die Ausblendung
+    // gewinnt auch dann; ein verpflichtender Baustein wird unten wieder
+    // ergänzt.
+    if (overrides?.[entry.key] === false) continue;
     const block = allowed(entry.key);
     if (!block) continue;
     placements.push({
