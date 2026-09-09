@@ -6,9 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -16,27 +14,21 @@ import (
 
 // Resource defines the Data API resource for device data queries
 type Resource struct {
-	IoTService           iotSvc.Service
-	UsersService         usersSvc.PersonService
-	ActivitiesService    activitiesSvc.ActivityService
-	FacilityService      facilitiesSvc.Service
-	UnregisteredTagScans shared.UnregisteredTagScanRecorder
-	Logger               *slog.Logger
+	IoTService        iotSvc.Service
+	UsersService      usersSvc.PersonService
+	ActivitiesService activitiesSvc.ActivityService
+	FacilityService   facilitiesSvc.Service
+	Logger            *slog.Logger
 }
 
 // NewResource creates a new Data resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service, logger *slog.Logger, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *Resource {
-	var scanService auditSvc.UnregisteredTagScanService
-	if len(unregisteredTagScans) > 0 {
-		scanService = unregisteredTagScans[0]
-	}
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service, logger *slog.Logger) *Resource {
 	return &Resource{
-		IoTService:           iotService,
-		UsersService:         usersService,
-		ActivitiesService:    activitiesService,
-		FacilityService:      facilityService,
-		UnregisteredTagScans: scanService,
-		Logger:               logger,
+		IoTService:        iotService,
+		UsersService:      usersService,
+		ActivitiesService: activitiesService,
+		FacilityService:   facilityService,
+		Logger:            logger,
 	}
 }
 

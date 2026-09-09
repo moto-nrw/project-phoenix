@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 4,
+  "policy_epoch": 5,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -461,6 +461,27 @@
       "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan/internal/ports",
+      "owner": "process-device-scan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicescan/internal/application",
+      "owner": "process-device-scan",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicescan/compose",
+      "owner": "process-device-scan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/studentpresence",
@@ -1707,13 +1728,6 @@
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/iot/checkin",
-      "owner": "process-device-scan",
-      "role": "application",
-      "internal_test_role": "workflow-decision-test",
-      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "services/iot/staffclock",
@@ -15802,6 +15816,291 @@
       "source_role": "compose",
       "target_owner": "class-day-view",
       "target_role": "compose"
+    },
+    {
+      "id": "process-device-scan.application.public",
+      "description": "The device-scan workflow implements the public kiosk scan contract (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.application.port",
+      "description": "The device-scan workflow depends on its consumer-owned ports (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
+      "target_role": "port"
+    },
+    {
+      "id": "process-device-scan.decision-test.public",
+      "description": "Device scan decision tests drive the workflow through the public contract values (#2698).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.decision-test.device-fleet",
+      "description": "Device scan decision tests fake the public Device Fleet capability (#2698).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.integration-test.compose",
+      "description": "Device scan integration tests compose the workflow over the real retained services (#2698).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-integration-test",
+      "target_owner": "process-device-scan",
+      "target_role": "compose"
+    },
+    {
+      "id": "process-device-scan.compose.public",
+      "description": "The device-scan composition returns the workflow's own contract (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.application",
+      "description": "The device-scan composition constructs the workflow (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.port",
+      "description": "The device-scan composition binds the workflow's consumer-owned ports (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "port"
+    },
+    {
+      "id": "process-device-scan.compose.student-presence-public",
+      "description": "The device-scan composition records visits through the public Student Presence DTOs (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.student-presence-application",
+      "description": "Compatibility binding (#2698): the visit, session and attendance ports forward to the retained presence service until Student Presence exposes the transitions publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.student-presence-domain",
+      "description": "Compatibility binding (#2698): the session port maps the retained active group row.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.people-application",
+      "description": "Compatibility binding (#2698): the people port resolves cards, students and staff through the retained people service until People Directory exposes them publicly.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.people-domain",
+      "description": "Compatibility binding (#2698): the people port normalizes tags and reads the retained person and student rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.timetable-application",
+      "description": "Compatibility binding (#2698): the activity and pickup ports forward to the retained activity and pickup schedule services.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.timetable-domain",
+      "description": "Compatibility binding (#2698): the activity port maps the retained activity group and category rows.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.school-structure-application",
+      "description": "Compatibility binding (#2698): the group port resolves the child's education group through the retained education service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.settings-application",
+      "description": "Compatibility binding (#2698): the settings port resolves the kiosk settings through the retained settings service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "process-device-scan.compose.settings-domain",
+      "description": "Compatibility binding (#2698): the settings port names the kiosk setting keys.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.device-fleet-adapter",
+      "description": "The device-scan composition reads the device and staff principals the device authentication bound (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "process-device-scan.compose.tenant-runtime",
+      "description": "The device-scan composition binds the request transaction rollback of the tenant runtime (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.compose.calendar-date",
+      "description": "The device-scan composition translates the retained calendar-date signatures at the port boundary (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.orm-sql",
+      "description": "The device-scan composition classifies missing rows of the retained people lookups (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "root-composition.to.process-device-scan-compose",
+      "description": "The production root composes the device-scan workflow once for the kiosk routes (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.compose.to.process-device-scan.compose",
+      "description": "The legacy test composition builds the device-scan workflow over the active test graph (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "process-device-scan",
+      "target_role": "compose"
+    },
+    {
+      "id": "process-device-scan.port.calendar-date",
+      "description": "Device-scan ports carry the canonical calendar-date value for pickup days and session days (#2698).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "port",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.decision-test.calendar-date",
+      "description": "Workflow decision fakes build the canonical calendar-date values the ports carry (#2698).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "workflow-decision-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
     },
     {
       "id": "inbound-active.to.calendar-view",

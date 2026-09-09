@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 )
 
@@ -18,7 +17,7 @@ func (rs *Resource) processSessionTimeout(w http.ResponseWriter, r *http.Request
 	// Process timeout via device ID
 	result, err := rs.ActiveService.ProcessSessionTimeout(r.Context(), deviceCtx.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -40,20 +39,20 @@ func (rs *Resource) updateSessionActivity(w http.ResponseWriter, r *http.Request
 
 	var req SessionActivityRequest
 	if err := render.Bind(r, &req); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
 	// Get current session for this device
 	session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
 	// Update session activity
 	if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -73,13 +72,13 @@ func (rs *Resource) validateSessionTimeout(w http.ResponseWriter, r *http.Reques
 
 	var req TimeoutValidationRequest
 	if err := render.Bind(r, &req); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
 	// Validate the timeout request
 	if err := rs.ActiveService.ValidateSessionTimeout(r.Context(), deviceCtx.ID, req.TimeoutMinutes); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -99,7 +98,7 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 
 	info, err := rs.ActiveService.GetSessionTimeoutInfo(r.Context(), deviceCtx.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 

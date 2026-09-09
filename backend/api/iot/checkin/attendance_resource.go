@@ -1,50 +1,50 @@
 package checkin
 
 import (
+	"log/slog"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
-// AttendanceResource defines the Attendance API resource
+// AttendanceResource defines the daily attendance API resource.
 type AttendanceResource struct {
-	UsersService         usersSvc.PersonService
-	ActiveService        activeSvc.Service
-	EducationService     educationSvc.Service
-	SettingsService      configSvc.SettingsService
-	UnregisteredTagScans shared.UnregisteredTagScanRecorder
+	attendance devicescan.Attendance
+	runtime    Runtime
+	logger     *slog.Logger
 }
 
-// NewAttendanceResource creates a new Attendance resource
-func NewAttendanceResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, settingsService configSvc.SettingsService, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *AttendanceResource {
-	var scanService auditSvc.UnregisteredTagScanService
-	if len(unregisteredTagScans) > 0 {
-		scanService = unregisteredTagScans[0]
+// NewAttendanceResource creates the attendance resource over the public
+// scan contract.
+func NewAttendanceResource(attendance devicescan.Attendance, runtime Runtime, logger *slog.Logger) *AttendanceResource {
+	if attendance == nil || !runtime.valid() {
+		panic("attendance resource: the attendance contract and the runtime are required")
 	}
-	return &AttendanceResource{
-		UsersService:         usersService,
-		ActiveService:        activeService,
-		EducationService:     educationService,
-		SettingsService:      settingsService,
-		UnregisteredTagScans: scanService,
+	if logger == nil {
+		logger = slog.Default()
 	}
+	return &AttendanceResource{attendance: attendance, runtime: runtime, logger: logger}
 }
 
-// Router returns a configured router for attendance tracking endpoints
-// This router is mounted under /iot/attendance/ and handles daily attendance status and toggling
-// All routes require device authentication (API key + Staff PIN)
+// Router returns the router for the attendance tracking endpoints. It is
+// mounted under /iot/attendance/; all routes require device authentication
+// (API key + staff PIN).
 func (rs *AttendanceResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Attendance tracking endpoints
 	r.Get("/status/{rfid}", rs.getAttendanceStatus)
 	r.Post("/toggle", rs.toggleAttendance)
 
 	return r
+}
+
+func (rs *AttendanceResource) fail(w http.ResponseWriter, r *http.Request, err error) {
+	if failure, ok := devicescan.IsFailure(err); ok && failure.Kind == devicescan.FailureUnauthorized {
+		rs.logger.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+	}
+	renderFailure(w, r, rs.runtime, rs.logger, err)
 }

@@ -70,7 +70,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
-	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parent"
@@ -149,7 +148,6 @@ type Factory struct {
 	Invitation                auth.InvitationService
 	GuardianInvitation        auth.GuardianInvitationService
 	IoT                       iot.Service
-	Checkin                   *iotcheckin.CheckinService
 	StaffClock                *staffclock.Service
 	Settings                  config.SettingsService
 	TenantSettings            *config.TenantOperations
@@ -1398,23 +1396,6 @@ func newFactory(
 		pickupAutoExcusal,
 		db,
 	)
-
-	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
-	// active/users/facilities/activities services plus the daily-checkout gate
-	// policy (settings + pickup schedule + education group) for the /api/iot
-	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
-	// the services/iot ↔ services/active ↔ auth/device import cycle.
-	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:                activeService,
-		Users:                 usersService,
-		Facilities:            facilitiesService,
-		Activities:            activitiesService,
-		Settings:              settingsService,
-		Pickup:                pickupScheduleService,
-		Education:             educationService,
-		Logger:                logger.With("service", "checkin"),
-		DailyCheckoutFallback: cfg.StudentDailyCheckoutTime,
-	})
 
 	// Period updates/deletes use the same tenant recurrence transaction and
 	// advisory lock as template and care-offering mutations. The preflight
@@ -3083,7 +3064,6 @@ func newFactory(
 		Schulhof:                schulhofService,
 		WC:                      wcService,
 		IoT:                     iotService,
-		Checkin:                 checkinService,
 		StaffClock:              staffClockService,
 		Settings:                settingsService,
 		PayrollStatus:           payrollStatusService,
