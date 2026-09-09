@@ -215,6 +215,7 @@ export function CarePlanEditorModal({
   useEffect(() => {
     if (!isOpen || !isException) {
       initializedExceptionKey.current = null;
+      setNoteDrafts({});
       return;
     }
 
@@ -227,7 +228,6 @@ export function CarePlanEditorModal({
     setShowParentConfirm(false);
     setNoteDeletionTarget(null);
     setIsDeletingNote(false);
-    setNoteDrafts({});
     setWeeklyAdjustment(null);
     weeklyExceptionPreview.current = null;
     setSelectedOfferingId(null);
@@ -1103,9 +1103,13 @@ function DayNotesEditor({
       <NoteList
         label="Ankunft"
         notes={arrivalNotes}
-        draft={noteDrafts["new:Ankunft"] ?? ""}
-        setDraft={(content) => onNoteDraftChange("new:Ankunft", content)}
-        onCreate={() => onCreateArrival(date, noteDrafts["new:Ankunft"] ?? "")}
+        draft={noteDrafts[`${date}:new:Ankunft`] ?? ""}
+        setDraft={(content) =>
+          onNoteDraftChange(`${date}:new:Ankunft`, content)
+        }
+        onCreate={() =>
+          onCreateArrival(date, noteDrafts[`${date}:new:Ankunft`] ?? "")
+        }
         onUpdate={(id, content) => onUpdateArrival(date, Number(id), content)}
         onDelete={(id) => onDeleteArrival(Number(id))}
         onError={onError}
@@ -1116,9 +1120,13 @@ function DayNotesEditor({
       <NoteList
         label="Abholung"
         notes={pickupNotes}
-        draft={noteDrafts["new:Abholung"] ?? ""}
-        setDraft={(content) => onNoteDraftChange("new:Abholung", content)}
-        onCreate={() => onCreatePickup(date, noteDrafts["new:Abholung"] ?? "")}
+        draft={noteDrafts[`${date}:new:Abholung`] ?? ""}
+        setDraft={(content) =>
+          onNoteDraftChange(`${date}:new:Abholung`, content)
+        }
+        onCreate={() =>
+          onCreatePickup(date, noteDrafts[`${date}:new:Abholung`] ?? "")
+        }
         onUpdate={(id, content) => onUpdatePickup(date, id, content)}
         onDelete={onDeletePickup}
         onError={onError}

@@ -438,6 +438,29 @@ describe("ClassArrivalExceptionPanel", () => {
     });
   });
 
+  it("asks its parent dialog to suspend while confirming a removal", async () => {
+    const onConfirmationVisibilityChange = vi.fn();
+    mockFetchExceptions.mockResolvedValue({
+      school_class: "4a",
+      can_edit: true,
+      exceptions: [savedException],
+    });
+
+    render(
+      <ClassArrivalExceptionPanel
+        schoolClass="4a"
+        classLabel="Klasse 4a"
+        onConfirmationVisibilityChange={onConfirmationVisibilityChange}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    expect(onConfirmationVisibilityChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(onConfirmationVisibilityChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("keeps a failed removal inside the dialog", async () => {
     mockFetchExceptions.mockResolvedValue({
       school_class: "4a",

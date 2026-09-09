@@ -201,6 +201,28 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
     expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
   });
 
+  it("recognizes a translated destructive label", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({
+        archiveTrack,
+        t,
+      }: {
+        archiveTrack: () => Promise<void>;
+        t: (key: string) => string;
+      }) {
+        return (
+          <Button type="button" onClick={() => void archiveTrack()}>
+            {t("remove")}
+          </Button>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+  });
+
   it("sees the removal inside a branch, an aria-label and an async handler", () => {
     const { status, output } = lintSource(
       `export function Probe({

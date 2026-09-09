@@ -1103,6 +1103,62 @@ describe("CarePlanEditorModal", () => {
     expect(draft).toHaveValue("Bitte klingeln");
   });
 
+  it("keeps new note drafts scoped to their date", async () => {
+    const onCreateArrivalNote = vi.fn().mockResolvedValue(undefined);
+    const { rerender, renderModal } = renderEditor({ onCreateArrivalNote });
+    const tuesday = new Date("2026-05-26T00:00:00");
+    const tuesdayArrivalDay: ArrivalDayData = {
+      ...baseArrivalDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...baseArrivalDay.baseSchedule!,
+        weekday: 2,
+        weekday_name: "Dienstag",
+      },
+      notes: [],
+    };
+    const tuesdayPickupDay: PickupDayData = {
+      ...basePickupDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...basePickupDay.baseSchedule!,
+        weekday: 2,
+        weekdayName: "Dienstag",
+      },
+      notes: [],
+    };
+
+    fireEvent.change(screen.getByLabelText("Ankunft Hinweis hinzufügen"), {
+      target: { value: "Montagsentwurf" },
+    });
+    rerender(
+      renderModal({
+        date: tuesday,
+        arrivalDay: tuesdayArrivalDay,
+        pickupDay: tuesdayPickupDay,
+      }),
+    );
+
+    const tuesdayDraft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    expect(tuesdayDraft).toHaveValue("");
+    fireEvent.change(tuesdayDraft, { target: { value: "Dienstagsentwurf" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Hinzufügen" })[0]!);
+
+    await waitFor(() => {
+      expect(onCreateArrivalNote).toHaveBeenCalledWith(
+        "2026-05-26",
+        "Dienstagsentwurf",
+      );
+    });
+
+    rerender(renderModal());
+    expect(screen.getByLabelText("Ankunft Hinweis hinzufügen")).toHaveValue(
+      "Montagsentwurf",
+    );
+  });
+
   it("suspends the editor for a note deletion and restores unsaved drafts", async () => {
     const onDeleteArrivalNote = vi.fn().mockResolvedValue(undefined);
     renderEditor({ onDeleteArrivalNote });

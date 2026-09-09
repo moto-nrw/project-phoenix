@@ -134,6 +134,8 @@ export interface ClassArrivalExceptionPanelProps {
   /** Rückmeldung; ohne Angabe die Toast-Leiste des OGS-Portals. */
   readonly notify?: ClassArrivalExceptionNotifier;
   readonly onChanged?: () => void;
+  /** Hält den Eltern-Dialog an, solange die Lösch-Rückfrage offen ist. */
+  readonly onConfirmationVisibilityChange?: (visible: boolean) => void;
   /** Vorbelegtes Datum, zum Beispiel der angezeigte Tag. */
   readonly defaultDate?: Date | null;
   /**
@@ -241,6 +243,7 @@ function ClassArrivalExceptionPanelBody({
   api,
   notify,
   onChanged,
+  onConfirmationVisibilityChange,
   defaultDate,
   readOnlyHint = OGS_READ_ONLY_HINT,
   originLabel = ogsOriginLabel,
@@ -263,6 +266,18 @@ function ClassArrivalExceptionPanelBody({
   const [removeTarget, setRemoveTarget] =
     useState<ClassArrivalException | null>(null);
   const [removeError, setRemoveError] = useState("");
+
+  const openRemoveConfirmation = (exception: ClassArrivalException) => {
+    onConfirmationVisibilityChange?.(true);
+    setRemoveError("");
+    setRemoveTarget(exception);
+  };
+
+  const closeRemoveConfirmation = () => {
+    onConfirmationVisibilityChange?.(false);
+    setRemoveTarget(null);
+    setRemoveError("");
+  };
 
   const reload = useCallback(async () => {
     const list = await api.list(schoolClass);
@@ -363,7 +378,7 @@ function ClassArrivalExceptionPanelBody({
     setRemoveError("");
     try {
       await api.remove(schoolClass, exception.date);
-      setRemoveTarget(null);
+      closeRemoveConfirmation();
       notify.success(`Abweichung am ${formatDate(exception.date)} entfernt`);
       await reload();
       onChanged?.();
@@ -515,10 +530,7 @@ function ClassArrivalExceptionPanelBody({
                         type="button"
                         variant="outline_danger"
                         size="compact"
-                        onClick={() => {
-                          setRemoveError("");
-                          setRemoveTarget(exception);
-                        }}
+                        onClick={() => openRemoveConfirmation(exception)}
                         disabled={removing === exception.date}
                       >
                         Entfernen
@@ -556,10 +568,7 @@ function ClassArrivalExceptionPanelBody({
         onConfirm={() => {
           if (removeTarget) void handleRemove(removeTarget);
         }}
-        onClose={() => {
-          setRemoveTarget(null);
-          setRemoveError("");
-        }}
+        onClose={closeRemoveConfirmation}
       />
     </div>
   );

@@ -176,6 +176,11 @@ const oneDeleteConfirm = {
 // filter resets far more often than a removal.
 const DESTRUCTIVE_LABEL_RE =
   /(?:^|\P{L})(?:löschen|entfernen|archivieren|zurücknehmen|widerrufen|stornieren)(?:\P{L}|$)/iu;
+// next-intl calls such as t("remove") carry the locale key, not visible
+// text, in the syntax tree. Treat established destructive key segments as
+// labels so localized portals stay behind the same confirmation ratchet.
+const DESTRUCTIVE_TRANSLATION_KEY_RE =
+  /(?:^|[._-])(?:delete|remove|archive|revoke|withdraw|cancel)(?=$|[._-]|[A-Z])/i;
 
 const CLICKABLE_ELEMENTS = new Set(["button", "Button"]);
 
@@ -208,7 +213,11 @@ function collectLabelStrings(openingElement, parentElement) {
 }
 
 function mentionsDestruction(chunks) {
-  return chunks.some((chunk) => DESTRUCTIVE_LABEL_RE.test(chunk));
+  return chunks.some(
+    (chunk) =>
+      DESTRUCTIVE_LABEL_RE.test(chunk) ||
+      DESTRUCTIVE_TRANSLATION_KEY_RE.test(chunk),
+  );
 }
 
 function isCall(node) {
