@@ -1004,6 +1004,8 @@ describe("Schulhof user supervising view", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+    localStorage.clear();
+    navigationMockState.roomParam = null;
   });
 
   afterEach(() => {

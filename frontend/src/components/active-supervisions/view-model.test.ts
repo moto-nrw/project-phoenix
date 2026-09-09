@@ -5,6 +5,8 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  openRoomRosterActiveGroupId,
+  openRoomSessionSelection,
   resolveSupervisionSelection,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
@@ -13,6 +15,108 @@ import {
 } from "./view-model";
 
 describe("active-supervisions view model", () => {
+  it("clears a roster from another session when opening a shared room", () => {
+    expect(
+      openRoomSessionSelection({
+        roomId: "sporthalle",
+        preferredSessionId: undefined,
+        selectedSessionId: "werkraum",
+        rooms: [
+          { id: "werkraum", name: "Werkraum", room_id: "werkraum" },
+          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
+        ],
+      }),
+    ).toEqual({ sessionId: null, keepsTimetableInstance: false });
+  });
+
+  it("retains the roster of a session already selected in the shared room", () => {
+    expect(
+      openRoomSessionSelection({
+        roomId: "sporthalle",
+        preferredSessionId: undefined,
+        selectedSessionId: "fußball",
+        rooms: [{ id: "fußball", name: "Fußball", room_id: "sporthalle" }],
+      }),
+    ).toEqual({ sessionId: "fußball", keepsTimetableInstance: true });
+  });
+
+  it("does not retain an earlier roster when a session URL selects a shared room", () => {
+    expect(
+      openRoomSessionSelection({
+        roomId: "sporthalle",
+        preferredSessionId: "fußball",
+        selectedSessionId: "werkraum",
+        rooms: [
+          { id: "werkraum", name: "Werkraum", room_id: "werkraum" },
+          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
+        ],
+      }),
+    ).toEqual({ sessionId: "fußball", keepsTimetableInstance: false });
+  });
+
+  it("keeps the roster of the caller's only session in an open room reachable", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["fußball"],
+          studentCount: 2,
+          students: [],
+        },
+        rooms: [
+          {
+            id: "fußball",
+            name: "Fußball",
+            room_id: "sporthalle",
+          },
+        ],
+        selectedSessionId: null,
+      }),
+    ).toBe("fußball");
+  });
+
+  it("keeps the explicitly selected session in an open room", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["fußball", "tanzen"],
+          studentCount: 2,
+          students: [],
+        },
+        rooms: [
+          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
+          { id: "tanzen", name: "Tanzen", room_id: "sporthalle" },
+        ],
+        selectedSessionId: "tanzen",
+      }),
+    ).toBe("tanzen");
+  });
+
+  it("does not choose between multiple own sessions in an open room", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["fußball", "tanzen"],
+          studentCount: 2,
+          students: [],
+        },
+        rooms: [
+          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
+          { id: "tanzen", name: "Tanzen", room_id: "sporthalle" },
+        ],
+        selectedSessionId: null,
+      }),
+    ).toBeNull();
+  });
+
   it("suppresses active-group roster keys after a not-found roster miss", () => {
     const missing = new Set(["active-1"]);
 

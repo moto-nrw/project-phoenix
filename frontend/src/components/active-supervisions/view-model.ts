@@ -203,6 +203,61 @@ export function sessionsOutsideOpenRooms(
   );
 }
 
+/**
+ * Selects the caller's session to retain while opening a shared room.
+ *
+ * A previously selected session is only meaningful in the target room. This
+ * keeps the roster after starting that exact session, while preventing its
+ * controls from leaking into another shared room.
+ */
+export function openRoomSessionSelection(options: {
+  readonly roomId: string;
+  readonly preferredSessionId: string | undefined;
+  readonly selectedSessionId: string | null;
+  readonly rooms: readonly ActiveSupervisionRoom[];
+}): { sessionId: string | null; keepsTimetableInstance: boolean } {
+  const sessionId = options.preferredSessionId ?? options.selectedSessionId;
+  const sessionRunsInRoom =
+    sessionId !== null &&
+    options.rooms.some(
+      (room) => room.id === sessionId && room.room_id === options.roomId,
+    );
+
+  return {
+    sessionId: sessionRunsInRoom ? sessionId : null,
+    // A URL can name the session while an unrelated instance is still in
+    // memory. Only retain an instance that was already selected in this room.
+    keepsTimetableInstance:
+      sessionRunsInRoom && options.selectedSessionId === sessionId,
+  };
+}
+
+/**
+ * The caller's single active session in a shared room, used to keep that
+ * session's roster actionable without turning the room back into a
+ * session-keyed navigation entry.
+ */
+export function openRoomRosterActiveGroupId(options: {
+  readonly currentOpenRoom: OpenRoomView | null;
+  readonly rooms: readonly ActiveSupervisionRoom[];
+  readonly selectedSessionId: string | null;
+}): string | null {
+  const { currentOpenRoom, rooms, selectedSessionId } = options;
+  if (!currentOpenRoom?.isUserSupervising) return null;
+  const candidates = rooms.filter(
+    (room) =>
+      room.room_id === currentOpenRoom.roomId &&
+      currentOpenRoom.activeGroupIds.includes(room.id),
+  );
+  if (
+    selectedSessionId &&
+    candidates.some((room) => room.id === selectedSessionId)
+  ) {
+    return selectedSessionId;
+  }
+  return candidates.length === 1 ? (candidates[0]?.id ?? null) : null;
+}
+
 export interface VisitDisplayLike {
   studentId: string;
   studentName?: string;

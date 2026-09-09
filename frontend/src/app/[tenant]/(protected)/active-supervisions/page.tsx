@@ -38,6 +38,7 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
+  openRoomRosterActiveGroupId,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
@@ -99,11 +100,18 @@ function MeinRaumPageContent() {
     setError,
     mutateDashboard,
     refresh,
+    selectedRoomId,
   } = dashboard;
+
+  const openRoomRosterGroupId = openRoomRosterActiveGroupId({
+    currentOpenRoom,
+    rooms: allRooms,
+    selectedSessionId: selectedRoomId,
+  });
 
   const roster = useTimetableRoster({
     selectedTimetableInstanceId,
-    currentRoomId: currentRoom?.id,
+    currentRoomId: openRoomRosterGroupId ?? currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
 
@@ -196,7 +204,7 @@ function MeinRaumPageContent() {
     (roomId: string) => {
       const room = openRooms.find((candidate) => candidate.roomId === roomId);
       if (!room) return;
-      dashboard.selectOpenRoom(roomId, { clearTimetableInstance: true });
+      dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
       localStorage.removeItem("supervision-last-session");
       localStorage.setItem("sidebar-last-room", roomId);

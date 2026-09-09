@@ -892,6 +892,7 @@ describe("open-room tab onTabChange callback", () => {
 
   it("normalizes a session URL in a released room to its shared view", async () => {
     navigationMockState.sessionParam = "active-open";
+    const removeItem = vi.spyOn(localStorage, "removeItem");
     const dashboardData = {
       supervisedGroups: [
         {
@@ -940,13 +941,24 @@ describe("open-room tab onTabChange callback", () => {
             mutate: mockMutate,
             isValidating: false,
           } as never)
-        : ({
-            data: null,
-            isLoading: false,
-            error: null,
-            mutate: mockMutate,
-            isValidating: false,
-          } as never)) as never);
+        : key === "timetable-roster-active-group-active-open"
+          ? ({
+              data: {
+                instance: { id: "instance-open", activeGroupId: "active-open" },
+                rows: [],
+              },
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)
+          : ({
+              data: null,
+              isLoading: false,
+              error: null,
+              mutate: mockMutate,
+              isValidating: false,
+            } as never)) as never);
 
     render(<MeinRaumPage />);
 
@@ -955,8 +967,8 @@ describe("open-room tab onTabChange callback", () => {
         "/test-tenant/active-supervisions?room=sporthalle",
       );
     });
-    expect(screen.getByText("Max Muster")).toBeInTheDocument();
-    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
+    expect(screen.getByTestId("timetable-roster")).toBeInTheDocument();
+    expect(removeItem).toHaveBeenCalledWith("supervision-last-session");
   });
 
   it("shows a released room the caller does not supervise", async () => {

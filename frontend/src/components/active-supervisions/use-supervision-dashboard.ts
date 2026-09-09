@@ -13,6 +13,7 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  openRoomSessionSelection,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
 import type {
@@ -199,7 +200,7 @@ export interface SupervisionDashboard {
    */
   readonly selectOpenRoom: (
     roomId: string,
-    options?: { clearTimetableInstance?: boolean },
+    preferredSessionId?: string,
   ) => void;
   /** Leave the shared room view (before switching to an own session). */
   readonly clearOpenRoom: () => void;
@@ -760,14 +761,20 @@ export function useSupervisionDashboard(
   );
 
   const selectOpenRoom = useCallback(
-    (roomId: string, opts?: { clearTimetableInstance?: boolean }) => {
+    (roomId: string, preferredSessionId?: string) => {
+      const selection = openRoomSessionSelection({
+        roomId,
+        preferredSessionId,
+        selectedSessionId: selectedRoomId,
+        rooms: allRoomsBase,
+      });
       setSelectedOpenRoomId(roomId);
-      setSelectedRoomId(null);
-      if (opts?.clearTimetableInstance) {
+      setSelectedRoomId(selection.sessionId);
+      if (!selection.keepsTimetableInstance) {
         setSelectedTimetableInstanceId(null);
       }
     },
-    [],
+    [allRoomsBase, selectedRoomId],
   );
 
   const clearOpenRoom = useCallback(() => {
@@ -793,10 +800,11 @@ export function useSupervisionDashboard(
   // resolver never switches between parallel sessions in the same room
   // just because a refresh re-resolved a room-keyed URL (#2265).
   useEffect(() => {
+    const savedSessionId = localStorage.getItem("supervision-last-session");
     const target = resolveSupervisionSelection({
       sessionParam,
       roomParam,
-      savedSessionId: localStorage.getItem("supervision-last-session"),
+      savedSessionId,
       savedRoomId: localStorage.getItem("sidebar-last-room"),
       rooms: allRoomsBase,
       currentSessionId: selectedRoomId,
@@ -805,7 +813,17 @@ export function useSupervisionDashboard(
     });
 
     if (target.kind === "open-room") {
-      selectOpenRoom(target.roomId);
+      const preferredSessionId = sessionParam ?? savedSessionId;
+      const sessionId =
+        preferredSessionId &&
+        allRoomsBase.some(
+          (room) =>
+            room.id === preferredSessionId && room.room_id === target.roomId,
+        )
+          ? preferredSessionId
+          : undefined;
+      selectOpenRoom(target.roomId, sessionId);
+      localStorage.removeItem("supervision-last-session");
       localStorage.setItem("sidebar-last-room", target.roomId);
       if (!roomParam) {
         router.replace(`/active-supervisions?room=${target.roomId}`);
