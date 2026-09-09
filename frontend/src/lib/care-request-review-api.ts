@@ -10,7 +10,8 @@ import type { RequestDiffEntry } from "~/lib/messaging-status";
 
 const logger = createLogger({ component: "CareRequestReviewAPI" });
 
-type CareRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
+type CareRequestStatus =
+  "pending" | "approved" | "rejected" | "withdrawn" | "done" | "care_ended";
 
 // One care-schedule change request in the staff queue. Mirrors
 // api/students.CareRequestResponse.

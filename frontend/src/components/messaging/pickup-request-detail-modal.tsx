@@ -42,6 +42,29 @@ const PENDING_META: { label: string; tone: StatusBadgeTone } = {
   tone: "blue",
 };
 
+const CLOSED_STATUS_META: Partial<
+  Record<
+    StaffCareRequestDetail["status"],
+    {
+      label: string;
+      tone: StatusBadgeTone;
+      explanation: string;
+    }
+  >
+> = {
+  done: {
+    label: "Abgeschlossen",
+    tone: "gray",
+    explanation: "Die Anfrage wurde abgeschlossen. Der Tag ist bereits vorbei.",
+  },
+  care_ended: {
+    label: "Betreuung beendet",
+    tone: "gray",
+    explanation:
+      "Die Betreuung des Kindes ist beendet. Die Anfrage wurde geschlossen.",
+  },
+};
+
 type LoadState =
   | { readonly kind: "loading" }
   | { readonly kind: "loaded"; readonly detail: StaffCareRequestDetail }
@@ -160,7 +183,8 @@ export function PickupRequestDetailModal({
 }
 
 function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
-  const meta = HISTORY_STATUS_META[detail.status] ?? PENDING_META;
+  const closedMeta = CLOSED_STATUS_META[detail.status];
+  const meta = HISTORY_STATUS_META[detail.status] ?? closedMeta ?? PENDING_META;
   // Nur Abholzeit-Hinweise öffnen dieses Fenster; ein Antrag ohne lesbaren
   // Tag zeigt „Keine Angabe" statt eines erfundenen Werts.
   const pickup = detail.pickup_change;
@@ -191,7 +215,10 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
         </DataGrid>
       </InfoSection>
 
-      <InfoSection title="Entscheidung" icon={DetailIcons.notes}>
+      <InfoSection
+        title={closedMeta ? "Abschluss" : "Entscheidung"}
+        icon={DetailIcons.notes}
+      >
         <div className="mb-2">
           <StatusBadge label={meta.label} tone={meta.tone} />
         </div>
@@ -223,6 +250,24 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
               {detail.decision_reason ?? "Keine Angabe"}
             </DataField>
           </DataGrid>
+        )}
+        {closedMeta && (
+          <>
+            <InfoText>{closedMeta.explanation}</InfoText>
+            <DataGrid>
+              <DataField label="Geschlossen am">
+                {detail.decided_at
+                  ? formatChatDateTime(detail.decided_at)
+                  : "Keine Angabe"}
+              </DataField>
+              <DataField label="Geschlossen von">
+                {detail.decided_by_name ?? "Keine Angabe"}
+              </DataField>
+              <DataField label="Grund der Schließung" fullWidth>
+                {detail.decision_reason ?? "Keine Angabe"}
+              </DataField>
+            </DataGrid>
+          </>
         )}
       </InfoSection>
     </div>

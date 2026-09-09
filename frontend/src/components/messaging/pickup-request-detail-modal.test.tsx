@@ -130,6 +130,41 @@ describe("PickupRequestDetailModal", () => {
     expect(onOpenQueue).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    {
+      status: "done" as const,
+      label: "Abgeschlossen",
+      explanation:
+        "Die Anfrage wurde abgeschlossen. Der Tag ist bereits vorbei.",
+      reason: "Der Abholtag ist vorbei.",
+    },
+    {
+      status: "care_ended" as const,
+      label: "Betreuung beendet",
+      explanation:
+        "Die Betreuung des Kindes ist beendet. Die Anfrage wurde geschlossen.",
+      reason:
+        "Die Betreuung dieses Kindes ist beendet. Die Anfrage wurde deshalb geschlossen.",
+    },
+  ])(
+    "zeigt für $status den Abschluss mit Zeitpunkt, Person und Grund",
+    async ({ status, label, explanation, reason }) => {
+      mockFetch.mockResolvedValue(detail({ status, decision_reason: reason }));
+      render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
+        wrapper: Wrapper,
+      });
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(screen.getByText(explanation)).toBeInTheDocument();
+      expect(screen.getByText("Paula Planerin")).toBeInTheDocument();
+      expect(screen.getByText(reason)).toBeInTheDocument();
+      expect(screen.queryByText("Offen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Zu den Anfragen" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("erklärt eine entfernte Anfrage und fehlenden Zugriff verständlich", async () => {
     mockFetch.mockRejectedValue(
       new CareRequestApiError("not found", undefined, 404),
