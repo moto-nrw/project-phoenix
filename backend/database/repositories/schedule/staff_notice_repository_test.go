@@ -3,7 +3,6 @@ package schedule_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -129,7 +128,7 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	author := testpkg.CreateTestAccount(t, db, "count-author@test.local")
@@ -140,6 +139,7 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{
 		RequiresAcknowledgement: true,
 	})
+	notice.Audience = "all"
 	require.NoError(t, repo.Create(ctx, notice))
 
 	require.NoError(t, repo.Acknowledge(ctx, notice.ID, author.ID))
@@ -151,6 +151,12 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	counts, err = repo.AcknowledgedCounts(ctx, []int64{notice.ID})
 	require.NoError(t, err)
 	assert.Equal(t, 1, counts[notice.ID], "eine Person aus dem Team hat bestätigt")
+
+	// Die Bestätigungsliste der Leitung (#2208) folgt derselben Regel.
+	rows, err := repo.Acknowledgements(ctx, notice.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "die Verfasserin steht nicht in der Bestätigungsliste")
+	assert.Equal(t, reader.ID, rows[0].AccountID)
 }
 
 // Zielgruppe (#2208): die Datenbank grenzt auf "alle" plus die Leserart ein.

@@ -167,12 +167,18 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 // Acknowledgements gibt alle Kenntnisnahmen eines Hinweises zurück, neueste
 // zuerst — die Bestätigungsliste der Leitung (#2208). Nur Konto und Zeitpunkt:
 // die Namen gehören dem Personenverzeichnis, der Service holt sie dort.
+//
+// Die Verfasserin fehlt in der Liste aus demselben Grund wie im Zähler
+// (AcknowledgedCounts): ihre Kenntnisnahme ist beim Anlegen gestempelt, damit
+// der eigene Hinweis sie nicht fragt, aber gelesen hat sie ihn nicht.
 func (r *StaffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*users.StaffNoticeAck, error) {
 	var rows []*users.StaffNoticeAck
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
 		Where(`"sna".notice_id = ?`, noticeID).
+		Where(`"sna".account_id <> "n".created_by`).
 		OrderExpr(`"sna".acknowledged_at DESC, "sna".account_id ASC`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx); err != nil {
