@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
 
 import { BirthdayList } from "~/components/dashboard/birthday-list";
 import { DayFlowBlock } from "~/components/home/day-flow-block";
@@ -139,10 +138,6 @@ function RecentActivityCard({ data }: { readonly data: HomeBlockData }) {
                   <span className="truncate font-medium text-gray-900">
                     {activity.groupName}
                   </span>
-                  <ChevronRight
-                    className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                    aria-hidden="true"
-                  />
                   <span className="truncate text-gray-500">
                     {activity.roomName}
                   </span>
