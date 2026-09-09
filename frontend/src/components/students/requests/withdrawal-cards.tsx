@@ -9,7 +9,6 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
@@ -168,42 +167,17 @@ function DeletionDialog({
       studentId={row.studentId}
       completionId={row.id}
       displayName={`${row.firstName} ${row.lastName}`.trim()}
+      // Der Hinweis „sofort, ohne den letzten Betreuungstag abzuwarten“ steht
+      // im Löschdialog selbst statt in einem vorgeschalteten Dialog (#3110).
+      skipsLastCareDay
       onClose={close}
       onDeleted={() => deleted(row)}
     />
   );
 }
 
-function DeletionWarningDialog({
-  row,
-  close,
-  confirm,
-}: Readonly<{
-  row: CareWithdrawalCompletion | null;
-  close: () => void;
-  confirm: (row: CareWithdrawalCompletion) => void;
-}>) {
-  if (!row) return null;
-  return (
-    <ConfirmationModal
-      isOpen
-      onClose={close}
-      onConfirm={() => confirm(row)}
-      title="Kind sofort löschen"
-      confirmText="Löschen prüfen"
-      cancelText="Zurück"
-      mobileSheet
-    >
-      <p className="text-sm text-gray-600">
-        Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag
-        wird nicht abgewartet.
-      </p>
-    </ConfirmationModal>
-  );
-}
-
 /**
- * Die drei Abmelde-Dialoge samt ihrem Zustand an einer Stelle (#2267). Die
+ * Die beiden Abmelde-Dialoge samt ihrem Zustand an einer Stelle (#2267). Die
  * Anfragenliste braucht davon nur zwei Rückrufe und einen Knoten zum Rendern.
  */
 export function useWithdrawalDialogs(
@@ -215,8 +189,6 @@ export function useWithdrawalDialogs(
   const [deletion, setDeletion] = useState<CareWithdrawalCompletion | null>(
     null,
   );
-  const [deletionWarning, setDeletionWarning] =
-    useState<CareWithdrawalCompletion | null>(null);
   const dialogs = (
     <>
       <CareExitDialog
@@ -235,19 +207,11 @@ export function useWithdrawalDialogs(
           onFinished(row, true);
         }}
       />
-      <DeletionWarningDialog
-        row={deletionWarning}
-        close={() => setDeletionWarning(null)}
-        confirm={(row) => {
-          setDeletion(row);
-          setDeletionWarning(null);
-        }}
-      />
     </>
   );
   return {
     dialogs,
     finishWithdrawal: setCareExit,
-    removeWithdrawal: setDeletionWarning,
+    removeWithdrawal: setDeletion,
   };
 }

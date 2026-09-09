@@ -61,8 +61,22 @@ vi.mock("~/components/students/care-exit-modal", () => ({
     ) : null,
 }));
 
+// Der Löschdialog ist separat getestet; hier zählt nur, dass die Abmeldung
+// ihn mit dem Sofort-Hinweis öffnet (#3110).
 vi.mock("~/components/students/student-deletion-modal", () => ({
-  StudentDeletionModal: () => null,
+  StudentDeletionModal: ({
+    displayName,
+    skipsLastCareDay,
+  }: {
+    displayName: string;
+    skipsLastCareDay?: boolean;
+  }) => (
+    <div role="dialog" aria-label={`${displayName} löschen`}>
+      {skipsLastCareDay
+        ? "Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag wird nicht abgewartet."
+        : null}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/students/enrollment-request-item", () => ({
@@ -671,16 +685,15 @@ describe("AggregatedRequestList", () => {
       screen.getByRole("button", { name: "Kind sofort löschen" }),
     );
 
+    // Kein vorgeschalteter Warn-Dialog mehr: der Löschdialog öffnet direkt
+    // und trägt den Sofort-Hinweis selbst (#3110).
     expect(
-      screen.getByRole("heading", { name: "Kind sofort löschen" }),
+      screen.getByRole("dialog", { name: "Mia Muster löschen" }),
     ).toBeVisible();
     expect(
       screen.getByText(
         "Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag wird nicht abgewartet.",
       ),
-    ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Löschen prüfen" }),
     ).toBeVisible();
   });
 

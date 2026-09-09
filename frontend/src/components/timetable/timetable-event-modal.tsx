@@ -8,6 +8,7 @@ import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -830,23 +831,18 @@ export function TimetableEventModal({
         </SlideOverFooter>
 
         {initialSeries && (
-          <ConfirmationModal
+          <ConfirmDeleteModal
             isOpen={deleteConfirmOpen}
-            onClose={() => {
-              if (!deletingSeries) setDeleteConfirmOpen(false);
-            }}
-            onConfirm={() => void handleConfirmSeriesDelete()}
-            title="Regeltermin löschen?"
-            confirmText="Löschen"
-            cancelText="Abbrechen"
-            isConfirmLoading={deletingSeries}
-            confirmVariant="danger"
-          >
-            <div className="flex flex-col gap-4">
-              <p className="text-sm leading-relaxed text-gray-600">
+            title="Regeltermin löschen"
+            description={
+              <p className="leading-relaxed">
                 Der Regeltermin wird ab dem gewählten Datum gelöscht. Frühere
                 Termine bleiben erhalten.
               </p>
+            }
+            warningSlot={
+              // Das Datum bleibt am Feld validiert (Fehler am Feld, nicht im
+              // Fehlerbereich des Dialogs).
               <Field
                 label="Ab Datum"
                 htmlFor="series_delete_effective_date"
@@ -867,8 +863,13 @@ export function TimetableEventModal({
                   }}
                 />
               </Field>
-            </div>
-          </ConfirmationModal>
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+            onConfirm={handleConfirmSeriesDelete}
+            onClose={() => setDeleteConfirmOpen(false)}
+            loading={deletingSeries}
+            error=""
+          />
         )}
 
         {initialInstance && (

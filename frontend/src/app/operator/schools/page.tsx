@@ -246,9 +246,6 @@ export default function OperatorSchoolsPage() {
         {schoolDelete.deleteTarget && (
           <SchoolSoftDeleteModal
             target={schoolDelete.deleteTarget}
-            inputId="delete-school-confirm"
-            confirmInput={schoolDelete.deleteConfirmInput}
-            onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
             errorMessage={schoolDelete.softDeleteError}
             isProcessing={schoolDelete.isProcessing}
             onCancel={() => schoolDelete.setDeleteTarget(null)}

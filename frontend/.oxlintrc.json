@@ -2,6 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "nextjs", "jsx-a11y", "import", "promise"],
   "jsPlugins": [
+    "./scripts/oxlint-plugin-bauart.mjs",
     "./scripts/oxlint-plugin-date-safety.mjs",
     "./scripts/oxlint-plugin-logging-safety.mjs",
     "./scripts/oxlint-plugin-test-clock.mjs",
@@ -13,6 +14,7 @@
     "suspicious": "warn"
   },
   "rules": {
+    "bauart/one-delete-confirm": "error",
     "date-safety/no-utc-date-extraction": "error",
     "logging-safety/no-serialized-context": "error",
     "test-clock/no-real-clock": "error",

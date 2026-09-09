@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockToastSuccess, mockToastError, mockCreate, mockUpdate, mockDelete } =
@@ -201,23 +207,30 @@ describe("CalendarPeriodModal", () => {
         initial={period}
       />,
     );
+    // Löschen bestätigt die ConfirmDeleteModal statt einer Umschaltung der
+    // Fusszeile (#3110).
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Kalenderzeitraum löschen",
+    });
     expect(
-      screen.getByText(/Beim Löschen werden bestehende Verknüpfungen/),
+      within(dialog).getByText(/Beim Löschen werden bestehende Verknüpfungen/),
     ).toBeInTheDocument();
-    expect(
-      screen
-        .getByRole("button", { name: "Löschen bestätigen" })
-        // Die Fusszeile des Panels: stapelt auf schmalen Bildschirmen.
-        .closest("div.border-t"),
-    ).toHaveClass("flex-col");
-    fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
-    expect(
-      screen.queryByText(/Beim Löschen werden bestehende Verknüpfungen/),
-    ).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Kalenderzeitraum löschen" }),
+      ).not.toBeInTheDocument(),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
+    const reopened = screen.getByRole("dialog", {
+      name: "Kalenderzeitraum löschen",
+    });
+    fireEvent.click(within(reopened).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(reopened).getByRole("button", { name: "Endgültig löschen" }),
+    );
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
   });

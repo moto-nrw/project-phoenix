@@ -23,7 +23,9 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
+import { ChoiceModal } from "~/components/ui/choice-modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -382,10 +384,14 @@ function StaffCalendarPageInner() {
   const [busyAppointmentId, setBusyAppointmentId] = useState<string | null>(
     null,
   );
-  const [confirmAction, setConfirmAction] = useState<{
-    event: CalendarEvent;
-    mode: "cancel" | "delete";
-  } | null>(null);
+  // Löschen bestätigt die ConfirmDeleteModal, bei einer Reihe mit Scope-Slot
+  // (#3110); Absagen bleibt ein Zustandswechsel und geht über ChoiceModal
+  // (Reihe) bzw. ConfirmationModal (Einzeltermin).
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
+  const [deleteScope, setDeleteScope] = useState<
+    "occurrence" | "series" | null
+  >(null);
+  const [cancelTarget, setCancelTarget] = useState<CalendarEvent | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -579,14 +585,16 @@ function StaffCalendarPageInner() {
       toast.error(errorMessage(err, "Aktion konnte nicht ausgeführt werden."));
     } finally {
       setBusyAppointmentId(null);
-      setConfirmAction(null);
+      setDeleteTarget(null);
+      setCancelTarget(null);
     }
   };
 
-  const handleCancel = (event: CalendarEvent) =>
-    setConfirmAction({ event, mode: "cancel" });
-  const handleDelete = (event: CalendarEvent) =>
-    setConfirmAction({ event, mode: "delete" });
+  const handleCancel = (event: CalendarEvent) => setCancelTarget(event);
+  const handleDelete = (event: CalendarEvent) => {
+    setDeleteScope(event.recurring ? null : "series");
+    setDeleteTarget(event);
+  };
 
   const handleShowOverview = async (appointmentId: string) => {
     // Clear any previous appointment's attendees so a failed/slow request
@@ -1266,94 +1274,107 @@ function StaffCalendarPageInner() {
             ) : null}
           </Modal>
 
-          <Modal
-            isOpen={confirmAction !== null}
-            onClose={() => {
-              if (!busyAppointmentId) setConfirmAction(null);
-            }}
-            title={
-              confirmAction?.mode === "delete"
-                ? "Termin löschen"
-                : "Termin absagen"
+          <ConfirmDeleteModal
+            isOpen={deleteTarget !== null}
+            title="Termin löschen"
+            description={
+              <p className="text-gray-700">
+                {deleteTarget?.recurring
+                  ? "Dieser Termin gehört zu einer Reihe. Die Empfänger sehen gelöschte Termine nicht mehr."
+                  : "Der Termin wird gelöscht. Die Empfänger sehen ihn dann nicht mehr."}
+              </p>
             }
-            widthClass="mx-4 w-[calc(100%-2rem)] max-w-md"
+            scope={
+              deleteTarget?.recurring
+                ? {
+                    label: "Was soll gelöscht werden?",
+                    name: "calendar-delete-scope",
+                    value: deleteScope,
+                    onChange: (value) =>
+                      setDeleteScope(
+                        value === "occurrence" ? "occurrence" : "series",
+                      ),
+                    options: [
+                      {
+                        value: "occurrence",
+                        label: "Nur diesen Termin",
+                        description: "Die Reihe bleibt bestehen.",
+                      },
+                      {
+                        value: "series",
+                        label: "Ganze Reihe",
+                        description:
+                          "Alle Termine dieser Reihe werden gelöscht.",
+                      },
+                    ],
+                  }
+                : undefined
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+            confirmLabel={
+              deleteTarget?.recurring ? "Löschen" : "Endgültig löschen"
+            }
+            onConfirm={() => {
+              if (deleteTarget && deleteScope) {
+                void runScope(deleteTarget, "delete", deleteScope);
+              }
+            }}
+            onClose={() => {
+              if (!busyAppointmentId) setDeleteTarget(null);
+            }}
+            loading={Boolean(busyAppointmentId)}
+            error=""
+          />
+
+          <ChoiceModal
+            isOpen={cancelTarget?.recurring === true}
+            onClose={() => {
+              if (!busyAppointmentId) setCancelTarget(null);
+            }}
+            title="Termin absagen"
+            description="Dieser Termin gehört zu einer Reihe. Die Empfänger sehen abgesagte Termine als „Abgesagt“."
+            options={[
+              {
+                value: "occurrence",
+                label: "Nur diesen Termin absagen",
+                description: "Die Reihe bleibt bestehen.",
+              },
+              {
+                value: "series",
+                label: "Ganze Reihe absagen",
+                description: "Alle Termine dieser Reihe werden abgesagt.",
+              },
+            ]}
+            onSelect={(value) => {
+              if (cancelTarget) {
+                void runScope(
+                  cancelTarget,
+                  "cancel",
+                  value === "occurrence" ? "occurrence" : "series",
+                );
+              }
+            }}
+            isBusy={Boolean(busyAppointmentId)}
+          />
+
+          <ConfirmationModal
+            isOpen={cancelTarget !== null && cancelTarget.recurring !== true}
+            onClose={() => {
+              if (!busyAppointmentId) setCancelTarget(null);
+            }}
+            onConfirm={() => {
+              if (cancelTarget) void runScope(cancelTarget, "cancel", "series");
+            }}
+            title="Termin absagen"
+            confirmText="Absagen"
+            isConfirmLoading={Boolean(busyAppointmentId)}
+            isDismissDisabled={Boolean(busyAppointmentId)}
           >
-            {confirmAction ? (
-              <div className="space-y-5">
-                <p className="text-sm text-gray-700">
-                  {confirmAction.mode === "delete"
-                    ? "Möchten Sie diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
-                    : "Möchten Sie diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
-                </p>
-                {confirmAction.event.recurring ? (
-                  <div className="grid gap-2">
-                    <Button
-                      type="button"
-                      variant={
-                        confirmAction.mode === "delete" ? "danger" : "primary"
-                      }
-                      size="md"
-                      isLoading={Boolean(busyAppointmentId)}
-                      onClick={() =>
-                        runScope(
-                          confirmAction.event,
-                          confirmAction.mode,
-                          "series",
-                        )
-                      }
-                    >
-                      Ganze Reihe{" "}
-                      {confirmAction.mode === "delete" ? "löschen" : "absagen"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={Boolean(busyAppointmentId)}
-                      onClick={() =>
-                        runScope(
-                          confirmAction.event,
-                          confirmAction.mode,
-                          "occurrence",
-                        )
-                      }
-                    >
-                      Nur diesen Termin entfernen
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={Boolean(busyAppointmentId)}
-                      onClick={() => setConfirmAction(null)}
-                    >
-                      Abbrechen
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={
-                        confirmAction.mode === "delete" ? "danger" : "primary"
-                      }
-                      size="md"
-                      isLoading={Boolean(busyAppointmentId)}
-                      onClick={() =>
-                        runScope(
-                          confirmAction.event,
-                          confirmAction.mode,
-                          "series",
-                        )
-                      }
-                    >
-                      {confirmAction.mode === "delete" ? "Löschen" : "Absagen"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </Modal>
+            <p className="text-sm text-gray-700">
+              Möchten Sie diesen Termin absagen? Die Empfänger sehen ihn als
+              „Abgesagt“.
+            </p>
+          </ConfirmationModal>
         </>
       }
     >

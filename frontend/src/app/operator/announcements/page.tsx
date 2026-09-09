@@ -8,6 +8,7 @@ import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -1030,20 +1031,21 @@ export default function OperatorAnnouncementsPage() {
       </Modal>
 
       {/* Delete confirmation */}
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={!!deleteTarget}
+        title="Ankündigung löschen"
+        description={
+          <p>
+            Die Ankündigung &quot;{deleteTarget?.title}&quot; wird
+            unwiderruflich gelöscht.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => void handleDelete()}
-        title="Ankündigung löschen?"
-        confirmText="Löschen"
-        confirmVariant="danger"
-        isConfirmLoading={isDeleting}
-      >
-        <p className="text-sm text-gray-600">
-          Die Ankündigung &quot;{deleteTarget?.title}&quot; wird unwiderruflich
-          gelöscht.
-        </p>
-      </ConfirmationModal>
+        loading={isDeleting}
+        error=""
+      />
 
       {/* Publish confirmation */}
       <ConfirmationModal

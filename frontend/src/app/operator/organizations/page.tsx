@@ -265,9 +265,6 @@ export default function OperatorOrganizationsPage() {
       {orgDelete.deleteTarget && (
         <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          inputId="delete-org-confirm"
-          confirmInput={orgDelete.deleteConfirmInput}
-          onConfirmInputChange={orgDelete.setDeleteConfirmInput}
           errorMessage={orgDelete.softDeleteError}
           isProcessing={orgDelete.isProcessing}
           onCancel={() => orgDelete.setDeleteTarget(null)}

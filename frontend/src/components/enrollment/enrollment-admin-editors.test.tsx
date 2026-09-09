@@ -2694,7 +2694,9 @@ describe("EnrollmentFormEditor", () => {
       screen.getByRole("button", { name: "Aktionen für Regelformular" }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
 
     await waitFor(() => {
       expect(mocks.deleteSchema).toHaveBeenCalledWith("schema-1");
