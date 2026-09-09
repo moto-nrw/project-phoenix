@@ -55,7 +55,11 @@ Lossless evidence: [raw JSON](staff-offboarding-2709.raw.json).
 | Execute | 103 | 25.187 ms | 27.268 ms | 13 | 0/30 |
 
 Execute includes owner deletes/tombstones, audit/intent writes and Identity's
-after-commit work. DML counts are driver-reported statement rows, not distinct
+after-commit work. These measurements call Preview and Execute separately;
+they are not end-to-end DELETE timings. DELETE runs both inside one outer
+transaction and reports an `offboard` observation that includes commit failure
+or success. Its nested preview/execute observations are provisional until that
+outer transaction commits. DML counts are driver-reported statement rows, not distinct
 entities. Both operations had zero connection-pool waits in their measured
 samples. The database deadlock counter changed by zero.
 

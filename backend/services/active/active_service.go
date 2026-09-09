@@ -774,15 +774,13 @@ func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int6
 	return group, nil
 }
 
-// validateStaffExists checks if a staff member exists, returning appropriate errors
+// validateStaffExists locks a live staff member and maps missing-row errors.
 func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
-	if _, err := s.StaffRepo.FindByID(ctx, staffID); err != nil {
-		if base.IsNoRows(err) {
-			return ErrStaffNotFound
-		}
-		return err
+	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
+	if base.IsNoRows(err) || (err == nil && staff == nil) {
+		return ErrStaffNotFound
 	}
-	return nil
+	return err
 }
 
 // lockStaffForSupervision serializes operational supervision writes with
@@ -796,11 +794,7 @@ func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) er
 	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false); err != nil {
 		return err
 	}
-	staff, err := s.StaffRepo.FindByIDForUpdate(ctx, staffID)
-	if base.IsNoRows(err) || (err == nil && staff == nil) {
-		return ErrStaffNotFound
-	}
-	return err
+	return s.validateStaffExists(ctx, staffID)
 }
 
 // extractContextIDs extracts device and staff IDs from context

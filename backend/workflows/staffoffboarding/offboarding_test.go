@@ -204,3 +204,34 @@ func TestWorkflowRequiresAuthorizationBeforeOwnerReads(t *testing.T) {
 	require.ErrorIs(t, err, staffoffboarding.ErrUnauthorized)
 	f.assertOperational(t)
 }
+
+func TestOffboardObservesOuterTransactionFailure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	failure := errors.New("outer transaction failed")
+	run := f.deps.UnitOfWork
+	f.deps.UnitOfWork = func(ctx context.Context, fn func(context.Context) error) error {
+		if _, joined := tenant.TransactionFromContext(ctx); joined {
+			return run(ctx, fn)
+		}
+		return run(ctx, func(txCtx context.Context) error {
+			if err := fn(txCtx); err != nil {
+				return err
+			}
+			return failure
+		})
+	}
+	var observations []staffoffboarding.Observation
+	f.deps.Observe = func(event staffoffboarding.Observation) { observations = append(observations, event) }
+	workflow, err := staffoffboarding.New(f.deps)
+	require.NoError(t, err)
+	result, err := workflow.Offboard(testpkg.Ctx(t), f.staffID)
+	require.ErrorIs(t, err, failure)
+	require.Equal(t, staffoffboarding.Result{}, result)
+	require.NotEmpty(t, observations)
+	last := observations[len(observations)-1]
+	require.Equal(t, "offboard", last.Operation)
+	require.ErrorIs(t, last.Err, failure)
+	require.Equal(t, staffoffboarding.Result{}, last.Result)
+	f.assertOperational(t)
+}

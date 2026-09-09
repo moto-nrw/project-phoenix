@@ -150,8 +150,19 @@ func (w *Workflow) Execute(ctx context.Context, staffID int64, revision string) 
 
 // Offboard is the existing DELETE contract: preview and execute the current
 // state in one transaction, through the same path as an explicit preview.
-func (w *Workflow) Offboard(ctx context.Context, staffID int64) (Result, error) {
-	return w.execute(ctx, staffID, "")
+func (w *Workflow) Offboard(ctx context.Context, staffID int64) (result Result, err error) {
+	err = w.run(ctx, "offboard", staffID, func(txCtx context.Context, _ Actor) (Result, error) {
+		preview, err := w.Preview(txCtx, staffID)
+		if err != nil {
+			return Result{}, err
+		}
+		result, err = w.Execute(txCtx, staffID, preview.Revision)
+		return result, err
+	})
+	if err != nil {
+		return Result{}, err
+	}
+	return result, nil
 }
 
 func (w *Workflow) execute(ctx context.Context, staffID int64, revision string) (result Result, err error) {
