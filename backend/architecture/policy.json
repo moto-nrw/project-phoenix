@@ -2915,6 +2915,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.activity_session_attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.activity_sessions",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.attendance",
       "write_owner": "student-presence"
     },
