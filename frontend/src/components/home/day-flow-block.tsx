@@ -57,13 +57,14 @@ export function DayFlowBlock() {
   // Frühbetreuung in der Karte.
   // Ein Block, der laut Server noch läuft, zählt als „jetzt", auch wenn seine
   // geplante Endzeit vorbei ist — die Jetzt-Zone zählt ihn ebenfalls mit.
-  const relevant = upcomingFirst(
+  const { items: relevant, allPast } = upcomingFirst(
     blocks,
     (block) => (block.status === "active" ? "24:00" : block.endTime),
     now,
-    MAX_BLOCKS - 1,
   );
-  const { shown, hidden } = useHomeCardRows(relevant, MAX_BLOCKS);
+  const { shown, hidden } = useHomeCardRows(relevant, MAX_BLOCKS, {
+    preferLatest: allPast,
+  });
 
   return (
     <SectionCard

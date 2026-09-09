@@ -75,13 +75,11 @@ export function upcomingFirst<T>(
   items: readonly T[],
   endTimeOf: (item: T) => string,
   now: string,
-  /** Wie viele vergangene Einträge die aufrufende Karte zeigen kann. */
-  pastItemCount = items.length,
-): readonly T[] {
+): { readonly items: readonly T[]; readonly allPast: boolean } {
   const firstRelevant = items.findIndex((item) => endTimeOf(item) > now);
-  if (firstRelevant === -1) return items.slice(-pastItemCount);
-  if (firstRelevant === 0) return items;
-  return items.slice(firstRelevant);
+  if (firstRelevant === -1) return { items, allPast: items.length > 0 };
+  if (firstRelevant === 0) return { items, allPast: false };
+  return { items: items.slice(firstRelevant), allPast: false };
 }
 
 /** So viele Zeilen zeigt eine Karte auf dem Handy, bevor sie den Rest zählt. */
@@ -104,6 +102,7 @@ const PHONE_MAX_ROWS = 6;
 export function useHomeCardRows<T>(
   items: readonly T[],
   maxRows: number,
+  { preferLatest = false }: { readonly preferLatest?: boolean } = {},
 ): { shown: readonly T[]; hidden: number } {
   const isPhone = useMediaQuery(BELOW_SM);
   const limit = isPhone ? PHONE_MAX_ROWS : maxRows;
@@ -111,7 +110,10 @@ export function useHomeCardRows<T>(
     return { shown: items, hidden: 0 };
   }
   // Der Hinweis auf den Rest kostet selbst eine Zeile Platz.
-  const shown = items.slice(0, Math.max(limit - 1, 1));
+  const shownCount = Math.max(limit - 1, 1);
+  const shown = preferLatest
+    ? items.slice(-shownCount)
+    : items.slice(0, shownCount);
   return { shown, hidden: items.length - shown.length };
 }
 

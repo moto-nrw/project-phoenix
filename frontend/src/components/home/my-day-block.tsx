@@ -102,13 +102,14 @@ export function MyDayBlock() {
   // Tagesanfang kürzen, fehlten nachmittags gerade der laufende und der
   // nächste Einsatz. Ein laut Server laufender Block bleibt dabei relevant,
   // auch wenn seine geplante Endzeit schon vorbei ist.
-  const relevant = upcomingFirst(
+  const { items: relevant, allPast } = upcomingFirst(
     mine,
     (block) => (block.status === "active" ? "24:00" : block.endTime),
     now,
-    MAX_ROWS - 1,
   );
-  const { shown, hidden } = useHomeCardRows(relevant, MAX_ROWS);
+  const { shown, hidden } = useHomeCardRows(relevant, MAX_ROWS, {
+    preferLatest: allPast,
+  });
   // Die Jetzt-Linie steht vor dem ersten Block, dessen Endzeit noch nicht
   // vorbei ist — nach der Uhr, wie im Tagesplan. Ein Block, der laut Server
   // noch läuft, obwohl seine Zeit um ist, bleibt oben mit seiner Marke
