@@ -3,7 +3,8 @@
 ## Scope and environment
 
 Measured locally on 2026-09-09 after rebasing onto
-`3d613f2e9dda6ce0cb022bf51dd265a932bc9710` and fixing Cancel's lock order.
+`cb482db372f2ec24859ae516364c9b7424c8804c`, fixing Cancel's lock order and
+restoring the active-supervision date predicate identified by Quorum.
 Go 1.27.0, PostgreSQL 17.11, isolated test clone, sequential concurrency 1.
 Five warmups and 30 measured calls per operation.
 
@@ -23,13 +24,13 @@ The accepted checkpoint remains #3020; this does not accept another checkpoint.
 
 | Operation | Queries | DML rows | p50 | p95 | Unexpected errors |
 |---|---:|---:|---:|---:|---:|
-| End mirrored session | 34 | 5 | 11.928 ms | 15.372 ms | 0/30 |
-| Reject already-ended session | 5 | 0 | 1.071 ms | 1.321 ms | 0/30 |
+| End mirrored session | 34 | 5 | 12.474 ms | 15.766 ms | 0/30 |
+| Reject already-ended session | 5 | 0 | 1.290 ms | 1.468 ms | 0/30 |
 
 All 30 repeated calls returned the stable `ErrSessionAlreadyEnded` error.
 No pool waits or deadlock-counter increments occurred. Two-millisecond lock
-polling observed no waiting backends, with maximum sampling gaps of 9.136 ms
-and 2.878 ms respectively. The polling window also includes unmeasured fixture
+polling observed no waiting backends, with maximum sampling gaps of 8.626 ms
+and 2.931 ms respectively. The polling window also includes unmeasured fixture
 setup between samples; it cannot prove absence of shorter waits.
 Raw samples: [session-end-2697.raw.json](session-end-2697.raw.json).
 These are observations, not fitted performance thresholds.
@@ -53,6 +54,12 @@ named table in both schools, verifies RLS in both directions, and compares
 full-row snapshots after an injected outer rollback following real owner writes.
 After a successful retry, all columns of daily attendance and staff assignments
 remain unchanged, as do every foreign school's fixture rows.
+
+`TestSessionEndPreservesActiveSupervisionDateSelection` reproduces the
+Quorum finding for both single and bulk close. Supervisors whose start date
+has arrived and whose end date is absent or later than the closing day are
+ended. Future-start, already-ended and historical rows remain byte-identical.
+Both entrypoints failed before restoring this legacy predicate and pass after.
 
 The retained Timetable bridge delegates mutations to owner capabilities.
 The later operational-state schema split remains #2762, not a second writer.
