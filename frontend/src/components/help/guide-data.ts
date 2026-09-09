@@ -2166,7 +2166,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
           "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
           "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
-          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information ohne Schaltflächen; Anfragen bearbeitest du als Admin in der Seitenleiste unter `Anfragen` (siehe nächster Abschnitt).",
+          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information; Anfragen bearbeitest du als Admin in der Seitenleiste unter `Anfragen` (siehe nächster Abschnitt).",
+          "Bei einer Abholzeit für einen Tag steht der Tag und die gewünschte Uhrzeit im Hinweis, zum Beispiel `Abholzeit bestätigt: 15.09.2026, 14:30 Uhr`. Die kleine Zeit daneben ist der Zeitpunkt des Hinweises, nicht die Abholung. Wer Anfragen entscheiden darf, tippt auf `Anfrage ansehen`. Das öffnet genau diese Anfrage mit Kind, Tag, Uhrzeit, Grund und Entscheidung. Das geht auch nach Freigabe oder Ablehnung. `Schließen` führt zurück in die Unterhaltung.",
         ],
         callout: {
           title: "Voraussetzung",

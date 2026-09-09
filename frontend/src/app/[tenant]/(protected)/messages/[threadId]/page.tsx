@@ -14,6 +14,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import { PickupRequestDetailModal } from "~/components/messaging/pickup-request-detail-modal";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
@@ -28,7 +29,10 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { getApiErrorMessage } from "~/lib/api-error-message";
-import { staffRequestStatusLabel } from "~/lib/messaging-status";
+import {
+  pickupRequestRef,
+  staffRequestStatusLabel,
+} from "~/lib/messaging-status";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
@@ -178,6 +182,30 @@ function MessageThreadContent() {
     // deep-links to the queue, so showing it is harmless while hiding a live
     // request is the real regression.
     return key === null || !decidedRefs.has(key);
+  };
+
+  // A pickup-change pill (created or decided) opens exactly the request row it
+  // references, in a read-only view, for as long as the row exists (#3135).
+  // Other request pills keep the deep-link to the queue while still open.
+  const [openRequestId, setOpenRequestId] = useState<string | null>(null);
+  const eventAction = (
+    message: Message,
+  ): { label: string; onClick: () => void } | undefined => {
+    if (!canReviewRequests) return undefined;
+    const pickupRef = pickupRequestRef(message);
+    if (pickupRef) {
+      return {
+        label: "Anfrage ansehen",
+        onClick: () => setOpenRequestId(pickupRef),
+      };
+    }
+    if (requestStillOpen(message)) {
+      return {
+        label: "Anfrage bearbeiten",
+        onClick: () => router.push("/anfragen"),
+      };
+    }
+    return undefined;
   };
 
   const [draft, setDraft] = useState("");
@@ -349,14 +377,7 @@ function MessageThreadContent() {
                       key={message.id}
                       body={message.body}
                       createdAt={message.created_at}
-                      action={
-                        canReviewRequests && requestStillOpen(message)
-                          ? {
-                              label: "Anfrage bearbeiten",
-                              onClick: () => router.push("/anfragen"),
-                            }
-                          : undefined
-                      }
+                      action={eventAction(message)}
                     />
                   ) : (
                     <ChatBubble
@@ -417,6 +438,12 @@ function MessageThreadContent() {
           </div>
         </SectionCard>
       </div>
+
+      <PickupRequestDetailModal
+        requestId={openRequestId}
+        onClose={() => setOpenRequestId(null)}
+        onOpenQueue={() => router.push("/anfragen")}
+      />
     </TenantPage>
   );
 }
