@@ -331,7 +331,7 @@ function HomeContent() {
   }
 
   const editing = draft !== null;
-  const firstName = session?.user?.name?.split(" ")[0] ?? "User";
+  const firstName = session?.user?.name?.trim().split(/\s+/)[0];
   const greeting = getTimeBasedGreeting();
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
   // Nur das Datum: die Zahlen des Tages trägt die Jetzt-Zone darunter, und
@@ -349,7 +349,13 @@ function HomeContent() {
 
   return (
     <TenantPage
-      title={editing ? "Startseite anpassen" : `${greeting}, ${firstName}`}
+      title={
+        editing
+          ? "Startseite anpassen"
+          : firstName
+            ? `${greeting}, ${firstName}`
+            : greeting
+      }
       prominent
       statsLoading={isLoading}
       stats={

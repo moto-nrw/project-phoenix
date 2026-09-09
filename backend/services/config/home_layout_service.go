@@ -123,6 +123,17 @@ func (s *HomeLayoutService) View(ctx context.Context, tenantID, accountID int64,
 // width are the person's decision and the server has no opinion about them.
 // What the school prescribes still wins when the page is rendered.
 func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, blocks []configModel.HomeBlockPlacement) error {
+	return s.setOverrides(ctx, tenantID, accountID, overrides, blocks, false)
+}
+
+// SetOverridesKeepingBlocks updates the deviations sent by a client from
+// before start page arrangements existed. Reading the arrangement after the
+// account lock prevents a concurrent save from being overwritten.
+func (s *HomeLayoutService) SetOverridesKeepingBlocks(ctx context.Context, tenantID, accountID int64, overrides map[string]bool) error {
+	return s.setOverrides(ctx, tenantID, accountID, overrides, nil, true)
+}
+
+func (s *HomeLayoutService) setOverrides(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, blocks []configModel.HomeBlockPlacement, keepBlocks bool) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -132,8 +143,10 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 	if err := validateBlockKeys(overrides); err != nil {
 		return err
 	}
-	if err := configModel.ValidateHomeBlockPlacements(blocks); err != nil {
-		return invalidBlocks(err.Error())
+	if !keepBlocks {
+		if err := configModel.ValidateHomeBlockPlacements(blocks); err != nil {
+			return invalidBlocks(err.Error())
+		}
 	}
 
 	return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
@@ -162,12 +175,19 @@ func (s *HomeLayoutService) SetOverrides(ctx context.Context, tenantID, accountI
 		if err != nil {
 			return err
 		}
+		storedBlocks := blocks
+		if keepBlocks {
+			storedBlocks = []configModel.HomeBlockPlacement{}
+			if existing != nil && existing.Blocks != nil {
+				storedBlocks = existing.Blocks
+			}
+		}
 
 		layout := &configModel.HomeLayout{
 			TenantID:  tenantID,
 			AccountID: accountID,
 			Overrides: mergeHomeLayoutOverrides(overrides, existing, policies),
-			Blocks:    blocks,
+			Blocks:    storedBlocks,
 		}
 		if err := validateBlockKeys(layout.Overrides); err != nil {
 			return err

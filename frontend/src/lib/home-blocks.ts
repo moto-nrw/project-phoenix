@@ -289,7 +289,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Mein Tag",
     description:
-      "Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kindern und Kolleginnen. Starten geht direkt hier.",
+      "Ihr ganzer Betreuungstag: alle Blöcke, für die Sie eingeteilt sind, mit Raum, Kindern und dem Team. Starten geht direkt hier.",
     concept: "carePlan",
     spans: SECTION_SPANS,
     // Der Tag braucht Platz: drei Zeilen hoch, damit ein Tag mit fünf

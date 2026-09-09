@@ -24,8 +24,10 @@ type homeLayoutOverridesRequest struct {
 	// block added later reach existing accounts in its intended state.
 	Overrides map[string]bool `json:"overrides"`
 	// Blocks is the arrangement in display order, each with the width it
-	// occupies in the start page grid (#2180).
-	Blocks []homeLayoutBlockRequest `json:"blocks"`
+	// occupies in the start page grid (#2180). A missing field comes from
+	// clients from before the arrangement existed and must retain the stored
+	// arrangement; an empty array deliberately clears it.
+	Blocks *[]homeLayoutBlockRequest `json:"blocks"`
 }
 
 type homeLayoutBlockRequest struct {
@@ -84,18 +86,23 @@ func (rs *SettingsResource) setHomeLayout(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	order := make([]string, 0, len(req.Blocks))
-	spans := make(map[string]int, len(req.Blocks))
-	cols := make(map[string]int, len(req.Blocks))
-	rows := make(map[string]int, len(req.Blocks))
-	for _, block := range req.Blocks {
-		order = append(order, block.Key)
-		spans[block.Key] = block.Span
-		cols[block.Key] = block.Col
-		rows[block.Key] = block.Row
+	blocksProvided := req.Blocks != nil
+	var order []string
+	var spans, cols, rows map[string]int
+	if blocksProvided {
+		order = make([]string, 0, len(*req.Blocks))
+		spans = make(map[string]int, len(*req.Blocks))
+		cols = make(map[string]int, len(*req.Blocks))
+		rows = make(map[string]int, len(*req.Blocks))
+		for _, block := range *req.Blocks {
+			order = append(order, block.Key)
+			spans[block.Key] = block.Span
+			cols[block.Key] = block.Col
+			rows[block.Key] = block.Row
+		}
 	}
 
-	if err := rs.homeLayouts.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides, order, spans, cols, rows); err != nil {
+	if err := rs.homeLayouts.SetHomeLayout(r.Context(), actor.TenantID, actor.AccountID, req.Overrides, order, spans, cols, rows, blocksProvided); err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
 	}

@@ -289,7 +289,7 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
-		SetHomeLayout(context.Context, int64, int64, map[string]bool, []string, map[string]int, map[string]int, map[string]int) error
+		SetHomeLayout(context.Context, int64, int64, map[string]bool, []string, map[string]int, map[string]int, map[string]int, bool) error
 		ResetHomeLayout(context.Context, int64, int64) error
 		SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
 	})

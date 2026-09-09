@@ -145,19 +145,22 @@ describe("deriveHomeGroup (#2180)", () => {
     expect(deriveHomeGroup(data, "").pickups).toHaveLength(1);
   });
 
-  it("zählt nur Kinder, die da sind, als anwesend", () => {
+  it("zählt nur Kinder mit bekanntem Check-in als anwesend", () => {
     const data = liveData({
       students: [
         student("1"),
         student("2", { current_location: "Schulhof" }),
-        student("3", { current_location: "HOME" }),
+        student("3", { current_location: "Unterwegs" }),
+        student("4", { current_location: "Abwesend" }),
+        student("5", { current_location: "" }),
+        student("6", { current_location: "Unbekannt" }),
       ],
     });
 
     const snapshot = deriveHomeGroup(data, "13:10");
 
-    // Schulhof ist da, zuhause ist nicht da.
-    expect(snapshot.present).toBe(2);
+    expect(snapshot.present).toBe(3);
+    expect(snapshot.away.map((student) => student.id)).toEqual(["4", "5", "6"]);
   });
 
   it("findet, wer längst da sein sollte", () => {

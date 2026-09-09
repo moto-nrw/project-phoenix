@@ -254,6 +254,26 @@ func TestHomeLayoutService_SetOverrides_PreservesChoiceForSettledBlock(t *testin
 	}, repo.layouts[42].Overrides)
 }
 
+func TestHomeLayoutService_SetOverridesKeepingBlocks_PreservesArrangement(t *testing.T) {
+	t.Parallel()
+	service, repo, _ := newHomeLayoutTestService(t)
+	repo.layouts[42] = &configModel.HomeLayout{
+		TenantID:  7,
+		AccountID: 42,
+		Overrides: map[string]bool{"section.birthdays": false},
+		Blocks: []configModel.HomeBlockPlacement{
+			{Key: "section.staff_notices", Span: 2, Col: 2, Row: 3},
+		},
+	}
+
+	require.NoError(t, service.SetOverridesKeepingBlocks(context.Background(), 7, 42,
+		map[string]bool{"section.birthdays": true}))
+
+	assert.Equal(t, []configModel.HomeBlockPlacement{
+		{Key: "section.staff_notices", Span: 2, Col: 2, Row: 3},
+	}, repo.layouts[42].Blocks)
+}
+
 func TestHomeLayoutService_SetOverrides_RejectsMalformedKey(t *testing.T) {
 	t.Parallel()
 	service, repo, _ := newHomeLayoutTestService(t)

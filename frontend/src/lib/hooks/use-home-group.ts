@@ -7,6 +7,11 @@ import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
 } from "~/lib/ogs-group-live-api";
+import {
+  isPresentLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+} from "~/lib/location-helper";
 import { combineTimeNotes } from "~/lib/student-time-status";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -84,6 +89,15 @@ export function isExpectedToday(student: OgsLiveWireStudent): boolean {
   );
 }
 
+/** Ein Check-in kann im Haus, auf dem Schulhof oder unterwegs sein. */
+function isCheckedIn(student: OgsLiveWireStudent): boolean {
+  return (
+    isPresentLocation(student.current_location) ||
+    isSchoolyardLocation(student.current_location) ||
+    isTransitLocation(student.current_location)
+  );
+}
+
 /** Warum ein Kind heute fehlt — die Abweichung ist die Nachricht. */
 function isAwayToday(student: OgsLiveWireStudent): boolean {
   return (
@@ -91,7 +105,7 @@ function isAwayToday(student: OgsLiveWireStudent): boolean {
     student.excused ||
     student.class_trip ||
     student.day_planning_status === "not_coming_today" ||
-    student.current_location === "HOME"
+    !isCheckedIn(student)
   );
 }
 
