@@ -166,6 +166,14 @@ var queryBudgets = map[string]queryBudget{
 	// assignment-dependent reads; series_id/detached add ZERO reads.
 	"services.schedule.staff_overview.shift_only_week": {max: 5, exact: true},
 	"services.schedule.shift_coverage.series":          {max: 8, exact: true},
+	// modules/emergencysnapshot — the Notfallliste projection (#2704) reads
+	// each owner once, flat in the number of children: open attendance,
+	// student rows (two statements in the retained repository: the row and
+	// its departure hydration), person identities, current visits, room
+	// names and guardian contacts, after the three tenant-scope statements
+	// of the transaction runtime. The presence mode is a settings read that
+	// the scenario fakes.
+	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
 	// test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead.
 	"e2e.timetable.exception_conflicts.cancelled": {max: 22},
 	"e2e.timetable.exception_conflicts.modified":  {max: 22},
