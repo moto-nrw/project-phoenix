@@ -553,11 +553,18 @@ export const DEFAULT_LAYOUTS: Record<
   ],
 };
 
-/** Die Zelle, in die ein Baustein zieht. */
+/**
+ * Die Zelle, über der die gezogene Kachel losgelassen wird. Sie bestimmt
+ * nicht die endgültige Zelle, sondern den PLATZ IN DER REIHENFOLGE: vor der
+ * ersten Kachel, die in Lesereihenfolge hinter dieser Zelle liegt.
+ */
 export interface HomeMoveTarget {
   readonly col: number;
   readonly row: number;
 }
+
+/** Ohne Maus: wohin die Pfeiltasten eine Kachel rücken. */
+export type HomeMoveDirection = "left" | "right" | "up" | "down";
 
 function overlaps(a: HomeBlockPlacement, b: HomeBlockPlacement): boolean {
   return (
@@ -568,10 +575,6 @@ function overlaps(a: HomeBlockPlacement, b: HomeBlockPlacement): boolean {
   );
 }
 
-function clampCol(col: number, span: HomeBlockSpan): number {
-  return Math.max(0, Math.min(Math.floor(col), HOME_BOARD_COLUMNS - span));
-}
-
 /** Zeilen und Spalten zuerst, dann die Reihenfolge, in der man liest. */
 function byCell(a: HomeBlockPlacement, b: HomeBlockPlacement): number {
   return a.row - b.row || a.col - b.col;
@@ -579,8 +582,7 @@ function byCell(a: HomeBlockPlacement, b: HomeBlockPlacement): number {
 
 /**
  * Die Anordnung in Lesereihenfolge (Zeile für Zeile, links nach rechts).
- * So wird gespeichert, damit dieselbe Anordnung immer gleich aussieht;
- * während des Ziehens bleibt die Reihenfolge des Bretts unangetastet.
+ * Das ist die Reihenfolge, die die Person baut; alles andere folgt daraus.
  */
 export function sortedPlacements(
   placements: readonly HomeBlockPlacement[],
@@ -588,67 +590,68 @@ export function sortedPlacements(
   return [...placements].sort(byCell);
 }
 
-/**
- * Löst Überlappungen auf, indem Bausteine nach UNTEN rücken — nie zur Seite
- * und nie nach oben. Wer eine Kachel auf eine andere legt, schiebt die andere
- * unter sich; alles Übrige bleibt, wo es war.
- *
- * `first` ist die Kachel, die stehen bleibt (die gerade bewegte). Danach
- * gilt Lesereihenfolge: was weiter oben steht, hat Vorrang vor dem, was
- * darunter steht. Jede Kachel wird genau einmal so weit nach unten gesetzt,
- * dass sie keine bereits festgelegte mehr berührt; da sie nur nach unten
- * rückt, endet das immer.
- */
-function pushApart(
+function isFree(
   placements: readonly HomeBlockPlacement[],
-  first: HomeBlockKey | null,
-): HomeBlockPlacement[] {
-  const fixed: HomeBlockPlacement[] = [];
-  const ordered = [...placements].sort(byCell);
-  const lead = ordered.find((entry) => entry.key === first);
-  if (lead) fixed.push(lead);
-  for (const entry of ordered) {
-    if (entry.key === first) continue;
-    let placed = entry;
-    let bumped = true;
-    while (bumped) {
-      bumped = false;
-      for (const other of fixed) {
-        if (!overlaps(placed, other)) continue;
-        placed = { ...placed, row: other.row + homeBlockHeight(other.key) };
-        bumped = true;
-      }
+  candidate: HomeBlockPlacement,
+): boolean {
+  return placements.every((entry) => !overlaps(entry, candidate));
+}
+
+/**
+ * Setzt einen Baustein an die erste freie Stelle, von links nach rechts,
+ * Zeile für Zeile. Unter dem Brett ist immer Platz.
+ */
+function firstFit(
+  placements: readonly HomeBlockPlacement[],
+  key: HomeBlockKey,
+  span: HomeBlockSpan,
+  columns = HOME_BOARD_COLUMNS,
+): HomeBlockPlacement {
+  for (let row = 0; ; row += 1) {
+    for (let col = 0; col + span <= columns; col += 1) {
+      const candidate = { key, span, col, row };
+      if (isFree(placements, candidate)) return candidate;
     }
-    fixed.push(placed);
   }
-  // Die Reihenfolge des Aufrufers bleibt erhalten: das Brett rendert die
-  // Kacheln in dieser Reihenfolge, und ein Umsortieren mitten im Zug würde
-  // den Knoten unter dem Zeiger wandern lassen.
-  const byKey = new Map(fixed.map((entry) => [entry.key, entry]));
-  return placements.map((entry) => byKey.get(entry.key) ?? entry);
-}
-
-/** Rückt das ganze Brett nach oben, wenn die ersten Zeilen leer sind. */
-function trimTop(placements: HomeBlockPlacement[]): HomeBlockPlacement[] {
-  const top = Math.min(...placements.map((entry) => entry.row));
-  if (!Number.isFinite(top) || top === 0) return placements;
-  return placements.map((entry) => ({ ...entry, row: entry.row - top }));
 }
 
 /**
- * Bringt eine Anordnung in Form: Spalten im Raster, Zeilen ab null, keine
- * zwei Bausteine auf derselben Zelle. Lücken zwischen Bausteinen bleiben —
- * sie sind Absicht, nicht Unordnung.
+ * Packt die Bausteine in der gegebenen Reihenfolge lückenlos: jeder kommt
+ * an die erste freie Stelle nach denen vor ihm. So sieht das Brett aus wie
+ * ein Startbildschirm — kein Loch, keine Kachel, die allein in einer Zeile
+ * hängt. Die Reihenfolge ist das Einzige, was die Person bestimmt; die
+ * Zellen folgen daraus. Die Reihenfolge des Aufrufers bleibt erhalten, damit
+ * das Brett beim Umsortieren mitten im Zug keine Knoten wandern lässt.
  */
-export function normalizePlacements(
+function packInOrder(
+  ordered: readonly HomeBlockPlacement[],
+  columns = HOME_BOARD_COLUMNS,
+): HomeBlockPlacement[] {
+  const laid: HomeBlockPlacement[] = [];
+  for (const entry of ordered) {
+    laid.push(
+      firstFit(
+        laid,
+        entry.key,
+        Math.min(entry.span, columns) as HomeBlockSpan,
+        columns,
+      ),
+    );
+  }
+  return laid;
+}
+
+/** Packt in Lesereihenfolge und gibt die Zellen in der Reihenfolge des Aufrufers zurück. */
+function repack(
   placements: readonly HomeBlockPlacement[],
 ): HomeBlockPlacement[] {
-  const inGrid = placements.map((entry) => ({
-    ...entry,
-    col: clampCol(entry.col, entry.span),
-    row: Math.max(0, Math.floor(entry.row)),
-  }));
-  return trimTop(pushApart(inGrid, null)).sort(byCell);
+  const byKey = new Map(
+    packInOrder(sortedPlacements(placements)).map((entry) => [
+      entry.key,
+      entry,
+    ]),
+  );
+  return placements.map((entry) => byKey.get(entry.key) ?? entry);
 }
 
 function samePlacements(
@@ -669,11 +672,38 @@ function samePlacements(
   );
 }
 
+/** Dieselbe Anordnung heißt dieselbe Referenz: sonst rendert jede Zeigerbewegung neu. */
+function unlessSame(
+  before: readonly HomeBlockPlacement[],
+  after: HomeBlockPlacement[],
+): HomeBlockPlacement[] {
+  return samePlacements(before, after)
+    ? (before as HomeBlockPlacement[])
+    : after;
+}
+
 /**
- * Legt einen Baustein in eine Zelle. Was dort schon liegt, rückt nach unten.
- *
- * Ein Zug, der nichts ändert (die Kachel liegt schon dort), gibt dieselbe
- * Anordnung zurück — sonst rendert jede Zeigerbewegung neu.
+ * Bringt eine Anordnung in Form: Spalten und Zeilen ganze Zahlen, dann
+ * lückenlos gepackt in der Reihenfolge, die die gespeicherten Zellen ergeben.
+ */
+export function normalizePlacements(
+  placements: readonly HomeBlockPlacement[],
+): HomeBlockPlacement[] {
+  return repack(
+    placements.map((entry) => ({
+      ...entry,
+      col: Math.max(0, Math.floor(entry.col)),
+      row: Math.max(0, Math.floor(entry.row)),
+    })),
+  );
+}
+
+/**
+ * Legt einen Baustein an die Zelle, über der er losgelassen wurde: er rückt
+ * in der Reihenfolge vor die erste Kachel, die in Lesereihenfolge hinter
+ * dieser Zelle liegt, und das Brett packt sich neu. Was hinter ihm liegt,
+ * rutscht nach; was vor ihm liegt, bleibt. Eine Zelle ganz unten heißt: ans
+ * Ende.
  */
 export function placePlacement(
   placements: readonly HomeBlockPlacement[],
@@ -682,28 +712,76 @@ export function placePlacement(
 ): HomeBlockPlacement[] {
   const moving = placements.find((entry) => entry.key === key);
   if (!moving) return placements as HomeBlockPlacement[];
-  const col = clampCol(target.col, moving.span);
-  const row = Math.max(0, Math.floor(target.row));
-  if (col === moving.col && row === moving.row) {
-    return placements as HomeBlockPlacement[];
-  }
-  const next = trimTop(
-    pushApart(
-      placements.map((entry) =>
-        entry.key === key ? { ...entry, col, row } : entry,
-      ),
-      key,
-    ),
+  const others = sortedPlacements(
+    placements.filter((entry) => entry.key !== key),
   );
-  return samePlacements(placements, next)
-    ? (placements as HomeBlockPlacement[])
-    : next;
+  const col = Math.max(0, Math.floor(target.col));
+  const row = Math.max(0, Math.floor(target.row));
+  // Vor die erste Kachel, die an oder hinter der Zielzelle beginnt: wer auf
+  // eine Kachel legt, nimmt ihren Platz; wer rechts daneben in den freien
+  // Rest der Zeile legt, kommt dahinter.
+  const index = others.findIndex(
+    (entry) => entry.row > row || (entry.row === row && entry.col >= col),
+  );
+  const ordered = [...others];
+  ordered.splice(index === -1 ? ordered.length : index, 0, moving);
+  return unlessSame(placements, positionsFrom(placements, ordered));
 }
 
-/**
- * Ändert die Breite. Reicht die Kachel damit über den rechten Rand, rückt
- * sie nach links; was sie dann überdeckt, rückt nach unten.
- */
+/** Rückt einen Baustein ohne Maus: links und rechts in der Reihenfolge, oben und unten über die Zeile hinweg. */
+export function movePlacementBy(
+  placements: readonly HomeBlockPlacement[],
+  key: HomeBlockKey,
+  direction: HomeMoveDirection,
+): HomeBlockPlacement[] {
+  const ordered = sortedPlacements(placements);
+  const index = ordered.findIndex((entry) => entry.key === key);
+  if (index < 0) return placements as HomeBlockPlacement[];
+  const moving = ordered[index]!;
+  let next: HomeBlockPlacement[];
+  if (direction === "left" || direction === "right") {
+    const swapWith = direction === "left" ? index - 1 : index + 1;
+    if (swapWith < 0 || swapWith >= ordered.length) {
+      return placements as HomeBlockPlacement[];
+    }
+    next = [...ordered];
+    next[index] = ordered[swapWith]!;
+    next[swapWith] = moving;
+  } else {
+    // Die Kachel in derselben Spalte eine Zeile darüber oder darunter: davor
+    // beziehungsweise dahinter einsortieren. Gibt es keine, ist es der Rand.
+    const neighbour = ordered
+      .filter(
+        (entry) =>
+          entry.key !== key &&
+          entry.col < moving.col + moving.span &&
+          moving.col < entry.col + entry.span &&
+          (direction === "up"
+            ? entry.row < moving.row
+            : entry.row > moving.row),
+      )
+      .sort((a, b) => (direction === "up" ? b.row - a.row : a.row - b.row))[0];
+    if (!neighbour) return placements as HomeBlockPlacement[];
+    const rest = ordered.filter((entry) => entry.key !== key);
+    const at = rest.findIndex((entry) => entry.key === neighbour.key);
+    rest.splice(direction === "up" ? at : at + 1, 0, moving);
+    next = rest;
+  }
+  return unlessSame(placements, positionsFrom(placements, next));
+}
+
+/** Packt `ordered` und gibt die Zellen in der Reihenfolge von `placements` zurück. */
+function positionsFrom(
+  placements: readonly HomeBlockPlacement[],
+  ordered: readonly HomeBlockPlacement[],
+): HomeBlockPlacement[] {
+  const byKey = new Map(
+    packInOrder(ordered).map((entry) => [entry.key, entry]),
+  );
+  return placements.map((entry) => byKey.get(entry.key) ?? entry);
+}
+
+/** Ändert die Breite; das Brett packt sich in derselben Reihenfolge neu. */
 export function placementWithSpan(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
@@ -713,73 +791,26 @@ export function placementWithSpan(
   if (!current || current.span === span) {
     return placements as HomeBlockPlacement[];
   }
-  return trimTop(
-    pushApart(
-      placements.map((entry) =>
-        entry.key === key
-          ? { ...entry, span, col: clampCol(entry.col, span) }
-          : entry,
-      ),
-      key,
-    ),
+  return repack(
+    placements.map((entry) => (entry.key === key ? { ...entry, span } : entry)),
   );
 }
 
-function isFree(
-  placements: readonly HomeBlockPlacement[],
-  candidate: HomeBlockPlacement,
-): boolean {
-  return placements.every((entry) => !overlaps(entry, candidate));
-}
-
-/** Die unterste belegte Rasterzeile plus eins; 0 auf leerem Brett. */
-function bottomOf(placements: readonly HomeBlockPlacement[]): number {
-  return placements.reduce(
-    (bottom, entry) => Math.max(bottom, entry.row + homeBlockHeight(entry.key)),
-    0,
-  );
-}
-
-/**
- * Setzt einen Baustein an die erste freie Stelle ab `fromRow`, von links
- * nach rechts, Zeile für Zeile. Unter dem Brett ist immer Platz.
- */
-function firstFit(
-  placements: readonly HomeBlockPlacement[],
-  key: HomeBlockKey,
-  span: HomeBlockSpan,
-  fromRow: number,
-  columns = HOME_BOARD_COLUMNS,
-): HomeBlockPlacement {
-  for (let row = fromRow; ; row += 1) {
-    for (let col = 0; col + span <= columns; col += 1) {
-      const candidate = { key, span, col, row };
-      if (isFree(placements, candidate)) return candidate;
-    }
-  }
-}
-
-/**
- * Hängt einen Baustein ans Ende: in die Lücken der untersten Zeilen, wenn er
- * dort hineinpasst, sonst in eine neue Zeile darunter. Nicht in eine Lücke
- * weiter oben — die hat die Person gelassen, und ein neuer Baustein mitten
- * im Brett fiele niemandem auf.
- */
+/** Hängt einen Baustein ans Ende der Reihenfolge; das Raster packt ihn dorthin, wo er passt. */
 export function appendPlacement(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
   span: HomeBlockSpan,
 ): HomeBlockPlacement[] {
-  const fromRow = Math.max(0, bottomOf(placements) - homeBlockHeight(key));
-  return [...placements, firstFit(placements, key, span, fromRow)];
+  return [...placements, firstFit(placements, key, span)];
 }
 
-/** Entfernt einen Baustein. Seine Zelle bleibt frei, bis jemand sie füllt. */
+/** Entfernt einen Baustein; was hinter ihm lag, rückt nach. */
 export function withoutPlacement(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
 ): HomeBlockPlacement[] {
-  return trimTop(placements.filter((entry) => entry.key !== key));
+  return repack(placements.filter((entry) => entry.key !== key));
 }
 
 /** Eine Zelle des gezeichneten Rasters, einsbasiert wie in CSS. */
@@ -803,24 +834,16 @@ export function computeBoardCells(
   columns: number,
 ): Map<HomeBlockKey, HomeBoardCell> {
   const cells = new Map<HomeBlockKey, HomeBoardCell>();
-  const laid: HomeBlockPlacement[] = [];
-  for (const entry of [...placements].sort(byCell)) {
-    const placed =
-      columns >= HOME_BOARD_COLUMNS
-        ? entry
-        : firstFit(
-            laid,
-            entry.key,
-            Math.min(entry.span, columns) as HomeBlockSpan,
-            0,
-            columns,
-          );
-    laid.push(placed);
-    cells.set(entry.key, {
+  const laid =
+    columns >= HOME_BOARD_COLUMNS
+      ? placements
+      : packInOrder(sortedPlacements(placements), columns);
+  for (const placed of laid) {
+    cells.set(placed.key, {
       columnStart: placed.col + 1,
       columnSpan: placed.span,
       rowStart: placed.row + 1,
-      rowSpan: homeBlockHeight(entry.key),
+      rowSpan: homeBlockHeight(placed.key),
     });
   }
   return cells;
@@ -930,7 +953,7 @@ export function resolveHomeLayout(
     // hat die Person so gebaut.
     placements = arranged
       ? appendPlacement(placements, entry.key, span)
-      : [...placements, firstFit(placements, entry.key, span, 0)];
+      : [...placements, firstFit(placements, entry.key, span)];
     placed.add(entry.key);
   }
 
@@ -943,7 +966,7 @@ export function resolveHomeLayout(
     const span = clampSpan(block, undefined);
     placements = arranged
       ? appendPlacement(placements, block.key, span)
-      : [...placements, firstFit(placements, block.key, span, 0)];
+      : [...placements, firstFit(placements, block.key, span)];
     placed.add(block.key);
   }
 
@@ -1020,7 +1043,7 @@ export function sanitizeHomeBlockPlacements(
     );
     seen.add(key);
     if (legacy) {
-      result.push(firstFit(result, key, span, 0));
+      result.push(firstFit(result, key, span));
       continue;
     }
     const cell = (value: unknown) =>

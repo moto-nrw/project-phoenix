@@ -22,6 +22,7 @@ import { getTimeBasedGreeting } from "~/lib/greeting";
 import {
   appendPlacement,
   defaultSpanFor,
+  movePlacementBy,
   placePlacement,
   placementWithSpan,
   sortedPlacements,
@@ -30,6 +31,7 @@ import {
   type HomeBlockKey,
   type HomeBlockPlacement,
   type HomeBlockSpan,
+  type HomeMoveDirection,
   type HomeMoveTarget,
 } from "~/lib/home-blocks";
 import { useHomeBlockAccess } from "~/lib/hooks/use-home-block-access";
@@ -238,6 +240,15 @@ function HomeContent() {
     [],
   );
 
+  const moveBy = useCallback(
+    (key: HomeBlockKey, direction: HomeMoveDirection) => {
+      setDraft((current) =>
+        current ? movePlacementBy(current, key, direction) : current,
+      );
+    },
+    [],
+  );
+
   const changeSpan = useCallback((key: HomeBlockKey, span: HomeBlockSpan) => {
     setDraft((current) =>
       current ? placementWithSpan(current, key, span) : current,
@@ -424,6 +435,7 @@ function HomeContent() {
           addable={addable}
           editing={editing}
           onMove={move}
+          onMoveBy={moveBy}
           onSpanChange={changeSpan}
           onRemove={removeBlock}
           onAdd={addBlock}

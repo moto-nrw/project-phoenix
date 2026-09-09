@@ -35,6 +35,7 @@ import {
   type HomeBlockPlacement,
   type HomeBlockSpan,
   type HomeBoardCell,
+  type HomeMoveDirection,
   type HomeMoveTarget,
 } from "~/lib/home-blocks";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -147,6 +148,8 @@ export interface HomeBoardProps {
     target: HomeMoveTarget,
     base: readonly HomeBlockPlacement[],
   ) => void;
+  /** Rückt einen Baustein ohne Maus in der Reihenfolge (Pfeiltasten). */
+  readonly onMoveBy: (key: HomeBlockKey, direction: HomeMoveDirection) => void;
   readonly onSpanChange: (key: HomeBlockKey, span: HomeBlockSpan) => void;
   readonly onRemove: (key: HomeBlockKey) => void;
   readonly onAdd: (key: HomeBlockKey) => void;
@@ -163,23 +166,13 @@ interface ItemHandle {
   readonly settle: () => void;
 }
 
-type MoveDirection = "left" | "right" | "up" | "down";
+type MoveDirection = HomeMoveDirection;
 
 const ARROW_DIRECTION: Readonly<Record<string, MoveDirection>> = {
   ArrowLeft: "left",
   ArrowRight: "right",
   ArrowUp: "up",
   ArrowDown: "down",
-};
-
-/** Um wie viele Zellen eine Pfeiltaste die Kachel rückt. */
-const KEYBOARD_STEP: Readonly<
-  Record<MoveDirection, { readonly col: number; readonly row: number }>
-> = {
-  left: { col: -1, row: 0 },
-  right: { col: 1, row: 0 },
-  up: { col: 0, row: -1 },
-  down: { col: 0, row: 1 },
 };
 
 /** Alles, was ein Zug zwischen zwei Ereignissen wissen muss. */
@@ -222,6 +215,7 @@ export function HomeBoard({
   addable,
   editing,
   onMove,
+  onMoveBy,
   onSpanChange,
   onRemove,
   onAdd,
@@ -464,16 +458,9 @@ export function HomeBoard({
     endDrag();
   };
 
-  /** Ohne Maus: die Pfeiltasten rücken die Kachel um eine Zelle. */
+  /** Ohne Maus: die Pfeiltasten rücken die Kachel in der Reihenfolge. */
   const moveByKeyboard = (key: HomeBlockKey, direction: MoveDirection) => {
-    const placement = placements.find((entry) => entry.key === key);
-    if (!placement) return;
-    const step = KEYBOARD_STEP[direction];
-    onMove(
-      key,
-      { col: placement.col + step.col, row: placement.row + step.row },
-      placements,
-    );
+    onMoveBy(key, direction);
   };
 
   // Ab der zweispaltigen Ansicht bekommt jede Kachel ihre Zelle ausdrücklich;
