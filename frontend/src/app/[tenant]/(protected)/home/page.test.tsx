@@ -590,6 +590,20 @@ describe("Startseite anpassen", () => {
     ]);
   });
 
+  it("bewahrt vorübergehend nicht verfügbare gespeicherte Bausteine", async () => {
+    layoutState.policies = { "section.staff_notices": "disabled" };
+    startEditing();
+    select("Kinder anwesend");
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[1]).toEqual([
+      { key: "section.staff_notices", span: 2, col: 1, row: 0 },
+    ]);
+  });
+
   it("nimmt einen Baustein aus dem Hinzufügen-Menü ans Ende auf", async () => {
     startEditing();
 

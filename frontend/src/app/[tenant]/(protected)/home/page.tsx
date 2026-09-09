@@ -300,9 +300,23 @@ function HomeContent() {
       const overrides = { ...homeLayout.overrides };
       for (const key of removedInDraft) overrides[key] = false;
       for (const placement of draft) delete overrides[placement.key];
+      // Bausteine können nur vorübergehend fehlen, etwa weil die Schule den
+      // Anwesenheitsmodus ändert, eine Funktion abschaltet oder ein Recht
+      // gerade nicht vorliegt. Sie standen dann nicht im Entwurf und dürfen
+      // durch das Speichern einer sichtbaren Änderung nicht verloren gehen.
+      // Ausdrücklich entfernte Bausteine bleiben dagegen entfernt.
+      const draftKeys = new Set(draft.map((placement) => placement.key));
+      const removedKeys = new Set(removedInDraft);
+      const preserved = homeLayout.blocks.filter(
+        (placement) =>
+          !draftKeys.has(placement.key) && !removedKeys.has(placement.key),
+      );
       // In Lesereihenfolge, damit dieselbe Anordnung immer gleich gespeichert
       // wird, egal in welcher Reihenfolge die Kacheln gezogen wurden.
-      await saveHomeLayout(overrides, sortedPlacements(draft));
+      await saveHomeLayout(
+        overrides,
+        sortedPlacements([...draft, ...preserved]),
+      );
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {
@@ -315,7 +329,13 @@ function HomeContent() {
     } finally {
       setSaving(false);
     }
-  }, [draft, homeLayout.overrides, removedInDraft, saveHomeLayout]);
+  }, [
+    draft,
+    homeLayout.blocks,
+    homeLayout.overrides,
+    removedInDraft,
+    saveHomeLayout,
+  ]);
 
   const restoreDefault = useCallback(async () => {
     setSaving(true);
@@ -359,6 +379,7 @@ function HomeContent() {
     analyticsLoading: isLoading,
     birthdays,
     birthdaysLoading,
+    canOpenStudentSearch: access.has("users:read"),
     tenantPath,
   };
 

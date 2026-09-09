@@ -52,6 +52,8 @@ export interface HomeBlockData {
   readonly analyticsLoading: boolean;
   readonly birthdays: BirthdayOverview | undefined;
   readonly birthdaysLoading: boolean;
+  /** Darf die Person die Kindersuche hinter einer Kennzahl öffnen? */
+  readonly canOpenStudentSearch: boolean;
   readonly tenantPath: (path: string) => string;
 }
 
@@ -283,6 +285,8 @@ function StatBlock({
   readonly data: HomeBlockData;
 }) {
   const analytics = data.analytics;
+  const studentSearchHref = (path: string) =>
+    data.canOpenStudentSearch ? data.tenantPath(path) : undefined;
   const tile = (
     label: string,
     value: string | number,
@@ -312,49 +316,49 @@ function StatBlock({
         "Kinder anwesend",
         analytics?.studentsPresent ?? 0,
         "present",
-        data.tenantPath("/students/search"),
+        studentSearchHref("/students/search"),
       );
     case "tile.students_in_rooms":
       return tile(
         "In Räumen",
         analytics?.studentsInRooms ?? 0,
         "rooms",
-        data.tenantPath("/students/search"),
+        studentSearchHref("/students/search"),
       );
     case "tile.students_in_transit":
       return tile(
         "Unterwegs",
         analytics?.studentsInTransit ?? 0,
         "transit",
-        data.tenantPath("/students/search?status=unterwegs"),
+        studentSearchHref("/students/search?status=unterwegs"),
       );
     case "tile.students_on_playground":
       return tile(
         "Schulhof",
         analytics?.studentsOnPlayground ?? 0,
         "schoolyard",
-        data.tenantPath("/students/search?status=schulhof"),
+        studentSearchHref("/students/search?status=schulhof"),
       );
     case "tile.students_sick":
       return tile(
         "Krank",
         analytics?.studentsSick ?? 0,
         "sick",
-        data.tenantPath("/students/search?status=krank"),
+        studentSearchHref("/students/search?status=krank"),
       );
     case "tile.students_excused":
       return tile(
         "Entschuldigt",
         analytics?.studentsExcused ?? 0,
         "excused",
-        data.tenantPath("/students/search?status=entschuldigt"),
+        studentSearchHref("/students/search?status=entschuldigt"),
       );
     case "tile.students_home":
       return tile(
         "Zuhause",
         analytics?.studentsHome ?? 0,
         "home",
-        data.tenantPath("/students/search?status=abwesend"),
+        studentSearchHref("/students/search?status=abwesend"),
       );
     case "tile.active_activities":
       return tile(

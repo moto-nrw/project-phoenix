@@ -97,6 +97,7 @@ function data(overrides: Partial<HomeBlockData> = {}): HomeBlockData {
     analyticsLoading: false,
     birthdays: undefined,
     birthdaysLoading: false,
+    canOpenStudentSearch: true,
     tenantPath: (path: string) => `/test-tenant${path}`,
     ...overrides,
   };
@@ -117,6 +118,17 @@ describe("HomeBlockContent — Kennzahlen", () => {
       "href",
       "/test-tenant/students/search?status=krank",
     );
+  });
+
+  it("zeigt Kennzahlen ohne Verzeichnisrecht ohne Kindersuch-Link", () => {
+    render(
+      <HomeBlockContent
+        blockKey="tile.students_sick"
+        data={data({ canOpenStudentSearch: false })}
+      />,
+    );
+
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("zeigt die Auslastung als Prozentwert", () => {
