@@ -19,9 +19,11 @@ type Observation struct {
 }
 
 type Store interface {
+	LockStaffSupervision(context.Context, int64, Date) ([]int64, Stats, error)
 	UnclaimedStore
 	AttendanceStore
 	VisitStore
+	GroupSessionStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)
 	LockOpenPresence(context.Context, []int64) (Stats, error)

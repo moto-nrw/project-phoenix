@@ -99,6 +99,27 @@ export interface ChatMessage {
   readonly read_by_guardian?: boolean;
 }
 
+/**
+ * The care-schedule request row a pickup-change pill points at, as the id the
+ * staff detail endpoint takes — or null when the pill is not a pickup change,
+ * carries no usable reference, or references another table. Both the
+ * "Abholzeit angefragt" pill and the decision pill of the same request carry
+ * the same ref, so "Anfrage ansehen" opens the identical row from either
+ * (#3135). Legacy pills without a ref get no action rather than a guess.
+ */
+export function pickupRequestRef(
+  message: Pick<ChatMessage, "kind" | "request_type" | "ref_table" | "ref_id">,
+): string | null {
+  if (message.kind !== "event" || message.request_type !== "pickup_change") {
+    return null;
+  }
+  if (message.ref_table !== "schedule.care_schedule_change_requests") {
+    return null;
+  }
+  const id = message.ref_id?.trim();
+  return id && /^[1-9]\d*$/.test(id) ? id : null;
+}
+
 const STAFF_STATUS_LABELS: Record<RequestStatus, string> = {
   offen: "Offen",
   erledigt: "Erledigt",

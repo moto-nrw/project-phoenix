@@ -353,42 +353,6 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 	return int(rowsAffected), nil
 }
 
-// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
-// Returns the number of supervisions ended.
-func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
-	if len(activeGroupIDs) == 0 {
-		return 0, nil
-	}
-
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*active.GroupSupervisor)(nil)).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", r.today()).
-		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
-		Where(`"group_supervisor".start_date <= ?`, r.today()).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
-
-	query = base.WithTenantFilter(ctx, query, "group_supervisor")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "end supervisions by active group IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "end supervisions by active group IDs (rows affected)",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return rowsAffected, nil
-}
-
 // GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today.
 // This is used to determine "Anwesend" status - staff who were physically present via PyrePortal.
 // A staff member is considered present today if:

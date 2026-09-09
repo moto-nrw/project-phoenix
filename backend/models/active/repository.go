@@ -48,9 +48,6 @@ type GroupRepository interface {
 	// FindByTimeRange finds all groups active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
 
-	// EndSession marks a group session as ended at the current time
-	EndSession(ctx context.Context, id int64) error
-
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
@@ -76,10 +73,6 @@ type GroupRepository interface {
 
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
-
-	// EndSessionsByIDs ends multiple group sessions in a single query.
-	// Returns the number of sessions ended.
-	EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error)
 
 	// AggregateRoomSessions returns one row per active.groups session in the
 	// given room that was active at any point during [start, end] — i.e.
@@ -166,10 +159,6 @@ type GroupSupervisorRepository interface {
 	// touching their supervisions elsewhere. Idempotent: zero rows matched
 	// is not an error (staff already ended or never supervised this group).
 	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
-
-	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
-	// Returns the number of supervisions ended.
-	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
 
 	// FindStaleOpen returns supervisor rows started before the given day that
 	// still lack an end_date. Feeds the nightly stale-supervisor cleanup and
@@ -318,15 +307,6 @@ type StaffAbsenceRepository interface {
 	// Anfragen module shows (#2433): the person the absence belongs to and,
 	// once decided, the deciding person.
 	ListRequests(ctx context.Context, filter AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
-
-	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
-	// pending/question rows or absences whose end date has not passed.
-	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)
-
-	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested' or 'question') or not yet over (date_end >= from). Past
-	// decided absences stay as history. Used by staff offboarding.
-	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the time-tracking retention cleanup.

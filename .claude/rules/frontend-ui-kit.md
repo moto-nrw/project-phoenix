@@ -104,7 +104,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
 | Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
 | Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
-| Delete confirmation | `ConfirmDeleteModal` | `~/components/ui/confirm-delete-modal` |
+| Delete confirmation (every deletion; `bauart/one-delete-confirm` fails a `ConfirmationModal`, hand-built `Modal` or `window.confirm` for Löschen) | `ConfirmDeleteModal` — gate `twoStep`, or `textConfirm` for irreversible data loss; a series/child scope choice goes in its `scope` slot, not in a `ChoiceModal` in front | `~/components/ui/confirm-delete-modal` |
 | Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
 | Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
 | Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |

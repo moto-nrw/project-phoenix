@@ -126,10 +126,6 @@ func (m *shiftMockRepo) FindUsedCalendarWeeks(_ context.Context, _, _ scheduleMo
 	return nil, nil
 }
 
-func (m *shiftMockRepo) DeleteUpcomingByStaffID(context.Context, int64, scheduleModels.Date) (int64, error) {
-	return 0, nil
-}
-
 func (m *shiftMockRepo) BulkCreate(context.Context, []*scheduleModels.StaffShift) error {
 	return nil
 }

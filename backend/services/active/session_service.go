@@ -103,7 +103,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 	}
 
 	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", supervisorIDs, func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
 		group, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
 		newGroup = group
 		return group, err
@@ -121,9 +121,12 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
-func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
+func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, supervisorIDs []int64, createSession func(context.Context, int64) (*active.Group, error)) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
+			return err
+		}
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
 			return err
 		}
 
@@ -362,6 +365,10 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
 		}
+		lockedStaff, err := s.lockForceStartSupervisors(txCtx, activityID, supervisorIDs)
+		if err != nil {
+			return err
+		}
 
 		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
 		if err != nil {
@@ -386,6 +393,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		}
 		endedSessionIDs := appendActiveGroupID(nil, deviceEndedSessionID)
 		endedSessionIDs = appendActiveGroupIDs(endedSessionIDs, conflictingSessionIDs...)
+		if err := s.validateTransferredSupervisorLocks(txCtx, conflictingSessionIDs, lockedStaff); err != nil {
+			return err
+		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
 		if err != nil {
@@ -404,6 +414,49 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		return nil
 	})
 	return markRollbackOnRoomCapacity(ctx, err)
+}
+
+func (s *service) lockForceStartSupervisors(ctx context.Context, activityID int64, requested []int64) (map[int64]bool, error) {
+	staffIDs := deduplicateSupervisorIDs(requested)
+	groups, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil {
+				staffIDs[supervisor.StaffID] = true
+			}
+		}
+	}
+	if err := s.lockSupervisorsForAssignment(ctx, slices.Collect(maps.Keys(staffIDs))); err != nil {
+		return nil, err
+	}
+	return staffIDs, nil
+}
+
+// Group locks are now held. A supervisor added since discovery requires a
+// fresh command, not an out-of-order staff lock while holding supervision rows.
+func (s *service) validateTransferredSupervisorLocks(ctx context.Context, groupIDs []int64, lockedStaff map[int64]bool) error {
+	for _, groupID := range groupIDs {
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+		if err != nil {
+			return err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil && !lockedStaff[supervisor.StaffID] {
+				return ErrSessionConflict
+			}
+		}
+	}
+	return nil
 }
 
 func markRollbackOnRoomCapacity(ctx context.Context, err error) error {
@@ -475,7 +528,9 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		if locked == nil || !locked.IsActive() {
 			continue
 		}
-		if err := s.GroupRepo.EndSession(ctx, session.ID); err != nil {
+		// The Student Presence owner releases the group; its visits and
+		// supervisors move to the new session afterwards (#2697).
+		if err := s.SchoolPresence.EndGroup(ctx, session.ID, s.now()); err != nil {
 			return nil, err
 		}
 		endedIDs = append(endedIDs, session.ID)
@@ -501,7 +556,7 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 		return 0, nil
 	}
 
-	if err := s.GroupRepo.EndSession(ctx, existingSession.ID); err != nil {
+	if err := s.SchoolPresence.EndGroup(ctx, existingSession.ID, s.now()); err != nil {
 		return 0, err
 	}
 
@@ -727,6 +782,9 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 	uniqueSupervisors := deduplicateSupervisorIDs(supervisorIDs)
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
+			return err
+		}
 		if err := s.lockActiveGroupForSupervisorUpdate(txCtx, activeGroupID); err != nil {
 			return err
 		}
@@ -752,6 +810,19 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 	}
 
 	return updatedGroup, nil
+}
+
+// Lock requested staff in a stable order before locking supervision rows.
+// Revalidation inside the write transaction closes the preflight/offboarding gap.
+func (s *service) lockSupervisorsForAssignment(ctx context.Context, supervisorIDs []int64) error {
+	ids := slices.Collect(maps.Keys(deduplicateSupervisorIDs(supervisorIDs)))
+	slices.Sort(ids)
+	for _, id := range ids {
+		if err := s.lockStaffForSupervision(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active
@@ -1018,21 +1089,8 @@ func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Gr
 		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
-	// End all active visits
-	for _, visitData := range visitsToNotify {
-		if _, _, err := s.endVisitWithAttendanceSync(ctx, visitData.VisitID); err != nil {
-			return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
-		}
-	}
-
-	// End all active supervisors
-	if err := s.endActiveSupervisors(ctx, activeGroupID); err != nil {
+	if _, err := s.closeGroupSession(ctx, "EndActivitySession", activeGroupID); err != nil {
 		return sessionEndSSEData{}, err
-	}
-
-	// End the session
-	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
-		return sessionEndSSEData{}, &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 	endData, err := s.collectActivityEndSSE(ctx, group)
 	if err != nil {
@@ -1041,17 +1099,36 @@ func (s *service) endActivitySessionLocked(ctx context.Context, group *active.Gr
 	return sessionEndSSEData{Visits: visitsToNotify, End: endData}, nil
 }
 
-func (s *service) endActiveSupervisors(ctx context.Context, activeGroupID int64) error {
-	activeSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
-	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: err}
+// closeGroupSession is the one presence write behind every session end in
+// this service: the Student Presence owner closes the group's open visits,
+// supervisions, and the group in one command (#2697). The slot check-outs of
+// the closed visits are then mirrored into the timetable in one statement,
+// and the guardians of every checked-out child are woken after the commit.
+// The caller holds the group lock and has verified the group is open.
+func (s *service) closeGroupSession(ctx context.Context, op string, activeGroupID int64) (studentpresence.EndedGroupSession, error) {
+	now := s.now()
+	ended, err := s.SchoolPresence.EndGroupSession(ctx, activeGroupID, now)
+	switch {
+	case errors.Is(err, studentpresence.ErrGroupNotFound):
+		return ended, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+	case errors.Is(err, studentpresence.ErrGroupEnded):
+		return ended, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
+	case err != nil:
+		return ended, &ActiveError{Op: op, Err: err}
 	}
-	for _, supervisor := range activeSupervisors {
-		if err := s.SupervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
-			return &ActiveError{Op: "EndActivitySession", Err: err}
+	if s.AttendanceSyncer != nil && len(ended.ClosedVisits) > 0 {
+		visits := make([]*studentpresence.Visit, 0, len(ended.ClosedVisits))
+		for i := range ended.ClosedVisits {
+			visits = append(visits, &ended.ClosedVisits[i])
+		}
+		if err := s.AttendanceSyncer.MirrorCheckOutForVisits(ctx, visits, now); err != nil {
+			return ended, &ActiveError{Op: op, Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
-	return nil
+	for _, visit := range ended.ClosedVisits {
+		s.wakeGuardiansAfterCommit(ctx, visit.StudentID)
+	}
+	return ended, nil
 }
 
 // queueActivitySessionEndBroadcasts emits the session-end SSE events once the
@@ -1093,27 +1170,6 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 
 	// Delegate to ProcessSessionTimeoutByID with the session ID
 	return s.ProcessSessionTimeoutByID(ctx, session.ID)
-}
-
-// checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
-func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
-	visits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{sessionID}})
-	if err != nil {
-		return 0, err
-	}
-
-	studentsCheckedOut := 0
-	for _, visit := range visits {
-		if visit.ExitTime != nil {
-			continue
-		}
-		if _, _, err := s.endVisitWithAttendanceSync(ctx, visit.ID); err != nil {
-			return 0, err
-		}
-		studentsCheckedOut++
-	}
-
-	return studentsCheckedOut, nil
 }
 
 // collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
@@ -1227,16 +1283,9 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	studentsCheckedOut, err := s.checkoutActiveVisits(ctx, sessionID)
+	ended, err := s.closeGroupSession(ctx, "ProcessSessionTimeoutByID", sessionID)
 	if err != nil {
-		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
-	}
-	if err := s.endActiveSupervisors(ctx, sessionID); err != nil {
 		return nil, activityEndSSEData{}, err
-	}
-
-	if err := s.GroupRepo.EndSession(ctx, sessionID); err != nil {
-		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
 	endData, err := s.collectActivityEndSSE(ctx, session)
@@ -1247,8 +1296,8 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 	return &TimeoutResult{
 		SessionID:          sessionID,
 		ActivityID:         session.GroupID,
-		StudentsCheckedOut: studentsCheckedOut,
-		TimeoutAt:          time.Now(),
+		StudentsCheckedOut: len(ended.ClosedVisits),
+		TimeoutAt:          ended.EndedAt,
 	}, endData, nil
 }
 
@@ -1525,34 +1574,20 @@ func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64,
 		return nil
 	}
 
-	// 2. Bulk end visits — abort remaining steps on failure to prevent
-	// sessions/supervisors being closed while visits remain active.
-	visitsEnded, err := s.SchoolPresence.CloseGroupVisits(ctx, activeIDs)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
-		result.Success = false
-		return err
-	}
-	result.VisitsEnded = int(visitsEnded)
-
-	// 3. Bulk end sessions
-	sessionsEnded, err := s.GroupRepo.EndSessionsByIDs(ctx, activeIDs)
+	// The Student Presence owner closes visits, sessions, and supervisions of
+	// every still-open group in one command (#2697); a failure inside rolls
+	// the whole batch back with the surrounding transaction, so no session
+	// is ever closed while its visits remain open.
+	ended, err := s.SchoolPresence.EndGroupSessions(ctx, activeIDs, s.now())
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
 		return err
 	}
-	result.SessionsEnded = int(sessionsEnded)
-	result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
-
-	// 4. Bulk end supervisors
-	supervisorsEnded, err := s.SupervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
-		result.Success = false
-		return err
-	}
-	result.SupervisorsEnded = int(supervisorsEnded)
+	result.VisitsEnded = int(ended.VisitsClosed)
+	result.SessionsEnded = int(ended.SessionsEnded)
+	result.SupervisorsEnded = int(ended.SupervisorsEnded)
+	result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, ended.EndedActiveGroupIDs...)
 
 	return nil
 }

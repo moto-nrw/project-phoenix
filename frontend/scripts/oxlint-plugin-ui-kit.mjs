@@ -416,7 +416,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/enrollment/phases-editor.tsx",
   "src/components/files/files-page.tsx",
   "src/components/guardians/guardian-contact-actions.tsx",
-  "src/components/guardians/guardian-delete-modal.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/help/help-search.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
@@ -469,7 +468,7 @@ src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@164
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1334 text-[11px]@1334 text-[10px]@1338 text-[10px]@1347 text-[11px]@1347
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@235 text-[11px]@276
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@218
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@213
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@425
 src/components/active-supervisions/timetable-roster.tsx|text-[11px]@92
 src/components/activities/activity-management-modal.tsx|text-[10px]@330 text-[10px]@359 text-[10px]@396
@@ -478,12 +477,11 @@ src/components/calendar/personal-calendar.tsx|text-[11px]@786 text-[11px]@814 te
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/dashboard/sidebar.tsx|text-[10px]@1321
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@920 text-[11px]@939
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1304 text-[11px]@2989 text-[11px]@3181 text-[11px]@3186 text-[11px]@3191 text-[11px]@3345 text-[11px]@3937 text-[10px]@4154 text-[11px]@4166 text-[11px]@4201 text-[10px]@4215 text-[10px]@4259
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1305 text-[11px]@2990 text-[11px]@3182 text-[11px]@3187 text-[11px]@3192 text-[11px]@3346 text-[11px]@3938 text-[10px]@4155 text-[11px]@4167 text-[11px]@4202 text-[10px]@4216 text-[10px]@4260
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2090
 src/components/enrollment/phases-editor.tsx|text-[11px]@663 text-[11px]@668
 src/components/files/files-page.tsx|text-[11px]@158 text-[11px]@275
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-delete-modal.tsx|text-[10px]@218
 src/components/guardians/guardian-list.tsx|text-[10px]@334
 src/components/help/help-search.tsx|text-[11px]@362
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@676 text-[11px]@741
@@ -494,7 +492,7 @@ src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]@227 text-[10px]@240 text-[10px]@322 text-[11px]@1011
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@468 text-[11px]@564 text-[11px]@573 text-[11px]@580 text-[10px]@714
 src/components/staff/staff-session-table.tsx|text-[11px]@1178
-src/components/students/care-schedule-manager.tsx|text-[10px]@1121 text-[11px]@1276 text-[11px]@1365 text-[11px]@1375 text-[11px]@1405
+src/components/students/care-schedule-manager.tsx|text-[10px]@1126 text-[11px]@1281 text-[11px]@1370 text-[11px]@1380 text-[11px]@1410
 src/components/students/planned-status-days-modal.tsx|text-[10px]@899 text-[11px]@899
 src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
@@ -505,7 +503,7 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@167 text-[11px]@247 text-[11px]@280 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@197 text-[10px]@203 text-[10px]@210 text-[10px]@218 text-[10px]@239
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@250 text-[9px]@366 text-[9px]@944 text-[11px]@1209 text-[11px]@1235 text-[11px]@1411 text-[10px]@1481 text-[11px]@1504
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@244 text-[9px]@360 text-[9px]@940 text-[11px]@1233 text-[11px]@1259 text-[11px]@1435 text-[10px]@1505 text-[11px]@1528
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@203 text-[10px]@219 text-[11px]@228 text-[10px]@270 text-[10px]@294 text-[10px]@376 text-[10px]@390 text-[10px]@402 text-[11px]@410 text-[11px]@417
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@379 text-[11px]@444

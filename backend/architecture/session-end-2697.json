@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2684",
+    "#2685",
+    "#2691",
+    "#2692",
+    "#2693",
+    "#3020"
+  ],
+  "owner_and_capability": "Session End application workflow over Student Presence GroupSessionCommand and Timetable Commands",
+  "affected_packages": [
+    "api/iot/sessions",
+    "workflows/sessionend",
+    "modules/studentpresence",
+    "modules/timetable",
+    "services/active",
+    "services/schedule"
+  ],
+  "affected_tables": [
+    "active.groups",
+    "active.visits",
+    "active.group_supervisors",
+    "schedule.activity_instances",
+    "schedule.instance_students",
+    "schedule.instance_staff",
+    "active.attendance"
+  ],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Kiosk session end calls one workflow in the caller's tenant UnitOfWork; all session-ending Presence writes use owner commands. Timetable completion remains one owner-backed provider. No dual writer or fallback read chain.",
+  "tests": [
+    "Kiosk HTTP end/current/repeat-close, workflow owner failure and outer rollback, after-commit notification, two-tenant owner contracts, real Cancel/session-end serialization, complete/cancel/nightly/takeover caller suites."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/session-end-2697.md and session-end-2697.raw.json",
+    "workload": "Local isolated PostgreSQL 17.11, Go 1.27.0, concurrency 1; 5 warmups and 30 calls per operation. Real composed workflow including Timetable completion, one supervisor and two student assignments. Fixture creation excluded.",
+    "thresholds": "No task-specific SLO or query budget is defined. Existing behavior, architecture and composition gates apply. Measurements are not production thresholds or a before/after benchmark.",
+    "query_count": "Mirrored end 34 statements and 5 DML rows; already-ended rejection 5 statements and zero DML rows.",
+    "errors": "No unexpected errors; repeated calls consistently return ErrSessionAlreadyEnded. No pool waits or database deadlock counter increments. Lock sampling observed zero waiters, subject to sampling gaps.",
+    "failure": "Cancel/session-end lock inversion reproduced with SQLSTATE 55P03, then fixed and verified using both real operations. Owner completion failure and caller abort preserve all Presence writes and suppress notifications.",
+    "rollback": "One tenant UnitOfWork rolls back Presence and Timetable operations; notifications execute only after commit. Existing integration tests inject completion and outer-caller failures.",
+    "smoke": "Real kiosk route test verifies visit checkout, mirrored completion, expected-student finalization, repeated-close response and foreign-tenant preservation. Repository-wide affected checks and CI are required before merge."
+  },
+  "rollback_and_cleanup": "Revert workflow wiring against unchanged table shapes if needed; transactional failures roll back before after-commit notifications. No irreversible cleanup or schema change. Later Timetable/Presence schema split stays #2762.",
+  "exit_criterion": "Listed session-end entrypoints use single owner providers and retain tenant contracts. Architecture ownership and shrink-only baselines remain unchanged except reviewed epoch-4 data-less workflow registration under ADR 0013."
+}

@@ -183,9 +183,15 @@ describe("GraduatesModal", () => {
       screen.getByRole("checkbox", { name: /Alma Alumna auswählen/i }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Endgültig löschen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+    // Texteingabe-Stufe der ConfirmDeleteModal (#3110): unwiderrufliche
+    // Massenlöschung von Kindern.
+    fireEvent.change(
+      await screen.findByLabelText("Zur Bestätigung LÖSCHEN eingeben:"),
+      { target: { value: "LÖSCHEN" } },
+    );
     fireEvent.click(
-      await screen.findByRole("button", { name: /Ja, endgültig löschen/i }),
+      screen.getByRole("button", { name: /Kind(?:er)? endgültig löschen/ }),
     );
 
     await waitFor(() => {
@@ -224,9 +230,15 @@ describe("GraduatesModal", () => {
 
     await screen.findByText("Alma Alumna");
     fireEvent.click(screen.getByRole("checkbox", { name: /Alle löschbaren/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Endgültig löschen/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+    // Texteingabe-Stufe der ConfirmDeleteModal (#3110): unwiderrufliche
+    // Massenlöschung von Kindern.
+    fireEvent.change(
+      await screen.findByLabelText("Zur Bestätigung LÖSCHEN eingeben:"),
+      { target: { value: "LÖSCHEN" } },
+    );
     fireEvent.click(
-      await screen.findByRole("button", { name: /Ja, endgültig löschen/i }),
+      screen.getByRole("button", { name: /Kind(?:er)? endgültig löschen/ }),
     );
 
     await waitFor(() => {

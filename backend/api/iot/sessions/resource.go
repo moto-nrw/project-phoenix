@@ -11,6 +11,7 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
 // Resource defines the Sessions API resource for activity session management
@@ -21,9 +22,11 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	TimetableData     *scheduleSvc.TimetableDataService
-	TimetableBridge   *scheduleSvc.TimetableBridgeService
-	Broadcaster       realtime.Broadcaster
+	// SessionEnd is the one facade behind POST /end: it closes the presence
+	// session and the mirrored timetable instance in one UnitOfWork (#2697).
+	SessionEnd    sessionend.Command
+	TimetableData *scheduleSvc.TimetableDataService
+	Broadcaster   realtime.Broadcaster
 }
 
 // NewResource creates a new Sessions resource
@@ -34,6 +37,7 @@ func NewResource(
 	activitiesService activitiesSvc.ActivityService,
 	facilityService facilitiesSvc.Service,
 	educationService educationSvc.Service,
+	sessionEnd sessionend.Command,
 ) *Resource {
 	return &Resource{
 		IoTService:        iotService,
@@ -42,18 +46,19 @@ func NewResource(
 		ActivitiesService: activitiesService,
 		FacilityService:   facilityService,
 		EducationService:  educationService,
+		SessionEnd:        sessionEnd,
 	}
 }
 
-// ConfigureTimetableMirror wires optional repositories used to mirror
-// PyrePortal/RFID activity sessions into the timetable instance layer.
+// ConfigureTimetableMirror wires the optional data service used to mirror a
+// starting PyrePortal/RFID session into the timetable instance layer. The
+// session end needs nothing here: the session end workflow owns the
+// completion of the mirrored instance.
 func (rs *Resource) ConfigureTimetableMirror(
 	timetableData *scheduleSvc.TimetableDataService,
-	timetableBridge *scheduleSvc.TimetableBridgeService,
 	broadcaster realtime.Broadcaster,
 ) {
 	rs.TimetableData = timetableData
-	rs.TimetableBridge = timetableBridge
 	rs.Broadcaster = broadcaster
 }
 

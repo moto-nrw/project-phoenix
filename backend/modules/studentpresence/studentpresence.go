@@ -7,6 +7,7 @@ import (
 )
 
 type Query interface {
+	LockStaffSupervision(context.Context, int64, string) ([]int64, error)
 	UnclaimedGroups(context.Context, string) ([]UnclaimedGroup, error)
 	AttendanceQuery
 	VisitQuery
@@ -15,11 +16,20 @@ type Query interface {
 	CountAttendanceRecords(context.Context, int64) (int, error)
 }
 
+// LockStaffSupervision returns the supervision IDs active on the given school
+// day and holds their row locks until the caller's tenant transaction ends.
+// The caller must also serialize staff lifecycle changes with assignment
+// writers: these row locks alone do not prevent new supervision rows.
+func (m *Module) LockStaffSupervision(ctx context.Context, staffID int64, date string) ([]int64, error) {
+	return m.engine.LockStaffSupervision(ctx, staffID, date)
+}
+
 type Command interface {
 	ClaimGroup(context.Context, GroupClaim) (ClaimedSupervision, error)
 	AttendanceCommand
 	VisitCommand
 	GroupRecovery
+	GroupSessionCommand
 	LockOpenPresence(context.Context, []int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error

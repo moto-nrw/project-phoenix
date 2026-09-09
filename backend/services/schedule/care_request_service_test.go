@@ -96,6 +96,13 @@ func newPickupChangePresence(t *testing.T, db *bun.DB) interface {
 
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
+	return newCareFixtureWithEmitter(t, nil)
+}
+
+// newCareFixtureWithEmitter builds the same service with a pill emitter, so a
+// test can assert what the message thread receives (#3135).
+func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter) *careFixture {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
@@ -118,8 +125,8 @@ func newCareFixture(t *testing.T) *careFixture {
 		newPickupChangePresence(t, db),
 		autoExcusal,
 		sf.UserContext,
-		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
-		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
+		emitter, // pill emission is best-effort and after-commit; nil no-ops
+		nil,     // broadcaster — cache-invalidation fan-out; nil no-ops
 		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
 		nil,
 		slog.Default(),

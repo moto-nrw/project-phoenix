@@ -47,6 +47,15 @@ func (s *Service) CreateGroupSubstitution(ctx context.Context, value domain.Grou
 	}
 	err = s.run("create_group_substitution", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if value.EndDate >= s.clock.Today() {
+				ids := []int64{value.SubstituteStaffID}
+				if value.RegularStaffID != nil {
+					ids = append(ids, *value.RegularStaffID)
+				}
+				if err := s.lockAssignmentStaff(txCtx, ids); err != nil {
+					return err
+				}
+			}
 			var writeStats domain.OperationStats
 			result, writeStats, err = s.store.CreateGroupSubstitution(txCtx, value)
 			stats.Add(writeStats)
@@ -62,6 +71,15 @@ func (s *Service) UpdateGroupSubstitution(ctx context.Context, value domain.Grou
 	}
 	err = s.run("update_group_substitution", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
+			if value.EndDate >= s.clock.Today() {
+				ids := []int64{value.SubstituteStaffID}
+				if value.RegularStaffID != nil {
+					ids = append(ids, *value.RegularStaffID)
+				}
+				if err := s.lockAssignmentStaff(txCtx, ids); err != nil {
+					return err
+				}
+			}
 			var found bool
 			var writeStats domain.OperationStats
 			result, found, writeStats, err = s.store.UpdateGroupSubstitution(txCtx, value)

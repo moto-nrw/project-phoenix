@@ -53,6 +53,10 @@ func invalid(reason string) error { return &InvalidWorkTimeError{Reason: reason}
 // runtime evidence and the HTTP adapters.
 func ErrorCode(err error) string {
 	switch {
+	case errors.Is(err, ErrOffboardingConflict):
+		return "offboarding_conflict"
+	case errors.Is(err, ErrOffboardingInUse):
+		return "staff_in_use"
 	case err == nil:
 		return "none"
 	case errors.Is(err, ErrWorkTimeModelNotFound):

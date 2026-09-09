@@ -371,8 +371,10 @@ describe("GradeTransitionsManager", () => {
 
     await screen.findByText("2026-2027");
     fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
-    await screen.findByText(/wirklich löschen/i);
+    await screen.findByText(/wird gelöscht/i);
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(screen.getByRole("button", { name: /Ja, löschen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Endgültig löschen/i }));
 
     await waitFor(() => {
       expect(api.deleteGradeTransition).toHaveBeenCalledWith("7");

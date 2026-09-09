@@ -117,6 +117,10 @@ func (f *companionErrCareRequestService) ListPending(context.Context, modelBase.
 	return nil, nil, nil
 }
 
+func (f *companionErrCareRequestService) GetForReview(context.Context, int64) (*scheduleService.CareRequestHistoryItem, error) {
+	return nil, nil
+}
+
 func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {
 	return nil, nil
 }

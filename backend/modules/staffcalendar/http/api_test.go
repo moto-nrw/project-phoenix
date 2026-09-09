@@ -12,7 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
+	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,8 +21,8 @@ import (
 type fakeCalendarService struct {
 	listStaffEvents []calendarSvc.Event
 	listStaffErr    error
-	gotListFrom     timezone.Date
-	gotListTo       timezone.Date
+	gotListFrom     calendarSvc.Date
+	gotListTo       calendarSvc.Date
 
 	createDetail *calendarSvc.AppointmentDetail
 	createErr    error
@@ -38,7 +39,7 @@ type fakeCalendarService struct {
 	gotDeleteID     int64
 	cancelOccErr    error
 	gotCancelOccID  int64
-	gotCancelOccDay timezone.Date
+	gotCancelOccDay calendarSvc.Date
 
 	icsFilename     string
 	icsContent      string
@@ -63,13 +64,13 @@ type fakeCalendarService struct {
 	gotOptionsLim int
 }
 
-func (f *fakeCalendarService) ListMyStaffEvents(_ context.Context, from, to timezone.Date) ([]calendarSvc.Event, error) {
+func (f *fakeCalendarService) ListMyStaffEvents(_ context.Context, from, to calendarSvc.Date) ([]calendarSvc.Event, error) {
 	f.gotListFrom = from
 	f.gotListTo = to
 	return f.listStaffEvents, f.listStaffErr
 }
 
-func (f *fakeCalendarService) ListMyParentEvents(context.Context, int64, timezone.Date, timezone.Date) ([]calendarSvc.Event, error) {
+func (f *fakeCalendarService) ListMyParentEvents(context.Context, int64, calendarSvc.Date, calendarSvc.Date) ([]calendarSvc.Event, error) {
 	return nil, nil
 }
 
@@ -98,7 +99,7 @@ func (f *fakeCalendarService) DeleteStaffAppointment(_ context.Context, appointm
 	return f.deleteErr
 }
 
-func (f *fakeCalendarService) CancelStaffAppointmentOccurrence(_ context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
+func (f *fakeCalendarService) CancelStaffAppointmentOccurrence(_ context.Context, appointmentID int64, occurrenceDate calendarSvc.Date) error {
 	f.gotCancelOccID = appointmentID
 	f.gotCancelOccDay = occurrenceDate
 	return f.cancelOccErr
@@ -159,14 +160,6 @@ func (f *fakeCalendarService) EnqueueDueAppointmentReminders(context.Context, ti
 	return 0, nil
 }
 
-func (f *fakeCalendarService) GuardianNotificationAudiences(context.Context, []int64) (map[int64]calendarSvc.GuardianNotificationAudience, error) {
-	return nil, nil
-}
-
-func (f *fakeCalendarService) ReminderEffects() calendarSvc.ReminderEffects {
-	return calendarSvc.ReminderEffects{}
-}
-
 func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }
@@ -218,8 +211,8 @@ func TestListMyParsesDateRange(t *testing.T) {
 	rs.listMy(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, timezone.NewDate(2026, 1, 5), service.gotListFrom)
-	assert.Equal(t, timezone.NewDate(2026, 1, 11), service.gotListTo)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 5)), service.gotListFrom)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 11)), service.gotListTo)
 	assert.Contains(t, w.Body.String(), "Planning")
 }
 
@@ -294,7 +287,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 	targetID := int64(42)
 	service := &fakeCalendarService{
 		createDetail: &calendarSvc.AppointmentDetail{
-			Appointment: &calModels.Appointment{Title: "Planning"},
+			Appointment: &appointmentcap.Appointment{Title: "Planning"},
 		},
 	}
 	rs := &Resource{service: service}
@@ -317,7 +310,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "Planning", service.gotCreate.Title)
-	assert.Equal(t, timezone.NewDate(2026, 1, 5), service.gotCreate.StartDate)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 5)), service.gotCreate.StartDate)
 	assert.Equal(t, "09:15", service.gotCreate.StartTime.Format("15:04"))
 	assert.Equal(t, "10:30", service.gotCreate.EndTime.Format("15:04"))
 	require.NotNil(t, service.gotCreate.Recurrence)
@@ -357,7 +350,7 @@ func TestUpdateAppointmentParsesPayload(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeCalendarService{
-		updateDetail: &calendarSvc.AppointmentDetail{Appointment: &calModels.Appointment{Title: "Planning v2"}},
+		updateDetail: &calendarSvc.AppointmentDetail{Appointment: &appointmentcap.Appointment{Title: "Planning v2"}},
 	}
 	rs := &Resource{service: service}
 	body := `{
@@ -380,7 +373,7 @@ func TestUpdateAppointmentParsesPayload(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(41), service.gotUpdateID)
 	assert.Equal(t, "Planning v2", service.gotUpdate.Title)
-	assert.Equal(t, timezone.NewDate(2026, 1, 6), service.gotUpdate.StartDate)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 6)), service.gotUpdate.StartDate)
 	assert.Equal(t, "10:00", service.gotUpdate.StartTime.Format("15:04"))
 	assert.Equal(t, "all", service.gotUpdate.OverviewVisibility)
 }
@@ -420,7 +413,7 @@ func TestUpdateAppointmentMapsNotFound(t *testing.T) {
 func TestCancelAppointmentPassesID(t *testing.T) {
 	t.Parallel()
 
-	service := &fakeCalendarService{cancelDetail: &calendarSvc.AppointmentDetail{Appointment: &calModels.Appointment{}}}
+	service := &fakeCalendarService{cancelDetail: &calendarSvc.AppointmentDetail{Appointment: &appointmentcap.Appointment{}}}
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
 		httptest.NewRequest(http.MethodPost, "/appointments/42/cancel", nil),
@@ -481,7 +474,7 @@ func TestCancelOccurrenceParsesIDAndDate(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(11), service.gotCancelOccID)
-	assert.Equal(t, timezone.NewDate(2026, 1, 12), service.gotCancelOccDay)
+	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 12)), service.gotCancelOccDay)
 }
 
 func TestCancelOccurrenceRejectsBadDate(t *testing.T) {

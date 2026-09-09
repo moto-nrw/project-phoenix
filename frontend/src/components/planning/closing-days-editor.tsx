@@ -16,7 +16,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { closingDayService } from "~/lib/closing-day-api";
 import {
@@ -225,23 +225,24 @@ export function ClosingDaysEditor() {
         initial={editing}
       />
 
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={deleting !== null}
-        onClose={() => setDeleting(null)}
-        onConfirm={() => void handleDelete()}
         title="Schließtag löschen"
-        confirmText="Löschen"
-        isConfirmLoading={deleteLoading}
-        confirmVariant="danger"
-      >
-        {deleting && (
-          <p>
-            Soll der Schließtag „{deleting.reason}“ (
-            {formatClosingDayRange(deleting)}) wirklich gelöscht werden? Das
-            Soll dieser Tage wird danach wieder regulär berechnet.
-          </p>
-        )}
-      </ConfirmationModal>
+        description={
+          deleting ? (
+            <p>
+              Der Schließtag „{deleting.reason}“ (
+              {formatClosingDayRange(deleting)}) wird gelöscht. Das Soll dieser
+              Tage wird danach wieder regulär berechnet.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => setDeleting(null)}
+        loading={deleteLoading}
+        error=""
+      />
     </div>
   );
 }

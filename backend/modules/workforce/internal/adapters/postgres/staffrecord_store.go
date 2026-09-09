@@ -439,6 +439,12 @@ func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID
 		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`), aliasStaffDocumentFileCleanup, tenantID)
 	if staffID > 0 {
 		query = query.Where(`"staff_document_file_cleanup".staff_id = ?`, staffID)
+	} else {
+		// Offboarded staff jobs are exclusively processed through a persisted
+		// lease. The generic upload sweep must not bypass that claim.
+		query = query.Where(`NOT EXISTS (SELECT 1 FROM users.staff_offboarding_cleanup AS offboarding
+			WHERE offboarding.tenant_id = "staff_document_file_cleanup".tenant_id
+			AND offboarding.staff_id = "staff_document_file_cleanup".staff_id AND offboarding.completed_at IS NULL)`)
 	}
 	query = query.OrderExpr(`"staff_document_file_cleanup".id ASC`).For("UPDATE SKIP LOCKED")
 	stats, err := scanAll(ctx, query, "list queued staff document file cleanups")

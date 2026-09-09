@@ -420,13 +420,13 @@ describe("ShiftEditModal series scopes", () => {
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    expect(
-      screen.getByText(
-        "Diese Schicht ist Teil einer Serie. Was soll gelöscht werden?",
-      ),
-    ).toBeInTheDocument();
+    // Scope-Slot der ConfirmDeleteModal (#3110): die Wahl ist der erste
+    // Schritt, ohne sie bleibt Löschen gesperrt.
+    expect(screen.getByText("Was soll gelöscht werden?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nur diese Woche/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(deleteShift).toHaveBeenCalledWith("9");
@@ -439,7 +439,8 @@ describe("ShiftEditModal series scopes", () => {
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");
@@ -460,7 +461,8 @@ describe("ShiftEditModal series scopes", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");

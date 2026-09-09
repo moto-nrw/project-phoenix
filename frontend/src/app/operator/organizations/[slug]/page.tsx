@@ -621,9 +621,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {orgDelete.deleteTarget && (
         <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          inputId="delete-org-confirm-detail"
-          confirmInput={orgDelete.deleteConfirmInput}
-          onConfirmInputChange={orgDelete.setDeleteConfirmInput}
           errorMessage={orgDelete.softDeleteError}
           isProcessing={orgDelete.isProcessing}
           onCancel={() => orgDelete.setDeleteTarget(null)}

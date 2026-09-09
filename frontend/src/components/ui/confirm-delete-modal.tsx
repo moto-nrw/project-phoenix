@@ -1,12 +1,21 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "./button";
+import { ChoiceTile } from "./choice-tile";
 import { Modal } from "./modal";
+import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
 // product. BAUARTEN-SPEC Bauart 2 Regel 6: Löschen ist portalweit dieses
-// Bauteil — kein window.confirm, kein eigenes Löschmodal je Domäne.
+// Bauteil — kein window.confirm, kein eigenes Löschmodal je Domäne, kein
+// ConfirmationModal für Löschen (Ratsche `bauart/one-delete-confirm`).
 // Two gate modes capture both flows we need today:
 //
 //   - twoStep: first click flips to a second confirm button. Used for delete
@@ -14,6 +23,15 @@ import { Modal } from "./modal";
 //   - textConfirm: the user must type a known string before the confirm
 //     button enables. Used where we want stronger friction (persons, since
 //     soft-delete anonymizes data and is irreversible).
+//
+// Where a deletion needs a scope first (only this occurrence or the whole
+// series, only this child or the whole profile), the `scope` slot renders
+// the choice inside the same dialog (#3110) instead of stacking a
+// ChoiceModal in front. Picking a scope IS the first deliberate step of the
+// two-step gate: the confirm button stays disabled until a scope is chosen
+// and then runs the deletion directly, so a scoped deletion costs the same
+// two interactions as an unscoped one. textConfirm keeps its typed gate on
+// top of the scope.
 //
 // The shell owns gate state, the destructive button, the cancel button, the
 // error region and the visual frame. Consumers wire the API call through
@@ -35,12 +53,34 @@ type GateConfig =
       readonly preview?: ReactNode;
     };
 
+interface ConfirmDeleteScopeOption {
+  readonly value: string;
+  readonly label: string;
+  readonly description?: string;
+  /** Offers the scope but blocks it, e.g. when its prerequisite failed to
+   *  load. Keeping the option visible explains what exists. */
+  readonly disabled?: boolean;
+}
+
+interface ConfirmDeleteScope {
+  /** Question above the options, e.g. „Was soll gelöscht werden?“ */
+  readonly label: string;
+  /** Radio group name; also prefixes the option ids. */
+  readonly name: string;
+  readonly options: ReadonlyArray<ConfirmDeleteScopeOption>;
+  /** Controlled selection; `null` until the user has chosen. */
+  readonly value: string | null;
+  readonly onChange: (value: string) => void;
+}
+
 interface ConfirmDeleteModalProps {
   readonly isOpen: boolean;
   readonly title: string;
   readonly description: ReactNode;
   readonly warningSlot?: ReactNode;
   readonly gate: GateConfig;
+  /** Scope choice rendered between description and warning (see above). */
+  readonly scope?: ConfirmDeleteScope;
   // Externally-driven gate. When true, the destructive flow is blocked: the
   // two-step "advance" button and the final confirm button are both disabled.
   // Used to hold deletion until a prerequisite (e.g. a blast-radius preview)
@@ -60,6 +100,7 @@ export function ConfirmDeleteModal({
   description,
   warningSlot,
   gate,
+  scope,
   confirmDisabled: externalConfirmDisabled = false,
   onConfirm,
   onClose,
@@ -70,6 +111,10 @@ export function ConfirmDeleteModal({
 }: ConfirmDeleteModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const previousScopeValue = useRef(scope?.value);
+  const textConfirmExpected =
+    gate.mode === "textConfirm" ? gate.expected : null;
+  const previousTextConfirmExpected = useRef(textConfirmExpected);
 
   // Reset internal gate state whenever the modal is closed externally so the
   // next open is always a fresh confirmation flow.
@@ -80,18 +125,45 @@ export function ConfirmDeleteModal({
     }
   }, [isOpen]);
 
+  // Scope changes can turn an ordinary unlink into an irreversible deletion.
+  // A typed confirmation belongs to the scope and gate in which it was
+  // entered, so it must not carry over when either changes externally.
+  useEffect(() => {
+    const scopeChanged = previousScopeValue.current !== scope?.value;
+    const textConfirmChanged =
+      previousTextConfirmExpected.current !== textConfirmExpected;
+    if (scopeChanged || textConfirmChanged) {
+      setConfirmed(false);
+      setTextInput("");
+    }
+    previousScopeValue.current = scope?.value;
+    previousTextConfirmExpected.current = textConfirmExpected;
+  }, [scope?.value, textConfirmExpected]);
+
   const close = useCallback(() => {
     setConfirmed(false);
     setTextInput("");
     onClose();
   }, [onClose]);
 
-  const inFirstStep = gate.mode === "twoStep" && !confirmed;
+  const scopeChosen =
+    scope === undefined ||
+    scope.options.some(
+      (option) => option.value === scope.value && !option.disabled,
+    );
+  // A scoped two-step dialog has no separate "Ja, löschen" click: the scope
+  // pick is that step.
+  const inFirstStep =
+    gate.mode === "twoStep" && scope === undefined && !confirmed;
+  // An empty expected string never passes: a consumer whose expected value
+  // has not loaded yet must not find the gate already open.
   const textGatePassed =
-    gate.mode === "textConfirm" && textInput === gate.expected;
+    gate.mode === "textConfirm" &&
+    gate.expected !== "" &&
+    textInput === gate.expected;
   // The external gate blocks both advancing the two-step flow and the final
   // confirm, so the flow cannot be completed while the prerequisite is unmet.
-  const gateBlocked = loading || externalConfirmDisabled;
+  const gateBlocked = loading || externalConfirmDisabled || !scopeChosen;
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
@@ -145,6 +217,57 @@ export function ConfirmDeleteModal({
       isBackdropDismissDisabled
     >
       <div className="text-sm text-gray-600">{description}</div>
+
+      {scope && (
+        <fieldset className="mt-4" disabled={loading}>
+          <legend className="mb-2 text-sm font-medium text-gray-700">
+            {scope.label}
+          </legend>
+          <div className="flex flex-col gap-2">
+            {scope.options.map((option) => {
+              const id = `${scope.name}-${option.value}`;
+              const disabled = loading || option.disabled === true;
+              return (
+                <ChoiceTile
+                  key={option.value}
+                  htmlFor={id}
+                  selected={scope.value === option.value}
+                  disabled={disabled}
+                  className="items-start p-3"
+                >
+                  <Radio
+                    id={id}
+                    name={scope.name}
+                    value={option.value}
+                    checked={scope.value === option.value}
+                    disabled={disabled}
+                    onChange={() => {
+                      // Reset eagerly as well as in the effect above: the
+                      // parent owns the selected scope and rerenders this
+                      // dialog, but an already typed confirmation may never
+                      // authorize a different scope.
+                      setConfirmed(false);
+                      setTextInput("");
+                      scope.onChange(option.value);
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-gray-900">
+                      {option.label}
+                    </span>
+                    {option.description && (
+                      <span className="mt-0.5 block text-xs font-normal text-gray-600">
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
+                </ChoiceTile>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
 
       {warningSlot && <div className="mt-3">{warningSlot}</div>}
 

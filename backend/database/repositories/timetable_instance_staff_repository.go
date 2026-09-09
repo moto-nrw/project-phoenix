@@ -135,14 +135,6 @@ func (r timetableInstanceStaffRepository) DeleteByInstanceID(ctx context.Context
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after scheduleRepo.InstanceStaffDate) (int64, error) {
-	rows, err := r.timetable.DeleteUpcomingInstanceStaff(ctx, staffID, after.String())
-	if err != nil {
-		return 0, scheduleRepo.WrapDatabaseError("delete upcoming by staff id", err)
-	}
-	return rows, nil
-}
-
 func (r timetableInstanceStaffRepository) list(ctx context.Context, filter timetable.InstanceStaffFilter, operation string) ([]*scheduleModels.InstanceStaff, error) {
 	values, err := r.timetable.ListInstanceStaff(ctx, filter)
 	if err != nil {

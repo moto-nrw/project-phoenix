@@ -318,9 +318,9 @@ above once the package exists at a base SHA, rebind each port to its owner's
 public capability as it appears, and delete the adapter with the last legacy
 source. The same applies to the staff calendar HTTP adapter
 (`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
-rendering, the permission contract, the JWT middleware, the calendar-date type
-and, as the one compatibility binding, the retained `services/calendar`
-until School Calendar exposes the staff calendar publicly) and to the
+rendering, the permission contract, the JWT middleware, and the calendar-date
+type; its calendar binding now uses the native
+`modules/schoolcalendar/portal` contract) and to the
 statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
 the same shared HTTP dependencies, the Bun database the tenant middleware
 takes, the Document Rendering renderer and, as compatibility binding, the
@@ -351,6 +351,44 @@ integration-test rules mirror the People Directory owner; the
 `legacy-composition.to.identity-access-*` permissions exist because the
 legacy service factory still composes the enrollment decision service and
 go with #2751.
+
+The session end workflow (`workflows/sessionend`, owner `session-end`, kind
+`workflow`, #2697) is a cross-module write workflow of #2580. Its
+public command closes one live kiosk session in one UnitOfWork: it joins the
+caller's tenant transaction (or opens its own), locks the group, closes the
+open visits, supervisions, and the group through the Student Presence
+`GroupSessionCommand`, stamps the slot check-outs through the Timetable
+owner and finalizes the mirrored instance through its `InstanceCompletion`
+port, resolves the
+announcement data while the tenant role is still set, and queues every SSE
+event and guardian wake for after the commit. Its `ports` name the four owner
+capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
+`compose` binds the tenant runtime and the realtime broadcaster. The root
+still satisfies `InstanceCompletion` with the retained
+`services/schedule.TimetableBridgeService` (the attendance finalization that
+#1747 requires before an instance may close); that binding is a legacy edge
+of the root composition tracked by #2762, and the port is rebound to the
+Timetable owner's public capability when that cutover lands. The kiosk
+endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
+exactly this facade and no longer orchestrates the Timetable bridge and the
+active service itself. The other session-ending paths of the retained active
+service (the manual group end, the instance Complete and Cancel transitions
+through `EndActivitySession`, the timeout, and the nightly bulk end) write
+their presence rows through the same owner commands (`EndGroupSession`,
+`EndGroupSessions`). The two takeover paths that end a group and move its
+visits and supervisors to a replacement (force start, absorption of an
+unsupervised group into a started instance) release the group through the
+owner's `EndGroup`. The legacy group end and bulk end repository methods
+are deleted. Those paths still complete the mirrored instance through the
+retained bridge inside the active service; moving them onto the workflow is
+the remaining #2762 work. The workflow owns no data object: policy validation
+refuses a write owner of kind `workflow`. Under ADR 0013, this registration
+raises the policy epoch from 3 to 4 and uses only candidate-created packages.
+Existing-owner import and data-ownership guards remain unchanged.
+Its adapter-test permissions for the presence,
+timetable, people, and facilities compositions bind the real owners in the
+workflow integration tests; they are test-only permissions, not target
+dependencies.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
@@ -591,3 +629,10 @@ logically overlapping rules. Change
 `schema_version` only when the JSON shape changes. Change `policy_epoch` only
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
+
+Reviewed data-less workflow additions may register new workflow owners when
+all their packages are candidate-created and the policy epoch increases
+([ADR 0013](../../docs/adr/0013-staff-offboarding-is-an-application-workflow.md),
+[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
+permit adopting existing packages, expanding existing-owner permissions, or
+owning writable data. Those guards are checked independently.

@@ -8,6 +8,7 @@ import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -573,21 +574,21 @@ export function GradeTransitionsManager({
         </p>
       </ConfirmationModal>
 
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
         title="Entwurf löschen"
-        confirmText="Ja, löschen"
-        cancelText="Abbrechen"
-        isConfirmLoading={busy}
-        confirmVariant="danger"
-      >
-        <p>
-          Den Entwurf für {deleteTarget?.academicYear} wirklich löschen? Es
-          werden keine Kinder verändert.
-        </p>
-      </ConfirmationModal>
+        description={
+          <p>
+            Der Entwurf für {deleteTarget?.academicYear} wird gelöscht. Es
+            werden keine Kinder verändert.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+        loading={busy}
+        error=""
+      />
     </div>
   );
 }

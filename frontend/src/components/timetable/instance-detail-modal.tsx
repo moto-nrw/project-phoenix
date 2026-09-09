@@ -30,8 +30,8 @@ import {
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ChoiceModal } from "~/components/ui/choice-modal";
-import { type ConfirmVariant, ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -96,7 +96,8 @@ export interface LifecycleActionOptions {
   guardianNotice?: GuardianNoticeInput;
 }
 
-type PendingConfirmAction = "complete" | "cancel" | "delete" | "reopen";
+// Löschen läuft über ConfirmDeleteModal (#3110), nicht über diese Liste.
+type PendingConfirmAction = "complete" | "cancel" | "reopen";
 
 const CONFIRM_DIALOGS: Record<
   PendingConfirmAction,
@@ -104,7 +105,6 @@ const CONFIRM_DIALOGS: Record<
     title: string;
     body: string;
     confirmText: string;
-    confirmVariant?: ConfirmVariant;
   }
 > = {
   complete: {
@@ -116,12 +116,6 @@ const CONFIRM_DIALOGS: Record<
     title: "Termin absagen?",
     body: "Der Termin wird im Plan als abgesagt markiert. Das kann nicht rückgängig gemacht werden.",
     confirmText: "Absagen",
-  },
-  delete: {
-    title: "Abgesagten Termin löschen?",
-    body: "Der abgesagte Termin wird dauerhaft entfernt.",
-    confirmText: "Löschen",
-    confirmVariant: "danger",
   },
   reopen: {
     title: "Termin wieder öffnen?",
@@ -575,8 +569,11 @@ export function InstanceDetailModal({
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingConfirmAction | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [deleteScopeOpen, setDeleteScopeOpen] = useState(false);
-  const [pendingDeleteScope, setPendingDeleteScope] = useState<string | null>(
+  // Löschen (#3110): ein Dialog, die Scope-Wahl (nur diese Woche / ab jetzt
+  // dauerhaft) liegt als Slot in der ConfirmDeleteModal statt davor.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteScopeAvailable, setDeleteScopeAvailable] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<"single" | "following" | null>(
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
@@ -622,8 +619,8 @@ export function InstanceDetailModal({
 
   useEffect(() => {
     setPendingConfirm(null);
-    setDeleteScopeOpen(false);
-    setPendingDeleteScope(null);
+    setDeleteOpen(false);
+    setDeleteScope(null);
     setNoticeDraft(null);
     setNoticeReach(null);
   }, [instance?.id]);
@@ -679,33 +676,54 @@ export function InstanceDetailModal({
     instance.date >= currentToday;
   const seriesEndAvailable = canEndSeries(today);
 
-  // If the scope dialog was opened before Berlin midnight, its recurring
-  // option becomes invalid at the rollover. Continue with the only valid
-  // deletion flow instead of leaving a stale option that the backend rejects.
+  // If the delete dialog was opened before Berlin midnight, its recurring
+  // option becomes invalid at the rollover. Collapse to the only valid
+  // deletion scope instead of leaving a stale option that the backend rejects.
+  // A deletion already in flight keeps its dialog as it is.
   useEffect(() => {
-    if (deleteScopeOpen && pendingDeleteScope === null && !seriesEndAvailable) {
-      setDeleteScopeOpen(false);
-      setPendingConfirm("delete");
+    if (
+      deleteOpen &&
+      deleteScopeAvailable &&
+      !pendingDelete &&
+      !seriesEndAvailable
+    ) {
+      setDeleteScopeAvailable(false);
+      setDeleteScope("single");
     }
-  }, [deleteScopeOpen, pendingDeleteScope, seriesEndAvailable]);
+  }, [deleteOpen, deleteScopeAvailable, pendingDelete, seriesEndAvailable]);
 
   const openDeleteFlow = () => {
     // The hook refreshes once a minute. Re-read Berlin's current date at the
     // interaction boundary so the short interval after midnight cannot open
-    // an already invalid series-ending flow.
-    if (canEndSeries(berlinTodayISO())) {
-      setDeleteScopeOpen(true);
+    // an already invalid series-ending choice.
+    const scopeAvailable = canEndSeries(berlinTodayISO());
+    setDeleteScopeAvailable(scopeAvailable);
+    setDeleteScope(scopeAvailable ? null : "single");
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    // The dialog may have been open across midnight. Do not send a stale
+    // "following" request that the backend must reject; fall back to the
+    // single deletion and let the user confirm that one.
+    if (deleteScope === "following" && !canEndSeries(berlinTodayISO())) {
+      setDeleteScopeAvailable(false);
+      setDeleteScope("single");
       return;
     }
-    setPendingConfirm("delete");
+    const succeeded =
+      deleteScope === "following"
+        ? await handleDeleteFollowing()
+        : await handleDeleteCancelled();
+    if (succeeded) {
+      setDeleteOpen(false);
+    }
   };
 
   const handleConfirm = async () => {
     const action = pendingConfirm;
     setPendingConfirm(null);
-    if (action === "delete") {
-      await handleDeleteCancelled();
-    } else if (action === "cancel") {
+    if (action === "cancel") {
       const guardianNotice = guardianNoticePayload(noticeDraft, noticeReach);
       await handleLifecycle(
         action,
@@ -713,28 +731,6 @@ export function InstanceDetailModal({
       );
     } else if (action) {
       await handleLifecycle(action);
-    }
-  };
-
-  const handleDeleteScopeSelect = async (scope: string) => {
-    // The scope modal may have been open across midnight. Do not send a
-    // stale "following" request that the backend must reject.
-    if (scope === "following" && !canEndSeries(berlinTodayISO())) {
-      setDeleteScopeOpen(false);
-      setPendingConfirm("delete");
-      return;
-    }
-    setPendingDeleteScope(scope);
-    try {
-      const succeeded =
-        scope === "following"
-          ? await handleDeleteFollowing()
-          : await handleDeleteCancelled();
-      if (succeeded) {
-        setDeleteScopeOpen(false);
-      }
-    } finally {
-      setPendingDeleteScope(null);
     }
   };
 
@@ -919,11 +915,11 @@ export function InstanceDetailModal({
 
   return (
     <>
-      {/* Confirmation-/ChoiceModal liegen auf derselben Ebene wie das Panel.
-          Solange eines offen ist, wird das Panel ausgeblendet statt
+      {/* Confirmation-/ConfirmDeleteModal liegen auf derselben Ebene wie das
+          Panel. Solange eines offen ist, wird das Panel ausgeblendet statt
           gestapelt (gleiches Muster wie staff/shift-move-dialog.tsx). */}
       <SlideOver
-        open={pendingConfirm === null && !deleteScopeOpen && !suspended}
+        open={pendingConfirm === null && !deleteOpen && !suspended}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
@@ -1110,14 +1106,9 @@ export function InstanceDetailModal({
           isOpen
           onClose={() => setPendingConfirm(null)}
           onConfirm={handleConfirm}
-          title={
-            pendingConfirm === "delete" && instance?.status === "planned"
-              ? "Termin löschen?"
-              : CONFIRM_DIALOGS[pendingConfirm].title
-          }
+          title={CONFIRM_DIALOGS[pendingConfirm].title}
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
-          confirmVariant={CONFIRM_DIALOGS[pendingConfirm].confirmVariant}
           isConfirmDisabled={
             pendingConfirm === "cancel" &&
             guardianNoticeIncomplete(
@@ -1131,9 +1122,7 @@ export function InstanceDetailModal({
             <p className="text-sm leading-relaxed text-gray-600">
               {pendingConfirm === "cancel" && instance?.status === "active"
                 ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
-                : pendingConfirm === "delete" && instance?.status === "planned"
-                  ? "Der geplante Termin wird dauerhaft entfernt."
-                  : CONFIRM_DIALOGS[pendingConfirm].body}
+                : CONFIRM_DIALOGS[pendingConfirm].body}
             </p>
             {pendingConfirm === "cancel" && (
               <GuardianNoticeFields
@@ -1148,27 +1137,62 @@ export function InstanceDetailModal({
           </div>
         </ConfirmationModal>
       )}
-      <ChoiceModal
-        isOpen={deleteScopeOpen}
-        onClose={() => setDeleteScopeOpen(false)}
-        title="Wiederholenden Termin löschen"
-        description={`Der Termin am ${germanFullDate(instance.date)} gehört zu einem Regeltermin.`}
-        options={[
-          {
-            value: "single",
-            label: "Nur diese Woche",
-            description:
-              "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
-          },
-          {
-            value: "following",
-            label: "Ab jetzt dauerhaft",
-            description:
-              "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
-          },
-        ]}
-        onSelect={handleDeleteScopeSelect}
-        isBusy={pendingDeleteScope !== null}
+      <ConfirmDeleteModal
+        isOpen={deleteOpen}
+        title={
+          deleteScopeAvailable
+            ? "Wiederholenden Termin löschen"
+            : instance.status === "cancelled"
+              ? "Abgesagten Termin löschen"
+              : "Termin löschen"
+        }
+        description={
+          deleteScopeAvailable ? (
+            <p>
+              Der Termin am {germanFullDate(instance.date)} gehört zu einem
+              Regeltermin.
+            </p>
+          ) : (
+            <p className="leading-relaxed">
+              {instance.status === "cancelled"
+                ? "Der abgesagte Termin wird dauerhaft entfernt."
+                : "Der geplante Termin wird dauerhaft entfernt."}
+            </p>
+          )
+        }
+        scope={
+          deleteScopeAvailable
+            ? {
+                label: "Was soll gelöscht werden?",
+                name: "instance-delete-scope",
+                value: deleteScope,
+                onChange: (value) =>
+                  setDeleteScope(
+                    value === "following" ? "following" : "single",
+                  ),
+                options: [
+                  {
+                    value: "single",
+                    label: "Nur diese Woche",
+                    description:
+                      "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
+                  },
+                  {
+                    value: "following",
+                    label: "Ab jetzt dauerhaft",
+                    description:
+                      "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
+                  },
+                ],
+              }
+            : undefined
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+        confirmLabel={deleteScopeAvailable ? "Löschen" : "Endgültig löschen"}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteOpen(false)}
+        loading={pendingDelete}
+        error=""
       />
     </>
   );

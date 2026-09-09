@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -337,6 +338,82 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	removed, err = c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, removed)
+}
+
+func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.T) {
+	t.Parallel()
+	c := setupDocumentsAPI(t)
+	now := time.Now()
+	queue, err := repositories.NewStaffDocumentCleanup(c.tc.db, func() time.Time { return now })
+	require.NoError(t, err)
+	c.tc.resource.OffboardingCleanup = queue
+	rec := c.upload(t, "zeugnis", "retry.pdf", fakePDF, "staff:documents")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docID, _ := uploadedDocument(t, rec.Body.Bytes())
+	ctx := testpkg.Ctx(t)
+	var storedName string
+	require.NoError(t, c.tc.db.NewRaw("SELECT filename_stored FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &storedName))
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	savedPath := filePath + ".saved"
+	require.NoError(t, os.Rename(filePath, savedPath))
+	require.NoError(t, os.Mkdir(filePath, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(filePath, "block-removal"), []byte("test"), 0600))
+	runtime := testpkg.ConfigRuntime(c.tc.db)
+	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if _, err := runtime.DB(txCtx).ExecContext(txCtx, "UPDATE users.staff SET deleted_at = NOW() WHERE id = ?", c.staffID); err != nil {
+			return err
+		}
+		return c.tc.resource.QueueOffboardedStaffDocumentCleanup(txCtx, c.staffID)
+	}))
+	backlog, err := queue.Backlog(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, backlog.Pending, "file failure must leave a durable job without undoing retirement")
+	var fileDeletedAt *time.Time
+	require.NoError(t, c.tc.db.NewRaw("SELECT file_deleted_at FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &fileDeletedAt))
+	require.Nil(t, fileDeletedAt)
+	require.NoError(t, os.Remove(filepath.Join(filePath, "block-removal")))
+	require.NoError(t, os.Remove(filePath))
+	require.NoError(t, os.Rename(savedPath, filePath))
+	now = now.Add(time.Minute)
+	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, removed)
+	_, err = os.Stat(filePath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	backlog, err = queue.Backlog(ctx)
+	require.NoError(t, err)
+	require.Zero(t, backlog.Pending)
+	var attempts int
+	require.NoError(t, c.tc.db.NewRaw("SELECT attempts FROM users.staff_offboarding_cleanup WHERE tenant_id = ? AND staff_id = ?", testpkg.Tenant(t), c.staffID).Scan(ctx, &attempts))
+	require.Equal(t, 2, attempts)
+	t.Log("offboarding-cleanup evidence: injected_file_failures=1 backlog_before_retry=1 retry_age_seconds=60 attempts=2 backlog_after_retry=0")
+}
+
+func TestStaffDocumentsAPI_DirectoryRetryRespectsCommittedOffboardingLease(t *testing.T) {
+	t.Parallel()
+	c := setupDocumentsAPI(t)
+	rec := c.upload(t, "zeugnis", "leased.pdf", fakePDF, "staff:documents")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docID, _ := uploadedDocument(t, rec.Body.Bytes())
+	ctx := testpkg.Ctx(t)
+	var storedName string
+	require.NoError(t, c.tc.db.NewRaw("SELECT filename_stored FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &storedName))
+	_, err := c.tc.db.ExecContext(ctx, "UPDATE users.staff SET deleted_at = NOW() WHERE id = ?", c.staffID)
+	require.NoError(t, err)
+	queue := c.tc.resource.OffboardingCleanup
+	require.NoError(t, queue.Enqueue(ctx, c.staffID))
+	claims, err := queue.Claim(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, claims, 1)
+	require.NoError(t, testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		c.tc.resource.RetryQueuedStaffDocumentCleanups(txCtx, "directory")
+		return nil
+	}))
+	_, err = os.Stat(filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName))
+	require.NoError(t, err, "the directory retry must not unlink a different worker's claimed file")
+	var fileDeletedAt *time.Time
+	require.NoError(t, c.tc.db.NewRaw("SELECT file_deleted_at FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &fileDeletedAt))
+	require.Nil(t, fileDeletedAt)
 }
 
 func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *testing.T) {

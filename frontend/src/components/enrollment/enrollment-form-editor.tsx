@@ -30,7 +30,8 @@ import {
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -1734,28 +1735,28 @@ function DeleteSchemaDialog({
   onConfirm: () => void;
 }>) {
   return (
-    <ConfirmationModal
+    <ConfirmDeleteModal
       isOpen={schema !== null}
-      onClose={onClose}
+      title="Formularvorlage löschen"
+      description={
+        <div className="space-y-3 leading-6">
+          <p>
+            Die Vorlage{" "}
+            <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
+            wird dauerhaft gelöscht.
+          </p>
+          <p>
+            Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
+            verwendete Vorlagen können nicht gelöscht werden.
+          </p>
+        </div>
+      }
+      gate={{ mode: "twoStep" }}
       onConfirm={onConfirm}
-      title="Formularvorlage löschen?"
-      confirmText="Löschen"
-      cancelText="Abbrechen"
-      isConfirmLoading={deleting}
-      confirmVariant="danger"
-    >
-      <div className="space-y-3 text-sm leading-6 text-gray-600">
-        <p>
-          Die Vorlage{" "}
-          <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
-          wird dauerhaft gelöscht.
-        </p>
-        <p>
-          Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
-          verwendete Vorlagen können nicht gelöscht werden.
-        </p>
-      </div>
-    </ConfirmationModal>
+      onClose={onClose}
+      loading={deleting}
+      error=""
+    />
   );
 }
 

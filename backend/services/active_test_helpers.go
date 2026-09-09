@@ -15,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
+	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -29,6 +31,8 @@ type ActiveTestModule struct {
 	CareDay              schedule.CareDayService
 	Instance             schedule.InstanceService
 	SupervisionDashboard supervisiondashboard.Query
+	// SessionEnd is the kiosk session end workflow over the real owners.
+	SessionEnd sessionend.Command
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
@@ -119,6 +123,22 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	timetableOwner, err := repositories.NewTimetable(db, students, rooms, schedule.TimetableCareDayLocker(db))
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
+		Presence: newStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
+		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: optionalClock(clocks),
+	})
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: yard,
-		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance}, nil
+		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance,
+		SessionEnd: sessionEnd}, nil
 }

@@ -673,6 +673,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Alle Kinder` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
           "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern. `Klasse`, `Gruppe` und `Stufe` erlauben mehrere Werte gleichzeitig: einfach mehrere Einträge antippen, etwa `3a` und `4b`, wenn zwei Gruppen zusammen betreut werden. Ohne Auswahl gilt weiterhin `alle`; ein erneuter Klick auf einen Eintrag nimmt ihn wieder heraus, `Zurücksetzen` im Filterfenster leert alle Filter.",
+          "Wählen Sie unter `Gehzeit` mehrere Zeiten, etwa `14:30` und `16:00`. Die Liste zeigt Kinder mit einer dieser Gehzeiten. `Keine Gehzeit` lässt sich zusätzlich auswählen. Tippen Sie gewählte Zeiten erneut an, um sie zu entfernen. Ohne Auswahl gilt `Alle Gehzeiten`. Andere Filter schränken die Liste weiter ein. Für aktuell anwesende Kinder nutzen Sie zusätzlich den Anwesenheitsfilter. Export und Druck übernehmen die gewählten Gehzeiten.",
           "Über `Filter` im Abschnitt `Anwesenheit` beim Punkt `Tag` (`Heute`, `Morgen` oder ein frei gewähltes Datum bis zum Sonntag der laufenden Woche) festlegen, für welchen Tag die geplante Anwesenheit gilt. Direkt darunter grenzt der Filter `Kommt` beziehungsweise `Kommt nicht` die Liste auf den gewählten Tag ein; Krankmeldungen, Entschuldigungen und Tagesausnahmen werden für diesen Tag ausgewertet. Bei einem anderen Tag als heute bleiben aktuelle Aufenthaltsorte und Live-Filter ausgeblendet, denn wer gerade im Haus ist, sagt nichts über einen anderen Tag aus. Auch Ergebniszahl und `Exportieren` nutzen den gewählten Tag.",
           "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Bei genau einer gewählten Klasse entsteht eine einzelne Liste. Sind mehrere oder gar keine Klassen gewählt, erzeugt die Option `Nach Klassen getrennt` die Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesplanung` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
@@ -702,6 +703,11 @@ export const appChapters: readonly GuideChapter[] = [
             image: "/help/screens/kindersuche-mehrfachauswahl.webp",
             caption:
               "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+          {
+            image: "/help/screens/kindersuche-gehzeiten.webp",
+            caption:
+              "Gehzeit am Handy: 15:30 Uhr und 16:00 Uhr sind ausgewählt.",
           },
           {
             image: "/help/screens/kindersuche-sammelauswahl.webp",
@@ -2158,7 +2164,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
           "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
           "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
-          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information ohne Schaltflächen; Anfragen bearbeitest du als Admin in der Seitenleiste unter `Anfragen` (siehe nächster Abschnitt).",
+          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information; Anfragen bearbeitest du als Admin in der Seitenleiste unter `Anfragen` (siehe nächster Abschnitt).",
+          "Bei einer Abholzeit für einen Tag steht der Tag und die gewünschte Uhrzeit im Hinweis, zum Beispiel `Abholzeit bestätigt: 15.09.2026, 14:30 Uhr`. Die kleine Zeit daneben ist der Zeitpunkt des Hinweises, nicht die Abholung. Wer Anfragen entscheiden darf, tippt auf `Anfrage ansehen`. Das öffnet genau diese Anfrage mit Kind, Tag, Uhrzeit, Grund und Entscheidung. Das geht auch nach Freigabe oder Ablehnung. `Schließen` führt zurück in die Unterhaltung.",
         ],
         callout: {
           title: "Voraussetzung",

@@ -619,9 +619,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       {schoolDelete.deleteTarget && (
         <SchoolSoftDeleteModal
           target={schoolDelete.deleteTarget}
-          inputId="delete-school-confirm-detail"
-          confirmInput={schoolDelete.deleteConfirmInput}
-          onConfirmInputChange={schoolDelete.setDeleteConfirmInput}
           errorMessage={schoolDelete.softDeleteError}
           isProcessing={schoolDelete.isProcessing}
           onCancel={() => schoolDelete.setDeleteTarget(null)}

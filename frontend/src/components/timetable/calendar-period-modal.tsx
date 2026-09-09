@@ -16,6 +16,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
@@ -137,7 +138,7 @@ export function CalendarPeriodModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
@@ -182,7 +183,7 @@ export function CalendarPeriodModal({
       initial ? formFromPeriod(initial) : { ...emptyForm(), ...createDefaults },
     );
     setValidationError(null);
-    setDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
   }, [isOpen, initial, createDefaults]);
@@ -290,10 +291,6 @@ export function CalendarPeriodModal({
 
   const handleDelete = async () => {
     if (!initial) return;
-    if (!deleteConfirm) {
-      setDeleteConfirm(true);
-      return;
-    }
     setDeleting(true);
     try {
       await calendarPeriodService.delete(initial.id);
@@ -313,6 +310,7 @@ export function CalendarPeriodModal({
       toastError(msg);
     } finally {
       setDeleting(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
@@ -497,37 +495,20 @@ export function CalendarPeriodModal({
         <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
             {isEdit && (
-              <div className="flex max-w-sm flex-col gap-1">
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  onClick={() => void handleDelete()}
-                  isLoading={deleting}
-                  loadingText="Lösche …"
-                  disabled={submitting}
-                >
-                  {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
-                </Button>
-                {deleteConfirm && !deleting && (
-                  <p className="text-moto-red-strong text-xs">
-                    {deleteWarning} {deleteConflictHint}
-                  </p>
-                )}
-              </div>
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                onClick={() => setDeleteConfirmOpen(true)}
+                isLoading={deleting}
+                loadingText="Lösche …"
+                disabled={submitting}
+              >
+                Löschen
+              </Button>
             )}
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-            {deleteConfirm && !deleting && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setDeleteConfirm(false)}
-              >
-                Löschen abbrechen
-              </Button>
-            )}
             {saveWarnings.length === 0 && (
               <Button
                 type="button"
@@ -564,6 +545,31 @@ export function CalendarPeriodModal({
           </div>
         </SlideOverFooter>
       </SlideOverContent>
+      {initial && (
+        <ConfirmDeleteModal
+          isOpen={deleteConfirmOpen}
+          title="Kalenderzeitraum löschen"
+          description={
+            <p>
+              Der Kalenderzeitraum{" "}
+              <span className="font-medium text-gray-900">
+                „{initial.name}“
+              </span>{" "}
+              wird gelöscht. {deleteWarning}
+            </p>
+          }
+          warningSlot={
+            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
+              {deleteConflictHint}
+            </p>
+          }
+          gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+          onConfirm={handleDelete}
+          onClose={() => setDeleteConfirmOpen(false)}
+          loading={deleting}
+          error=""
+        />
+      )}
     </SlideOver>
   );
 }

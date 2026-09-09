@@ -726,8 +726,12 @@ describe("InstanceDetailModal", () => {
 
     expect(screen.getByText("Fallback Kind")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42" }),
@@ -758,7 +762,11 @@ describe("InstanceDetailModal", () => {
       screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+    // Scope-Slot der ConfirmDeleteModal (#3110): ohne Wahl bleibt Löschen
+    // gesperrt, die Wahl ist der erste Schritt.
+    expect(confirmDialogButton("Löschen")).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(confirmDialogButton("Löschen"));
     await waitFor(() =>
       expect(onDeleteFollowing).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
@@ -788,14 +796,14 @@ describe("InstanceDetailModal", () => {
 
     await expectNoUnhandledRejection(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-      const followingOption = screen
-        .getByText("Ab jetzt dauerhaft")
-        .closest("button");
-      expect(followingOption).not.toBeNull();
-      fireEvent.click(followingOption!);
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
+      const confirm = confirmDialogButton("Löschen");
+      fireEvent.click(confirm);
 
       await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
-      await waitFor(() => expect(followingOption).toBeEnabled());
+      await waitFor(() => expect(confirmDialogButton("Löschen")).toBeEnabled());
       expect(
         screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).toBeInTheDocument();
@@ -820,9 +828,12 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -861,9 +872,12 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
@@ -898,7 +912,9 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
       releaseFakeTimers();
     }
@@ -924,7 +940,9 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
       releaseFakeTimers();
     }
@@ -946,14 +964,19 @@ describe("InstanceDetailModal", () => {
       );
 
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
       vi.setSystemTime(new Date("2026-05-04T22:00:01Z"));
-      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+      fireEvent.click(confirmDialogButton("Löschen"));
 
       expect(onDeleteFollowing).not.toHaveBeenCalled();
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
       releaseFakeTimers();
     }
@@ -981,7 +1004,10 @@ describe("InstanceDetailModal", () => {
       );
 
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
+      fireEvent.click(confirmDialogButton("Löschen"));
       await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
 
       await act(async () => {
@@ -991,7 +1017,9 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Termin löschen" }),
+      ).not.toBeInTheDocument();
 
       await act(async () => {
         resolveDeletion?.();
@@ -1210,11 +1238,13 @@ describe("InstanceDetailModal", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Abbrechen"));
     expect(
-      screen.queryByText("Abgesagten Termin löschen?"),
+      screen.queryByRole("dialog", { name: "Abgesagten Termin löschen" }),
     ).not.toBeInTheDocument();
     expect(onDeleteCancelled).not.toHaveBeenCalled();
   });
