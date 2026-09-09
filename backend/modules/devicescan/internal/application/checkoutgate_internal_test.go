@@ -32,6 +32,15 @@ func visitIn(roomID int64) *ports.CurrentVisit {
 	return &ports.CurrentVisit{Session: &ports.SessionRef{RoomID: roomID}}
 }
 
+func TestDailyCheckoutResolutionFailure(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.settings.dailyCheckoutErr = errBoom
+	_, err := h.service().dailyCheckoutTime(context.Background())
+	require.ErrorIs(t, err, errBoom)
+	require.False(t, h.service().isAfterGlobalCheckoutTime(context.Background()))
+}
+
 func TestDailyCheckoutTime(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

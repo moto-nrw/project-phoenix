@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -50,4 +51,17 @@ func TestComposedWorkflowRejectsRequestsWithoutADevice(t *testing.T) {
 
 	require.Error(t, err)
 	assert.EqualError(t, err, "device API key is required")
+}
+
+func TestComposedWritesRequireTenantTransaction(t *testing.T) {
+	t.Parallel()
+	db, module := testutil.SetupCheckinModule(t)
+	device := testpkg.CreateTestDevice(t, db, "transaction-required-kiosk")
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device))
+	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+
+	_, err := module.DeviceScan.Scan(ctx, devicescan.ScanCommand{RFIDTag: "UNKNOWN"})
+	require.EqualError(t, err, "device scan requires a tenant transaction")
+	_, err = module.DeviceScan.ToggleAttendance(ctx, devicescan.AttendanceToggleCommand{RFIDTag: "UNKNOWN"})
+	require.EqualError(t, err, "device scan requires a tenant transaction")
 }

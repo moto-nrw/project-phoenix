@@ -3,24 +3,25 @@ package compose
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 var errSettingsNotConfigured = errors.New("settings service is not configured")
 
-// settings binds the tenant settings the scans read. A nil settings service
-// answers the registry defaults the flows fall back to; the presence mode
-// stays with the retained presence service, which validates the value.
+type settingsResolver interface {
+	ResolveString(context.Context, string) (string, error)
+	ResolveBool(context.Context, string) (bool, error)
+	ResolveInt(context.Context, string) (int, error)
+}
+
+// settings binds the required tenant settings service. Presence mode stays
+// with the retained presence service, which validates the value.
 type settings struct {
-	settings configSvc.SettingsService
+	settings settingsResolver
 	active   activeSvc.Service
-	fallback string
-	logger   *slog.Logger
 }
 
 func (s settings) PresenceMode(ctx context.Context) (string, error) {
@@ -45,10 +46,12 @@ func (s settings) CapacityDetailsDisclosed(ctx context.Context, kind ports.Capac
 	return s.settings.ResolveBool(ctx, key)
 }
 
-// DailyCheckoutTime resolves the raw gate: tenant override, then the
-// STUDENT_DAILY_CHECKOUT_TIME process value, then empty (no gate).
-func (s settings) DailyCheckoutTime(ctx context.Context) string {
-	return configSvc.ResolveStringOrDefault(ctx, s.settings, configModel.KeyStudentDailyCheckoutTime, s.fallback, s.logger)
+// DailyCheckoutTime resolves the tenant override or registry default.
+func (s settings) DailyCheckoutTime(ctx context.Context) (string, error) {
+	if s.settings == nil {
+		return "", errSettingsNotConfigured
+	}
+	return s.settings.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime)
 }
 
 func (s settings) PerStudentCheckoutEnabled(ctx context.Context) (bool, error) {

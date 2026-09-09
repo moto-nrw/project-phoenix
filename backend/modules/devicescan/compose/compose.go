@@ -8,6 +8,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -44,7 +45,7 @@ type PickupReader interface {
 }
 
 // Dependencies are the collaborators of the device-scan workflow. Fleet,
-// Presence, Rooms, Active and Users are required; the others may be nil in
+// Presence, Rooms, Active, Users and Settings are required; the others may be nil in
 // narrow graphs and disable the flows that need them.
 type Dependencies struct {
 	Fleet    Fleet
@@ -62,10 +63,8 @@ type Dependencies struct {
 	Education educationSvc.Service
 	// Pickups reads the effective pickup plan.
 	Pickups PickupReader
-	// Settings resolves tenant settings; nil falls back to registry defaults.
+	// Settings resolves tenant settings and is required.
 	Settings configSvc.SettingsService
-	// DailyCheckoutFallback is the STUDENT_DAILY_CHECKOUT_TIME process value.
-	DailyCheckoutFallback string
 	// Now is the workflow clock; nil means the wall clock.
 	Now    func() time.Time
 	Logger *slog.Logger
@@ -75,6 +74,9 @@ type Dependencies struct {
 func New(deps Dependencies) DeviceScan {
 	if deps.Fleet == nil || deps.Presence == nil || deps.Rooms == nil || deps.Active == nil || deps.Users == nil {
 		panic("device scan composition: fleet, presence, rooms, active and users are required")
+	}
+	if deps.Settings == nil {
+		panic("device scan composition: settings are required")
 	}
 	now := deps.Now
 	if now == nil {
@@ -109,7 +111,7 @@ func New(deps Dependencies) DeviceScan {
 		Activities: activities,
 		Groups:     groups,
 		Pickups:    pickups,
-		Settings:   settings{settings: deps.Settings, active: deps.Active, fallback: deps.DailyCheckoutFallback, logger: logger},
+		Settings:   settings{settings: deps.Settings, active: deps.Active},
 		UnitOfWork: unitOfWork{},
 		Clock:      clock,
 		Logger:     logger,
@@ -124,6 +126,14 @@ func (c clock) Day(instant time.Time) timezone.Date { return timezone.DateFromTi
 
 // unitOfWork binds the request transaction of the tenant runtime.
 type unitOfWork struct{}
+
+func (unitOfWork) RequireTransaction(ctx context.Context) error {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("device scan requires a tenant transaction")
+	}
+	_, err := tenant.TenantFromContext(ctx)
+	return err
+}
 
 func (unitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
 

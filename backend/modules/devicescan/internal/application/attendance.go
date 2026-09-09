@@ -42,6 +42,9 @@ func (s *Service) ToggleAttendance(ctx context.Context, command devicescan.Atten
 	if err != nil {
 		return nil, err
 	}
+	if err := s.unit.RequireTransaction(ctx); err != nil {
+		return nil, devicescan.Internal(err.Error(), nil)
+	}
 	if command.Action == devicescan.AttendanceActionCancel {
 		return &devicescan.AttendanceToggleResult{
 			Action:  devicescan.AttendanceActionCancelled,

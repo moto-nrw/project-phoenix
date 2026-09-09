@@ -282,7 +282,7 @@ type Settings interface {
 	FeedbackEnabled(ctx context.Context) (bool, error)
 	CapacityDetailsDisclosed(ctx context.Context, kind CapacityKind) (bool, error)
 	// DailyCheckoutTime is the raw "HH:MM" gate or empty when unset.
-	DailyCheckoutTime(ctx context.Context) string
+	DailyCheckoutTime(ctx context.Context) (string, error)
 	PerStudentCheckoutEnabled(ctx context.Context) (bool, error)
 	PerStudentCheckoutDeltaMinutes(ctx context.Context) (int, error)
 	DailyCheckoutFromAllRoomsEnabled(ctx context.Context) (bool, error)
@@ -290,6 +290,8 @@ type Settings interface {
 
 // UnitOfWork controls the request transaction.
 type UnitOfWork interface {
+	// RequireTransaction rejects writes without one surrounding transaction.
+	RequireTransaction(ctx context.Context) error
 	// MarkRollback requests rollback of the surrounding transaction even
 	// when the response is not a server fault.
 	MarkRollback(ctx context.Context)

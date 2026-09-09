@@ -164,21 +164,21 @@ func (s *Service) Ping(ctx context.Context) (*devicescan.DevicePing, error) {
 // pingDevice writes the device's last-seen instant by its globally unique
 // row id, so the ping stays cross-tenant safe.
 func (s *Service) pingDevice(ctx context.Context, deviceID string) error {
+	// Preserve the legacy PingDevice wire message and classification without
+	// importing the retained IoT service into this workflow.
+	const prefix = "IoT service error in PingDevice: "
 	if deviceID == "" {
-		return devicescan.InvalidRequest("device ID cannot be empty")
+		return devicescan.Internal(prefix+"device ID cannot be empty", nil)
 	}
 	existing, err := s.fleet.FindDeviceByDeviceID(ctx, deviceID)
 	if err != nil {
-		if devicefleet.ErrorCode(err) == "device_not_found" {
-			return devicescan.NotFound("device not found: " + deviceID)
-		}
-		return devicescan.Internal(err.Error(), err)
+		return devicescan.Internal(prefix+err.Error(), err)
 	}
 	if existing.ID <= 0 {
-		return devicescan.NotFound("device not found: " + deviceID)
+		return devicescan.NotFound(prefix + "device not found: " + deviceID)
 	}
 	if err := s.fleet.UpdateDeviceLastSeen(ctx, existing.ID, s.now()); err != nil {
-		return devicescan.Internal(err.Error(), err)
+		return devicescan.Internal(prefix+err.Error(), err)
 	}
 	return nil
 }

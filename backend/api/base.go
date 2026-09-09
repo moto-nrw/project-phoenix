@@ -1292,17 +1292,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// Facilities capabilities; the retained services behind its ports are
 	// compatibility bindings (#2698).
 	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
-		Fleet:                 api.Services.IoT.Fleet(),
-		Presence:              presence,
-		Rooms:                 api.rooms,
-		Active:                api.Services.Active,
-		Users:                 api.Services.Users,
-		Activities:            api.Services.Activities,
-		Education:             api.Services.Education,
-		Pickups:               api.Services.PickupSchedule,
-		Settings:              api.Services.Settings,
-		DailyCheckoutFallback: os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
-		Logger:                logger.With("service", "device-scan"),
+		Fleet:      api.Services.IoT.Fleet(),
+		Presence:   presence,
+		Rooms:      api.rooms,
+		Active:     api.Services.Active,
+		Users:      api.Services.Users,
+		Activities: api.Services.Activities,
+		Education:  api.Services.Education,
+		Pickups:    api.Services.PickupSchedule,
+		Settings:   api.Services.Settings,
+		Logger:     logger.With("service", "device-scan"),
 	})
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,

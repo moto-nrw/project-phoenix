@@ -292,7 +292,8 @@ type Scanner interface {
 	DeviceIdentity
 	// Scan processes one card scan: a student check-in, checkout or
 	// transfer, a binary-mode attendance toggle, or a supervisor joining
-	// the device session.
+	// the device session. Requires an existing tenant transaction; the HTTP
+	// middleware supplies it. No mutation occurs if that transaction is absent.
 	Scan(ctx context.Context, command ScanCommand) (*ScanResult, error)
 	// PickupInfo reads today's pickup time and notes without writing.
 	PickupInfo(ctx context.Context, rfidTag string) (*PickupInfo, error)
@@ -306,6 +307,7 @@ type Scanner interface {
 type Attendance interface {
 	DeviceIdentity
 	AttendanceStatus(ctx context.Context, rfidTag string) (*AttendanceStatus, error)
+	// ToggleAttendance requires an existing tenant transaction.
 	ToggleAttendance(ctx context.Context, command AttendanceToggleCommand) (*AttendanceToggleResult, error)
 }
 

@@ -49,6 +49,8 @@ type fakeUnit struct{ rollbacks int }
 
 func (u *fakeUnit) MarkRollback(context.Context) { u.rollbacks++ }
 
+func (*fakeUnit) RequireTransaction(context.Context) error { return nil }
+
 type fakePrincipals struct {
 	device *ports.Device
 	staff  *ports.Staff
@@ -377,19 +379,20 @@ func (p fakePickups) Effective(context.Context, int64, timezone.Date) (*ports.Pi
 }
 
 type fakeSettings struct {
-	mode            string
-	modeErr         error
-	feedback        bool
-	feedbackErr     error
-	roomDetails     bool
-	activityDetails bool
-	detailsErr      error
-	dailyCheckout   string
-	perStudent      bool
-	delta           int
-	deltaErr        error
-	allRooms        bool
-	allRoomsErr     error
+	mode             string
+	modeErr          error
+	feedback         bool
+	feedbackErr      error
+	roomDetails      bool
+	activityDetails  bool
+	detailsErr       error
+	dailyCheckout    string
+	dailyCheckoutErr error
+	perStudent       bool
+	delta            int
+	deltaErr         error
+	allRooms         bool
+	allRoomsErr      error
 }
 
 func (s fakeSettings) PresenceMode(context.Context) (string, error) {
@@ -410,7 +413,9 @@ func (s fakeSettings) CapacityDetailsDisclosed(_ context.Context, kind ports.Cap
 	}
 	return s.roomDetails, s.detailsErr
 }
-func (s fakeSettings) DailyCheckoutTime(context.Context) string { return s.dailyCheckout }
+func (s fakeSettings) DailyCheckoutTime(context.Context) (string, error) {
+	return s.dailyCheckout, s.dailyCheckoutErr
+}
 func (s fakeSettings) PerStudentCheckoutEnabled(context.Context) (bool, error) {
 	return s.perStudent, nil
 }

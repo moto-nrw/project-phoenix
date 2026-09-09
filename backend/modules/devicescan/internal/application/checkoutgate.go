@@ -17,7 +17,10 @@ import (
 // dailyCheckoutTime parses the tenant's daily checkout gate as today's
 // instant. Nil means no gate: daily checkout is always available.
 func (s *Service) dailyCheckoutTime(ctx context.Context) (*time.Time, error) {
-	raw := s.settings.DailyCheckoutTime(ctx)
+	raw, err := s.settings.DailyCheckoutTime(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if raw == "" {
 		return nil, nil
 	}

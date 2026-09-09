@@ -25,9 +25,8 @@ func NewRoomsTestModule(db *bun.DB, unit tenant.UnitOfWork) (RoomsTestModule, er
 }
 
 // CheckinTestModule composes the device-scan workflow (#2698) over the
-// active test graph, the way the production root does. The process
-// checkout-time fallback stays empty so the daily-checkout gates depend on
-// tenant settings alone, never on the developer's environment.
+// active test graph, the way the production root does. Daily-checkout gates
+// depend on tenant settings alone, never on the developer's environment.
 type CheckinTestModule struct {
 	ActiveTestModule
 	DeviceScan devicescanCompose.DeviceScan

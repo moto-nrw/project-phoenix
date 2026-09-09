@@ -720,7 +720,7 @@ func TestPingAndStatus(t *testing.T) {
 
 		_, err := h.service().Ping(context.Background())
 
-		requireFailure(t, err, devicescan.FailureNotFound, "device not found: dev-001")
+		requireFailure(t, err, devicescan.FailureInternal, "IoT service error in PingDevice: device not found")
 	})
 	t.Run("status reports the device", func(t *testing.T) {
 		t.Parallel()

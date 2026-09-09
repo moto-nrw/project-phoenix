@@ -405,6 +405,15 @@ record debt for a package the candidate creates: convert them to exact debt
 with the rule above once the packages exist at a base SHA, and rebind each
 port to its owner's public capability as it appears.
 
+Under ADR 0013 this data-less workflow registration raises the integrated
+policy epoch from 4 to 5 and uses only candidate-created packages. Existing
+owner/import guards remain unchanged. Scan and attendance writes require an
+existing tenant transaction, supplied by the IoT middleware; direct callers
+without one fail before mutations. Daily checkout reads tenant overrides or
+the registry default, never a process environment fallback. Before deployment,
+any intended prior environment value must be stored as an explicit per-school
+setting. This integration does not inspect or modify deployed settings.
+
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
 permissions for the retained `models/platform` school row, the

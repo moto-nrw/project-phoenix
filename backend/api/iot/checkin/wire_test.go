@@ -61,6 +61,16 @@ func TestWireFormat_RoomCapacityExceeded(t *testing.T) {
 	)
 }
 
+func TestWireFormat_PingPreservesLegacyOwnerFailure(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{scanErr: devicescan.Internal("IoT service error in PingDevice: device not found", errors.New("device not found"))}
+	resource := checkinAPI.NewResource(scanner, testRuntime(), nil)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil)
+	rr := testutil.ExecuteRequest(resource.Router(), req)
+	require.Equal(t, 500, rr.Code)
+	require.Equal(t, "{\"status\":\"error\",\"error\":\"IoT service error in PingDevice: device not found\"}\n", rr.Body.String())
+}
+
 func TestWireFormat_RoomCapacityExceeded_NoDetails(t *testing.T) {
 	t.Parallel()
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.RoomCapacityExceededError{RoomID: 42, RoomName: "Room A", CurrentOccupancy: 15, MaxCapacity: 10}})

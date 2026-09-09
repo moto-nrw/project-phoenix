@@ -1,0 +1,1627 @@
+{
+  "issue": 2698,
+  "base": "8d340bd86f1c44b8004127358af1025eac9261ea",
+  "environment": "local PostgreSQL 17.11, Go1.27.0, isolated test database, concurrency1",
+  "scope": "capability with real tenant transaction; not HTTP/TCP, staging or production",
+  "warning_count": 0,
+  "conflict_count": 0,
+  "duplicate_count": 30,
+  "rollback_count": 30,
+  "records": [
+    {
+      "concurrency": 1,
+      "deadlocks": 0,
+      "go": "go1.27.0",
+      "lock_samples": {
+        "samples": 291,
+        "waiting_backend_samples": 0,
+        "max_waiting_backends": 0,
+        "max_sample_gap_ms": 8.8365
+      },
+      "max_ms": 26.958375,
+      "operation": "check-in",
+      "p50_ms": 13.011583,
+      "p95_ms": 20.342666,
+      "postgres": "17.11",
+      "result_codes": {
+        "checked_in": 30
+      },
+      "samples": [
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.173,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.517667,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.992291,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.181083,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 15.873458,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.631,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.068333,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 26.958375,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 16.796333,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 20.342666,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.932625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.915541,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.080959,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.512375,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.987875,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.907292,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.030959,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 10.983625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 10.340208,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.919292,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.49025,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.209208,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.011583,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.663625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.738458,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.1775,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.850833,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.396084,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 9.547709,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.567375,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        }
+      ],
+      "unexpected_errors": 0,
+      "warmup": 5
+    },
+    {
+      "concurrency": 1,
+      "deadlocks": 0,
+      "go": "go1.27.0",
+      "lock_samples": {
+        "samples": 348,
+        "waiting_backend_samples": 0,
+        "max_waiting_backends": 0,
+        "max_sample_gap_ms": 3.532875
+      },
+      "max_ms": 31.099958,
+      "operation": "room-transfer",
+      "p50_ms": 14.755709,
+      "p95_ms": 29.787459,
+      "postgres": "17.11",
+      "result_codes": {
+        "transferred": 30
+      },
+      "samples": [
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.658167,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.916667,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.858542,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 31.099958,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 29.787459,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.802959,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.755709,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 16.80925,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.708,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 16.090708,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.435041,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 12.737583,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.459834,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.068083,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.736,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.183959,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 16.9085,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.003375,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 16.211708,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.938042,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 16.944917,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.783833,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.164833,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.987083,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.082292,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.328583,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.570542,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 15.535875,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 13.705458,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 4,
+          "rows_affected": 25,
+          "statements_with_rows": 41,
+          "duration_ms": 14.275458,
+          "queries": 47,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        }
+      ],
+      "unexpected_errors": 0,
+      "warmup": 5
+    },
+    {
+      "concurrency": 1,
+      "deadlocks": 0,
+      "go": "go1.27.0",
+      "lock_samples": {
+        "samples": 215,
+        "waiting_backend_samples": 0,
+        "max_waiting_backends": 0,
+        "max_sample_gap_ms": 2.863333
+      },
+      "max_ms": 10.552167,
+      "operation": "check-out",
+      "p50_ms": 6.693625,
+      "p95_ms": 8.256792,
+      "postgres": "17.11",
+      "result_codes": {
+        "checked_out": 30
+      },
+      "samples": [
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.601333,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 8.0175,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.443333,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.473917,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.045792,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.136417,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.220416,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.656083,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.413125,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.38225,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.846417,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 5.885584,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.645542,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.730375,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.546,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.693625,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.993209,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.655291,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.737042,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.662208,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.405875,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.201,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.75925,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.658792,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.421042,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 6.270417,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 10.552167,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 8.256792,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.393458,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 1,
+          "rows_affected": 10,
+          "statements_with_rows": 20,
+          "duration_ms": 7.774916,
+          "queries": 22,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        }
+      ],
+      "unexpected_errors": 0,
+      "warmup": 5
+    },
+    {
+      "concurrency": 1,
+      "deadlocks": 0,
+      "go": "go1.27.0",
+      "lock_samples": {
+        "samples": 139,
+        "waiting_backend_samples": 0,
+        "max_waiting_backends": 0,
+        "max_sample_gap_ms": 2.799166
+      },
+      "max_ms": 5.082459,
+      "operation": "duplicate-supervisor",
+      "p50_ms": 4.087458,
+      "p95_ms": 5.013333,
+      "postgres": "17.11",
+      "result_codes": {
+        "supervisor_authenticated": 30
+      },
+      "samples": [
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.199625,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.227792,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.612292,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.845584,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 5.013333,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.522459,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.512792,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.416917,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.446041,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.990375,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.541042,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.477583,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.660791,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.339166,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.510208,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.087458,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.062875,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.89625,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.423208,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.53075,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.818166,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.665084,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.386917,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.496083,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.668334,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.53,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 5.082459,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.982292,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 4.251542,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 0,
+          "rows_affected": 10,
+          "statements_with_rows": 11,
+          "duration_ms": 3.829583,
+          "queries": 14,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        }
+      ],
+      "unexpected_errors": 0,
+      "warmup": 5
+    },
+    {
+      "concurrency": 1,
+      "deadlocks": 0,
+      "go": "go1.27.0",
+      "lock_samples": {
+        "samples": 282,
+        "waiting_backend_samples": 0,
+        "max_waiting_backends": 0,
+        "max_sample_gap_ms": 2.819875
+      },
+      "max_ms": 19.247834,
+      "operation": "rollback-after-scan",
+      "p50_ms": 13.175583,
+      "p95_ms": 15.496459,
+      "postgres": "17.11",
+      "result_codes": {
+        "injected_rollback": 30
+      },
+      "samples": [
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.456167,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.56275,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.3995,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.740167,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.436375,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 10.9245,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.769916,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.844541,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.190084,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.512542,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.531708,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.279625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.933625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.208291,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.175583,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.395125,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.684042,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.957875,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 15.011709,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 14.134583,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 12.945208,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.656209,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 10.963625,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 10.194708,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.986542,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 11.975958,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.488542,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 13.544333,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 19.247834,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        },
+        {
+          "write_rows_affected": 3,
+          "rows_affected": 19,
+          "statements_with_rows": 34,
+          "duration_ms": 15.496459,
+          "queries": 40,
+          "status": 0,
+          "pool_wait_count": 0,
+          "pool_wait_ms": 0
+        }
+      ],
+      "unexpected_errors": 0,
+      "warmup": 5
+    }
+  ]
+}

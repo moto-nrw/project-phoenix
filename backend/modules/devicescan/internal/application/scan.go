@@ -25,6 +25,9 @@ func (s *Service) Scan(ctx context.Context, command devicescan.ScanCommand) (*de
 	if err != nil {
 		return nil, err
 	}
+	if err := s.unit.RequireTransaction(ctx); err != nil {
+		return nil, devicescan.Internal(err.Error(), nil)
+	}
 	s.logger.DebugContext(ctx, "starting checkin process",
 		slog.String("device_id", device.DeviceID),
 		slog.Int64("device_db_id", device.ID),
