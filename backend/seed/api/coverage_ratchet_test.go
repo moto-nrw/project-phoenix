@@ -28,6 +28,10 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	// Expand #2718 explicitly requires empty targets and forbids dual writes.
+	// Remove these exemptions when #2762 switches the real seed/API callers.
+	"active.activity_sessions":             "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
+	"active.activity_session_attendance":   "empty Expand target (#2718); old participant rows remain authoritative until #2762",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
