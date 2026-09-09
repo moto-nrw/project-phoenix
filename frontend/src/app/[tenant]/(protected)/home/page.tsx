@@ -38,6 +38,11 @@ import { useHomeBlockAccess } from "~/lib/hooks/use-home-block-access";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import { useHomeLayout } from "~/lib/hooks/use-home-layout";
 import { createLogger } from "~/lib/logger";
+import {
+  getSmartRedirectPath,
+  isSchoolPortalHandoffPath,
+} from "~/lib/redirect-utils";
+import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useNFCEnabled,
@@ -505,12 +510,21 @@ function HomeContent() {
  * der Betriebsmodus der Schule und die Vorgabe der Leitung freigeben.
  */
 export default function HomePage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
+  const handsOffToSchoolPortal =
+    status === "authenticated" &&
+    isSchoolPortalHandoffPath(getSmartRedirectPath(session));
+
+  useEffect(() => {
+    if (handsOffToSchoolPortal) {
+      window.location.href = schoolPortalLoginUrl();
+    }
+  }, [handsOffToSchoolPortal]);
 
   // Vor der Sitzung ist nicht entscheidbar, welche Bausteine gelten. Ohne
   // diesen Zwischenschritt blitzte eine leere Startseite auf, bevor die Rechte
   // da sind.
-  if (status === "loading") {
+  if (status === "loading" || handsOffToSchoolPortal) {
     return <DashboardSkeleton />;
   }
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
 import type {
@@ -18,6 +18,10 @@ import type {
  */
 
 const mockRedirect = vi.fn();
+const { schoolPortalLoginUrl } = vi.hoisted(() => ({
+  schoolPortalLoginUrl: vi.fn(() => "https://schule.example.test/login"),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   redirect: (url: string) => mockRedirect(url),
@@ -38,6 +42,8 @@ const mockSession = {
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({ data: mockSession, status: "authenticated" })),
 }));
+
+vi.mock("~/lib/school-url", () => ({ schoolPortalLoginUrl }));
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
@@ -216,8 +222,15 @@ function mockSWR(data: unknown, error?: Error) {
 }
 
 describe("Startseite", () => {
+  let originalLocation: Location;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { ...originalLocation, href: "" },
+    });
     layoutState.blocks = [];
     layoutState.overrides = {};
     layoutState.policies = {};
@@ -230,6 +243,13 @@ describe("Startseite", () => {
     vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
     vi.mocked(isCaregiver).mockReturnValue(false);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(analytics));
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: originalLocation,
+    });
   });
 
   it("begrüßt mit dem Vornamen", async () => {
@@ -320,6 +340,25 @@ describe("Startseite", () => {
     render(<HomePage />);
 
     expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+  });
+
+  it("übergibt reine Lehrkraft-Sitzungen an moto schule", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, roles: ["lehrkraft"] },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(window.location.href).toBe("https://schule.example.test/login"),
+    );
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+    expect(useSWRAuth).not.toHaveBeenCalled();
   });
 
   it("lädt die Ablaufwarnungen der Anmeldephasen nur mit Adminzuschnitt", () => {
