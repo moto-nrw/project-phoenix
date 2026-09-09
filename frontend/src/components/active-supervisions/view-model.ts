@@ -63,7 +63,7 @@ export interface OpenRoomView {
 }
 
 /** One child in a released room, with the offering they are recorded under. */
-export interface OpenRoomVisit extends VisitDisplayLike {
+interface OpenRoomVisit extends VisitDisplayLike {
   readonly activityName?: string;
 }
 

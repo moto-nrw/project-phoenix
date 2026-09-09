@@ -28,21 +28,6 @@ func (s *service) GetActiveGroupVisitsWithDisplay(ctx context.Context, groupID i
 	return s.GetActiveGroupVisitsWithDisplayForGroups(ctx, []int64{groupID})
 }
 
-// VisitDisplayBatchReader is the batch visit read on its own. Consumers that
-// need only this (the shared open-room view, #3065) depend on it instead of on
-// the wide Service interface, which is hand-mocked in a dozen packages and
-// would force every one of those doubles to grow for a single caller.
-type VisitDisplayBatchReader interface {
-	GetActiveGroupVisitsWithDisplayForGroups(ctx context.Context, activeGroupIDs []int64) ([]*VisitWithStudentDisplay, error)
-}
-
-// NewVisitDisplayBatchReader builds that read from the same dependencies as
-// NewService, so there is one implementation rather than a second copy of the
-// visit/directory join.
-func NewVisitDisplayBatchReader(deps ServiceDependencies) VisitDisplayBatchReader {
-	return &service{SchoolPresence: deps.SchoolPresence, StudentDisplay: deps.StudentDisplay}
-}
-
 // GetActiveGroupVisitsWithDisplayForGroups is the batch form: one visit query
 // and one directory query regardless of how many sessions are asked for. A
 // caller aggregating several rooms (the shared open-room view, #3065) would
