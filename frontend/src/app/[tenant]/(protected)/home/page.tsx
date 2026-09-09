@@ -96,6 +96,7 @@ function HomeContent() {
 
   const {
     state: homeLayout,
+    isReady: homeLayoutReady,
     save: saveHomeLayout,
     reset: resetHomeLayout,
   } = useHomeLayout();
@@ -220,10 +221,11 @@ function HomeContent() {
   const error = swrError ? "Fehler beim Laden der Dashboard-Daten" : null;
 
   const startEditing = useCallback(() => {
+    if (!homeLayoutReady) return;
     setDraft([...saved.placements]);
     setRemovedInDraft([]);
     setSaveError(null);
-  }, [saved.placements]);
+  }, [homeLayoutReady, saved.placements]);
 
   const cancelEditing = useCallback(() => {
     setDraft(null);
@@ -411,6 +413,7 @@ function HomeContent() {
             variant="outline"
             size="md"
             className="gap-2"
+            disabled={!homeLayoutReady}
             onClick={startEditing}
           >
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -441,6 +444,7 @@ function HomeContent() {
                 type="button"
                 variant="primary"
                 size="md"
+                disabled={!homeLayoutReady}
                 onClick={startEditing}
               >
                 Bausteine hinzufügen

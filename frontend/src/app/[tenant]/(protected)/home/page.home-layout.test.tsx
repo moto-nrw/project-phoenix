@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
@@ -121,6 +121,7 @@ const layoutState = {
   policies: {} as HomeBlockPolicies,
   canManagePolicies: true,
   isLoading: false,
+  isReady: true,
 };
 
 const save = vi.fn();
@@ -135,6 +136,7 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
       canManagePolicies: layoutState.canManagePolicies,
     },
     isLoading: layoutState.isLoading,
+    isReady: layoutState.isReady,
     save,
     reset,
   }),
@@ -158,6 +160,7 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
     layoutState.policies = {};
     layoutState.canManagePolicies = true;
     layoutState.isLoading = false;
+    layoutState.isReady = true;
     vi.mocked(useSWRAuth).mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -237,6 +240,7 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
 
   it("zeigt die Standardansicht, wenn die Anordnung nicht geladen werden kann", async () => {
     layoutState.isLoading = true;
+    layoutState.isReady = false;
 
     render(<HomePage />);
 
@@ -244,6 +248,18 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
       expect(screen.getByText("Kinder anwesend")).toBeInTheDocument(),
     );
     expect(requestedKeys()).toContain("dashboard-analytics");
+  });
+
+  it("öffnet die Bearbeitung erst nach dem Laden der persönlichen Anordnung", async () => {
+    layoutState.isLoading = true;
+    layoutState.isReady = false;
+
+    render(<HomePage />);
+
+    const adjust = await screen.findByRole("button", { name: "Anpassen" });
+    expect(adjust).toBeDisabled();
+    fireEvent.click(adjust);
+    expect(screen.queryByText("Startseite anpassen")).not.toBeInTheDocument();
   });
 
   it("lässt einen von der Schule abgeschalteten Baustein weg", async () => {

@@ -245,7 +245,7 @@ describe("MyDayBlock (#2180)", () => {
       screen.getByRole("link", {
         name: "Frühbetreuung 13:00 bis 14:00: Kinderliste öffnen",
       }),
-    ).toHaveAttribute("href", "/active-supervisions?session=55");
+    ).toHaveAttribute("href", "/test-tenant/active-supervisions?session=55");
     expect(screen.getByText("Läuft")).toBeInTheDocument();
     expect(
       screen.getByText("12 von 18 da", { exact: false }),

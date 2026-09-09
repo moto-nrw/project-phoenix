@@ -21,6 +21,7 @@ import {
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
@@ -51,6 +52,7 @@ const MAX_ROWS = 5;
 export function MyDayBlock() {
   const dayPlanHref = useDayPlanHref();
   const dayPlanLabel = useDayPlanLabel();
+  const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const now = useBerlinClock();
   const { data, error, isLoading, mutate } = useSWRAuth<
@@ -180,6 +182,7 @@ export function MyDayBlock() {
                   now={now}
                   withNowLine={index === nowIndex}
                   dayPlanHref={dayPlanHref}
+                  tenantPath={tenantPath}
                   busy={startBusyId === block.id}
                   onStart={start}
                 />
@@ -229,6 +232,7 @@ function BlockRow({
   now,
   withNowLine,
   dayPlanHref,
+  tenantPath,
   busy,
   onStart,
 }: {
@@ -236,6 +240,7 @@ function BlockRow({
   readonly now: string;
   readonly withNowLine: boolean;
   readonly dayPlanHref: string;
+  readonly tenantPath: (path: string) => string;
   readonly busy: boolean;
   readonly onStart: (block: PlannedTimetableInstance) => void;
 }) {
@@ -252,7 +257,7 @@ function BlockRow({
   // Tagesplan, wo er bedient wird.
   const href =
     running && block.activeGroupId
-      ? `/active-supervisions?session=${block.activeGroupId}`
+      ? tenantPath(`/active-supervisions?session=${block.activeGroupId}`)
       : dayPlanHref;
   const room = block.roomName ?? `Raum ${block.roomId}`;
   // Kinderzahl so knapp wie im Tagesplan: laufend „12 von 18 da", danach

@@ -50,6 +50,7 @@ function homeLayoutAccountChanged(accountID: string): string {
 export function useHomeLayout(): {
   state: HomeLayoutState;
   isLoading: boolean;
+  isReady: boolean;
   save: (
     overrides: HomeLayoutOverrides,
     blocks: readonly HomeBlockPlacement[],
@@ -120,5 +121,16 @@ export function useHomeLayout(): {
     });
   };
 
-  return { state: data ?? EMPTY, isLoading, save, reset, savePolicies };
+  // Ein leerer Zustand ist erst nach einer erfolgreichen Antwort eine sichere
+  // Grundlage zum Speichern. Während Laden oder nach einem Fehler bliebe eine
+  // Bearbeitung sonst fälschlich bei der Standardansicht stehen und könnte
+  // die persönliche Anordnung überschreiben.
+  return {
+    state: data ?? EMPTY,
+    isLoading,
+    isReady: data !== undefined,
+    save,
+    reset,
+    savePolicies,
+  };
 }

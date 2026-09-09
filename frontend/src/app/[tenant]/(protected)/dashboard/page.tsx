@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 
 import { Loading } from "~/components/ui/loading";
+import {
+  getSmartRedirectPath,
+  isSchoolPortalHandoffPath,
+} from "~/lib/redirect-utils";
+import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 /**
@@ -14,10 +20,18 @@ import { useTenantRouter } from "~/lib/tenant-router";
  */
 export default function DashboardRedirectPage() {
   const router = useTenantRouter();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
-    router.replace("/home");
-  }, [router]);
+    if (status !== "authenticated") return;
+
+    const destination = getSmartRedirectPath(session);
+    if (isSchoolPortalHandoffPath(destination)) {
+      window.location.href = schoolPortalLoginUrl();
+      return;
+    }
+    router.replace(destination);
+  }, [router, session, status]);
 
   return <Loading message="Startseite wird geöffnet" />;
 }
