@@ -34,6 +34,10 @@ describe("deriveSupervision with released rooms", () => {
 
     expect(result.supervisedRooms.map((room) => room.id)).toEqual(["7", "3"]);
     expect(result.supervisedRooms.every((room) => room.isOpenRoom)).toBe(true);
+    expect(result.supervisedRooms.map((room) => room.groupId)).toEqual([
+      "",
+      "",
+    ]);
   });
 
   it("shows a released room that has nothing running in it", () => {

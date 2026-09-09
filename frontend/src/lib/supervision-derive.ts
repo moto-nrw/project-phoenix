@@ -94,7 +94,10 @@ function openRoomEntries(
       return {
         id: room.id.toString(),
         name: room.name,
-        groupId: room.id.toString(),
+        // A released room has a physical room identity, not a session key.
+        // Keeping this empty prevents a stale session id from matching the
+        // unrelated facilities id.
+        groupId: "",
         isOpenRoom: true,
         ...(sessionIds ? { sessionIds } : {}),
       };

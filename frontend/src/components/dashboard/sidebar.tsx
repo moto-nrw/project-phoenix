@@ -1218,7 +1218,9 @@ function SidebarContent({
       const savedRoomId = localStorage.getItem("sidebar-last-room");
       const targetRoom =
         (savedSessionId
-          ? (supervisedRooms.find((r) => r.groupId === savedSessionId) ??
+          ? (supervisedRooms.find(
+              (r) => !r.isOpenRoom && r.groupId === savedSessionId,
+            ) ??
             supervisedRooms.find((r) => r.sessionIds?.includes(savedSessionId)))
           : undefined) ??
         (savedRoomId
