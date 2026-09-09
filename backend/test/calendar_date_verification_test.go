@@ -41,6 +41,9 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
+	// must replace this classification with a timezone.Date owner row field.
+	"users.staff_employment_profiles.rotation_anchor_date": "empty Expand storage; no application access before Cutover (#2715)",
 	// #2712 is Expand only: these empty tables have no application reader or
 	// writer. Cutover must replace these classifications with typed row fields.
 	"enrollment.care_offering_bookings.valid_from":  "empty Expand storage (#2712), no runtime model until Cutover",
