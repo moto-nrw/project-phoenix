@@ -48,6 +48,18 @@ describe("DashboardRedirectPage", () => {
     expect(schoolPortalLoginUrl).not.toHaveBeenCalled();
   });
 
+  it("leitet nicht angemeldete Personen zur Anmeldung", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    } as ReturnType<typeof useSession>);
+
+    render(<DashboardRedirectPage />);
+
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    expect(schoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
   it("übergibt reine Lehrkraft-Sitzungen an moto schule", async () => {
     vi.mocked(useSession).mockReturnValue({
       data: { user: { roles: ["lehrkraft"] } },

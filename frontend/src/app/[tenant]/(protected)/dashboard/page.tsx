@@ -23,6 +23,10 @@ export default function DashboardRedirectPage() {
   const { data: session, status } = useSession();
 
   useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/");
+      return;
+    }
     if (status !== "authenticated") return;
 
     const destination = getSmartRedirectPath(session);
