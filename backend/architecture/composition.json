@@ -311,7 +311,7 @@
       "declaration": "TestActiveGroupRepository_AggregateRoomSessions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        988
+        955
       ],
       "tables": []
     },
@@ -321,7 +321,7 @@
       "declaration": "TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1078
+        1045
       ],
       "tables": []
     },
@@ -331,7 +331,7 @@
       "declaration": "TestActiveGroupRepository_CheckRoomConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        800
+        767
       ],
       "tables": []
     },
@@ -358,20 +358,10 @@
     {
       "scope": "test",
       "file": "database/repositories/active/group_repository_test.go",
-      "declaration": "TestActiveGroupRepository_EndSession",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        534
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/group_repository_test.go",
       "declaration": "TestActiveGroupRepository_FindActiveByDeviceID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        628
+        595
       ],
       "tables": []
     },
@@ -381,7 +371,7 @@
       "declaration": "TestActiveGroupRepository_FindActiveByDeviceIDWithNames",
       "target": "database/repositories.NewFactory",
       "lines": [
-        672
+        639
       ],
       "tables": []
     },
@@ -463,7 +453,7 @@
       "declaration": "TestActiveGroupRepository_FindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        867
+        834
       ],
       "tables": []
     },
@@ -483,7 +473,7 @@
       "declaration": "TestActiveGroupRepository_FindWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        919
+        886
       ],
       "tables": [
         "active.group_supervisors"
@@ -495,7 +485,7 @@
       "declaration": "TestActiveGroupRepository_GetOccupiedActivityGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        719
+        686
       ],
       "tables": []
     },
@@ -525,7 +515,7 @@
       "declaration": "TestActiveGroupRepository_UpdateLastActivity",
       "target": "database/repositories.NewFactory",
       "lines": [
-        566
+        534
       ],
       "tables": []
     },
@@ -545,7 +535,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        794
+        780
       ],
       "tables": []
     },
@@ -565,7 +555,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        900
+        886
       ],
       "tables": []
     },
@@ -575,7 +565,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1041
+        1027
       ],
       "tables": []
     },
@@ -595,7 +585,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        853
+        839
       ],
       "tables": []
     },
@@ -605,7 +595,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        881
+        867
       ],
       "tables": []
     },
@@ -656,7 +646,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1139
+        1125
       ],
       "tables": []
     },
@@ -666,7 +656,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        609
+        595
       ],
       "tables": []
     },
@@ -686,7 +676,7 @@
       "declaration": "TestGroupSupervisorRepository_List_WithQueryOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        826
+        812
       ],
       "tables": []
     },
@@ -706,7 +696,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        751
+        737
       ],
       "tables": []
     },
@@ -716,7 +706,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        766
+        752
       ],
       "tables": []
     },
@@ -981,7 +971,7 @@
       "declaration": "TestVisitRepository_EndVisitsByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1020
+        1019
       ],
       "tables": []
     },
@@ -991,8 +981,8 @@
       "declaration": "TestVisitRepository_ListActiveStudentIDsByRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1207,
-        1265
+        1206,
+        1264
       ],
       "tables": []
     },
@@ -1002,7 +992,7 @@
       "declaration": "TestVisitRepository_TransferActiveVisitsBetweenGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        718
+        717
       ],
       "tables": []
     },
@@ -27300,6 +27290,11 @@
           "file": "api/base.go",
           "line": 614,
           "declaration": "type API"
+        },
+        {
+          "file": "api/session_end.go",
+          "line": 17,
+          "declaration": "newSessionEnd"
         },
         {
           "file": "api/staff_composition.go",

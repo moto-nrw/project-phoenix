@@ -827,7 +827,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	securityLogger := setupSecurityLogging(api.Router)
 	setupRateLimiting(api.Router, securityLogger)
 
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules.workforce, db, logger, frontendURL)
+	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL)
 	if err != nil {
 		return nil, err
 	}
@@ -852,8 +852,8 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL 
 	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, workforce *workforceModule.Module, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, workforce, db, logger); err != nil {
+func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string) (*requestFeedHTTP.Resource, error) {
+	if err := initializeAPIResources(api, repoFactory, modules, db, logger); err != nil {
 		return nil, err
 	}
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
@@ -1140,7 +1140,8 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 // initializeAPIResources initializes all API resource instances
 // initializeAPIResources composes the HTTP resources; workforce is the
 // Workforce module the staff administration reads schedules from.
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, workforce *workforceModule.Module, db *bun.DB, logger *slog.Logger) error {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
+	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
@@ -1278,8 +1279,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, workfor
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), newStudentPresence(db, logger))
+	presence := newStudentPresence(db, logger)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), presence)
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
+	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
+	if err != nil {
+		return err
+	}
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		CheckinService:    api.Services.Checkin,
@@ -1297,7 +1303,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, workfor
 		PickupScheduleService:   api.Services.PickupSchedule,
 		SchoolService:           api.Services.Schools,
 		TimetableDataService:    api.Services.TimetableData,
-		TimetableBridge:         api.Services.TimetableBridge,
+		SessionEnd:              sessionEnd,
 		UnregisteredTagScans:    api.Services.UnregisteredTagScans,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "iot"),

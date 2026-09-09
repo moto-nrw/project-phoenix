@@ -29,6 +29,7 @@ type Command interface {
 	AttendanceCommand
 	VisitCommand
 	GroupRecovery
+	GroupSessionCommand
 	LockOpenPresence(context.Context, []int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error
