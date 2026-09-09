@@ -2302,27 +2302,36 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     const dialog = screen.getByRole("dialog", {
-      name: "Regeltermin löschen?",
+      name: "Regeltermin löschen",
     });
     const dateInput = within(dialog).getByLabelText(/Ab Datum/);
     expect(dateInput).toHaveValue("2026-05-06");
 
-    fireEvent.change(dateInput, { target: { value: "" } });
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110): erst
+    // "Löschen", dann prüft "Endgültig löschen" das Datum.
     fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    fireEvent.change(dateInput, { target: { value: "" } });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "Bitte ein Datum auswählen.",
     );
     expect(onDeleteSeries).not.toHaveBeenCalled();
 
     fireEvent.change(dateInput, { target: { value: "2026-05-05" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       "Das Datum darf nicht in der Vergangenheit liegen.",
     );
     expect(onDeleteSeries).not.toHaveBeenCalled();
 
     fireEvent.change(dateInput, { target: { value: "2026-05-07" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
 
     await waitFor(() =>
       expect(onDeleteSeries).toHaveBeenCalledWith(

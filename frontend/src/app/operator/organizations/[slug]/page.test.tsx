@@ -846,16 +846,16 @@ describe("OperatorOrganizationDetailPage", () => {
 
     fireEvent.click(await screen.findByText("Löschen"));
 
-    // SoftDeleteConfirmationModal renders an input that requires the org name.
-    const confirmInput = await screen.findByLabelText(
-      /Geben Sie den Trägernamen ein/,
+    // Soft-Delete mit Papierkorb: zweistufige ConfirmDeleteModal ohne
+    // Namenseingabe (#3110).
+    expect(
+      await screen.findByRole("heading", { name: "Träger löschen" }),
+    ).toBeInTheDocument();
+    const footer = screen.getByTestId("modal-footer");
+    fireEvent.click(within(footer).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(footer).getByRole("button", { name: "Endgültig löschen" }),
     );
-    fireEvent.change(confirmInput, { target: { value: "Test Org" } });
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "Träger löschen",
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(mockSoftDeleteOrganization).toHaveBeenCalledWith("1");

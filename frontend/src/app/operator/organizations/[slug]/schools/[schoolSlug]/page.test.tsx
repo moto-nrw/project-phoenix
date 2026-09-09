@@ -632,15 +632,16 @@ describe("OperatorSchoolDetailPage", () => {
 
     fireEvent.click(await screen.findByText("Löschen"));
 
-    const confirmInput = await screen.findByLabelText(
-      /Geben Sie den Schulnamen ein/,
+    // Soft-Delete mit Papierkorb: zweistufige ConfirmDeleteModal ohne
+    // Namenseingabe (#3110).
+    expect(
+      await screen.findByRole("heading", { name: "Schule löschen" }),
+    ).toBeInTheDocument();
+    const footer = screen.getByTestId("modal-footer");
+    fireEvent.click(within(footer).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(footer).getByRole("button", { name: "Endgültig löschen" }),
     );
-    fireEvent.change(confirmInput, { target: { value: "Test School" } });
-
-    const dialog = await screen.findByRole("dialog", {
-      name: "Schule löschen",
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(mockSoftDeleteSchool).toHaveBeenCalledWith("10");

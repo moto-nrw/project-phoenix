@@ -263,36 +263,38 @@ vi.mock("./guardian-picker-panel", () => ({
   ),
 }));
 
+// Mirrors the #3110 dialog: admins pick the scope inside the dialog, the
+// full delete stays disabled until the affected-children warning arrived.
 vi.mock("./guardian-delete-modal", () => ({
   GuardianDeleteModal: ({
     isOpen,
     onClose,
-    onSelectUnlink,
-    onSelectFullDelete,
+    onScopeChange,
     onConfirmUnlink,
     onConfirmFullDelete,
-    onBack,
     guardianName,
-    step,
+    scope,
     canFullDelete,
     fullDeleteWarning,
     isWarningLoading,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onSelectUnlink: () => void;
-    onSelectFullDelete: () => void;
+    onScopeChange?: (scope: "unlink" | "full") => void;
     onConfirmUnlink: () => void;
     onConfirmFullDelete: () => void;
-    onBack: () => void;
     guardianName: string;
-    step?: "choose" | "confirm-unlink" | "confirm-full";
+    scope?: "unlink" | "full" | null;
     canFullDelete?: boolean;
     fullDeleteWarning?: string | null;
     isWarningLoading?: boolean;
   }) =>
     isOpen ? (
-      <div data-testid="guardian-delete-modal" data-step={step}>
+      <div
+        data-testid="guardian-delete-modal"
+        data-scope={scope ?? "none"}
+        data-can-full-delete={canFullDelete ? "yes" : "no"}
+      >
         <p data-testid="delete-guardian-name">Delete {guardianName}?</p>
         {fullDeleteWarning && (
           <p data-testid="full-delete-warning">{fullDeleteWarning}</p>
@@ -300,54 +302,42 @@ vi.mock("./guardian-delete-modal", () => ({
         <button type="button" onClick={onClose} data-testid="cancel-delete">
           Cancel
         </button>
-        {step === "choose" && (
+        {canFullDelete && (
           <>
             <button
               type="button"
-              onClick={onSelectUnlink}
+              onClick={() => onScopeChange?.("unlink")}
               data-testid="select-unlink"
             >
               Choose Unlink
             </button>
-            {canFullDelete && (
-              <button
-                type="button"
-                onClick={onSelectFullDelete}
-                data-testid="select-full-delete"
-              >
-                Choose Full Delete
-              </button>
-            )}
-          </>
-        )}
-        {step === "confirm-unlink" && (
-          <>
-            <button type="button" onClick={onBack} data-testid="back">
-              Back
-            </button>
             <button
               type="button"
-              onClick={onConfirmUnlink}
-              data-testid="confirm-delete"
+              onClick={() => onScopeChange?.("full")}
+              data-testid="select-full-delete"
             >
-              Confirm Unlink
+              Choose Full Delete
             </button>
           </>
         )}
-        {step === "confirm-full" && (
-          <>
-            <button type="button" onClick={onBack} data-testid="back">
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={onConfirmFullDelete}
-              data-testid="confirm-full-delete"
-              disabled={isWarningLoading}
-            >
-              Confirm Full Delete
-            </button>
-          </>
+        {(!canFullDelete || scope === "unlink") && (
+          <button
+            type="button"
+            onClick={onConfirmUnlink}
+            data-testid="confirm-delete"
+          >
+            Confirm Unlink
+          </button>
+        )}
+        {canFullDelete && scope === "full" && (
+          <button
+            type="button"
+            onClick={onConfirmFullDelete}
+            data-testid="confirm-full-delete"
+            disabled={isWarningLoading || !fullDeleteWarning}
+          >
+            Confirm Full Delete
+          </button>
         )}
       </div>
     ) : null,
@@ -805,11 +795,12 @@ describe("StudentGuardianManager", () => {
       render(<StudentGuardianManager studentId="student-123" />);
       await openDeleteModal();
 
-      // No choice screen → goes directly to the unlink confirmation.
+      // No scope choice → the per-child unlink is the only action.
       expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-        "data-step",
-        "confirm-unlink",
+        "data-can-full-delete",
+        "no",
       );
+      expect(screen.getByTestId("confirm-delete")).toBeInTheDocument();
       expect(
         screen.queryByTestId("select-full-delete"),
       ).not.toBeInTheDocument();
@@ -822,17 +813,17 @@ describe("StudentGuardianManager", () => {
       render(<StudentGuardianManager studentId="student-123" />);
       await openDeleteModal();
 
-      // Admin starts on the choice screen.
+      // Admin starts without a scope.
       expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-        "data-step",
-        "choose",
+        "data-scope",
+        "none",
       );
 
       fireEvent.click(screen.getByTestId("select-unlink"));
       await waitFor(() => {
         expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-          "data-step",
-          "confirm-unlink",
+          "data-scope",
+          "unlink",
         );
       });
 
@@ -877,8 +868,8 @@ describe("StudentGuardianManager", () => {
         );
       });
       expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-        "data-step",
-        "confirm-full",
+        "data-scope",
+        "full",
       );
 
       // Confirm → force delete + success toast.
@@ -897,7 +888,7 @@ describe("StudentGuardianManager", () => {
       });
     });
 
-    it("can step back from the full-delete confirmation to the choice step", async () => {
+    it("discards the warning when the scope leaves the full delete", async () => {
       mockPermissions = ["admin:*"];
       mockFetchGuardianDeletePreview.mockResolvedValue({
         linkedCount: 1,
@@ -913,20 +904,26 @@ describe("StudentGuardianManager", () => {
       fireEvent.click(screen.getByTestId("select-full-delete"));
       await waitFor(() => {
         expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-          "data-step",
-          "confirm-full",
+          "data-scope",
+          "full",
         );
+      });
+      await waitFor(() => {
+        expect(screen.getByTestId("full-delete-warning")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("back"));
+      fireEvent.click(screen.getByTestId("select-unlink"));
       await waitFor(() => {
         expect(screen.getByTestId("guardian-delete-modal")).toHaveAttribute(
-          "data-step",
-          "choose",
+          "data-scope",
+          "unlink",
         );
       });
-      // Choice screen is back, force delete was never called.
-      expect(screen.getByTestId("select-unlink")).toBeInTheDocument();
+      // The stale blast radius is gone, force delete was never called.
+      expect(
+        screen.queryByTestId("full-delete-warning"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("confirm-delete")).toBeInTheDocument();
       expect(mockDeleteGuardian).not.toHaveBeenCalledWith("guardian-1", {
         force: true,
       });

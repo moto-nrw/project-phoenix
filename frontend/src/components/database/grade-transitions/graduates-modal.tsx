@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -312,25 +312,38 @@ export function GraduatesModal({
       </SlideOver>
 
       {confirmOpen && (
-        <ConfirmationModal
+        // Endgültige Massenlöschung von Kindern: unwiderruflicher Datenverlust,
+        // deshalb die Texteingabe-Stufe (BAUARTEN-SPEC Bauart 2 Regel 6).
+        <ConfirmDeleteModal
           isOpen
+          title="Kinder endgültig löschen"
+          description={
+            <p>
+              {selectedIds.length === 1
+                ? "1 Kind wird mit allen Daten unwiderruflich gelöscht."
+                : `${selectedIds.length} Kinder werden mit allen Daten unwiderruflich gelöscht.`}{" "}
+              <span className="font-medium">Zurücksetzen</span> kann{" "}
+              {selectedIds.length === 1 ? "dieses Kind" : "diese Kinder"} danach
+              nicht mehr zurückholen.
+            </p>
+          }
+          gate={{
+            mode: "textConfirm",
+            expected: "LÖSCHEN",
+            inputId: "graduates-purge-confirm",
+            label: "Zur Bestätigung LÖSCHEN eingeben:",
+            placeholder: "LÖSCHEN",
+          }}
+          confirmLabel={
+            selectedIds.length === 1
+              ? "1 Kind endgültig löschen"
+              : `${selectedIds.length} Kinder endgültig löschen`
+          }
+          onConfirm={handlePurge}
           onClose={() => setConfirmOpen(false)}
-          onConfirm={() => void handlePurge()}
-          title="Endgültig löschen?"
-          confirmText="Ja, endgültig löschen"
-          cancelText="Abbrechen"
-          isConfirmLoading={isPurging}
-          isDismissDisabled={isPurging}
-        >
-          <p>
-            {selectedIds.length === 1
-              ? "1 Kind wird mit allen Daten unwiderruflich gelöscht."
-              : `${selectedIds.length} Kinder werden mit allen Daten unwiderruflich gelöscht.`}{" "}
-            <span className="font-medium">Zurücksetzen</span> kann{" "}
-            {selectedIds.length === 1 ? "dieses Kind" : "diese Kinder"} danach
-            nicht mehr zurückholen.
-          </p>
-        </ConfirmationModal>
+          loading={isPurging}
+          error=""
+        />
       )}
     </>
   );
