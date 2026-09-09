@@ -855,6 +855,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
 	var manualSharedAccountID int64
+	// Ids of the parent pickup changes the seeder files, served back as the
+	// open care queue so the decided demo request (#3135) finds its tokens.
+	var pickupRequestIDs []int64
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -1146,6 +1149,27 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 						{"id": fmt.Sprintf("%d", idCounter+1000), "created_student_id": fmt.Sprintf("%d", idCounter+2000)},
 					},
 				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/care-exception") && r.Method == seedHTTPMethodPost {
+			pickupRequestIDs = append(pickupRequestIDs, idCounter)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)},
+			})
+			return
+		}
+		if r.URL.Path == "/api/students/change-requests" && r.Method == seedHTTPMethodGet {
+			items := make([]map[string]any, 0, len(pickupRequestIDs))
+			for _, id := range pickupRequestIDs {
+				items = append(items, map[string]any{
+					"request_type":     "care_schedule",
+					"expected_version": fmt.Sprintf("v%d", id),
+					"data":             map[string]any{"id": fmt.Sprintf("%d", id), "impact_token": fmt.Sprintf("impact-%d", id)},
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"items": items},
 			})
 			return
 		}
