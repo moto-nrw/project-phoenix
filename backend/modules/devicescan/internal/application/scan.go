@@ -299,7 +299,7 @@ func (s *Service) scanVisit(ctx context.Context, device *ports.Device, student *
 		RoomID: command.RoomID, DeviceID: device.ID, SkipCheckin: skipCheckin, Checkout: checkout,
 	})
 	if err != nil {
-		if shouldRollbackDestinationCheckin(checkout.CheckedOut, err) {
+		if checkout.CheckedOut {
 			s.unit.MarkRollback(ctx)
 		}
 		return nil, err
@@ -336,17 +336,6 @@ func (s *Service) scanVisit(ctx context.Context, device *ports.Device, student *
 		slog.String("room", result.RoomName),
 	)
 	return result, nil
-}
-
-// shouldRollbackDestinationCheckin reports whether a refused destination
-// must undo the source checkout that already happened in this request.
-func shouldRollbackDestinationCheckin(checkedOut bool, err error) bool {
-	if !checkedOut {
-		return false
-	}
-	var roomCapacity *devicescan.RoomCapacityExceededError
-	var activityCapacity *devicescan.ActivityCapacityExceededError
-	return errors.As(err, &roomCapacity) || errors.As(err, &activityCapacity)
 }
 
 // buildScanResult names the transition from what happened.

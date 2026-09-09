@@ -328,7 +328,7 @@ func TestDeviceCheckin_RoomTransfer(t *testing.T) {
 		assert.Contains(t, data, "previous_room")
 		assert.Contains(t, data["message"], "Gewechselt von")
 	})
-	t.Run("fails into a room without a session but keeps the checkout", func(t *testing.T) {
+	t.Run("fails into a room without a session and preserves the source visit", func(t *testing.T) {
 		t.Parallel()
 		k := setupCheckinRoute(t)
 		tag, studentID, _ := k.studentCard(t, "Transfer", "Student", "3c")
@@ -336,12 +336,13 @@ func TestDeviceCheckin_RoomTransfer(t *testing.T) {
 		roomB := testpkg.CreateTestRoom(t, k.db, "Transfer Room 2")
 		visit := testpkg.CreateTestVisit(t, k.db, studentID, sessionA, time.Now(), nil)
 
-		rr := k.call(t, "POST", "/checkin", checkinBody(tag, roomB.ID), k.device(t, "transfer-invalid"))
+		rr := k.call(t, "POST", "/checkin", checkinBody(tag, roomB.ID), k.device(t, "transfer-invalid"), testutil.WithIoTDeviceRequest())
 
 		testutil.AssertNotFound(t, rr)
+		assert.Contains(t, rr.Body.String(), "no active groups in specified room")
 		persisted, err := k.presence(t).FindVisit(testpkg.Ctx(t), visit.ID)
 		require.NoError(t, err)
-		assert.NotNil(t, persisted.ExitTime)
+		assert.Nil(t, persisted.ExitTime, "a rejected transfer must retain the source room")
 	})
 }
 

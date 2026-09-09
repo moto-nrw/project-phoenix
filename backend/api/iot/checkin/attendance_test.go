@@ -147,10 +147,14 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 func TestToggleAttendance_ConfirmChecksInAndAttributesStaff(t *testing.T) {
 	t.Parallel()
 	k := setupAttendanceRoute(t)
-	staff, _, _ := k.staff(t, "TestStaff", "ForToggle")
+	staff, staffID, _ := k.staff(t, "TestStaff", "ForToggle")
+	device, deviceID := k.deviceRow(t, "toggle-staff")
+	_, _, sessionID := k.roomWithSession(t, "Staff confirmation")
+	testpkg.LinkDeviceToActiveGroup(t, k.db, sessionID, deviceID)
+	testpkg.CreateTestGroupSupervisor(t, k.db, staffID, sessionID, "supervisor")
 	tag, _, _ := k.studentCard(t, "StaffToggle", "Test", "3b")
 
-	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), k.device(t, "toggle-staff"), staff)
+	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), device, staff, testutil.WithIoTDeviceRequest())
 
 	assert.Equal(t, 200, rr.Code, rr.Body.String())
 	data := responseData(t, rr.Body.Bytes())
@@ -165,8 +169,13 @@ func TestToggleAttendance_ConfirmWithoutStaffChecksIn(t *testing.T) {
 	t.Parallel()
 	k := setupAttendanceRoute(t)
 	tag, _, _ := k.studentCard(t, "Toggle", "Test", "3a")
+	device, deviceID := k.deviceRow(t, "toggle-valid")
+	_, supervisorID, _ := k.staff(t, "Session", "Supervisor")
+	_, _, sessionID := k.roomWithSession(t, "Device-only confirmation")
+	testpkg.LinkDeviceToActiveGroup(t, k.db, sessionID, deviceID)
+	testpkg.CreateTestGroupSupervisor(t, k.db, supervisorID, sessionID, "supervisor")
 
-	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), k.device(t, "toggle-valid"))
+	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), device, testutil.WithIoTDeviceRequest())
 
 	assert.Equal(t, 200, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), `"action":"checked_in"`)
@@ -192,6 +201,15 @@ func TestToggleAttendance_CheckoutEndsOpenVisit(t *testing.T) {
 	ended, err := k.presence(t).FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, ended.ExitTime, "toggle checkout must end the open room visit (#895)")
+}
+
+func TestToggleAttendance_ConfirmDeviceWithoutSupervisorIsRejected(t *testing.T) {
+	t.Parallel()
+	k := setupAttendanceRoute(t)
+	tag, _, _ := k.studentCard(t, "Sessionless", "Confirmation", "3a")
+	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), k.device(t, "sessionless-confirm"), testutil.WithIoTDeviceRequest())
+	assert.Equal(t, 500, rr.Code, "preserve the legacy generic-confirm authorization response")
+	assert.Contains(t, rr.Body.String(), "device must have an active group with supervisors")
 }
 
 func TestToggleAttendance_AlumnusRejected(t *testing.T) {
