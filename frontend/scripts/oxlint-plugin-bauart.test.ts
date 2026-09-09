@@ -150,3 +150,145 @@ describe("bauart/one-delete-confirm", () => {
     ).not.toContain("bauart(one-delete-confirm)");
   });
 });
+
+describe("bauart/no-row-action-buttons", () => {
+  const ROW_ACTION = "bauart(no-row-action-buttons)";
+
+  it("rejects an icon row of edit/delete buttons per list item", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      import { Pencil, Trash2 } from "lucide-react";
+      export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
+        return (
+          <ul>
+            {rows.map((row) => (
+              <li key={row.id}>
+                {row.name}
+                <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} bearbeiten\`}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" aria-label="Löschen">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
+    expect(output).toContain("bearbeiten");
+  });
+
+  it("rejects text buttons in a DataTable column render", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export const columns = [
+        {
+          key: "actions",
+          render: (day: { id: string }) => (
+            <div>
+              <Button type="button" variant="ghost" size="compact">
+                Bearbeiten
+              </Button>
+              <button type="button">{day.id ? "Löscht…" : "Endgültig löschen"}</button>
+            </div>
+          ),
+        },
+      ];`,
+    );
+
+    expect(status).toBe(1);
+    expect(output.match(/bauart\(no-row-action-buttons\)/g)).toHaveLength(2);
+  });
+
+  it("accepts the kebab, reorder arrows and chip removers", () => {
+    const { output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      import { ChevronUp, X } from "lucide-react";
+      import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+      export function Probe({ rows }: { rows: { id: string; name: string }[] }) {
+        return (
+          <ul>
+            {rows.map((row) => (
+              <li key={row.id}>
+                <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} nach oben\`}>
+                  <ChevronUp className="size-4" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" aria-label={\`\${row.name} entfernen\`}>
+                  <X className="size-4" />
+                </Button>
+                <OverflowMenu
+                  ariaLabel={\`Aktionen für \${row.name}\`}
+                  items={[
+                    { label: "Bearbeiten", onClick: () => {} },
+                    { label: "Löschen", destructive: true, onClick: () => {} },
+                  ]}
+                />
+              </li>
+            ))}
+          </ul>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain(ROW_ACTION);
+  });
+
+  it("ignores buttons outside a per-item render", () => {
+    const { output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe() {
+        return (
+          <footer>
+            <Button type="button" variant="danger">Löschen</Button>
+            <Button type="button">Bearbeiten</Button>
+          </footer>
+        );
+      }`,
+    );
+
+    expect(output).not.toContain(ROW_ACTION);
+  });
+
+  it("leaves the other portals alone", () => {
+    const source = `import { Button } from "~/components/ui/button";
+      export function Probe({ rows }: { rows: string[] }) {
+        return rows.map((row) => (
+          <Button key={row} type="button">Löschen</Button>
+        ));
+      }`;
+
+    for (const path of [
+      "src/app/operator/persons/page.tsx",
+      "src/app/parents/(protected)/page.tsx",
+      "src/app/school/page.tsx",
+      "src/components/operator/persons-table.tsx",
+      "src/components/parent/guardians-panel.tsx",
+      "src/components/school/list.tsx",
+    ]) {
+      expect(lintSource(source, path).output).not.toContain(ROW_ACTION);
+    }
+    expect(
+      lintSource(source, "src/app/[tenant]/(protected)/probe/page.tsx").output,
+    ).toContain(ROW_ACTION);
+  });
+
+  it("tolerates a baselined file only up to its count", () => {
+    const button = `<Button key={row} type="button">Löschen</Button>`;
+    const probe = (
+      count: number,
+    ) => `import { Button } from "~/components/ui/button";
+      export function Probe({ rows }: { rows: string[] }) {
+        return rows.map((row) => (
+          <>${button.repeat(count)}</>
+        ));
+      }`;
+    const path = "src/components/admin/pending-invitations-list.tsx";
+
+    expect(lintSource(probe(1), path).output).not.toContain(ROW_ACTION);
+    expect(lintSource(probe(2), path).output).toContain(ROW_ACTION);
+  });
+});
