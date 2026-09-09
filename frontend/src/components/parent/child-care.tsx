@@ -1130,6 +1130,32 @@ export function PickupTimeModal({
     }
   };
 
+  if (confirmingReset) {
+    return (
+      <ConfirmDeleteModal
+        isOpen
+        title={t("pickup.resetTitle")}
+        description={t("pickup.resetDescription", {
+          date: formatLocaleDate(date, locale),
+        })}
+        gate={{ mode: "twoStep", firstStepLabel: t("pickup.resetFirstStep") }}
+        confirmLabel={t("pickup.resetConfirm")}
+        loadingLabel={t("pickup.resetLoading")}
+        cancelLabel={t("cancel")}
+        closeLabel={t("close")}
+        backdropLabel={t("close")}
+        mobileSheet
+        loading={submitting}
+        error={resetError ?? ""}
+        onConfirm={() => void handleRemove()}
+        onClose={() => {
+          setConfirmingReset(false);
+          setResetError(null);
+        }}
+      />
+    );
+  }
+
   return (
     <Modal
       isOpen
@@ -1361,27 +1387,6 @@ export function PickupTimeModal({
           </p>
         )}
       </div>
-
-      <ConfirmDeleteModal
-        isOpen={confirmingReset}
-        title={t("pickup.resetTitle")}
-        description={t("pickup.resetDescription", {
-          date: formatLocaleDate(date, locale),
-        })}
-        gate={{ mode: "twoStep", firstStepLabel: t("pickup.resetFirstStep") }}
-        confirmLabel={t("pickup.resetConfirm")}
-        loadingLabel={t("pickup.resetLoading")}
-        cancelLabel={t("cancel")}
-        closeLabel={t("close")}
-        mobileSheet
-        loading={submitting}
-        error={resetError ?? ""}
-        onConfirm={() => void handleRemove()}
-        onClose={() => {
-          setConfirmingReset(false);
-          setResetError(null);
-        }}
-      />
     </Modal>
   );
 }

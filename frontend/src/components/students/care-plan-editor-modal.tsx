@@ -73,6 +73,11 @@ export interface CarePlanWeeklySubmit {
   readonly pickupSchedules: PickupScheduleFormData[];
 }
 
+interface NoteDeletionTarget {
+  readonly content: string;
+  readonly deleteNote: () => Promise<void>;
+}
+
 export interface CarePlanWeeklyAdjustment {
   readonly resolution: PickupAdjustmentResolution;
   readonly preview: PickupAdjustmentPreview;
@@ -181,6 +186,10 @@ export function CarePlanEditorModal({
   const [error, setError] = useState<string | null>(null);
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
+  const [noteDeletionTarget, setNoteDeletionTarget] =
+    useState<NoteDeletionTarget | null>(null);
+  const [isDeletingNote, setIsDeletingNote] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [weeklyAdjustment, setWeeklyAdjustment] =
     useState<PickupAdjustmentPreview | null>(null);
   const [offeringSelections, setOfferingSelections] = useState<
@@ -216,6 +225,9 @@ export function CarePlanEditorModal({
     setError(null);
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
+    setNoteDeletionTarget(null);
+    setIsDeletingNote(false);
+    setNoteDrafts({});
     setWeeklyAdjustment(null);
     weeklyExceptionPreview.current = null;
     setSelectedOfferingId(null);
@@ -248,6 +260,9 @@ export function CarePlanEditorModal({
     setError(null);
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
+    setNoteDeletionTarget(null);
+    setIsDeletingNote(false);
+    setNoteDrafts({});
     setWeeklyAdjustment(null);
     weeklyExceptionPreview.current = null;
     setSelectedOfferingId(null);
@@ -364,6 +379,24 @@ export function CarePlanEditorModal({
         : "Hinweis konnte nicht gespeichert werden";
     setError(message);
     toast.error(message);
+  };
+
+  const closeNoteDeleteConfirmation = () => {
+    setNoteDeletionTarget(null);
+    setFormVisible(true);
+  };
+
+  const handleNoteDelete = async () => {
+    if (!noteDeletionTarget) return;
+    setIsDeletingNote(true);
+    try {
+      await noteDeletionTarget.deleteNote();
+    } catch (err) {
+      handleNoteError(err);
+    } finally {
+      setIsDeletingNote(false);
+      closeNoteDeleteConfirmation();
+    }
   };
 
   const handleResetPickupToOffering = async (weekday: number, date: string) => {
@@ -765,6 +798,14 @@ export function CarePlanEditorModal({
                     onUpdatePickup={onUpdatePickupNote}
                     onDeletePickup={onDeletePickupNote}
                     onError={handleNoteError}
+                    noteDrafts={noteDrafts}
+                    onNoteDraftChange={(key, content) =>
+                      setNoteDrafts((drafts) => ({ ...drafts, [key]: content }))
+                    }
+                    onRequestDelete={(target) => {
+                      setFormVisible(false);
+                      setNoteDeletionTarget(target);
+                    }}
                   />
                 </>
               ) : weeklyAdjustment ? (
@@ -883,6 +924,25 @@ export function CarePlanEditorModal({
           </ul>
         </div>
       </ConfirmationModal>
+
+      <ConfirmDeleteModal
+        isOpen={noteDeletionTarget !== null}
+        title="Hinweis löschen?"
+        description={
+          <p>
+            Der Hinweis{" "}
+            <span className="font-medium text-gray-900">
+              „{noteDeletionTarget?.content}“
+            </span>{" "}
+            wird gelöscht.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        loading={isDeletingNote}
+        error=""
+        onConfirm={() => void handleNoteDelete()}
+        onClose={closeNoteDeleteConfirmation}
+      />
     </>
   );
 }
@@ -1009,6 +1069,9 @@ function DayNotesEditor({
   onUpdatePickup,
   onDeletePickup,
   onError,
+  noteDrafts,
+  onNoteDraftChange,
+  onRequestDelete,
 }: {
   readonly date: string;
   readonly arrivalNotes: readonly { id: number; content: string }[];
@@ -1028,9 +1091,10 @@ function DayNotesEditor({
   ) => Promise<void>;
   readonly onDeletePickup: (id: string) => Promise<void>;
   readonly onError: (err: unknown) => void;
+  readonly noteDrafts: Readonly<Record<string, string>>;
+  readonly onNoteDraftChange: (key: string, content: string) => void;
+  readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
-  const [arrivalDraft, setArrivalDraft] = useState("");
-  const [pickupDraft, setPickupDraft] = useState("");
   return (
     <div className="space-y-3 rounded-xl border border-gray-200 p-4">
       <p className="text-sm font-semibold text-gray-900">
@@ -1039,22 +1103,28 @@ function DayNotesEditor({
       <NoteList
         label="Ankunft"
         notes={arrivalNotes}
-        draft={arrivalDraft}
-        setDraft={setArrivalDraft}
-        onCreate={() => onCreateArrival(date, arrivalDraft)}
+        draft={noteDrafts["new:Ankunft"] ?? ""}
+        setDraft={(content) => onNoteDraftChange("new:Ankunft", content)}
+        onCreate={() => onCreateArrival(date, noteDrafts["new:Ankunft"] ?? "")}
         onUpdate={(id, content) => onUpdateArrival(date, Number(id), content)}
         onDelete={(id) => onDeleteArrival(Number(id))}
         onError={onError}
+        noteDrafts={noteDrafts}
+        onNoteDraftChange={onNoteDraftChange}
+        onRequestDelete={onRequestDelete}
       />
       <NoteList
         label="Abholung"
         notes={pickupNotes}
-        draft={pickupDraft}
-        setDraft={setPickupDraft}
-        onCreate={() => onCreatePickup(date, pickupDraft)}
+        draft={noteDrafts["new:Abholung"] ?? ""}
+        setDraft={(content) => onNoteDraftChange("new:Abholung", content)}
+        onCreate={() => onCreatePickup(date, noteDrafts["new:Abholung"] ?? "")}
         onUpdate={(id, content) => onUpdatePickup(date, id, content)}
         onDelete={onDeletePickup}
         onError={onError}
+        noteDrafts={noteDrafts}
+        onNoteDraftChange={onNoteDraftChange}
+        onRequestDelete={onRequestDelete}
       />
     </div>
   );
@@ -1069,6 +1139,9 @@ function NoteList({
   onUpdate,
   onDelete,
   onError,
+  noteDrafts,
+  onNoteDraftChange,
+  onRequestDelete,
 }: {
   readonly label: string;
   readonly notes: readonly { id: string | number; content: string }[];
@@ -1078,6 +1151,9 @@ function NoteList({
   readonly onUpdate: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
   readonly onError: (err: unknown) => void;
+  readonly noteDrafts: Readonly<Record<string, string>>;
+  readonly onNoteDraftChange: (key: string, content: string) => void;
+  readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
   const mutationInFlight = useRef(false);
   const [isMutationPending, setIsMutationPending] = useState(false);
@@ -1109,10 +1185,15 @@ function NoteList({
           key={note.id}
           label={label}
           note={note}
+          content={noteDrafts[`${label}:${note.id}`] ?? note.content}
+          onContentChange={(content) =>
+            onNoteDraftChange(`${label}:${note.id}`, content)
+          }
           onUpdate={onUpdate}
           onDelete={onDelete}
           runMutation={runMutation}
           isMutationPending={isMutationPending}
+          onRequestDelete={onRequestDelete}
         />
       ))}
       <div className="flex gap-2">
@@ -1140,13 +1221,18 @@ function NoteList({
 function NoteEditor({
   label,
   note,
+  content,
+  onContentChange,
   onUpdate,
   onDelete,
   runMutation,
   isMutationPending,
+  onRequestDelete,
 }: {
   readonly label: string;
   readonly note: { id: string | number; content: string };
+  readonly content: string;
+  readonly onContentChange: (content: string) => void;
   readonly onUpdate: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
   readonly runMutation: (
@@ -1154,10 +1240,8 @@ function NoteEditor({
     onSuccess?: () => void,
   ) => Promise<void>;
   readonly isMutationPending: boolean;
+  readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
-  const [content, setContent] = useState(note.content);
-  // Löschen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const trimmedContent = content.trim();
   const hasChanges = trimmedContent !== note.content;
 
@@ -1166,7 +1250,7 @@ function NoteEditor({
       <input
         aria-label={`${label} Hinweis`}
         value={content}
-        onChange={(event) => setContent(event.target.value)}
+        onChange={(event) => onContentChange(event.target.value)}
         maxLength={500}
         className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
       />
@@ -1178,7 +1262,7 @@ function NoteEditor({
         onClick={() =>
           void runMutation(
             () => onUpdate(String(note.id), trimmedContent),
-            () => setContent(trimmedContent),
+            () => onContentChange(trimmedContent),
           )
         }
       >
@@ -1189,31 +1273,15 @@ function NoteEditor({
         variant="ghost"
         size="sm"
         disabled={isMutationPending}
-        onClick={() => setConfirmingDelete(true)}
+        onClick={() =>
+          onRequestDelete({
+            content: note.content,
+            deleteNote: () => onDelete(String(note.id)),
+          })
+        }
       >
         Löschen
       </Button>
-      <ConfirmDeleteModal
-        isOpen={confirmingDelete}
-        title="Hinweis löschen?"
-        description={
-          <p>
-            Der Hinweis{" "}
-            <span className="font-medium text-gray-900">„{note.content}“</span>{" "}
-            wird gelöscht.
-          </p>
-        }
-        gate={{ mode: "twoStep" }}
-        loading={isMutationPending}
-        error=""
-        onConfirm={async () => {
-          // Fehler landen über runMutation im Alert des Editors; der Dialog
-          // schließt in beiden Fällen.
-          await runMutation(() => onDelete(String(note.id)));
-          setConfirmingDelete(false);
-        }}
-        onClose={() => setConfirmingDelete(false)}
-      />
     </div>
   );
 }

@@ -169,6 +169,38 @@ describe("bauart/no-unconfirmed-destructive-click", () => {
     expect(output).toContain("„Entfernen“");
   });
 
+  it("rejects a direct returned destructive call", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({ remove }: { remove: (id: string) => Promise<void> }) {
+        return (
+          <Button type="button" onClick={() => remove("1")}>
+            Entfernen
+          </Button>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+  });
+
+  it("rejects an implicitly returned call from an async handler", () => {
+    const { status, output } = lintSource(
+      `import { Button } from "~/components/ui/button";
+      export function Probe({ remove }: { remove: (id: string) => Promise<void> }) {
+        return (
+          <Button type="button" onClick={async () => remove("1")}>
+            Entfernen
+          </Button>
+        );
+      }`,
+    );
+
+    expect(status).toBe(1);
+    expect(output).toContain("bauart(no-unconfirmed-destructive-click)");
+  });
+
   it("sees the removal inside a branch, an aria-label and an async handler", () => {
     const { status, output } = lintSource(
       `export function Probe({

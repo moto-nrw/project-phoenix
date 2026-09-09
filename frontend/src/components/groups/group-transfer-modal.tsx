@@ -180,6 +180,31 @@ export function GroupTransferModal({
     </>
   );
 
+  if (cancelTarget) {
+    return (
+      <ConfirmationModal
+        isOpen
+        title="Übergabe zurücknehmen?"
+        confirmText="Übergabe zurücknehmen"
+        cancelText="Abbrechen"
+        isConfirmLoading={deletingId !== null}
+        isDismissDisabled={deletingId !== null}
+        onConfirm={async () => {
+          await handleCancel(cancelTarget.substitutionId);
+          // Ein Fehler steht im Alert des Formulars; der Dialog schließt in
+          // beiden Fällen.
+          setCancelTarget(null);
+        }}
+        onClose={() => setCancelTarget(null)}
+      >
+        <p className="text-sm text-gray-700">
+          <strong>{cancelTarget.targetName}</strong> ist danach heute nicht mehr
+          zusätzlich für diese Gruppe zuständig.
+        </p>
+      </ConfirmationModal>
+    );
+  }
+
   return (
     <SlideOver
       open={isOpen}
@@ -292,27 +317,6 @@ export function GroupTransferModal({
           {footer}
         </SlideOverFooter>
       </SlideOverContent>
-      <ConfirmationModal
-        isOpen={cancelTarget !== null}
-        title="Übergabe zurücknehmen?"
-        confirmText="Übergabe zurücknehmen"
-        cancelText="Abbrechen"
-        isConfirmLoading={deletingId !== null}
-        isDismissDisabled={deletingId !== null}
-        onConfirm={async () => {
-          if (!cancelTarget) return;
-          await handleCancel(cancelTarget.substitutionId);
-          // Ein Fehler steht im Alert des Formulars; der Dialog schließt in
-          // beiden Fällen.
-          setCancelTarget(null);
-        }}
-        onClose={() => setCancelTarget(null)}
-      >
-        <p className="text-sm text-gray-700">
-          <strong>{cancelTarget?.targetName}</strong> ist danach heute nicht
-          mehr zusätzlich für diese Gruppe zuständig.
-        </p>
-      </ConfirmationModal>
     </SlideOver>
   );
 }

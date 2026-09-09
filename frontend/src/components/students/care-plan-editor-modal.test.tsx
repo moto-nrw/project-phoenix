@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
@@ -1095,6 +1101,45 @@ describe("CarePlanEditorModal", () => {
       "Hinweis konnte nicht gespeichert werden",
     );
     expect(draft).toHaveValue("Bitte klingeln");
+  });
+
+  it("suspends the editor for a note deletion and restores unsaved drafts", async () => {
+    const onDeleteArrivalNote = vi.fn().mockResolvedValue(undefined);
+    renderEditor({ onDeleteArrivalNote });
+
+    fireEvent.change(screen.getByLabelText("Abholung Hinweis"), {
+      target: { value: "Eigener Entwurf" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+
+    await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    expect(onDeleteArrivalNote).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("Ausnahme für Montag, 25.05."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(screen.getByLabelText("Abholung Hinweis")).toHaveValue(
+      "Eigener Entwurf",
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+    const reopenedDialog = await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", {
+        name: "Endgültig löschen",
+      }),
+    );
+
+    await waitFor(() => expect(onDeleteArrivalNote).toHaveBeenCalledWith(11));
   });
 
   it("shows an error when resetting to the offering pickup time fails", async () => {

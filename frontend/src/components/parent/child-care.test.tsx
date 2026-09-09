@@ -451,6 +451,12 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
     expect(dialog).toHaveTextContent(
       `Die abweichende Abholzeit für den ${de(todayISO())} wird entfernt.`,
     );
+    expect(
+      screen.queryByRole("dialog", { name: "Abholzeit ändern" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Schließen" })).toHaveLength(
+      2,
+    );
 
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),

@@ -215,8 +215,11 @@ function isCall(node) {
   return node?.type === "CallExpression";
 }
 
-/** `void call(...)`, `await call(...)`, or a `.then(...)`/`.catch(...)`
- *  chain on a call: the handler itself runs an async action. */
+/** `void call(...)`, `await call(...)`, a directly returned `remove()` or
+ *  `delete()` call, or a `.then(...)`/`.catch(...)` chain on a call: the
+ *  handler itself runs an async action. Direct calls have no type information,
+ *  so only the conventional destructive action names are unambiguous; state
+ *  setters that open the confirmation remain synchronous and pass. */
 function isFiredAsyncCall(expression) {
   if (!expression) return false;
   if (expression.type === "UnaryExpression" && expression.operator === "void") {
@@ -233,6 +236,12 @@ function isFiredAsyncCall(expression) {
       expression.callee.property.name === "catch")
   ) {
     return true;
+  }
+  if (isCall(expression)) {
+    return (
+      expression.callee?.type === "Identifier" &&
+      /^(?:delete|remove)$/i.test(expression.callee.name)
+    );
   }
   return false;
 }
