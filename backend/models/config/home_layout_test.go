@@ -33,6 +33,12 @@ func TestValidateHomeBlockPlacements_Cells(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid column")
 
 	err = ValidateHomeBlockPlacements([]HomeBlockPlacement{
+		{Key: "tile.students_present", Span: 1, Col: int(^uint(0) >> 1), Row: 0},
+	})
+	require.Error(t, err, "eine überlaufende Spalte darf nicht als gültig gelten")
+	assert.Contains(t, err.Error(), "invalid column")
+
+	err = ValidateHomeBlockPlacements([]HomeBlockPlacement{
 		{Key: "tile.students_present", Span: 1, Col: 0, Row: -1},
 	})
 	require.Error(t, err)

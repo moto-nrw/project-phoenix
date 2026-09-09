@@ -10,6 +10,7 @@ import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
+import { getSmartRedirectPath } from "~/lib/redirect-utils";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { mutate } from "~/lib/swr";
 
@@ -83,10 +84,9 @@ export function TeacherShellProvider({
 }) {
   const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
-  // Das Logo führt zur Startseite — für jede Rolle dieselbe, seit #2180.
-  // Vorher war das Ziel je nach Rolle, Anwesenheitsmodus und Recht ein
-  // anderes; dieselbe Regel stand doppelt hier und im Login-Redirect.
-  const homeUrl = "/home";
+  // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect.
+  // Bestehende reine Lehrkraft-Sitzungen gehören noch ins Schul-Portal.
+  const homeUrl = getSmartRedirectPath(session);
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user

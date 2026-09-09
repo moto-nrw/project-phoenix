@@ -90,7 +90,7 @@ func ValidateHomeBlockPlacements(blocks []HomeBlockPlacement) error {
 		// A block must fit into the grid: its left edge plus its width may not
 		// reach past the last column. Rows are open-ended, capped only so a
 		// client cannot push a block a million rows down.
-		if block.Col < 0 || block.Col+block.Span > HomeBoardColumns {
+		if block.Col < 0 || block.Col > HomeBoardColumns-block.Span {
 			return fmt.Errorf("start page block %q has an invalid column %d", block.Key, block.Col)
 		}
 		if block.Row < 0 || block.Row >= MaxHomeBlockEntries*2 {

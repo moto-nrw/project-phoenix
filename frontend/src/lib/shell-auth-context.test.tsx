@@ -138,6 +138,40 @@ describe("TeacherShellProvider", () => {
     expect(result.current.homeUrl).toBe("/home");
   });
 
+  it("hands existing school-only sessions to the school portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+  });
+
+  it("keeps dual-role lehrkraft accounts in the staff portal", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft mit Betreuung",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft", "user"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/home");
+  });
+
   it("provides profile data from context", () => {
     mockUseSession.mockReturnValue({
       data: { user: { name: "Test", email: "test@example.com", roles: [] } },
