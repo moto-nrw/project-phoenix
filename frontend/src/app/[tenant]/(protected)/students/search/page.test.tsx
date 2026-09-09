@@ -109,7 +109,9 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           onChange={(e) =>
             f.onChange(
               f.multiSelect
-                ? Array.from(e.target.selectedOptions, (option) => option.value)
+                ? Array.from(e.target.options)
+                    .filter((option) => option.selected)
+                    .map((option) => option.value)
                 : e.target.value,
             )
           }
@@ -656,7 +658,7 @@ describe("StudentSearchPage", () => {
         expect(screen.getByTestId("filter-pickupStatus")).toHaveValue(
           "pickedUp",
         );
-        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("15:30");
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue(["15:30"]);
         expect(screen.getByTestId("filter-arrivalTime")).toHaveValue("08:00");
         expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
         expect(screen.getByTestId("filter-sort")).toHaveValue("pickup");
@@ -2679,7 +2681,7 @@ describe("StudentSearchPage", () => {
 
       // Filter by 15:30, only Max has this pickup time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      selectFilterOptions(pickupFilter, ["15:30"]);
 
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
@@ -2704,7 +2706,7 @@ describe("StudentSearchPage", () => {
 
       // Filter by "none": Anna and Lisa have no pickup_time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
 
       await waitFor(() => {
         // Anna has no pickup_time and has_full_access=true
@@ -2762,7 +2764,7 @@ describe("StudentSearchPage", () => {
 
       // Apply "none" pickup time filter: redacted student should be excluded (GDPR)
       const pickupFilter = screen.getByTestId("filter-pickupTime");
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
 
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Visible\\b`))).toBeInTheDocument();
@@ -2784,27 +2786,27 @@ describe("StudentSearchPage", () => {
       const pickupFilter = screen.getByTestId("filter-pickupTime");
 
       // Verify "Keine Gehzeit" chip label for "none"
-      fireEvent.change(pickupFilter, { target: { value: "none" } });
+      selectFilterOptions(pickupFilter, ["none"]);
       await waitFor(() => {
         expect(
-          screen.getByTestId("active-filter-pickupTime"),
+          screen.getByTestId("active-filter-pickupTime-none"),
         ).toHaveTextContent("Keine Gehzeit");
       });
 
       // Switch to specific time: verify chip label and clear-all
-      fireEvent.change(pickupFilter, { target: { value: "15:30" } });
+      selectFilterOptions(screen.getByTestId("filter-pickupTime"), ["15:30"]);
       await waitFor(() => {
         expect(
-          screen.getByTestId("active-filter-pickupTime"),
+          screen.getByTestId("active-filter-pickupTime-15:30"),
         ).toHaveTextContent("Gehzeit 15:30 Uhr");
       });
 
       // Clear all filters
       fireEvent.click(screen.getByTestId("clear-filters"));
       await waitFor(() => {
-        expect(screen.getByTestId("filter-pickupTime")).toHaveValue("all");
+        expect(screen.getByTestId("filter-pickupTime")).toHaveValue([]);
         expect(
-          screen.queryByTestId("active-filter-pickupTime"),
+          screen.queryByTestId(/^active-filter-pickupTime-/),
         ).not.toBeInTheDocument();
       });
     });
