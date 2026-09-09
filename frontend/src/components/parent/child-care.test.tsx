@@ -5,6 +5,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -412,6 +413,100 @@ describe("PickupTimeModal — failed preload guard", () => {
       screen.getByRole("button", { name: "Anfrage bearbeiten" }),
     ).toBeInTheDocument();
     expect(onRemove).not.toHaveBeenCalled();
+  });
+});
+
+// #3109: „Änderung zurücknehmen“ removes the guardian's own pickup override
+// for the day. The footer button only opens the ConfirmDeleteModal; the
+// override is removed after the two-step confirmation inside the dialog.
+describe("PickupTimeModal — Änderung zurücknehmen", () => {
+  const guardianOverride: CareException = {
+    date: todayISO(),
+    pickup_time: "15:00",
+    source: "guardian",
+    pickup_source: "guardian",
+    updated_at: "2026-09-01T09:00:00Z",
+  };
+
+  function openResetDialog(
+    overrides: Partial<React.ComponentProps<typeof PickupTimeModal>> = {},
+  ) {
+    const rendered = renderModal({
+      careExceptions: [guardianOverride],
+      ...overrides,
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Änderung zurücknehmen?",
+    });
+    return { ...rendered, dialog };
+  }
+
+  it("asks before removing the override and removes it after confirming", async () => {
+    const { onRemove, onClose, dialog } = openResetDialog();
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(dialog).toHaveTextContent(
+      `Die abweichende Abholzeit für den ${de(todayISO())} wird entfernt.`,
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Abholzeit ändern" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Schließen" })).toHaveLength(
+      2,
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+    );
+    expect(onRemove).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig zurücknehmen" }),
+    );
+
+    await waitFor(() => expect(onRemove).toHaveBeenCalledWith(todayISO()));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("keeps the override when the parent cancels", () => {
+    const { onRemove, onClose, dialog } = openResetDialog();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+
+    expect(onRemove).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "Änderung zurücknehmen?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a failed removal inside the dialog and stays open", async () => {
+    const onRemove = vi
+      .fn()
+      .mockRejectedValue(
+        new parentApi.ParentApiError("x", 409, "care_exception_raced"),
+      );
+    const { onClose, dialog } = openResetDialog({ onRemove });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig zurücknehmen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(/Dieser Tag wurde gerade geändert/),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "Änderung zurücknehmen?" }),
+    ).toBeInTheDocument();
   });
 });
 

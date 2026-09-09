@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ConfirmationModal } from "~/components/ui/modal";
 import {
   DataField,
   DataGrid,
@@ -77,6 +78,11 @@ export function GroupTransferModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Zurücknehmen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
+  const [cancelTarget, setCancelTarget] = useState<{
+    readonly substitutionId: string;
+    readonly targetName: string;
+  } | null>(null);
   const displayedError = error ?? loadError;
   const errorRef = useScrollToError(displayedError);
 
@@ -86,6 +92,7 @@ export function GroupTransferModal({
       setSelectedStaffId("");
       setError(null);
       setDeletingId(null);
+      setCancelTarget(null);
     }
   }, [isOpen]);
 
@@ -173,6 +180,31 @@ export function GroupTransferModal({
     </>
   );
 
+  if (cancelTarget) {
+    return (
+      <ConfirmationModal
+        isOpen
+        title="Übergabe zurücknehmen?"
+        confirmText="Übergabe zurücknehmen"
+        cancelText="Abbrechen"
+        isConfirmLoading={deletingId !== null}
+        isDismissDisabled={deletingId !== null}
+        onConfirm={async () => {
+          await handleCancel(cancelTarget.substitutionId);
+          // Ein Fehler steht im Alert des Formulars; der Dialog schließt in
+          // beiden Fällen.
+          setCancelTarget(null);
+        }}
+        onClose={() => setCancelTarget(null)}
+      >
+        <p className="text-sm text-gray-700">
+          <strong>{cancelTarget.targetName}</strong> ist danach heute nicht mehr
+          zusätzlich für diese Gruppe zuständig.
+        </p>
+      </ConfirmationModal>
+    );
+  }
+
   return (
     <SlideOver
       open={isOpen}
@@ -238,12 +270,12 @@ export function GroupTransferModal({
                       type="button"
                       variant="outline_danger"
                       size="compact"
-                      onClick={() => void handleCancel(transfer.substitutionId)}
+                      onClick={() => setCancelTarget(transfer)}
                       isLoading={deletingId === transfer.substitutionId}
-                      loadingText="Wird entfernt..."
+                      loadingText="Wird zurückgenommen…"
                       disabled={deletingId === transfer.substitutionId}
                     >
-                      Entfernen
+                      Zurücknehmen
                     </Button>
                   </li>
                 ))}

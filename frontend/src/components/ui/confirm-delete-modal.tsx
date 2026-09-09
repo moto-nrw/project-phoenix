@@ -92,6 +92,16 @@ interface ConfirmDeleteModalProps {
   readonly error: string;
   readonly confirmLabel?: string;
   readonly loadingLabel?: string;
+  /** Label of the cancel button. Defaults to German; pass a translated
+   *  string on localized surfaces (parents portal). */
+  readonly cancelLabel?: string;
+  /** Accessible label of the close button; see `Modal`. */
+  readonly closeLabel?: string;
+  /** Accessible label of the dismiss-on-tap backdrop; see `Modal`. */
+  readonly backdropLabel?: string;
+  /** Bottom sheet on narrow screens; see `Modal`. Required when the dialog
+   *  opens from a `mobileSheet` modal so both share one presentation. */
+  readonly mobileSheet?: boolean;
 }
 
 export function ConfirmDeleteModal({
@@ -108,6 +118,10 @@ export function ConfirmDeleteModal({
   error,
   confirmLabel = "Endgültig löschen",
   loadingLabel = "Wird gelöscht…",
+  cancelLabel = "Abbrechen",
+  closeLabel,
+  backdropLabel,
+  mobileSheet = false,
 }: ConfirmDeleteModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [textInput, setTextInput] = useState("");
@@ -175,9 +189,11 @@ export function ConfirmDeleteModal({
         size="md"
         onClick={close}
         disabled={loading}
-        className="disabled:cursor-not-allowed"
+        className={`disabled:cursor-not-allowed ${
+          mobileSheet ? "hidden sm:inline-flex" : ""
+        }`}
       >
-        Abbrechen
+        {cancelLabel}
       </Button>
       {inFirstStep ? (
         <Button
@@ -215,6 +231,9 @@ export function ConfirmDeleteModal({
       footer={footer}
       isDismissDisabled={loading}
       isBackdropDismissDisabled
+      closeLabel={closeLabel}
+      backdropLabel={backdropLabel}
+      mobileSheet={mobileSheet}
     >
       <div className="text-sm text-gray-600">{description}</div>
 

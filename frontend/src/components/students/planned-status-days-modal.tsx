@@ -135,6 +135,11 @@ export function PlannedStatusDaysModal({
     useState<StudentPartialAbsence | null>(null);
   const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
     useState("");
+  const [statusDayPendingDeletion, setStatusDayPendingDeletion] = useState<{
+    readonly id: string;
+    readonly date: string;
+    readonly status: StudentStatusKind;
+  } | null>(null);
   const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
@@ -355,6 +360,7 @@ export function PlannedStatusDaysModal({
       setEditingPartialAbsenceId(null);
       setPartialAbsencePendingDeletion(null);
       setPartialAbsenceDeleteError("");
+      setStatusDayPendingDeletion(null);
       setCarePlanDay(null);
     },
     [isClassTrip],
@@ -573,13 +579,17 @@ export function PlannedStatusDaysModal({
   // deletion. Out-of-window deletes never touch the parent SWR range, so a
   // local clear is required on success; a failed delete must keep the row.
   // The caller owns the user-facing error toast, so failures are swallowed here.
+  // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
     try {
       await onDeleteStatusDay(statusDayId);
     } catch {
+      // The caller owns the error toast; the dialog closes either way.
+      setStatusDayPendingDeletion(null);
       return;
     }
+    setStatusDayPendingDeletion(null);
     setCheckedExistingDays((current) =>
       current.filter((day) => day.id !== statusDayId),
     );
@@ -702,7 +712,11 @@ export function PlannedStatusDaysModal({
         // eigenständige Dialoge übereinander (#2774). Die Bestätigung steht
         // deshalb als Geschwister NEBEN der Schublade: ein Kind der Schublade
         // würde beim Ausblenden mit verschwinden.
-        open={isOpen && partialAbsencePendingDeletion === null}
+        open={
+          isOpen &&
+          partialAbsencePendingDeletion === null &&
+          statusDayPendingDeletion === null
+        }
         onOpenChange={(open) => {
           if (!open) handleClose();
         }}
@@ -1033,20 +1047,23 @@ export function PlannedStatusDaysModal({
                           ) : null}
                         </span>
                         {onDeleteStatusDay ? (
-                          <button
+                          <Button
                             type="button"
-                            onClick={() => {
-                              void handleDeleteStatusDay(day.id);
-                            }}
-                            disabled={
-                              isSubmitting || deletingStatusDayId === day.id
+                            variant="outline_danger"
+                            size="compact"
+                            onClick={() =>
+                              setStatusDayPendingDeletion({
+                                id: day.id,
+                                date: day.date,
+                                status: day.status,
+                              })
                             }
-                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
+                            disabled={isSubmitting}
+                            isLoading={deletingStatusDayId === day.id}
+                            loadingText="Wird entfernt…"
                           >
-                            {deletingStatusDayId === day.id
-                              ? "Wird entfernt..."
-                              : "Entfernen"}
-                          </button>
+                            Entfernen
+                          </Button>
                         ) : null}
                       </div>
                     ))}
@@ -1154,6 +1171,36 @@ export function PlannedStatusDaysModal({
           </SlideOverFooter>
         </SlideOverContent>
       </SlideOver>
+      <ConfirmDeleteModal
+        isOpen={isOpen && statusDayPendingDeletion !== null}
+        title="Geplanten Tag entfernen?"
+        description={
+          statusDayPendingDeletion ? (
+            <p>
+              Der Eintrag „
+              {capitalizeFirst(
+                getExistingStatusLabel(statusDayPendingDeletion.status),
+              )}
+              “ am {formatDateLabel(statusDayPendingDeletion.date)} wird
+              entfernt. Das Kind gilt an diesem Tag wieder als erwartet.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Entfernen bestätigen" }}
+        onConfirm={() => {
+          if (statusDayPendingDeletion)
+            void handleDeleteStatusDay(statusDayPendingDeletion.id);
+        }}
+        onClose={() => setStatusDayPendingDeletion(null)}
+        loading={
+          isSubmitting ||
+          (deletingStatusDayId !== null &&
+            deletingStatusDayId === statusDayPendingDeletion?.id)
+        }
+        error=""
+        confirmLabel="Eintrag entfernen"
+        loadingLabel="Wird entfernt…"
+      />
       <ConfirmDeleteModal
         isOpen={partialAbsencePendingDeletion !== null}
         title="Teilentschuldigung entfernen?"
