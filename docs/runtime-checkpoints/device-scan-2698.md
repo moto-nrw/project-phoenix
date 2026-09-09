@@ -25,11 +25,11 @@ not committed rows: the rollback case commits none.
 
 | Operation | p50 | p95 | Max | Queries/call | DML rows/call |
 |---|---:|---:|---:|---:|---:|
-| check-in | 13.012 | 20.343 | 26.958 | 40 | 3 |
-| room-transfer | 14.756 | 29.787 | 31.100 | 47 | 4 |
-| check-out | 6.694 | 8.257 | 10.552 | 22 | 1 |
-| duplicate-supervisor | 4.087 | 5.013 | 5.082 | 14 | 0 |
-| rollback-after-scan | 13.176 | 15.496 | 19.248 | 40 | 3 |
+| check-in | 12.855 | 14.980 | 27.046 | 40 | 3 |
+| room-transfer | 15.088 | 18.640 | 19.873 | 47 | 4 |
+| check-out | 7.547 | 8.557 | 10.188 | 22 | 1 |
+| duplicate-supervisor | 4.179 | 5.028 | 5.124 | 14 | 0 |
+| rollback-after-scan | 14.489 | 15.620 | 19.811 | 40 | 3 |
 
 Every operation returned its expected action in all 30 samples. Duplicate
 supervisor scans returned `supervisor_authenticated` without duplicate writes.
@@ -41,7 +41,7 @@ measured forced-failure workload here.
 
 Pool wait-count and wait-duration deltas were zero, as were database deadlock
 deltas. The lock sampler observed no waiting backend. Maximum polling gaps
-were 2.799–8.837 ms; shorter lock waits cannot be excluded. Sampling spans
+were 2.844–8.201 ms; shorter lock waits cannot be excluded. Sampling spans
 fixture gaps between calls, while durations and query counters do not.
 Nearest-rank p50/p95 use the 15th/29th sorted samples. Raw samples and
 result-code counts: [device-scan-2698.raw.json](device-scan-2698.raw.json).
@@ -58,7 +58,15 @@ successful room transfer. This does not claim every scan mutates every table.
 `TestComposedWritesRequireTenantTransaction` verifies that the public write
 entrypoints reject calls without an ambient transaction. The HTTP middleware
 supplies that transaction. Existing kiosk route tests cover capacity rollback
-and error wire data; device-authentication tests cover headers separately.
+and rejected-destination rollback with unchanged error wire data;
+device-authentication tests cover headers separately. Generic attendance
+confirmation retains its existing supervised-session requirement.
+
+Daily checkout resolves school override → registry default in both the scan
+workflow and device config endpoint. The confirmed default is an empty time,
+meaning no time limit; explicit school settings remain authoritative. Neither
+path consults the legacy process environment. Config resolution failures return
+HTTP 500, not a successful response with fabricated settings.
 
 These measurements are not HTTP latency, a concurrent load test, a historical
 before/after comparison, or a staging/production SLO check. No external moto

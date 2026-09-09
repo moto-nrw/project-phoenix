@@ -57,11 +57,10 @@ type ServiceDependencies struct {
 	TimetableDataService     *scheduleSvc.TimetableDataService
 	// SessionEnd is the application workflow behind POST /session/end
 	// (#2697): one UnitOfWork over the Presence and Timetable commands.
-	SessionEnd            sessionend.Command
-	Broadcaster           realtime.Broadcaster
-	Logger                *slog.Logger
-	DailyCheckoutFallback string
-	DB                    *bun.DB
+	SessionEnd  sessionend.Command
+	Broadcaster realtime.Broadcaster
+	Logger      *slog.Logger
+	DB          *bun.DB
 	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
 	// groups. The Device Fleet composition builds them over one shared
 	// last-seen debouncer; this resource only mounts them.

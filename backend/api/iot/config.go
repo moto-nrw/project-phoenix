@@ -2,6 +2,7 @@ package iot
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -49,51 +50,55 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := rs.resolveDeviceConfig(r.Context(), deviceCtx.TenantID)
+	response, err := rs.resolveDeviceConfig(r.Context(), deviceCtx.TenantID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve device configuration", err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, response, "Device configuration retrieved")
 }
 
-func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) deviceConfigResponse {
-	response := deviceConfigResponse{
-		Checkout: deviceConfigCheckout{
-			RaumwechselEnabled: true,
-			SchulhofEnabled:    true,
-			WCEnabled:          true,
-		},
-		PresenceMode: configModel.PresenceModeDetailed,
+func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) (deviceConfigResponse, error) {
+	var response deviceConfigResponse
+	settingsCtx, err := rs.deviceConfigSettingsContext(ctx, tenantID)
+	if err != nil {
+		return response, err
 	}
-
-	settingsCtx, available := rs.deviceConfigSettingsContext(ctx, tenantID)
-	if rawTime := configSvc.ResolveStringOrDefault(settingsCtx, rs.SettingsService, configModel.KeyStudentDailyCheckoutTime, rs.DailyCheckoutFallback, rs.getLogger()); rawTime != "" {
+	rawTime, err := rs.SettingsService.ResolveStringForTenant(settingsCtx, tenantID, configModel.KeyStudentDailyCheckoutTime)
+	if err != nil {
+		return response, err
+	}
+	if rawTime != "" {
 		response.Checkout.DailyCheckoutTime = &rawTime
 	}
-	if !available {
-		return response
+	for _, setting := range []struct {
+		key    string
+		target *bool
+	}{
+		{configModel.KeyCheckoutRaumwechselEnabled, &response.Checkout.RaumwechselEnabled},
+		{configModel.KeyCheckoutSchulhofEnabled, &response.Checkout.SchulhofEnabled},
+		{configModel.KeyCheckoutWCEnabled, &response.Checkout.WCEnabled},
+		{configModel.KeyFeedbackEnabled, &response.Feedback.Enabled},
+	} {
+		value, resolveErr := rs.SettingsService.ResolveBoolForTenant(settingsCtx, tenantID, setting.key)
+		if resolveErr != nil {
+			return response, resolveErr
+		}
+		*setting.target = value
 	}
-
-	response.Checkout.RaumwechselEnabled = resolveDeviceConfigBool(
-		settingsCtx, rs.SettingsService, configModel.KeyCheckoutRaumwechselEnabled, true)
-	response.Checkout.SchulhofEnabled = resolveDeviceConfigBool(
-		settingsCtx, rs.SettingsService, configModel.KeyCheckoutSchulhofEnabled, true)
-	response.Checkout.WCEnabled = resolveDeviceConfigBool(
-		settingsCtx, rs.SettingsService, configModel.KeyCheckoutWCEnabled, true)
-	response.Feedback.Enabled = resolveDeviceConfigBool(
-		settingsCtx, rs.SettingsService, configModel.KeyFeedbackEnabled, false)
-
-	response.PresenceMode = configSvc.ResolvePresenceModeForTenant(
-		settingsCtx, rs.SettingsService, tenantID, rs.getLogger())
-	return response
+	response.PresenceMode, err = rs.SettingsService.ResolveStringForTenant(settingsCtx, tenantID, configModel.KeyPresenceMode)
+	return response, err
 }
 
-func (rs *Resource) deviceConfigSettingsContext(ctx context.Context, tenantID int64) (context.Context, bool) {
+func (rs *Resource) deviceConfigSettingsContext(ctx context.Context, tenantID int64) (context.Context, error) {
 	if rs.SettingsService == nil {
-		return ctx, true
+		return ctx, fmt.Errorf("device configuration requires settings service")
 	}
 	batch, ok := rs.SettingsService.(interface {
 		ResolveManyForTenant(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error)
 	})
 	if !ok {
-		return ctx, true
+		return ctx, nil
 	}
 
 	snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, []string{
@@ -105,31 +110,11 @@ func (rs *Resource) deviceConfigSettingsContext(ctx context.Context, tenantID in
 		configModel.KeyPresenceMode,
 	})
 	if err != nil {
-		rs.getLogger().WarnContext(ctx, "device config settings batch failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-		return ctx, false
+		return ctx, err
 	}
 	if snapshot == nil {
-		return ctx, true
+		return ctx, nil
 	}
 	settingsCtx := tenant.WithTenantID(ctx, tenantID)
-	return configSvc.WithSettingsSnapshot(settingsCtx, snapshot), true
-}
-
-func resolveDeviceConfigBool(
-	ctx context.Context,
-	settings configSvc.SettingsService,
-	key string,
-	fallback bool,
-) bool {
-	if settings == nil {
-		return fallback
-	}
-	value, err := settings.ResolveBool(ctx, key)
-	if err != nil {
-		return fallback
-	}
-	return value
+	return configSvc.WithSettingsSnapshot(settingsCtx, snapshot), nil
 }

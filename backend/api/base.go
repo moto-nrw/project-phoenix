@@ -1322,7 +1322,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SessionEnd:              sessionEnd,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "iot"),
-		DailyCheckoutFallback:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
 		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
