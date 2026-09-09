@@ -47,6 +47,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -57,7 +59,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -180,7 +181,6 @@ type Factory struct {
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          users.StudentDocumentService
 	FileStore                 filestore.Service
-	StaffOffboarding          users.StaffOffboardingService
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
@@ -287,7 +287,7 @@ type Factory struct {
 	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
-	Calendar            calendarService.FullService
+	Calendar            calendarCompose.Application
 	CalendarFeedCleanup calendarService.FeedCleanupService
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
@@ -1760,7 +1760,7 @@ func newFactory(
 		platform.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
 	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
-	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
+	appointmentRenderer := platform.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
 		DefaultFrom: defaultFrom,
 		DB:          db,
 		Guardians:   repos.StudentGuardian,
@@ -1813,35 +1813,6 @@ func newFactory(
 		AuthService:            authService,
 		DB:                     db,
 	})
-
-	staffOffboardingService := users.NewStaffOffboardingService(users.StaffOffboardingServiceDependencies{
-		PersonRepo:             repos.Person,
-		StaffRepo:              repos.Staff,
-		TeacherRepo:            repos.Teacher,
-		GroupSupervisorRepo:    repos.GroupSupervisor,
-		GroupTeacherRepo:       repos.GroupTeacher,
-		ClassTeacherRepo:       repos.ClassTeacher,
-		GroupSubstitutionRepo:  repos.GroupSubstitution,
-		ActivitySupervisorRepo: repos.ActivitySupervisor,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		StaffShiftRepo:         repos.StaffShift,
-		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
-		StaffAbsenceRepo:       repos.StaffAbsence,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		RoleRepo:               repos.Role,
-		AccountPermissionRepo:  repos.AccountPermission,
-		DataDeletionRepo:       repos.DataDeletion,
-		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
-		AuthService:            authService,
-		DB:                     db,
-		Logger:                 logger.With("service", "staff_offboarding"),
-	})
-	if broadcastAware, ok := staffOffboardingService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
@@ -2688,31 +2659,33 @@ func newFactory(
 		Observe:     observeCommunication,
 	})
 
-	calendarSvc := calendarService.NewService(calendarService.Config{
+	calendarSvc := NewCalendarPortal(CalendarDependencies{
+		CalendarFacts: repositories.CalendarFacts{
+			StaffRepo:            repos.Staff,
+			StudentRepo:          repos.Student,
+			GuardianProfileRepo:  repos.GuardianProfile,
+			StudentGuardianRepo:  repos.StudentGuardian,
+			ChildRepo:            repos.ParentChild,
+			GroupRepo:            repos.Group,
+			InstanceStaffRepo:    repos.InstanceStaff,
+			ActivityInstanceRepo: repos.ActivityInstance,
+			RoomRepo:             repos.Room,
+			StaffShiftRepo:       repos.StaffShift,
+			ShiftTypeRepo:        repos.ShiftType,
+			SchoolRepo:           repos.School,
+			AccountRepo:          repos.Account,
+			StaffFeedRepo:        repos.StaffCalendarFeedToken,
+			PersonRepo:           repos.Person,
+		},
 		Appointments:           repos.Appointments(),
-		StaffRepo:              repos.Staff,
-		StudentRepo:            repos.Student,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		ChildRepo:              repos.ParentChild,
-		GroupRepo:              repos.Group,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		ActivityInstanceRepo:   repos.ActivityInstance,
-		RoomRepo:               repos.Room,
-		StaffShiftRepo:         repos.StaffShift,
-		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            userContextService,
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: repos.SchoolCalendar()},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
-		SchoolRepo:             repos.School,
 		Settings:               settingsService,
 		CalDAVPolicy:           calendarCalDAVPolicy{settings: settingsService},
-		AccountRepo:            repos.Account,
-		StaffFeedRepo:          repos.StaffCalendarFeedToken,
 		StaffFeedTombstoneRepo: repos.CalendarStaffFeedTombstone,
-		PersonRepo:             repos.Person,
 		ParentsURL:             parentsURL,
 		FrontendURL:            frontendURL,
 		CalDAVURL:              publicAPIURL,
@@ -3141,7 +3114,6 @@ func newFactory(
 		StaffDocuments:          staffDocumentService,
 		StudentDocuments:        studentDocumentService,
 		FileStore:               fileStoreService,
-		StaffOffboarding:        staffOffboardingService,
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
 		PeopleDirectory:         persons,

@@ -47,7 +47,8 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupTeacher
+	dependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repo := repositories.NewFactory(db, dependencies).GroupTeacher
 	ctx := testpkg.Ctx(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherA")
@@ -59,7 +60,7 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, db, groupB.ID, teacher.ID)
 	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, otherTeacher.ID)
 
-	affected, err := repo.DeleteByTeacherID(ctx, teacher.ID)
+	affected, err := dependencies.Membership.DeleteGroupAssignmentsByTeacher(ctx, teacher.ID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

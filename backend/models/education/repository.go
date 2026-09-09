@@ -48,9 +48,6 @@ type GroupTeacherRepository interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupTeacher, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*GroupTeacher, error)
-	// DeleteByTeacherID removes all group assignments for a teacher
-	// (staff offboarding cleanup).
-	DeleteByTeacherID(ctx context.Context, teacherID int64) (int64, error)
 	// ListGroupTeacherBlockers returns group assignments as
 	// caregiver-capability blocker rows.
 	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]users.BlockerGroup, error)
@@ -63,10 +60,6 @@ type ClassTeacherRepository interface {
 	base.CRUDRepository[*ClassTeacher]
 	// FindByStaff returns the class assignments of one staff member.
 	FindByStaff(ctx context.Context, staffID int64) ([]*ClassTeacher, error)
-	// DeleteByStaffID removes all class assignments for a staff member
-	// (staff offboarding cleanup — staff rows are only soft-deleted, so the
-	// FK cascade never fires).
-	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 }
 
 // GroupSubstitutionRepository defines operations for managing group substitutions
@@ -82,10 +75,6 @@ type GroupSubstitutionRepository interface {
 	FindActive(ctx context.Context, date timezone.Date) ([]*GroupSubstitution, error)
 	FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*GroupSubstitution, error)
 	FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*GroupSubstitution, error)
-	// DeleteActiveOrFutureByStaffID removes substitutions involving the staff
-	// member (as regular or substitute) that have not ended before the given
-	// date. Past substitutions are kept as history (staff offboarding cleanup).
-	DeleteActiveOrFutureByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Methods with related data loading
 	ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)

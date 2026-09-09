@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CleanupOrphanedStaffDocumentFiles retries file removal independently of
@@ -12,6 +14,20 @@ import (
 func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error) {
 	removed := 0
 	var cleanupErr error
+	offboarded, err := rs.StaffDocumentService.ListOffboardedStaffDocumentsPendingFileCleanup(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list offboarded staff documents: %w", err)
+	}
+	offboardedStaff := make(map[int64]bool)
+	for _, document := range offboarded {
+		if offboardedStaff[document.StaffID] {
+			continue
+		}
+		offboardedStaff[document.StaffID] = true
+		if err := rs.OffboardingCleanup.Enqueue(ctx, document.StaffID); err != nil {
+			return 0, err
+		}
+	}
 
 	documents, err := rs.StaffDocumentService.ListDeletedStaffDocumentsPendingFileCleanups(ctx)
 	if err != nil {
@@ -19,27 +35,12 @@ func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Cont
 	} else {
 		pending := make([]pendingDocumentFile, 0, len(documents))
 		for _, document := range documents {
+			if offboardedStaff[document.StaffID] {
+				continue
+			}
 			pending = append(pending, pendingDocumentFile{ID: document.ID, StaffID: document.StaffID, TenantID: document.TenantID, FilenameStored: document.FilenameStored})
 		}
 		count, err := rs.cleanupPendingDocumentFiles(ctx, pending, "deleted")
-		removed += count
-		cleanupErr = errors.Join(cleanupErr, err)
-	}
-
-	// Offboarding soft-deletes the staff row and unlinks its files after the
-	// transaction commits; the document rows themselves stay active. A failed
-	// or crashed unlink therefore leaves files the deleted-document pass above
-	// never sees, and no UI route reaches a soft-deleted staff record, so this
-	// pass is their only recovery path.
-	offboarded, err := rs.StaffDocumentService.ListOffboardedStaffDocumentsPendingFileCleanup(ctx)
-	if err != nil {
-		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("list offboarded staff documents: %w", err))
-	} else {
-		pending := make([]pendingDocumentFile, 0, len(offboarded))
-		for _, document := range offboarded {
-			pending = append(pending, pendingDocumentFile{ID: document.ID, StaffID: document.StaffID, TenantID: document.TenantID, FilenameStored: document.FilenameStored})
-		}
-		count, err := rs.cleanupPendingDocumentFiles(ctx, pending, "offboarded")
 		removed += count
 		cleanupErr = errors.Join(cleanupErr, err)
 	}
@@ -70,6 +71,14 @@ func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Cont
 		removed++
 	}
 
+	if _, ambient := tenant.TransactionFromContext(ctx); ambient {
+		// Recovery producers above must commit before a worker can claim.
+		rs.wakeOffboardingDocumentCleanup(ctx)
+	} else {
+		count, err := rs.runOffboardingDocumentCleanup(ctx)
+		removed += count
+		cleanupErr = errors.Join(cleanupErr, err)
+	}
 	return removed, cleanupErr
 }
 

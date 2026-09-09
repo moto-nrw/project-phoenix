@@ -4,13 +4,13 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-type CalendarTestModule struct{ Calendar calendarService.FullService }
+type CalendarTestModule struct{ Calendar calendarCompose.Application }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
 	command, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
@@ -48,30 +48,32 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 	}
 	logger := slog.Default()
 	cfg := currentFactoryConfig()
-	calendarSvc := calendarService.NewService(calendarService.Config{
+	calendarSvc := NewCalendarPortal(CalendarDependencies{
+		CalendarFacts: repositories.CalendarFacts{
+			StaffRepo:            repos.Staff,
+			StudentRepo:          repos.Student,
+			GuardianProfileRepo:  repos.GuardianProfile,
+			StudentGuardianRepo:  repos.StudentGuardian,
+			ChildRepo:            parents.ParentChild,
+			GroupRepo:            repos.Group,
+			InstanceStaffRepo:    repos.InstanceStaff,
+			ActivityInstanceRepo: repos.ActivityInstance,
+			RoomRepo:             repos.Room,
+			StaffShiftRepo:       repos.StaffShift,
+			ShiftTypeRepo:        repos.ShiftType,
+			SchoolRepo:           repos.School,
+			AccountRepo:          repos.Account,
+			StaffFeedRepo:        feeds.StaffFeed,
+			PersonRepo:           repos.Person,
+		},
 		Appointments:           appointments,
-		StaffRepo:              repos.Staff,
-		StudentRepo:            repos.Student,
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		ChildRepo:              parents.ParentChild,
-		GroupRepo:              repos.Group,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		ActivityInstanceRepo:   repos.ActivityInstance,
-		RoomRepo:               repos.Room,
-		StaffShiftRepo:         repos.StaffShift,
-		ShiftTypeRepo:          repos.ShiftType,
 		UserContext:            identity.UserContext,
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: schoolCalendar},
 		Outbox:                 delivery.EmailOutbox,
 		PushOutbox:             durablePushAdapter{module: delivery.Delivery},
-		SchoolRepo:             repos.School,
 		Settings:               settings.Settings,
-		AccountRepo:            repos.Account,
-		StaffFeedRepo:          feeds.StaffFeed,
 		StaffFeedTombstoneRepo: feeds.Tombstone,
-		PersonRepo:             repos.Person,
 		ParentsURL:             cfg.ParentsURL,
 		FrontendURL:            cfg.FrontendURL,
 		Notifier:               delivery.Notifications,

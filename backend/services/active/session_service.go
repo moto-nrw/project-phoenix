@@ -103,7 +103,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 	}
 
 	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
+	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySessionWithSupervisors", supervisorIDs, func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
 		group, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
 		newGroup = group
 		return group, err
@@ -121,9 +121,12 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
-func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
+func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, supervisorIDs []int64, createSession func(context.Context, int64) (*active.Group, error)) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
+			return err
+		}
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
 			return err
 		}
 
@@ -362,6 +365,10 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
 		}
+		lockedStaff, err := s.lockForceStartSupervisors(txCtx, activityID, supervisorIDs)
+		if err != nil {
+			return err
+		}
 
 		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
 		if err != nil {
@@ -386,6 +393,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		}
 		endedSessionIDs := appendActiveGroupID(nil, deviceEndedSessionID)
 		endedSessionIDs = appendActiveGroupIDs(endedSessionIDs, conflictingSessionIDs...)
+		if err := s.validateTransferredSupervisorLocks(txCtx, conflictingSessionIDs, lockedStaff); err != nil {
+			return err
+		}
 
 		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
 		if err != nil {
@@ -404,6 +414,49 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		return nil
 	})
 	return markRollbackOnRoomCapacity(ctx, err)
+}
+
+func (s *service) lockForceStartSupervisors(ctx context.Context, activityID int64, requested []int64) (map[int64]bool, error) {
+	staffIDs := deduplicateSupervisorIDs(requested)
+	groups, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, group.ID, true)
+		if err != nil {
+			return nil, err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil {
+				staffIDs[supervisor.StaffID] = true
+			}
+		}
+	}
+	if err := s.lockSupervisorsForAssignment(ctx, slices.Collect(maps.Keys(staffIDs))); err != nil {
+		return nil, err
+	}
+	return staffIDs, nil
+}
+
+// Group locks are now held. A supervisor added since discovery requires a
+// fresh command, not an out-of-order staff lock while holding supervision rows.
+func (s *service) validateTransferredSupervisorLocks(ctx context.Context, groupIDs []int64, lockedStaff map[int64]bool) error {
+	for _, groupID := range groupIDs {
+		supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+		if err != nil {
+			return err
+		}
+		for _, supervisor := range supervisors {
+			if supervisor != nil && !lockedStaff[supervisor.StaffID] {
+				return ErrSessionConflict
+			}
+		}
+	}
+	return nil
 }
 
 func markRollbackOnRoomCapacity(ctx context.Context, err error) error {
@@ -727,6 +780,9 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 	uniqueSupervisors := deduplicateSupervisorIDs(supervisorIDs)
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockSupervisorsForAssignment(txCtx, supervisorIDs); err != nil {
+			return err
+		}
 		if err := s.lockActiveGroupForSupervisorUpdate(txCtx, activeGroupID); err != nil {
 			return err
 		}
@@ -752,6 +808,19 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 	}
 
 	return updatedGroup, nil
+}
+
+// Lock requested staff in a stable order before locking supervision rows.
+// Revalidation inside the write transaction closes the preflight/offboarding gap.
+func (s *service) lockSupervisorsForAssignment(ctx context.Context, supervisorIDs []int64) error {
+	ids := slices.Collect(maps.Keys(deduplicateSupervisorIDs(supervisorIDs)))
+	slices.Sort(ids)
+	for _, id := range ids {
+		if err := s.lockStaffForSupervision(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active

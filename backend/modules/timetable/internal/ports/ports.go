@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	PreviewStaffOffboarding(context.Context, int64, string) (domain.OffboardingSnapshot, domain.OperationStats, error)
 	CountPlannedSupervisorsByCalendarPeriod(context.Context) (map[int64]int, domain.OperationStats, error)
 	LockInstanceStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	RestoreInstanceStudentAttendanceRow(context.Context, int64, domain.CompletionAttendance) (domain.OperationStats, error)
@@ -109,6 +110,7 @@ type Store interface {
 	DeleteActivityException(context.Context, int64) (domain.OperationStats, error)
 	DeleteActivityExceptionsBefore(context.Context, string) (int64, domain.OperationStats, error)
 	FindActivityInstance(context.Context, int64) (domain.ActivityInstance, bool, domain.OperationStats, error)
+	LockActivityInstance(context.Context, int64, bool) (domain.ActivityInstance, bool, domain.OperationStats, error)
 	ListActivityInstances(context.Context, domain.ActivityInstanceFilter) ([]domain.ActivityInstance, domain.OperationStats, error)
 	MaxActivityInstanceID(context.Context) (int64, domain.OperationStats, error)
 	CountActivityInstances(context.Context, *string) (int, domain.OperationStats, error)

@@ -73,7 +73,8 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
+	dependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repo := repositories.NewFactory(db, dependencies).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestEducationGroup(t, db, "SubDelOffboard")
@@ -94,7 +95,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
 		today.AddDays(5), today.AddDays(10))
 
-	affected, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, today)
+	affected, err := dependencies.Workforce.DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

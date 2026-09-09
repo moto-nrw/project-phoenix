@@ -28,6 +28,15 @@ type Dependencies struct {
 // one for the tenant in context, so row-level security decides visibility
 // exactly as it did for the legacy repositories.
 func New(dependencies Dependencies) (*schoolmembership.Module, error) {
+	service, err := newApplication(dependencies)
+	if err != nil {
+		return nil, err
+	}
+	moduleEngine := engine{service: service}
+	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
+}
+
+func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school membership compose: all dependencies are required")
 	}
@@ -46,8 +55,7 @@ func New(dependencies Dependencies) (*schoolmembership.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	moduleEngine := engine{service: service}
-	return schoolmembership.NewModule(moduleEngine, moduleEngine), nil
+	return service, nil
 }
 
 type transaction struct{}
@@ -305,6 +313,8 @@ func mapError(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, domain.ErrOffboardingConflict):
+		return schoolmembership.ErrOffboardingConflict
 	case errors.Is(err, domain.ErrStaffNotFound):
 		return schoolmembership.ErrStaffNotFound
 	case errors.Is(err, domain.ErrTeacherNotFound):

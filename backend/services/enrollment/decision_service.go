@@ -1904,19 +1904,6 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		}
 	}
 
-	// A re-enrollment or rollover approval can move the child into another
-	// Jahrgang, exactly like a direct school_class edit or a confirmed
-	// Änderungsanmeldung, so the Jahrgang-filtered offering-sourced
-	// Regeltermine — including their already-materialized future occurrences —
-	// must follow in the same transaction (#2147 review round 17). The
-	// recurrence gate is already held — taken with the shared class-writes
-	// gate before the row write above.
-	if existing.SchoolClass != previousSchoolClass {
-		if err := s.ResyncOfferingSourcedTemplates(ctx, s.todayDate()); err != nil {
-			return nil, fmt.Errorf("decision: resync sourced templates after approval class change: %w", err)
-		}
-	}
-
 	// Reconcile the submitted primary guardian BEFORE the targeted-field
 	// dispatch, so the resolved profile is the one the dispatch enriches with
 	// the submitted phone number.
@@ -1944,6 +1931,18 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		// would overwrite their password.
 		if err := s.attachGuardianAccountIfPresent(ctx, guardianRequest, guardian, false); err != nil {
 			return nil, err
+		}
+	}
+
+	// Keep account-before-instance lock order shared with staff offboarding:
+	// a roster insert takes an instance FK lock, so guardian attachment must
+	// precede this resync just as it precedes fresh approval materialization.
+	// The class-writes and recurrence gates remain held from before the
+	// student write. Changed classes must update all sourced future rosters
+	// in the same transaction (#2147, #2709).
+	if existing.SchoolClass != previousSchoolClass {
+		if err := s.ResyncOfferingSourcedTemplates(ctx, s.todayDate()); err != nil {
+			return nil, fmt.Errorf("decision: resync sourced templates after approval class change: %w", err)
 		}
 	}
 

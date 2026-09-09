@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 2,
+  "policy_epoch": 3,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -409,6 +409,10 @@
     {
       "id": "workforce",
       "kind": "domain"
+    },
+    {
+      "id": "staff-offboarding",
+      "kind": "workflow"
     }
   ],
   "roles": [
@@ -968,13 +972,6 @@
     {
       "path": "database/repositories/base",
       "owner": "transaction-runtime",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories/calendar",
-      "owner": "school-calendar",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1564,13 +1561,6 @@
       "path": "services/auth/authtest",
       "owner": "test-support",
       "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/calendar",
-      "owner": "school-calendar",
-      "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2819,6 +2809,55 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal",
+      "owner": "school-calendar",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/compose",
+      "owner": "school-calendar",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/application",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/ports",
+      "owner": "school-calendar",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/adapters/tokens",
+      "owner": "school-calendar",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/staffoffboarding",
+      "owner": "staff-offboarding",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffoffboarding/compose",
+      "owner": "staff-offboarding",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     }
   ],
   "data_objects": [
@@ -3572,6 +3611,10 @@
     },
     {
       "name": "users.staff_document_file_cleanup",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_offboarding_cleanup",
       "write_owner": "workforce"
     },
     {
@@ -16234,6 +16277,695 @@
       "source_role": "domain",
       "target_owner": "people-directory",
       "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.inbound-parent.http.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.root-composition.compose.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.legacy-composition.compose.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.compose.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.application.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.port.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "port",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.inbound-calendar.http.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.contract.school-calendar.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "contract",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.contract.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "contract",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.compose.school-calendar.adapter",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.adapter.crypto",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "adapter",
+      "target_class": "crypto"
+    },
+    {
+      "id": "calendar-portal.internal_test.school-calendar.workflow-decision-test.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-decision-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.crypto",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.security-runtime.application",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.adapter",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.delivery-platform.adapter",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.legacy-shared.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.transaction-runtime.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.organization-tenancy.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.timetable-activities.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.people-directory.domain",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.delivery-platform.application",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.compose",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.student-presence.compose",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.organization-tenancy.application",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.application",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.orm-sql",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "staff-offboarding.to.people-directory",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.school-membership",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.timetable-activities",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.workforce",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.integration-test.people-directory.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.school-membership.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-membership",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.timetable-activities.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.workforce.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.student-presence.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.security-runtime.contract",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.audit-platform.postgres",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.audit-platform.domain",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.audit-platform.application",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.legacy-shared.domain",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.delivery-platform.application",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.delivery-platform.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.identity-access.application",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.tenant-runtime.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.staff-offboarding.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "staff-offboarding",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.school-membership.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.workforce.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.people-directory.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.school-membership.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.student-presence.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.timetable-activities.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.workforce.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.compose.offboarding.staff-offboarding.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "staff-offboarding",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.offboarding.staff-offboarding.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "staff-offboarding",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.module-behavior-test.offboarding.staff-offboarding.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "staff-offboarding",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.module-behavior-test.offboarding.staff-offboarding.compose",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "staff-offboarding",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.database-binding",
+      "description": "Bind owner adapters to the shared database and ambient UnitOfWork; no workflow SQL.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_class": "orm-sql"
     }
   ]
 }

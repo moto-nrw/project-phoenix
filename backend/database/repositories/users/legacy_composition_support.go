@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -37,6 +38,12 @@ func WrapError(op string, err error) error {
 
 // IsNotFound reports whether err is a repository not-found error.
 func IsNotFound(err error) bool { return modelBase.IsNoRows(err) }
+
+// GuardianPortalAccess projects a retained relationship through the shared
+// authorization policy for compositions that consume plain permission facts.
+func GuardianPortalAccess(value *usersModels.StudentGuardian) bool {
+	return value != nil && authorize.StudentGuardianHasPermission(value, authorize.GuardianPermissionPortalAccess)
+}
 
 // CalendarDateString renders an optional calendar date as YYYY-MM-DD, empty
 // when unset.

@@ -218,20 +218,6 @@ func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter acti
 	return rows, nil
 }
 
-func (r staffAbsenceRepository) ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*activeModels.StaffAbsence, error) {
-	return r.list(ctx, "list non-historical absences by staff id", workforce.StaffAbsenceFilter{
-		StaffID: staffID, NonHistoricalFrom: from.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderID}},
-	})
-}
-
-func (r staffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
-	deleted, err := r.workforce.DeleteNonHistoricalStaffAbsences(ctx, staffID, from.String())
-	if err != nil {
-		return 0, writeError("delete non-historical absences by staff id", err)
-	}
-	return deleted, nil
-}
-
 func (r staffAbsenceRepository) list(ctx context.Context, op string, filter workforce.StaffAbsenceFilter) ([]*activeModels.StaffAbsence, error) {
 	values, err := r.workforce.ListStaffAbsences(ctx, filter)
 	if err != nil {

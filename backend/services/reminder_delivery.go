@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
