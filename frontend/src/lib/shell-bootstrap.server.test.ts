@@ -94,6 +94,11 @@ describe("loadShellBootstrap", () => {
           { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
         ],
       },
+      "/api/me/groups/supervised": {
+        data: [
+          { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+        ],
+      },
       "/api/active/schulhof/status": {
         data: {
           exists: true,
@@ -141,6 +146,9 @@ describe("loadShellBootstrap", () => {
     expect(shell.supervision).toEqual({
       groups: [{ id: "2", name: "Zebra" }],
       supervised: [
+        { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+      ],
+      ownSupervised: [
         { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
       ],
       schulhof: {

@@ -91,6 +91,7 @@ function initialState(initial: SupervisionSnapshot | null): SupervisionState {
       initial.supervised,
       initial.schulhof,
       initial.overviewOk,
+      initial.ownSupervised,
     ),
     isLoadingSupervision: false,
   };
@@ -251,25 +252,41 @@ export function SupervisionProvider({
       // own supervisions instead of an empty sidebar.
       // The endpoint is gated on `groups:read`, so accounts without it skip
       // straight to the permission-less /me endpoint.
-      const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
-          return fetch("/api/me/groups/supervised", {
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store",
-          });
-        }
-        const overviewResponse = await fetch("/api/active/supervisors/all", {
+      const fetchOwnSupervisedGroups = () =>
+        fetch("/api/me/groups/supervised", {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-        if (!overviewResponse.ok) {
-          return fetch("/api/me/groups/supervised", {
+
+      const fetchSupervisedGroups = async (): Promise<{
+        response: Response;
+        ownResponse: Response | null;
+      }> => {
+        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
+          return {
+            response: await fetchOwnSupervisedGroups(),
+            ownResponse: null,
+          };
+        }
+
+        // Die Übersicht zeigt alle laufenden Räume, kann die eigene Aufsicht
+        // aber nicht kennzeichnen. Die eigene Abfrage läuft parallel und
+        // liefert ausschließlich das Signal für „Aufsicht fortsetzen“.
+        const [overviewResponse, ownResponse] = await Promise.all([
+          fetch("/api/active/supervisors/all", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
-          });
+          }),
+          fetchOwnSupervisedGroups().catch(() => null),
+        ]);
+        if (!overviewResponse.ok) {
+          return {
+            response: ownResponse ?? overviewResponse,
+            ownResponse: null,
+          };
         }
         overviewOk = true;
-        return overviewResponse;
+        return { response: overviewResponse, ownResponse };
       };
 
       // Fetch supervised groups and Schulhof status in parallel.
@@ -277,7 +294,7 @@ export function SupervisionProvider({
       // backend gates /schulhof/status on that permission, so polling it
       // would only ever 403 (issue #846). The supervised-groups fetch below
       // hits permission-less /me endpoints and is safe for everyone.
-      const [response, schulhofResponse] = await Promise.all([
+      const [{ response, ownResponse }, schulhofResponse] = await Promise.all([
         fetchSupervisedGroups(),
         canReadGroupsRef.current
           ? fetch("/api/active/schulhof/status", {
@@ -307,7 +324,17 @@ export function SupervisionProvider({
         supervised = responseData.data ?? [];
       }
 
-      applySupervision(deriveSupervision(supervised, schulhof, overviewOk));
+      let ownSupervised: SupervisedGroupPayload[] | null = null;
+      if (overviewOk && ownResponse?.ok) {
+        const responseData = (await ownResponse.json()) as {
+          data: SupervisedGroupPayload[] | null;
+        };
+        ownSupervised = responseData.data ?? [];
+      }
+
+      applySupervision(
+        deriveSupervision(supervised, schulhof, overviewOk, ownSupervised),
+      );
     } catch {
       // On error, we can't fetch Schulhof either, so just clear
       applySupervision(EMPTY_SUPERVISION_STATE);

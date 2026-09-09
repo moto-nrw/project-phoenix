@@ -40,6 +40,8 @@ export interface SupervisedGroupPayload {
 export interface SupervisionSnapshot {
   groups: NavigationEducationalGroup[] | null;
   supervised: SupervisedGroupPayload[] | null;
+  /** Eigene laufende Aufsichten zusätzlich zur schulweiten Übersicht. */
+  ownSupervised?: SupervisedGroupPayload[] | null;
   schulhof: SchulhofStatus | null;
   /** True when `supervised` came from the school-wide overview endpoint. */
   overviewOk: boolean;
@@ -94,16 +96,23 @@ export function deriveSupervision(
   supervised: SupervisedGroupPayload[] | null,
   schulhof: SchulhofStatus | null,
   overviewOk: boolean,
+  ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
   const schulhofEntry = schulhofRoom(schulhof);
   const first = supervised?.[0];
+  const ownsRegularRoom =
+    overviewOk &&
+    ownSupervised?.some(
+      (group) =>
+        group.room_id !== undefined && group.room?.name !== SCHULHOF_ROOM_NAME,
+    ) === true;
 
   if (!supervised || !first) {
     // No regular supervision (or the request failed): Schulhof alone still
     // counts, so anyone can join it.
     return {
       isSupervising: schulhofEntry !== null,
-      ownSupervision: schulhof?.is_user_supervising === true,
+      ownSupervision: ownsRegularRoom || schulhof?.is_user_supervising === true,
       supervisedRoomId: schulhofEntry ? SCHULHOF_TAB_ID : undefined,
       supervisedRoomName: schulhofEntry ? SCHULHOF_ROOM_NAME : undefined,
       supervisedRooms: schulhofEntry ? [schulhofEntry] : [],
@@ -141,9 +150,11 @@ export function deriveSupervision(
   return {
     isSupervising: true,
     // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
-    // eine eigene Aufsicht; mit Übersicht sind es alle Räume der Schule.
+    // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
+    // Abfrage das Signal für „Aufsicht fortsetzen“.
     ownSupervision:
       (!overviewOk && eligible.length > 0) ||
+      ownsRegularRoom ||
       schulhof?.is_user_supervising === true,
     supervisedRoomId: first.room_id?.toString(),
     supervisedRoomName:
