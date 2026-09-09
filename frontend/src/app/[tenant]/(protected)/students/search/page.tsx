@@ -234,6 +234,7 @@ const MULTI_VALUE_FILTER_PARAMS = new Set<FilterQueryParam>([
   "year",
   "school_class",
   "group_id",
+  "pickup_time",
 ]);
 
 // Reads one filter param in the shape the parsers expect: a single string for
@@ -381,6 +382,10 @@ function asFilterValues(value: string | string[]): string[] {
     : parseMultiValueParam(value);
 }
 
+function parsePickupTimeParam(value: string | null): string[] {
+  return parseMultiValueParam(value).filter((time) => time !== "all");
+}
+
 function validQueryValue<T extends string>(
   value: string | null,
   validValues: readonly T[],
@@ -451,7 +456,9 @@ function normalizeStoredFilters(
       ) === "all"
         ? ""
         : (params.get("pickup_status") ?? ""),
-    pickup_time: params.get("pickup_time") ?? "",
+    pickup_time: encodeMultiValueParam(
+      parsePickupTimeParam(params.get("pickup_time")),
+    ),
     arrival_time: params.get("arrival_time") ?? "",
     day_status:
       validQueryValue(
@@ -1023,8 +1030,8 @@ function SearchPageContent() {
   const [dayStatusFilter, setDayStatusFilter] = useState<DayStatusFilter>(
     initialDayStatusFilter,
   );
-  const [pickupTimeFilter, setPickupTimeFilter] = useState(
-    initialFilterParams.get("pickup_time") ?? "all",
+  const [pickupTimeFilter, setPickupTimeFilter] = useState<string[]>(() =>
+    parsePickupTimeParam(readFilterParam(initialFilterParams, "pickup_time")),
   );
   const [arrivalTimeFilter, setArrivalTimeFilter] = useState(
     initialFilterParams.get("arrival_time") ?? "all",
@@ -1100,7 +1107,7 @@ function SearchPageContent() {
           "all",
         ),
       );
-      setPickupTimeFilter(params.get("pickup_time") ?? "all");
+      setPickupTimeFilter(parsePickupTimeParam(params.get("pickup_time")));
       setArrivalTimeFilter(params.get("arrival_time") ?? "all");
       setBusFilter(
         validQueryValue(params.get("bus"), BOOLEAN_FILTER_VALUES, "all"),
@@ -1174,6 +1181,20 @@ function SearchPageContent() {
     storageKey,
     updateUrlParams,
   ]);
+
+  useEffect(() => {
+    const searchPathname = window.location.pathname;
+    const restorePickupTimes = () => {
+      if (window.location.pathname !== searchPathname) return;
+      const params = new URLSearchParams(window.location.search);
+      setPickupTimeFilter(
+        parsePickupTimeParam(readFilterParam(params, "pickup_time")),
+      );
+      writeStoredFilters(storageKey, filtersFromSearchParams(params));
+    };
+    window.addEventListener("popstate", restorePickupTimes);
+    return () => window.removeEventListener("popstate", restorePickupTimes);
+  }, [storageKey]);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
@@ -1433,7 +1454,7 @@ function SearchPageContent() {
   // counts visible cards only) cannot be the retry surface then; the
   // failure dialog therefore carries its own retry that executes its named
   // snapshot regardless of what the current filters show (review #2372).
-  const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
+  const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${encodeMultiValueParam(pickupTimeFilter)}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
   const clearCheckinSelection = schoolCheckin.clearSelection;
   useEffect(() => {
     clearCheckinSelection();
@@ -1645,9 +1666,12 @@ function SearchPageContent() {
   );
 
   const updatePickupTimeFilter = useCallback(
-    (value: string) => {
-      setPickupTimeFilter(value);
-      updateUrlParams({ pickup_time: value === "all" ? "" : value });
+    (values: string[]) => {
+      const times = normalizeMultiValues(values).filter(
+        (time) => time !== "all",
+      );
+      setPickupTimeFilter(times);
+      updateUrlParams({ pickup_time: encodeMultiValueParam(times) });
     },
     [updateUrlParams],
   );
@@ -1702,7 +1726,7 @@ function SearchPageContent() {
     setBusFilter("all");
     setPhotoConsentFilter("all");
     setPickupStatusFilter("all");
-    setPickupTimeFilter("all");
+    setPickupTimeFilter([]);
     setArrivalTimeFilter("all");
     setDayStatusFilter("all");
     setTrackingFilter("all");
@@ -1981,15 +2005,18 @@ function SearchPageContent() {
         id: "pickupTime",
         label: "Gehzeit",
         type: "dropdown",
+        multiSelect: true,
+        emptyLabel: "Alle Gehzeiten",
+        summaryLabel: (count) => `${count} Gehzeiten`,
         value: pickupTimeFilter,
-        onChange: (value) => updatePickupTimeFilter(value as string),
+        onChange: (value) => updatePickupTimeFilter(asFilterValues(value)),
         options: [
-          { value: "all", label: "Alle Gehzeiten" },
           ...Array.from(
             new Set(
-              students
-                .map((s) => s.pickup_time)
-                .filter((t): t is string => !!t),
+              [
+                ...students.map((s) => s.pickup_time),
+                ...pickupTimeFilter.filter((time) => time !== "none"),
+              ].filter((t): t is string => !!t),
             ),
           )
             .sort((a, b) => a.localeCompare(b))
@@ -2344,14 +2371,14 @@ function SearchPageContent() {
       });
     }
 
-    if (pickupTimeFilter !== "all") {
+    for (const time of pickupTimeFilter) {
       filters.push({
-        id: "pickupTime",
-        label:
-          pickupTimeFilter === "none"
-            ? "Keine Gehzeit"
-            : `Gehzeit ${pickupTimeFilter} Uhr`,
-        onRemove: () => updatePickupTimeFilter("all"),
+        id: `pickupTime-${time}`,
+        label: time === "none" ? "Keine Gehzeit" : `Gehzeit ${time} Uhr`,
+        onRemove: () =>
+          updatePickupTimeFilter(
+            pickupTimeFilter.filter((value) => value !== time),
+          ),
       });
     }
 
@@ -2457,7 +2484,7 @@ function SearchPageContent() {
       pickup_status: pickupStatusFilter,
       day_status: dayStatusFilter,
       ...(isToday ? {} : { date: selectedDate }),
-      pickup_time: pickupTimeFilter,
+      pickup_time: encodeMultiValueParam(pickupTimeFilter),
       arrival_time: arrivalTimeFilter,
       room_id: effectiveRoomId,
       sort: sortMode,
@@ -2520,13 +2547,14 @@ function SearchPageContent() {
 
     // Apply pickup time filter. For redacted students, missing pickup_time
     // due to has_full_access=false is not the same as "no schedule")
-    if (pickupTimeFilter !== "all") {
+    if (pickupTimeFilter.length > 0) {
       if (student.has_full_access === false) return false;
-      if (pickupTimeFilter === "none") {
-        if (student.pickup_time || student.pickup_is_exception) return false;
-      } else if (student.pickup_time !== pickupTimeFilter) {
-        return false;
-      }
+      const matchesPickupTime = pickupTimeFilter.some((time) =>
+        time === "none"
+          ? !student.pickup_time && !student.pickup_is_exception
+          : student.pickup_time === time,
+      );
+      if (!matchesPickupTime) return false;
     }
 
     if (arrivalTimeFilter !== "all") {
@@ -2745,7 +2773,8 @@ function SearchPageContent() {
       qs.set("pickup_status", pickupStatusFilter);
     if (dayStatusFilter !== "all") qs.set("day_status", dayStatusFilter);
     if (!isToday) qs.set("date", selectedDate);
-    if (pickupTimeFilter !== "all") qs.set("pickup_time", pickupTimeFilter);
+    if (pickupTimeFilter.length > 0)
+      qs.set("pickup_time", encodeMultiValueParam(pickupTimeFilter));
     if (arrivalTimeFilter !== "all") qs.set("arrival_time", arrivalTimeFilter);
     if (effectiveTrackingFilter !== "all")
       qs.set("tracking", effectiveTrackingFilter);
@@ -3224,8 +3253,11 @@ function SearchPageContent() {
                   if (dayStatusFilter !== "all")
                     qs.set("day_status", dayStatusFilter);
                   if (!isToday) qs.set("date", selectedDate);
-                  if (pickupTimeFilter !== "all")
-                    qs.set("pickup_time", pickupTimeFilter);
+                  if (pickupTimeFilter.length > 0)
+                    qs.set(
+                      "pickup_time",
+                      encodeMultiValueParam(pickupTimeFilter),
+                    );
                   if (arrivalTimeFilter !== "all")
                     qs.set("arrival_time", arrivalTimeFilter);
                   if (effectiveTrackingFilter !== "all")

@@ -54,7 +54,8 @@ type studentExportFilters struct {
 	// Date is the optional planning day (YYYY-MM-DD) the day-planning status,
 	// status days, and planned arrival/pickup times are evaluated for (#1939).
 	// Empty means the school-local today.
-	Date         string `json:"date"`
+	Date string `json:"date"`
+	// PickupTime accepts comma-separated selections as well as legacy single values.
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
@@ -416,6 +417,23 @@ func matchesTimeFilter(planned *string, isException bool, filter string) bool {
 	return planned != nil && *planned == filter
 }
 
+// matchesPickupTimeFilter applies OR within the pickup selection. Redacted
+// times are unknown, not missing, so they cannot match a restricted selection.
+func matchesPickupTimeFilter(student StudentResponse, raw string) bool {
+	times := slices.DeleteFunc(parseMultiValueParam([]string{raw}), func(value string) bool {
+		return value == "all"
+	})
+	if len(times) == 0 {
+		return true
+	}
+	if !student.HasFullAccess {
+		return false
+	}
+	return slices.ContainsFunc(times, func(value string) bool {
+		return matchesTimeFilter(student.PickupTime, student.PickupIsException, value)
+	})
+}
+
 // exportYearFilterValues resolves the school-year ("Stufe") export filter into
 // the set of years an export is restricted to. Several years may be selected at
 // once (#2218) and travel comma-separated; empty and the neutral "all" sentinel
@@ -470,7 +488,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
 		return false
 	}
-	if !matchesTimeFilter(student.PickupTime, student.PickupIsException, filters.PickupTime) {
+	if !matchesPickupTimeFilter(student, filters.PickupTime) {
 		return false
 	}
 	if !matchesTimeFilter(student.ArrivalTime, student.ArrivalIsException, filters.ArrivalTime) {
