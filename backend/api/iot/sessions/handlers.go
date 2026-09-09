@@ -14,7 +14,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
+
+// sessionEndErrorRenderer keeps the kiosk's wire contract for the two
+// session-state outcomes the workflow reports and treats everything else as a
+// server failure.
+var sessionEndErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: sessionend.ErrSessionNotFound, Render: common.ErrorNotFound},
+	{Target: sessionend.ErrSessionAlreadyEnded, Render: common.ErrorInvalidRequest},
+}, func(err error) render.Renderer {
+	return common.ErrorInternalServerWrap("failed to end activity session", err)
+})
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
@@ -85,28 +96,20 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The timetable side closes FIRST, before the session end (#1747 review).
-	// Both halves run in the request's tenant transaction, so a failure here
-	// rolls everything back — but EndActivitySession emits its checkout and
-	// activity-ended SSE events eagerly, not after commit. Running it first
-	// would let a failing bridge roll the database back while kiosks and
-	// dashboards had already been told the session was over. Ordering the
-	// failure-prone half ahead of the announcing half keeps the two in step:
-	// the mirrored instance's own completion event is registered after commit
-	// and is dropped with the rollback.
-	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
-		return
-	}
-
-	// End the session. Anything failing from here on leaves a completed
-	// timetable instance next to a session that is still open, so the
-	// transaction has to go — and the tenant middleware only rolls back on its
-	// own for 5xx. ErrorRenderer maps "already ended" and friends to 4xx, which
-	// would commit exactly that split state (#1747 review).
-	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+	// One facade closes both halves of "Sitzung beenden" in the request's
+	// tenant transaction: the presence session (visits, supervisions, group)
+	// and the mirrored timetable instance with its attendance. Every SSE
+	// event is queued for after the commit, so a failure here announces
+	// nothing (#1747 review, #2697).
+	//
+	// The tenant middleware only rolls back on its own for 5xx. Any error
+	// from the workflow, including the 4xx mappings, must take the
+	// transaction with it: the workflow joined ours, so a partial close
+	// would otherwise commit.
+	ended, err := rs.SessionEnd.EndSession(r.Context(), currentSession.ID)
+	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionEndErrorRenderer(err))
 		return
 	}
 
@@ -114,8 +117,8 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		"active_group_id": currentSession.ID,
 		"activity_id":     currentSession.GroupID,
 		"device_id":       deviceCtx.ID,
-		"ended_at":        time.Now(),
-		"duration":        time.Since(currentSession.StartTime).String(),
+		"ended_at":        ended.EndedAt,
+		"duration":        ended.EndedAt.Sub(currentSession.StartTime).String(),
 		"status":          "ended",
 		"message":         "Activity session ended successfully",
 	}

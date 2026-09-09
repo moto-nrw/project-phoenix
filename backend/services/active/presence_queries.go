@@ -22,7 +22,14 @@ type StudentPresence interface {
 	ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, error)
 	CountOpenVisitsInRoom(context.Context, int64) (int, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, error)
-	CloseGroupVisits(context.Context, []int64) (int64, error)
+	// EndGroupSession and EndGroupSessions are the Student Presence owner's
+	// session end commands (#2697): every path that closes a live group's
+	// visits, supervisions, and the group itself writes through them.
+	EndGroupSession(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error)
+	EndGroupSessions(context.Context, []int64, time.Time) (studentpresence.EndedGroupSessions, error)
+	// EndGroup releases a group for a force-start takeover; the visits and
+	// supervisions are moved to the replacing group afterwards.
+	EndGroup(context.Context, int64, time.Time) error
 	ListSchoolStatuses(context.Context, []int64, string) ([]studentpresence.SchoolStatus, error)
 	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
 	EnsureAttendance(context.Context, studentpresence.Attendance) (studentpresence.Attendance, bool, error)

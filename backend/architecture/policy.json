@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 3,
+  "policy_epoch": 4,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -348,6 +348,10 @@
     },
     {
       "id": "reminder-delivery",
+      "kind": "workflow"
+    },
+    {
+      "id": "session-end",
       "kind": "workflow"
     },
     {
@@ -2172,6 +2176,34 @@
       "role": "application",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/sessionend",
+      "owner": "session-end",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/sessionend/ports",
+      "owner": "session-end",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/sessionend/internal/application",
+      "owner": "session-end",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/sessionend/compose",
+      "owner": "session-end",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "workflows/reminderdelivery/compose",
@@ -5293,6 +5325,358 @@
       "source_role": "adapter-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
+    },
+    {
+      "id": "session-end.port.student-presence",
+      "description": "Session end ports name the Student Presence group session command through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.application.student-presence",
+      "description": "Session end coordinates the Student Presence group session command through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.decision-test.student-presence",
+      "description": "Session end decision tests fake the Student Presence group session command through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.port.timetable-activities",
+      "description": "Session end ports name the Timetable instance, slot check-out, and activity name capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "port",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.application.timetable-activities",
+      "description": "Session end coordinates the Timetable instance, slot check-out, and activity name capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.decision-test.timetable-activities",
+      "description": "Session end decision tests fake the Timetable instance, slot check-out, and activity name capability through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "workflow-decision-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.port.people-directory",
+      "description": "Session end ports name the People Directory student query through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.application.people-directory",
+      "description": "Session end coordinates the People Directory student query through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.decision-test.people-directory",
+      "description": "Session end decision tests fake the People Directory student query through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "workflow-decision-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.port.facilities",
+      "description": "Session end ports name the Facilities room query through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "port",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.application.facilities",
+      "description": "Session end coordinates the Facilities room query through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.decision-test.facilities",
+      "description": "Session end decision tests fake the Facilities room query through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "workflow-decision-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.application.ports",
+      "description": "Session end consumes its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "session-end",
+      "target_role": "port"
+    },
+    {
+      "id": "session-end.application.public",
+      "description": "Session end implements its own public command contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "application",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.decision-test.public",
+      "description": "Session end decision tests assert the public result and errors.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "workflow-decision-test",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.compose.public",
+      "description": "Session end composition returns the owner command facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.compose.application",
+      "description": "Session end composition constructs its single command provider.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "application"
+    },
+    {
+      "id": "session-end.compose.port",
+      "description": "Session end composition accepts consumer-owned owner inputs.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "port"
+    },
+    {
+      "id": "session-end.compose.tenant-runtime",
+      "description": "Session end composition binds the joining tenant UnitOfWork and after-commit runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.compose.delivery-platform",
+      "description": "Session end composition announces the committed close over the realtime broadcaster.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "session-end",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "session-end.adapter-test.compose",
+      "description": "Session end integration tests bind the production composition.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "session-end",
+      "target_role": "compose"
+    },
+    {
+      "id": "session-end.adapter-test.student-presence-compose",
+      "description": "Session end integration tests compose the student-presence owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "session-end.adapter-test.timetable-activities-compose",
+      "description": "Session end integration tests compose the timetable-activities owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "session-end.adapter-test.people-directory-compose",
+      "description": "Session end integration tests compose the people-directory owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "session-end.adapter-test.facilities-compose",
+      "description": "Session end integration tests compose the facilities owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "session-end.adapter-test.timetable-test-support",
+      "description": "Session end integration tests compose the Timetable owner through its test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "session-end",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-iot-sessions.to.session-end",
+      "description": "The kiosk session end endpoint calls exactly one owner facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-sessions",
+      "source_role": "http",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.to.session-end",
+      "description": "The IoT root hands the session end command to its sessions resource.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "http",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.session-end-compose",
+      "description": "The API root binds the session end workflow over the owner facades it holds.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.session-end-public",
+      "description": "The API root passes the session end command to the IoT resource.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.session-end-compose",
+      "description": "The legacy test module composes the session end workflow for kiosk tests.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.session-end-public",
+      "description": "The legacy test module exposes the session end command.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "session-end",
+      "target_role": "public"
     },
     {
       "id": "test-support.reminder-public",

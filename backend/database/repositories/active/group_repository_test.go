@@ -526,38 +526,6 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 // Session Management Tests
 // ============================================================================
 
-func TestActiveGroupRepository_EndSession(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup
-	ctx := testpkg.Ctx(t)
-
-	t.Run("ends active session", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession")
-		room := testpkg.CreateTestRoom(t, db, "EndSessionRoom")
-
-		now := time.Now()
-		group := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        ptrtest.Ptr(activityGroup.ID),
-			RoomID:         room.ID,
-		}
-		err := repo.Create(ctx, group)
-		require.NoError(t, err)
-
-		err = repo.EndSession(ctx, group.ID)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, group.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.EndTime)
-	})
-}
-
 func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	t.Parallel()
 
@@ -607,8 +575,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 		require.NoError(t, err)
 
 		// End the session
-		err = repo.EndSession(ctx, group.ID)
-		require.NoError(t, err)
+		testpkg.EndTestActiveGroup(t, db, testpkg.EndedActiveGroup{GroupID: group.ID})
 
 		// Try to update last activity on ended session
 		err = repo.UpdateLastActivity(ctx, group.ID, time.Now())

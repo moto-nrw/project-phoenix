@@ -15,29 +15,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
-// endSessionActiveServiceStub answers the two calls the session-end handler
-// makes and records when the session end ran, so the ordering against the
-// timetable bridge is observable.
+// endSessionActiveServiceStub answers the one read the session-end handler
+// still makes: which session runs on the calling device.
 type endSessionActiveServiceStub struct {
 	activeSvc.Service
 	session *active.Group
-	endErr  error
-	record  func(string)
+	err     error
 }
 
 func (s *endSessionActiveServiceStub) GetDeviceCurrentSession(context.Context, int64) (*active.Group, error) {
-	return s.session, nil
+	return s.session, s.err
 }
 
-func (s *endSessionActiveServiceStub) EndActivitySession(context.Context, int64) error {
-	s.record("session")
-	return s.endErr
+// sessionEndStub is the workflow facade: it records the group it was asked to
+// close and answers with a fixed result or error.
+type sessionEndStub struct {
+	ended  []int64
+	result sessionend.Result
+	err    error
+}
+
+func (s *sessionEndStub) EndSession(_ context.Context, activeGroupID int64) (sessionend.Result, error) {
+	s.ended = append(s.ended, activeGroupID)
+	return s.result, s.err
 }
 
 func endSessionRequest(t *testing.T) *http.Request {
@@ -45,88 +50,87 @@ func endSessionRequest(t *testing.T) *http.Request {
 	dev := &iot.Device{}
 	dev.ID = 9
 	req := httptest.NewRequest(http.MethodPost, "/end", nil)
-	return req.WithContext(context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(dev)))
+	req = req.WithContext(context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(dev)))
+	return req.WithContext(tenant.WithRollbackMarker(req.Context()))
 }
 
-// The timetable half of the close runs BEFORE the session end (#1747 review).
-// EndActivitySession emits its checkout and activity-ended SSE eagerly, so
-// running it first would announce a close that a failing bridge then rolls
-// back — kiosks and dashboards would show a session the database still has
-// running.
-func TestEndActivitySessionCompletesTimetableBeforeEndingSession(t *testing.T) {
+// The handler resolves the device's session and hands exactly that session to
+// the one facade; nothing else about the close is decided here (#2697).
+func TestEndActivitySessionDelegatesToTheSessionEndWorkflow(t *testing.T) {
 	t.Parallel()
 
-	newResource := func(t *testing.T, bridgeErr error, order *[]string) *Resource {
-		t.Helper()
-		activeGroupID := int64(66)
-		inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
-		inst.ID = 77
-		repo := &mirrorInstanceRepoStub{
-			findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-				return inst, nil
-			},
-			completeActive: func(context.Context, []int64, time.Time) (int64, error) {
-				*order = append(*order, "timetable")
-				return 1, bridgeErr
-			},
-		}
-		session := &active.Group{StartTime: time.Now()}
-		session.ID = activeGroupID
-		return &Resource{
-			ActiveService: &endSessionActiveServiceStub{
-				session: session,
-				record:  func(step string) { *order = append(*order, step) },
-			},
-			TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
-				ActivityInstanceRepo: repo,
-			}),
-			TimetableBridge: mirrorBridge(repo),
-		}
+	startedAt := time.Now().Add(-90 * time.Minute)
+	endedAt := time.Now()
+	session := &active.Group{StartTime: startedAt}
+	session.ID = 66
+	workflow := &sessionEndStub{result: sessionend.Result{ActiveGroupID: 66, EndedAt: endedAt, StudentsCheckedOut: 2}}
+	rs := &Resource{
+		ActiveService: &endSessionActiveServiceStub{session: session},
+		SessionEnd:    workflow,
 	}
+	req := endSessionRequest(t)
+	rr := httptest.NewRecorder()
 
-	t.Run("happy path closes the timetable first", func(t *testing.T) {
-		var order []string
-		rr := httptest.NewRecorder()
+	rs.endActivitySession(rr, req)
 
-		newResource(t, nil, &order).endActivitySession(rr, endSessionRequest(t))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []int64{66}, workflow.ended)
+	assert.False(t, tenant.RollbackRequested(req.Context()))
+	body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := body["data"].(map[string]interface{})
+	require.True(t, ok, "response carries the session summary: %v", body)
+	assert.Equal(t, float64(66), data["active_group_id"])
+	assert.Equal(t, "ended", data["status"])
+	assert.Equal(t, endedAt.Sub(startedAt).String(), data["duration"], "the duration ends at the workflow's close instant")
+}
 
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Equal(t, []string{"timetable", "session"}, order)
-	})
+// Every workflow failure asks the tenant middleware for a rollback, also the
+// ones that map to a 4xx: the workflow joined the request transaction, so a
+// committed partial close would otherwise survive (#1747 review).
+func TestEndActivitySessionMapsWorkflowErrorsAndRollsBack(t *testing.T) {
+	t.Parallel()
 
-	t.Run("a failing bridge stops before anything is announced", func(t *testing.T) {
-		var order []string
-		rr := httptest.NewRecorder()
+	cases := map[string]struct {
+		err    error
+		status int
+	}{
+		"already ended": {err: sessionend.ErrSessionAlreadyEnded, status: http.StatusBadRequest},
+		"not found":     {err: sessionend.ErrSessionNotFound, status: http.StatusNotFound},
+		"owner failure": {err: errors.New("attendance finalization failed"), status: http.StatusInternalServerError},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			session := &active.Group{StartTime: time.Now()}
+			session.ID = 66
+			rs := &Resource{
+				ActiveService: &endSessionActiveServiceStub{session: session},
+				SessionEnd:    &sessionEndStub{err: tc.err},
+			}
+			req := endSessionRequest(t)
+			rr := httptest.NewRecorder()
 
-		newResource(t, errors.New("bridge down"), &order).endActivitySession(rr, endSessionRequest(t))
+			rs.endActivitySession(rr, req)
 
-		require.Equal(t, http.StatusInternalServerError, rr.Code)
-		assert.Equal(t, []string{"timetable"}, order,
-			"the session must not be ended — its SSE fires before the transaction commits")
-	})
+			assert.Equal(t, tc.status, rr.Code, rr.Body.String())
+			assert.True(t, tenant.RollbackRequested(req.Context()), "a failed close must not commit")
+		})
+	}
+}
 
-	// The tenant middleware rolls back on its own only for 5xx. A 4xx from the
-	// session end after the bridge already completed the instance would commit a
-	// completed timetable block next to a session that is still open (#1747
-	// review), so that path has to ask for the rollback itself.
-	t.Run("a 4xx after the bridge asks for a rollback", func(t *testing.T) {
-		var order []string
-		rs := newResource(t, nil, &order)
-		rs.ActiveService.(*endSessionActiveServiceStub).endErr = &activeSvc.ActiveError{
-			Op:  "EndActivitySession",
-			Err: activeSvc.ErrActiveGroupAlreadyEnded,
-		}
+// A device without a running session never reaches the workflow.
+func TestEndActivitySessionWithoutSessionSkipsTheWorkflow(t *testing.T) {
+	t.Parallel()
 
-		req := endSessionRequest(t)
-		req = req.WithContext(tenant.WithRollbackMarker(req.Context()))
-		rr := httptest.NewRecorder()
+	workflow := &sessionEndStub{}
+	rs := &Resource{
+		ActiveService: &endSessionActiveServiceStub{err: &activeSvc.ActiveError{Op: "GetDeviceCurrentSession", Err: activeSvc.ErrNoActiveSession}},
+		SessionEnd:    workflow,
+	}
+	rr := httptest.NewRecorder()
 
-		rs.endActivitySession(rr, req)
+	rs.endActivitySession(rr, endSessionRequest(t))
 
-		require.Less(t, rr.Code, http.StatusInternalServerError,
-			"already-ended maps to a 4xx, which the middleware would otherwise commit")
-		assert.Equal(t, []string{"timetable", "session"}, order)
-		assert.True(t, tenant.RollbackRequested(req.Context()),
-			"the completed timetable instance must not survive a failed session end")
-	})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	assert.Empty(t, workflow.ended)
 }
