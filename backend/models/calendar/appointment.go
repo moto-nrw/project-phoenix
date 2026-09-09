@@ -1,7 +1,6 @@
 package calendar
 
 import (
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -85,25 +84,6 @@ type Appointment struct {
 // when a content update matches zero rows because the appointment was cancelled
 // or deleted by a concurrent request between load and write.
 var ErrAppointmentLifecycleConflict = appointments.ErrAppointmentLifecycleConflict
-
-func (a *Appointment) Validate() error {
-	if a == nil {
-		return errors.New("appointment cannot be nil")
-	}
-	value := &appointments.Appointment{
-		OrganizerStaffID: a.OrganizerStaffID, Title: a.Title, Description: a.Description,
-		Location: a.Location, StartDate: a.StartDate, EndDate: a.EndDate,
-		StartTime: a.StartTime, EndTime: a.EndTime, AllDay: a.AllDay,
-		DeliveryMode: a.DeliveryMode, OverviewVisibility: a.OverviewVisibility,
-		NotifyGuardians: a.NotifyGuardians,
-	}
-	if err := value.Validate(); err != nil {
-		return err
-	}
-	a.Title = value.Title
-	a.OverviewVisibility = value.OverviewVisibility
-	return nil
-}
 
 // RecurrenceRule remains as a compatibility alias for calendar transport and
 // expansion logic. Appointments owns validation and persistence.

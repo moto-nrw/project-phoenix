@@ -76,8 +76,77 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *API) {
 			if scenario.name == "public" {
 				checkEnrollmentChangeRequestDialogueGolden(t, api, db, staffToken, phase.ID, requestID, storedToken)
 			}
+			if scenario.name == "parent" {
+				checkEnrollmentAcceptanceGolden(t, api, db, staffToken, requestID, parent)
+			}
 		})
 	}
+}
+
+// checkEnrollmentAcceptanceGolden pins the acceptance decision (#2699) at the
+// production router for a child a logged-in parent submitted: the approval
+// creates the student, links it to the parent's guardian profile, and grants
+// the parent's existing platform account guardian access to this school
+// through the Identity & Access capability instead of an invitation. The
+// response contract and the resulting rows must not change.
+func checkEnrollmentAcceptanceGolden(t *testing.T, api *API, db *testpkg.DB, staffToken string, requestID int64, parent testpkg.ParentChain) {
+	t.Helper()
+	tenantID := testpkg.Tenant(t)
+	var childID int64
+	require.NoError(t, db.NewRaw("SELECT id FROM enrollment.request_children WHERE request_id = ? AND tenant_id = ?", requestID, tenantID).Scan(context.Background(), &childID))
+	var roleAssignmentsBefore int
+	require.NoError(t, db.NewRaw("SELECT count(*) FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id WHERE ar.account_id = ? AND ar.tenant_id = ? AND LOWER(r.name) = 'guardian'", parent.AccountID, tenantID).Scan(context.Background(), &roleAssignmentsBefore))
+	require.Equal(t, 1, roleAssignmentsBefore, "the parent fixture carries the guardian role once")
+
+	decided := checkpointRequest(api, checkpointScenario{Method: http.MethodPost, Path: fmt.Sprintf("/api/enrollment/admin/requests/%d/children/%d/decide", requestID, childID), Authenticated: true, Body: `{"status":"approved","reason":"Contract approval"}`}, staffToken)
+	require.Equal(t, http.StatusOK, decided.Code, decided.Body.String())
+	var envelope map[string]any
+	require.NoError(t, json.Unmarshal(decided.Body.Bytes(), &envelope))
+	data, ok := envelope["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, strconv.FormatInt(childID, 10), data["id"])
+	studentID, ok := data["created_student_id"].(string)
+	require.True(t, ok, "an approval must report the created student as a JSON string")
+	require.NotEmpty(t, studentID)
+	require.NotEmpty(t, data["reviewed_at"])
+	data["id"] = "CHILD_ID"
+	data["created_student_id"] = "STUDENT_ID"
+	data["reviewed_at"] = "REVIEWED_AT"
+	data["reviewed_by"] = "REVIEWER_ACCOUNT_ID"
+	normalized, err := json.MarshalIndent(envelope, "", "  ")
+	require.NoError(t, err)
+	compareGolden(t, "testdata/enrollment_decision_approved.golden", string(normalized)+"\n", "Enrollment acceptance response contract changed")
+
+	// The student exists and is linked back to the request child.
+	var linkedStudentID int64
+	require.NoError(t, db.NewRaw("SELECT created_student_id FROM enrollment.request_children WHERE id = ? AND tenant_id = ?", childID, tenantID).Scan(context.Background(), &linkedStudentID))
+	require.Equal(t, studentID, strconv.FormatInt(linkedStudentID, 10))
+	var firstName, lastName string
+	require.NoError(t, db.NewRaw("SELECT p.first_name, p.last_name FROM users.students s JOIN users.persons p ON p.id = s.person_id WHERE s.id = ? AND s.tenant_id = ?", linkedStudentID, tenantID).Scan(context.Background(), &firstName, &lastName))
+	require.Equal(t, "Contract", firstName)
+	require.Equal(t, "Child-parent", lastName)
+	// The submitting parent's guardian profile holds the primary link.
+	var primaryProfileID int64
+	require.NoError(t, db.NewRaw("SELECT guardian_profile_id FROM users.students_guardians WHERE student_id = ? AND tenant_id = ? AND is_primary", linkedStudentID, tenantID).Scan(context.Background(), &primaryProfileID))
+	require.Equal(t, parent.GuardianProfileID, primaryProfileID)
+	// Identity & Access: the existing account keeps an active school mapping
+	// and exactly one guardian role assignment for this tenant.
+	var mappingStatus string
+	var deactivatedAt *time.Time
+	require.NoError(t, db.NewRaw("SELECT status, deactivated_at FROM auth.account_tenants WHERE account_id = ? AND tenant_id = ?", parent.AccountID, tenantID).Scan(context.Background(), &mappingStatus, &deactivatedAt))
+	require.Equal(t, "active", mappingStatus)
+	require.Nil(t, deactivatedAt)
+	var roleAssignments int
+	require.NoError(t, db.NewRaw("SELECT count(*) FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id WHERE ar.account_id = ? AND ar.tenant_id = ? AND LOWER(r.name) = 'guardian'", parent.AccountID, tenantID).Scan(context.Background(), &roleAssignments))
+	require.Equal(t, 1, roleAssignments, "granting guardian access must not duplicate the role assignment")
+	var linkedAccountID *int64
+	require.NoError(t, db.NewRaw("SELECT account_id FROM users.guardian_profiles WHERE id = ? AND tenant_id = ?", parent.GuardianProfileID, tenantID).Scan(context.Background(), &linkedAccountID))
+	require.NotNil(t, linkedAccountID)
+	require.Equal(t, parent.AccountID, *linkedAccountID)
+	// A linked account gets no invitation.
+	var invitations int
+	require.NoError(t, db.NewRaw("SELECT count(*) FROM auth.guardian_invitations WHERE guardian_profile_id = ? AND tenant_id = ?", parent.GuardianProfileID, tenantID).Scan(context.Background(), &invitations))
+	require.Zero(t, invitations, "an approval for a parent with a platform account must not queue an invitation")
 }
 
 // checkEnrollmentChangeRequestDialogueGolden pins the parent/OGS dialogue on

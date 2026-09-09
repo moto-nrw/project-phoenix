@@ -245,6 +245,49 @@ dialogue notifications, concurrent decisions on one change request, or an
 injected database failure; the module integration tests cover rollback and
 failure propagation separately.
 
+### Enrollment acceptance workload (`enrollment-2699-acceptance-v1`)
+
+For #2699, add `-runtime-checkpoint-enrollment-acceptance` to the command
+above instead of the read, write, or change-request option. It measures the
+acceptance workflow on `enrollment.requests`, `enrollment.request_children`,
+`users.students`, `auth.account_tenants`, and `auth.account_roles` through the
+production admin decision route: approving an anonymous submission, approving
+a submission the authenticated parent filed (the approval attaches the
+existing platform account through the Identity & Access capability instead
+of queueing an invitation), rejecting, waitlisting, approving an already
+rejected child (400), an unknown status (400), and an unknown child on a real
+request (404). Three runs, five warmups, 30 measured requests per scenario,
+concurrency one, as in the baseline.
+
+Setup enables Enrollment, creates the parent fixture (platform account, active
+school mapping, guardian role, guardian profile) and mints a parent-scoped
+JWT. Every decision scenario consumes a fresh child: preparation submits one
+request per measured and warmup request outside timing, through the anonymous
+route with a unique e-mail and client address, or through the authenticated
+parent route for the parent-account scenario. The terminal scenario rejects
+its child outside timing before the measured approval. Preparation requests
+are outside latency and query counts but inside the lock-sampling window.
+The phase fixture keeps the optional care-offering selection mode, so
+approvals materialize no bookings; the decision e-mail rows and the
+post-commit invitation for anonymous approvals are part of the measured
+request as in production.
+
+Scenario definitions keep the `{{pending_child}}` placeholder; the resolved
+path varies per request while the recorded operation stays identical across
+runs. The final database check compares every child status, one created
+student per approval, the parent account's active school mapping and single
+guardian role assignment, the primary guardian link of every parent-account
+approval, and the absence of invitations for the linked account against the
+counts the workload tracked from successful responses. No worker runs are part
+of this workload. The environment inventory now also lists
+`enrollment.requests`, `enrollment.request_children`, `auth.account_tenants`
+and `auth.account_roles`; existing workload versions are unchanged.
+
+This is not evidence for parent login, e-mail delivery, care-offering
+materialization, concurrent decisions on one request, or an injected
+database failure; the Identity & Access and Enrollment integration tests
+cover rollback and failure propagation separately.
+
 ### Checkpoint baseline
 
 One process performs exactly three measured runs, in the same scenario order.

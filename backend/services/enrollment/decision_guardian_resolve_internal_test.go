@@ -3,16 +3,17 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,6 +27,7 @@ type stubGuardianProfileRepo struct {
 	// byAccountErr simulates an operational (non-not-found) failure of the
 	// by-account lookup.
 	byAccountErr error
+	byEmailErr   error
 	emailLookups int
 	created      int
 	updated      int
@@ -43,6 +45,9 @@ func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID i
 
 func (s *stubGuardianProfileRepo) FindByEmail(_ context.Context, email string) (*usersModels.GuardianProfile, error) {
 	s.emailLookups++
+	if s.byEmailErr != nil {
+		return nil, s.byEmailErr
+	}
 	if p, ok := s.byEmail[strings.ToLower(strings.TrimSpace(email))]; ok {
 		return p, nil
 	}
@@ -60,6 +65,53 @@ func (s *stubGuardianProfileRepo) Update(_ context.Context, _ *usersModels.Guard
 }
 
 func int64Ptr(v int64) *int64 { return &v }
+
+func TestResolveGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("guardian storage unavailable")
+	repo := &stubGuardianProfileRepo{byEmailErr: failure}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	profile, created, err := svc.resolveGuardianProfile(context.Background(), &enrollmentModels.Request{
+		GuardianEmail: "guardian@example.test", GuardianFirstName: "Anna", GuardianLastName: "Test",
+	})
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, profile)
+	require.False(t, created)
+	require.Zero(t, repo.created)
+}
+
+func TestResolveAdditionalGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("guardian storage unavailable")
+	repo := &stubGuardianProfileRepo{byEmailErr: failure}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+	email := "guardian@example.test"
+	id, err := svc.resolveAdditionalGuardianProfile(context.Background(), &capability.RequestGuardian{
+		Email: &email, FirstName: "Anna", LastName: "Test",
+	})
+	require.ErrorIs(t, err, failure)
+	require.Zero(t, id)
+	require.Zero(t, repo.created)
+}
+
+type failingDecisionRequestReader struct {
+	DecisionRequests
+	err error
+}
+
+func (r failingDecisionRequestReader) RequestByID(context.Context, int64, bool) (*capability.Request, error) {
+	return nil, r.err
+}
+
+func TestDecide_PreservesRequestReadFailure(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("request storage unavailable")
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{Requests: failingDecisionRequestReader{err: failure}}}
+	outcome, err := svc.Decide(context.Background(), DecideInput{RequestID: 10, ChildID: 20, Status: DecisionApproved})
+	require.ErrorIs(t, err, failure)
+	require.NotErrorIs(t, err, ErrDecisionRequestNotFound)
+	require.Nil(t, outcome)
+}
 
 type stubLateInviteRepo struct {
 	invite  *capability.LateInvite
@@ -187,18 +239,35 @@ func TestResolveGuardianProfile_PrefersAuthenticatedAccountProfile(t *testing.T)
 	assert.Zero(t, repo.created)
 }
 
-// stubAccountRepo answers the single FindByID lookup the email-ownership check
-// makes; the embedded interface panics on anything else.
-type stubAccountRepo struct {
-	authModels.AccountRepository
-	byID map[int64]*authModels.Account
+// stubGuardianAccess answers the account lookups the ownership check and the
+// attach paths make and records every guardian-access grant with the tenant
+// it was requested for.
+type stubGuardianAccess struct {
+	byID   map[int64]identityaccess.Account
+	grants []identityaccess.GuardianTenantAccess
 }
 
-func (s *stubAccountRepo) FindByID(_ context.Context, id interface{}) (*authModels.Account, error) {
-	if v, ok := id.(int64); ok {
-		return s.byID[v], nil
+func (s *stubGuardianAccess) FindAccount(_ context.Context, id int64) (identityaccess.Account, error) {
+	account, ok := s.byID[id]
+	if !ok {
+		return identityaccess.Account{}, identityaccess.ErrAccountNotFound
 	}
-	return nil, nil
+	return account, nil
+}
+
+func (s *stubGuardianAccess) FindAccountByEmail(_ context.Context, email string) (identityaccess.Account, error) {
+	for _, account := range s.byID {
+		if strings.EqualFold(account.Email, email) {
+			return account, nil
+		}
+	}
+	return identityaccess.Account{}, identityaccess.ErrAccountNotFound
+}
+
+func (s *stubGuardianAccess) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
+	granted := identityaccess.GuardianTenantAccess{AccountID: accountID, TenantID: tenant.FromContext(ctx), RoleAssigned: true}
+	s.grants = append(s.grants, granted)
+	return granted, nil
 }
 
 // #1663: an UNLINKED profile is claimable only by the account that owns its
@@ -215,12 +284,12 @@ func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T
 		byAccount: map[int64]*usersModels.GuardianProfile{},
 		byEmail:   map[string]*usersModels.GuardianProfile{"victim@example.test": foreign},
 	}
-	accounts := &stubAccountRepo{byID: map[int64]*authModels.Account{
-		callerAccount: {Email: "caller@example.test"},
+	accounts := &stubGuardianAccess{byID: map[int64]identityaccess.Account{
+		callerAccount: {ID: callerAccount, Email: "caller@example.test"},
 	}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
 		GuardianProfileRepo: repo,
-		AccountRepo:         accounts,
+		GuardianAccess:      accounts,
 	}}
 
 	req := &enrollmentModels.Request{
@@ -249,12 +318,12 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 		byAccount: map[int64]*usersModels.GuardianProfile{},
 		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": own},
 	}
-	accounts := &stubAccountRepo{byID: map[int64]*authModels.Account{
-		callerAccount: {Email: "Anna@Example.test"}, // case-insensitive match
+	accounts := &stubGuardianAccess{byID: map[int64]identityaccess.Account{
+		callerAccount: {ID: callerAccount, Email: "Anna@Example.test"}, // case-insensitive match
 	}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
 		GuardianProfileRepo: repo,
-		AccountRepo:         accounts,
+		GuardianAccess:      accounts,
 	}}
 
 	req := &enrollmentModels.Request{
@@ -303,9 +372,13 @@ func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
 	assert.Zero(t, repo.created, "a lookup failure must not create a duplicate profile")
 }
 
-// An unclaimed profile carrying the email (no account yet) is NOT a mismatch:
-// approval's by-id attach later links it to the caller.
-func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
+// An unclaimed profile carrying the email (no account yet) can only be
+// claimed after the ownership check ran. Without the Identity & Access
+// capability the check cannot run, and the approval must refuse instead of
+// assuming ownership: the old optional repositories answered "owned" when
+// unwired, which handed the linkage decision to the parent-editable email
+// field (#2563: no nil no-op collaborators).
+func TestResolveGuardianProfile_RequiresGuardianAccessForUnclaimedEmailProfile(t *testing.T) {
 	t.Parallel()
 
 	const callerAccount = int64(10)
@@ -324,6 +397,39 @@ func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
 		GuardianLastName:  "Antragsteller",
 	}
 
+	got, wasNew, err := svc.resolveGuardianProfile(context.Background(), req)
+	require.ErrorIs(t, err, errDecisionGuardianAccessRequired)
+	assert.Nil(t, got)
+	assert.False(t, wasNew)
+	assert.Zero(t, repo.created, "a refused ownership check must not create a profile")
+}
+
+// A deleted submitter account is not an outage: the by-id attach falls back
+// to the email owner, so the ownership check lets the unclaimed profile
+// through exactly like before.
+func TestResolveGuardianProfile_AllowsUnclaimedEmailProfileWhenSubmitterAccountIsGone(t *testing.T) {
+	t.Parallel()
+
+	const callerAccount = int64(10)
+	unclaimed := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
+	unclaimed.ID = 7
+	repo := &stubGuardianProfileRepo{
+		byAccount: map[int64]*usersModels.GuardianProfile{},
+		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": unclaimed},
+	}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
+		GuardianProfileRepo: repo,
+		GuardianAccess:      &stubGuardianAccess{byID: map[int64]identityaccess.Account{}},
+		Logger:              slog.Default(),
+	}}
+
+	req := &enrollmentModels.Request{
+		GuardianAccountID: int64Ptr(callerAccount),
+		GuardianEmail:     "anna@example.test",
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Antragsteller",
+	}
+
 	got, _, err := svc.resolveGuardianProfile(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -331,44 +437,6 @@ func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
 }
 
 // --- attachGuardianAccountIfPresent: already-linked profiles ----------------
-
-// stubAccountTenantRepo records the mapping writes the attach path performs.
-type stubAccountTenantRepo struct {
-	authModels.AccountTenantRepository
-	ensured []*authModels.AccountTenant
-	created []*authModels.AccountTenant
-}
-
-func (s *stubAccountTenantRepo) EnsureActive(_ context.Context, m *authModels.AccountTenant) error {
-	s.ensured = append(s.ensured, m)
-	return nil
-}
-
-func (s *stubAccountTenantRepo) Create(_ context.Context, m *authModels.AccountTenant) error {
-	s.created = append(s.created, m)
-	return nil
-}
-
-// stubRoleRepo answers the guardian-role lookup ensureGuardianRoleForTenant makes.
-type stubRoleRepo struct {
-	authModels.RoleRepository
-	role *authModels.Role
-}
-
-func (s *stubRoleRepo) FindByName(_ context.Context, _ string) (*authModels.Role, error) {
-	return s.role, nil
-}
-
-// stubAccountRoleRepo reports the guardian role as already assigned so the
-// attach path needs no write.
-type stubAccountRoleRepo struct {
-	authModels.AccountRoleRepository
-	existing *authModels.AccountRole
-}
-
-func (s *stubAccountRoleRepo) FindByAccountAndRole(_ context.Context, _, _ int64) (*authModels.AccountRole, error) {
-	return s.existing, nil
-}
 
 // #1663 review: a guardian profile that already carries an account_id proves a
 // LINK, not portal ACCESS — account_id survives an offboarding that flipped
@@ -390,24 +458,30 @@ func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testin
 	}
 	guardian.ID = 5
 
-	role := &authModels.Role{Name: "guardian"}
-	role.ID = 9
-	assignment := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
-	mappings := &stubAccountTenantRepo{}
+	access := &stubGuardianAccess{byID: map[int64]identityaccess.Account{}}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
-		AccountTenantRepo: mappings,
-		AccountRoleRepo:   &stubAccountRoleRepo{existing: assignment},
-		RoleRepo:          &stubRoleRepo{role: role},
+		GuardianAccess: access,
+		Logger:         slog.Default(),
 	}}
 
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, svc.attachGuardianAccountIfPresent(ctx, &enrollmentModels.Request{}, guardian, false))
 
-	require.Len(t, mappings.ensured, 1,
-		"an already-linked guardian must still get an ACTIVE account_tenants mapping")
-	assert.Equal(t, accountID, mappings.ensured[0].AccountID)
-	assert.Equal(t, tenantID, mappings.ensured[0].TenantID)
-	assert.Equal(t, authModels.AccountTenantStatusActive, mappings.ensured[0].Status)
-	assert.Empty(t, mappings.created,
-		"Create is ON CONFLICT DO NOTHING and would leave an inactive row inactive")
+	require.Len(t, access.grants, 1,
+		"an already-linked guardian must still be (re)granted ACTIVE access to this school")
+	assert.Equal(t, accountID, access.grants[0].AccountID)
+	assert.Equal(t, tenantID, access.grants[0].TenantID)
+}
+
+// Without the Identity & Access capability the already-linked path must
+// refuse rather than approve a child the parent cannot see.
+func TestAttachGuardianAccountIfPresent_RequiresGuardianAccess(t *testing.T) {
+	t.Parallel()
+
+	guardian := &usersModels.GuardianProfile{AccountID: int64Ptr(4242), HasAccount: true}
+	guardian.ID = 5
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{}}
+	ctx := tenant.WithTenantID(context.Background(), 77)
+	err := svc.attachGuardianAccountIfPresent(ctx, &enrollmentModels.Request{}, guardian, false)
+	require.ErrorIs(t, err, errDecisionGuardianAccessRequired)
 }

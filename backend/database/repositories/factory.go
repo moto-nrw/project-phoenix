@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
@@ -41,7 +40,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -302,7 +300,7 @@ type Factory struct {
 	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
-	CalendarStaffFeedTombstone calendarModels.StaffFeedTombstoneRepository
+	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
@@ -538,11 +536,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		return db, tenantID
 	}
 	parentRuntime := carePlanLegacy.NewParentRuntime(db)
-	schoolCalendarRuntime := schoolCalendarCompose.PersistenceRuntimeFor(db)
-	calendarRuntime := calendarRepo.Runtime{
-		Database: schoolCalendarRuntime.Database,
-		TenantID: schoolCalendarRuntime.TenantID,
-	}
 	appointmentsModule, err := NewAppointments(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
@@ -756,7 +749,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarStaffFeedTombstone: calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
+		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
 		ParentAnnouncement:         parentAnnouncement,
 		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}

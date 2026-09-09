@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 )
 
 const (

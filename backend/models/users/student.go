@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -321,7 +323,7 @@ func validatePtrEmail(email *string, fieldName string) error {
 	// Pinned to the shared canonical pattern (email_validation.go) so the
 	// rule enforced here at student creation matches enrollment submit-time
 	// validation exactly — a value accepted at submit can't be rejected here.
-	if !optionalEmailPattern.MatchString(*email) {
+	if !contact.IsValidEmailFormat(*email) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil
@@ -336,7 +338,7 @@ func validatePtrPhone(phone *string, fieldName string) error {
 	// Pinned to the canonical optionalPhonePattern (phone_validation.go)
 	// so this student-creation check never diverges from the submit/edit
 	// validation in the enrollment service.
-	if !optionalPhonePattern.MatchString(*phone) {
+	if !contact.IsValidPhoneFormat(*phone) {
 		return errors.New("invalid " + fieldName + " format")
 	}
 	return nil

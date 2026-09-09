@@ -318,14 +318,39 @@ above once the package exists at a base SHA, rebind each port to its owner's
 public capability as it appears, and delete the adapter with the last legacy
 source. The same applies to the staff calendar HTTP adapter
 (`modules/staffcalendar/http`, `inbound-calendar`/`http`: common HTTP
-rendering, the permission contract, the JWT middleware, the calendar-date type
-and, as the one compatibility binding, the retained `services/calendar`
-until School Calendar exposes the staff calendar publicly) and to the
+rendering, the permission contract, the JWT middleware, and the calendar-date
+type; its calendar binding now uses the native
+`modules/schoolcalendar/portal` contract) and to the
 statistics HTTP adapter (`modules/statistics/http`, `inbound-statistics`/`http`:
 the same shared HTTP dependencies, the Bun database the tenant middleware
 takes, the Document Rendering renderer and, as compatibility binding, the
 retained `services/statistics`), including their `*.adapter-test.*`
 permissions.
+
+The Identity & Access guardian-access capability (`modules/identityaccess`,
+`identity-access`/`public`) is the first just-in-time slice of the late
+Identity & Access migration (#2580 sequencing, #2699): it resolves platform
+accounts and grants an account guardian access to the tenant in context over
+`auth.accounts`, `auth.account_tenants`, `auth.account_roles` and
+`auth.roles`. Enrollment acceptance consumes it through a consumer-owned port;
+the retained `services/auth` invitation flow still reaches the same tables
+through its own repositories. The other tables the acceptance cutover (#2699)
+names are not served by Identity & Access. Enrollment acceptance now reads,
+locks, creates and renews `users.students` through the bounded People Directory
+enrollment contract. Profile writes distinguish unchanged fields from explicit
+NULL. The application coordinates departure-plan locks and companion-stranding
+checks; People Directory writes the normalized plan and its legacy mirrors,
+and Care Plan removes companion edges. All commands join the same tenant
+transaction. `users.class_list_entries`,
+`enrollment.request_child_offerings` and `schedule.instance_students` reach
+their owners through the legacy-composition adapters over the School
+Membership, Enrollment and Timetable facades. The retained in-memory student
+mapping and owner-backed compatibility adapters are cleanup debt under #2733,
+not alternative acceptance writers. Its `identity-access.compose.*` and
+integration-test rules mirror the People Directory owner; the
+`legacy-composition.to.identity-access-*` permissions exist because the
+legacy service factory still composes the enrollment decision service and
+go with #2751.
 
 The Device Fleet authentication composition (`modules/devicefleet/deviceauth`)
 is classified as `device-fleet`/`http`. Its `device-fleet.device-auth.*`
