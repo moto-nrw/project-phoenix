@@ -193,7 +193,10 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Entfernen"));
+    // #3109: ending a handover asks first (ConfirmationModal).
+    fireEvent.click(screen.getByRole("button", { name: "Beenden" }));
+    expect(mockFetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Übergabe beenden" }));
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
@@ -275,7 +278,13 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Entfernen"));
+    // #3109: removing without a replacement asks first (ConfirmDeleteModal).
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    expect(mockFetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ohne Ersatz entfernen" }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
@@ -309,7 +318,11 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Entfernen"));
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ohne Ersatz entfernen" }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("alert")).toHaveTextContent(
@@ -338,7 +351,12 @@ describe("CaregiverBlockerResolutionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("Entfernen"));
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    expect(mockFetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ohne Ersatz entfernen" }),
+    );
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(

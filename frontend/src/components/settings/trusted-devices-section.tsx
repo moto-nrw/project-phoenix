@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -48,6 +49,12 @@ export function TrustedDevicesSection({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<number | null>(null);
+  // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109); ein
+  // Fehler bleibt im Dialog stehen.
+  const [revokeTarget, setRevokeTarget] = useState<TrustedDeviceDTO | null>(
+    null,
+  );
+  const [revokeError, setRevokeError] = useState("");
 
   const load = useCallback(async () => {
     if (!bearerToken) return;
@@ -80,8 +87,10 @@ export function TrustedDevicesSection({
     async (deviceId: number) => {
       if (!bearerToken) return;
       setRevokingId(deviceId);
+      setRevokeError("");
       try {
         await revokeTrustedDevice(scope, bearerToken, deviceId);
+        setRevokeTarget(null);
         toast.success("Gerät erfolgreich entfernt.");
         await load();
       } catch (err) {
@@ -93,7 +102,7 @@ export function TrustedDevicesSection({
           device_id: deviceId,
           error: msg,
         });
-        toast.error(msg);
+        setRevokeError(msg);
       } finally {
         setRevokingId(null);
       }
@@ -151,16 +160,46 @@ export function TrustedDevicesSection({
                 variant="outline_danger"
                 size="sm"
                 disabled={revokingId === d.id}
-                // void discards the promise from the async handler so the
-                // onClick signature returns void as expected.
-                onClick={() => void handleRevoke(d.id)} // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
+                onClick={() => {
+                  setRevokeError("");
+                  setRevokeTarget(d);
+                }}
               >
-                {revokingId === d.id ? "Entferne..." : "Entfernen"}
+                Entfernen
               </Button>
             </li>
           ))}
         </ul>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={revokeTarget !== null}
+        title="Gerät entfernen?"
+        description={
+          revokeTarget ? (
+            <p>
+              Das Gerät{" "}
+              <span className="font-medium text-gray-900">
+                {formatDeviceLabelFromUserAgent(revokeTarget.user_agent)}
+              </span>{" "}
+              wird entfernt. Beim nächsten Anmelden dort wird der 2FA-Code
+              wieder abgefragt.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Endgültig entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={revokingId !== null}
+        error={revokeError}
+        onConfirm={() => {
+          if (revokeTarget) void handleRevoke(revokeTarget.id);
+        }}
+        onClose={() => {
+          setRevokeTarget(null);
+          setRevokeError("");
+        }}
+      />
     </SectionCard>
   );
 }

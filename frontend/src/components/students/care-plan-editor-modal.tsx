@@ -12,6 +12,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
@@ -1155,6 +1156,8 @@ function NoteEditor({
   readonly isMutationPending: boolean;
 }) {
   const [content, setContent] = useState(note.content);
+  // Löschen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const trimmedContent = content.trim();
   const hasChanges = trimmedContent !== note.content;
 
@@ -1186,10 +1189,31 @@ function NoteEditor({
         variant="ghost"
         size="sm"
         disabled={isMutationPending}
-        onClick={() => void runMutation(() => onDelete(String(note.id)))}
+        onClick={() => setConfirmingDelete(true)}
       >
         Löschen
       </Button>
+      <ConfirmDeleteModal
+        isOpen={confirmingDelete}
+        title="Hinweis löschen?"
+        description={
+          <p>
+            Der Hinweis{" "}
+            <span className="font-medium text-gray-900">„{note.content}“</span>{" "}
+            wird gelöscht.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        loading={isMutationPending}
+        error=""
+        onConfirm={async () => {
+          // Fehler landen über runMutation im Alert des Editors; der Dialog
+          // schließt in beiden Fällen.
+          await runMutation(() => onDelete(String(note.id)));
+          setConfirmingDelete(false);
+        }}
+        onClose={() => setConfirmingDelete(false)}
+      />
     </div>
   );
 }

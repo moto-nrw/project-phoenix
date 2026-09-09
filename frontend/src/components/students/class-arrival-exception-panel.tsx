@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
@@ -257,6 +258,11 @@ function ClassArrivalExceptionPanelBody({
   const [presetPending, setPresetPending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109); ein
+  // Fehler bleibt im Dialog stehen statt als Toast zu verschwinden.
+  const [removeTarget, setRemoveTarget] =
+    useState<ClassArrivalException | null>(null);
+  const [removeError, setRemoveError] = useState("");
 
   const reload = useCallback(async () => {
     const list = await api.list(schoolClass);
@@ -354,15 +360,17 @@ function ClassArrivalExceptionPanelBody({
 
   const handleRemove = async (exception: ClassArrivalException) => {
     setRemoving(exception.date);
+    setRemoveError("");
     try {
       await api.remove(schoolClass, exception.date);
+      setRemoveTarget(null);
       notify.success(`Abweichung am ${formatDate(exception.date)} entfernt`);
       await reload();
       onChanged?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("class_arrival_exception_delete_failed", { error: message });
-      notify.error(
+      setRemoveError(
         "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
     } finally {
@@ -507,7 +515,10 @@ function ClassArrivalExceptionPanelBody({
                         type="button"
                         variant="outline_danger"
                         size="compact"
-                        onClick={() => void handleRemove(exception)}
+                        onClick={() => {
+                          setRemoveError("");
+                          setRemoveTarget(exception);
+                        }}
                         disabled={removing === exception.date}
                       >
                         Entfernen
@@ -520,6 +531,36 @@ function ClassArrivalExceptionPanelBody({
           )}
         </div>
       ) : null}
+
+      <ConfirmDeleteModal
+        isOpen={removeTarget !== null}
+        title="Abweichung entfernen?"
+        description={
+          removeTarget ? (
+            <p>
+              Die Abweichung am{" "}
+              <span className="font-medium text-gray-900">
+                {exceptionDateLabel(removeTarget.date)} ·{" "}
+                {removeTarget.arrival_time} Uhr
+              </span>{" "}
+              wird entfernt. An diesem Tag gelten wieder die üblichen
+              Ankunftszeiten der Kinder.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Endgültig entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={removing !== null}
+        error={removeError}
+        onConfirm={() => {
+          if (removeTarget) void handleRemove(removeTarget);
+        }}
+        onClose={() => {
+          setRemoveTarget(null);
+          setRemoveError("");
+        }}
+      />
     </div>
   );
 }

@@ -190,7 +190,14 @@ describe("ClassArrivalExceptionDialog", () => {
     expect(
       await screen.findByText("Eingetragen von der OGS"),
     ).toBeInTheDocument();
+    // #3109: the row button opens the ConfirmDeleteModal; the day is only
+    // removed after the two-step confirmation inside the dialog.
     fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    expect(mockRemove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
 
     await waitFor(() => {
       expect(mockRemove).toHaveBeenCalledWith("4a", "2099-03-02");

@@ -413,7 +413,17 @@ describe("ClassArrivalExceptionPanel", () => {
       <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
     );
 
+    // #3109: the row button opens the ConfirmDeleteModal; the day is only
+    // removed after the two-step confirmation inside the dialog.
     fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    expect(mockDelete).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Abweichung entfernen?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
 
     await waitFor(() => {
       expect(mockDelete).toHaveBeenCalledWith("4a", "2099-03-02");
@@ -421,5 +431,39 @@ describe("ClassArrivalExceptionPanel", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Abweichung am 02.03.2099 entfernt",
     );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Abweichung entfernen?" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps a failed removal inside the dialog", async () => {
+    mockFetchExceptions.mockResolvedValue({
+      school_class: "4a",
+      can_edit: true,
+      exceptions: [savedException],
+    });
+    mockDelete.mockRejectedValue(new Error("boom"));
+
+    render(
+      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Endgültig entfernen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Abweichung entfernen?" }),
+    ).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 });

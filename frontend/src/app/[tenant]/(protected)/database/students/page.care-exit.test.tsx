@@ -5,7 +5,13 @@
 //
 // Eigene Datei: page.test.tsx ist bereits sehr breit, und die Auswahl hier
 // hängt an anderen Mocks (Berechtigung, care-exit-api).
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -43,19 +49,24 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
+  // `overlays` carries the page's dialogs (care exit, its cancellation
+  // confirmation, resume); the mock renders them flat next to the content.
   DatabasePageLayout: ({
     children,
     intro,
     search,
+    overlays,
   }: {
     children: ReactNode;
     intro?: { title: string; actions?: ReactNode };
     search?: ReactNode;
+    overlays?: ReactNode;
   }) => (
     <div>
       {intro?.actions}
       {search}
       {children}
+      {overlays}
     </div>
   ),
 }));
@@ -241,6 +252,17 @@ describe("Datenverwaltung Kinder — Betreuung beenden", () => {
     ).toBeVisible();
   });
 
+  it("keeps the planned exit when the cancellation is dismissed", () => {
+    renderWith(PLANNED);
+    fireEvent.click(screen.getByRole("button", { name: "Ende stornieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(mockCancelCareExit).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("dialog", { name: "Betreuungsende stornieren?" }),
+    ).toBeNull();
+  });
+
   it("keeps change and cancel for an exit planned far ahead", () => {
     renderWith(PLANNED_FAR_AHEAD);
     expect(screen.getByRole("button", { name: /Ende ändern/ })).toBeVisible();
@@ -259,9 +281,22 @@ describe("Datenverwaltung Kinder — Betreuung beenden", () => {
     ).toBeNull();
   });
 
+  // #3109: „Ende stornieren“ asks first (ConfirmationModal); the exit is only
+  // cancelled from the dialog's own „Ende stornieren“.
+  function confirmCancelExit() {
+    fireEvent.click(screen.getByRole("button", { name: "Ende stornieren" }));
+    expect(mockCancelCareExit).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", {
+      name: "Betreuungsende stornieren?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ende stornieren" }),
+    );
+  }
+
   it("cancels the planned exit and says so", async () => {
     renderWith(PLANNED);
-    fireEvent.click(screen.getByRole("button", { name: "Ende stornieren" }));
+    confirmCancelExit();
 
     await waitFor(() => expect(mockCancelCareExit).toHaveBeenCalledWith(["1"]));
     await waitFor(() =>
@@ -276,7 +311,7 @@ describe("Datenverwaltung Kinder — Betreuung beenden", () => {
       new Error("Die Betreuung ist bereits beendet."),
     );
     renderWith(PLANNED);
-    fireEvent.click(screen.getByRole("button", { name: "Ende stornieren" }));
+    confirmCancelExit();
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(

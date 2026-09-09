@@ -57,6 +57,25 @@ vi.mock("~/components/ui/slide-over", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
+  // ConfirmDeleteModal (Hinweis löschen, #3109) renders through the kit Modal.
+  Modal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        {children}
+        {footer}
+      </div>
+    ) : null,
   ConfirmationModal: ({
     isOpen,
     title,

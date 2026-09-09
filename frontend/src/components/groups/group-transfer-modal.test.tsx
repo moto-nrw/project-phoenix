@@ -199,7 +199,7 @@ describe("GroupTransferModal", () => {
     });
   });
 
-  it("calls onCancelTransfer when remove button is clicked", async () => {
+  it("calls onCancelTransfer only after the confirmation", async () => {
     render(
       <GroupTransferModal
         isOpen={true}
@@ -212,11 +212,25 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    const removeButton = await screen.findByText("Entfernen");
-    fireEvent.click(removeButton);
+    // #3109: taking a handover back asks first (ConfirmationModal).
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zurücknehmen" }),
+    );
+    expect(mockOnCancelTransfer).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Übergabe zurücknehmen?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+    );
 
     await waitFor(() => {
       expect(mockOnCancelTransfer).toHaveBeenCalledWith("s1");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Übergabe zurücknehmen?" }),
+      ).not.toBeInTheDocument();
     });
   });
 

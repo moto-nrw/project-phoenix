@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { InfoSection } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useToast } from "~/contexts/ToastContext";
@@ -168,6 +171,54 @@ export function CaregiverBlockerResolutionPanel({
 
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
   const [errorMessage, setErrorMessage] = useState("");
+  // Entfernen ohne Ersatz und das Beenden einer Übergabe laufen erst nach der
+  // Rückfrage (Bauart 2 Regel 6, #3109). Ein Übertragen an eine Ersatzkraft
+  // läuft direkt: die Zuordnung bleibt bestehen, nur die Person wechselt.
+  const [pendingRemoval, setPendingRemoval] = useState<
+    | { readonly kind: "substitution"; readonly item: BlockerSubstitution }
+    | { readonly kind: "activity"; readonly item: BlockerActivity }
+    | { readonly kind: "group"; readonly item: BlockerGroup }
+    | null
+  >(null);
+  const pendingKey =
+    pendingRemoval === null
+      ? null
+      : pendingRemoval.kind === "substitution"
+        ? `sub-${pendingRemoval.item.id}`
+        : pendingRemoval.kind === "activity"
+          ? `act-${pendingRemoval.item.id}`
+          : `grp-${pendingRemoval.item.id}`;
+  const pendingProcessing =
+    pendingKey !== null && processing[pendingKey] === true;
+
+  const resolveActivity = (item: BlockerActivity) => {
+    if (activityReplacements[item.id]) {
+      void handleResolveActivity(item);
+      return;
+    }
+    setPendingRemoval({ kind: "activity", item });
+  };
+
+  const resolveGroup = (item: BlockerGroup) => {
+    if (groupReplacements[item.id]) {
+      void handleResolveGroup(item);
+      return;
+    }
+    setPendingRemoval({ kind: "group", item });
+  };
+
+  const confirmPendingRemoval = async () => {
+    if (!pendingRemoval) return;
+    if (pendingRemoval.kind === "substitution") {
+      await handleEndSubstitution(pendingRemoval.item);
+    } else if (pendingRemoval.kind === "activity") {
+      await handleResolveActivity(pendingRemoval.item);
+    } else {
+      await handleResolveGroup(pendingRemoval.item);
+    }
+    // Fehler stehen im Alert des Panels; der Dialog schließt in beiden Fällen.
+    setPendingRemoval(null);
+  };
 
   const totalRemaining =
     supervisions.length +
@@ -376,14 +427,16 @@ export function CaregiverBlockerResolutionPanel({
                       seit {item.startDate}
                     </span>
                   </div>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline_danger"
+                    size="compact"
                     onClick={() => void handleEndSupervision(item)}
-                    disabled={processing[key]}
-                    className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                    isLoading={processing[key]}
+                    loadingText="Wird beendet…"
                   >
-                    {processing[key] ? "..." : "Beenden"}
-                  </button>
+                    Beenden
+                  </Button>
                 </div>
               );
             })}
@@ -420,14 +473,18 @@ export function CaregiverBlockerResolutionPanel({
                       {item.startDate} — {item.endDate}
                     </span>
                   </div>
-                  <button
+                  <Button
                     type="button"
-                    onClick={() => void handleEndSubstitution(item)}
-                    disabled={processing[key]}
-                    className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                    variant="outline_danger"
+                    size="compact"
+                    onClick={() =>
+                      setPendingRemoval({ kind: "substitution", item })
+                    }
+                    isLoading={processing[key]}
+                    loadingText="Wird beendet…"
                   >
-                    {processing[key] ? "..." : "Entfernen"}
-                  </button>
+                    Beenden
+                  </Button>
                 </div>
               );
             })}
@@ -485,18 +542,19 @@ export function CaregiverBlockerResolutionPanel({
                       ]}
                       disabled={loadingStaff || processing[key]}
                     />
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => void handleResolveActivity(item)}
-                      disabled={processing[key]}
-                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+                      variant="outline_danger"
+                      size="compact"
+                      className="whitespace-nowrap"
+                      onClick={() => resolveActivity(item)}
+                      isLoading={processing[key]}
+                      loadingText="Wird gespeichert…"
                     >
-                      {processing[key]
-                        ? "..."
-                        : activityReplacements[item.id]
-                          ? "Übertragen"
-                          : "Entfernen"}
-                    </button>
+                      {activityReplacements[item.id]
+                        ? "Übertragen"
+                        : "Entfernen"}
+                    </Button>
                   </div>
                 </div>
               );
@@ -548,18 +606,17 @@ export function CaregiverBlockerResolutionPanel({
                       ]}
                       disabled={loadingStaff || processing[key]}
                     />
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => void handleResolveGroup(item)}
-                      disabled={processing[key]}
-                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-md border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+                      variant="outline_danger"
+                      size="compact"
+                      className="whitespace-nowrap"
+                      onClick={() => resolveGroup(item)}
+                      isLoading={processing[key]}
+                      loadingText="Wird gespeichert…"
                     >
-                      {processing[key]
-                        ? "..."
-                        : groupReplacements[item.id]
-                          ? "Übertragen"
-                          : "Entfernen"}
-                    </button>
+                      {groupReplacements[item.id] ? "Übertragen" : "Entfernen"}
+                    </Button>
                   </div>
                 </div>
               );
@@ -569,6 +626,67 @@ export function CaregiverBlockerResolutionPanel({
       ) : null}
 
       <Alert type="error" message={errorMessage || staffLoadError} />
+
+      <ConfirmationModal
+        isOpen={pendingRemoval?.kind === "substitution"}
+        title="Gruppenübergabe beenden?"
+        confirmText="Übergabe beenden"
+        cancelText="Abbrechen"
+        isConfirmLoading={pendingProcessing}
+        isDismissDisabled={pendingProcessing}
+        onConfirm={() => void confirmPendingRemoval()}
+        onClose={() => setPendingRemoval(null)}
+      >
+        <p className="text-sm text-gray-700">
+          Die Übergabe der Gruppe{" "}
+          <strong>
+            {pendingRemoval?.kind === "substitution"
+              ? pendingRemoval.item.groupName
+              : ""}
+          </strong>{" "}
+          wird beendet. Die Gruppe liegt danach wieder bei ihrer regulären
+          Leitung.
+        </p>
+      </ConfirmationModal>
+      <ConfirmDeleteModal
+        isOpen={
+          pendingRemoval?.kind === "activity" ||
+          pendingRemoval?.kind === "group"
+        }
+        title={
+          pendingRemoval?.kind === "group"
+            ? "Gruppenleitung entfernen?"
+            : "Aktivitätsleitung entfernen?"
+        }
+        description={
+          pendingRemoval?.kind === "activity" ? (
+            <p>
+              Die Leitung der Aktivität{" "}
+              <span className="font-medium text-gray-900">
+                {pendingRemoval.item.activityName}
+              </span>{" "}
+              wird ohne Ersatz entfernt. Wählen Sie eine Ersatzkraft, um sie
+              stattdessen zu übertragen.
+            </p>
+          ) : pendingRemoval?.kind === "group" ? (
+            <p>
+              Die Leitung der Gruppe{" "}
+              <span className="font-medium text-gray-900">
+                {pendingRemoval.item.groupName}
+              </span>{" "}
+              wird ohne Ersatz entfernt. Wählen Sie eine Ersatzkraft, um sie
+              stattdessen zu übertragen.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Ohne Ersatz entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={pendingProcessing}
+        error=""
+        onConfirm={() => void confirmPendingRemoval()}
+        onClose={() => setPendingRemoval(null)}
+      />
     </div>
   );
 }
