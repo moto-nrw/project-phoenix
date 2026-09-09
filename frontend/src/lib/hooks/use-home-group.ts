@@ -85,7 +85,7 @@ export function isExpectedToday(student: OgsLiveWireStudent): boolean {
 }
 
 /** Warum ein Kind heute fehlt — die Abweichung ist die Nachricht. */
-export function isAwayToday(student: OgsLiveWireStudent): boolean {
+function isAwayToday(student: OgsLiveWireStudent): boolean {
   return (
     student.sick ||
     student.excused ||

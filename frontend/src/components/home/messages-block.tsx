@@ -4,10 +4,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  HOME_CARD_BODY,
-  HomeCardIcon,
-} from "~/components/home/home-block-content";
+import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";

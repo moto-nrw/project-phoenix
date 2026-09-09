@@ -4,10 +4,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  HOME_CARD_BODY,
-  HomeCardIcon,
-} from "~/components/home/home-block-content";
+import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import {
   isReminderOverdue,

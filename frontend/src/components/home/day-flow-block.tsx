@@ -4,10 +4,7 @@ import Link from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  HOME_CARD_BODY,
-  HomeCardIcon,
-} from "~/components/home/home-block-content";
+import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatMinutesAhead, minutesBetween } from "~/lib/home-clock";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 type settingsService struct {
@@ -85,9 +84,9 @@ func (s *settingsService) SetHomeLayout(ctx context.Context, tenantID, accountID
 	// the stored arrangement here. A key without a width keeps span 0 and is
 	// rejected by the placement validation rather than silently defaulting to
 	// some size; a key without a cell lands in the top-left corner.
-	blocks := make([]configModel.HomeBlockPlacement, 0, len(order))
+	blocks := make([]config.HomeBlockPlacement, 0, len(order))
 	for _, key := range order {
-		blocks = append(blocks, configModel.HomeBlockPlacement{Key: key, Span: spans[key], Col: cols[key], Row: rows[key]})
+		blocks = append(blocks, config.HomeBlockPlacement{Key: key, Span: spans[key], Col: cols[key], Row: rows[key]})
 	}
 	return homeLayouts.SetOverrides(ctx, tenantID, accountID, overrides, blocks)
 }

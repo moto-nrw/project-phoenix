@@ -751,7 +751,7 @@ function unlessSame(
  * Bringt eine Anordnung in Form: Spalten im Raster, Zeilen ganze Zahlen,
  * keine zwei Bausteine auf derselben Zelle, kein Loch.
  */
-export function normalizePlacements(
+function normalizePlacements(
   placements: readonly HomeBlockPlacement[],
 ): HomeBlockPlacement[] {
   const inGrid = placements.map((entry) => ({

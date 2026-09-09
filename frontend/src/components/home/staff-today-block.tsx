@@ -3,10 +3,7 @@
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
-import {
-  HOME_CARD_BODY,
-  HomeCardIcon,
-} from "~/components/home/home-block-content";
+import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { createLogger } from "~/lib/logger";

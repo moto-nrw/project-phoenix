@@ -4,10 +4,7 @@ import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  HOME_CARD_BODY,
-  HomeCardIcon,
-} from "~/components/home/home-block-content";
+import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
