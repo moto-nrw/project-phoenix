@@ -115,6 +115,7 @@ export function NowStrip({
   const actions = nowActions({
     isSupervising: ownSupervision === true,
     canOpenGroup,
+    canReadUsers: access.has("users:read"),
     tenantPath,
   });
 

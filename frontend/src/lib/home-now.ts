@@ -139,15 +139,17 @@ interface NowAction {
  * Höchstens zwei Wege, die an dieser Stelle im Tag wirklich naheliegen —
  * nicht die ganze Navigation als Knopfleiste. Läuft eine Aufsicht, ist das
  * Fortsetzen der eine Weg; sonst der Tag, sonst die eigene Gruppe, sonst
- * alle Kinder.
+ * alle Kinder, wenn die Person die Kindersuche öffnen darf.
  */
 export function nowActions({
   isSupervising,
   canOpenGroup,
+  canReadUsers,
   tenantPath,
 }: {
   readonly isSupervising: boolean;
   readonly canOpenGroup: boolean;
+  readonly canReadUsers: boolean;
   readonly tenantPath: (path: string) => string;
 }): readonly NowAction[] {
   const actions: NowAction[] = [];
@@ -163,7 +165,7 @@ export function nowActions({
   if (canOpenGroup) {
     actions.push({ href: tenantPath("/ogs-groups"), label: "Meine Gruppe" });
   }
-  if (actions.length === 0) {
+  if (actions.length === 0 && canReadUsers) {
     actions.push({
       href: tenantPath("/students/search"),
       label: "Alle Kinder",

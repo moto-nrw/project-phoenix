@@ -200,6 +200,19 @@ describe("NowStrip (#2180)", () => {
     );
   });
 
+  it("zeigt ohne users:read keinen Weg zur Kindersuche", () => {
+    supervision.hasGroups = false;
+    const restricted: HomeBlockAccess = {
+      ...care,
+      has: (permission) => permission !== "users:read",
+      hasOwnGroups: false,
+    };
+
+    render(<NowStrip access={restricted} context={context(restricted)} />);
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
   // Die Leitung sieht die Lage der Schule: Blöcke, Kinder, Team.
   it("zeigt der Leitung die Lage der Schule", () => {
     sources.school = [

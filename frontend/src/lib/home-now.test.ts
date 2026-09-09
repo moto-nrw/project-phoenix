@@ -166,6 +166,7 @@ describe("nowActions (#2180)", () => {
   const base = {
     isSupervising: false,
     canOpenGroup: false,
+    canReadUsers: true,
     tenantPath,
   };
 
@@ -189,13 +190,17 @@ describe("nowActions (#2180)", () => {
     expect(actions.map((a) => a.href)).toEqual(["/t/ogs-groups"]);
   });
 
-  // Ohne Gruppe bleibt die Kindersuche.
+  // Ohne Gruppe bleibt die Kindersuche, wenn die Person sie öffnen darf.
   it("bietet als letzten Weg alle Kinder an", () => {
     const actions = nowActions(base);
 
     expect(actions).toEqual([
       { href: "/t/students/search", label: "Alle Kinder" },
     ]);
+  });
+
+  it("bietet ohne users:read keinen unerlaubten Ersatzweg an", () => {
+    expect(nowActions({ ...base, canReadUsers: false })).toEqual([]);
   });
 
   it("zeigt nie mehr als zwei Wege", () => {
