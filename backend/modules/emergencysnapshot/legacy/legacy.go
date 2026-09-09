@@ -162,7 +162,9 @@ func (p presence) CurrentRoomIDs(ctx context.Context, studentIDs []int64) (map[i
 func (p presence) SchoolStatuses(ctx context.Context, studentIDs []int64, date emergencysnapshot.Date) (map[int64]string, error) {
 	rows, err := p.facade.ListSchoolStatuses(ctx, studentIDs, string(date))
 	if err != nil {
-		return nil, err
+		// The retained Active service masked owner details on this path.
+		// Keep its public error text when bypassing that service wrapper.
+		return nil, errors.New("active: GetStudentsAttendanceStatuses: database operation failed")
 	}
 	statuses := make(map[int64]string, len(rows))
 	for _, row := range rows {

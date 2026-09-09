@@ -247,6 +247,13 @@ func TestBinaryModeMapsSchoolStatuses(t *testing.T) {
 	assert.Equal(t, "Schulhof", snapshot.Rows[1].Location)
 }
 
+func TestBinaryStatusFailurePreservesLegacyMessage(t *testing.T) {
+	t.Parallel()
+	port := presence{facade: &fakePresence{err: errors.New("private database details")}}
+	_, err := port.SchoolStatuses(context.Background(), []int64{101}, "2026-09-09")
+	require.EqualError(t, err, "active: GetStudentsAttendanceStatuses: database operation failed")
+}
+
 // One failing owner query surfaces through the projection unchanged.
 func TestOwnerFailuresSurface(t *testing.T) {
 	t.Parallel()
@@ -283,6 +290,30 @@ func newPresenceModule(t *testing.T, db *bun.DB) *studentpresence.Module {
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
+}
+
+func TestPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
+	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	require.NoError(t, err)
+	old := usersRepo.NewPersonRepository(db)
+	ids := []int64{student.PersonID}
+	beforeOld, err := old.FindByIDs(ctx, ids)
+	require.NoError(t, err)
+	beforeNew, err := people.ListPersonsByID(ctx, ids)
+	require.NoError(t, err)
+	require.Len(t, beforeOld, 1)
+	require.Len(t, beforeNew, 1)
+	require.NoError(t, people.DeletePerson(ctx, student.PersonID))
+	afterOld, err := old.FindByIDs(ctx, ids)
+	require.NoError(t, err)
+	afterNew, err := people.ListPersonsByID(ctx, ids)
+	require.NoError(t, err)
+	require.Empty(t, afterOld, "Bun applies the retained model's soft-delete filter")
+	require.Empty(t, afterNew, "the owner facade preserves that filter")
 }
 
 // The presence adapter selects the latest open visit inside a running
