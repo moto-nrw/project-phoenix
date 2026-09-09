@@ -1798,7 +1798,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     vi.restoreAllMocks();
   });
 
-  it("should handle Schulhof with null active_group_id (fallback to tab ID)", async () => {
+  it("keeps a released room id separate from a session id", async () => {
     setupFetchMock({
       supervised: { data: [] },
       openRooms: { data: [{ id: 100, name: "Turnhalle" }] },
@@ -1814,8 +1814,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
 
     const openRoom = result.current.supervisedRooms.find((r) => r.isOpenRoom);
     expect(openRoom).toBeDefined();
-    // When active_group_id is null, groupId should fallback to SCHULHOF_TAB_ID
-    expect(openRoom?.groupId).toBe(openRoom?.id);
+    expect(openRoom?.groupId).toBe("");
   });
 
   it("should handle supervised group with no room_id (undefined roomName and roomId)", async () => {
