@@ -263,7 +263,10 @@ describe("CategoryManageModal", () => {
       <CategoryManageModal isOpen onClose={vi.fn()} onChanged={vi.fn()} />,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Archivieren" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen für Sport" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     expect(mockArchiveCategory).not.toHaveBeenCalled();
 
     // The confirmation dialog repeats the label on its confirm button.
@@ -285,8 +288,9 @@ describe("CategoryManageModal", () => {
     );
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Wiederherstellen/ }),
+      await screen.findByRole("button", { name: "Aktionen für Kochen" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wiederherstellen" }));
 
     await waitFor(() => {
       expect(mockRestoreCategory).toHaveBeenCalledWith("2");

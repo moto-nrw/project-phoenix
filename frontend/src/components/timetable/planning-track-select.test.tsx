@@ -135,8 +135,9 @@ describe("PlanningTrackSelect", () => {
     await waitFor(() => expect(reorder).toHaveBeenCalledWith(["2", "1"]));
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Jahrgang 1 archivieren" }),
+      screen.getByRole("button", { name: "Aktionen für Jahrgang 1" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archivieren" }));
     await waitFor(() => expect(archive).toHaveBeenCalledWith("1"));
     expect(onTracksChanged).toHaveBeenCalled();
     expect(
@@ -155,7 +156,10 @@ describe("PlanningTrackSelect", () => {
       screen.getByRole("button", { name: "Planungsspuren verwalten" }),
     );
     fireEvent.click(screen.getByText("Archivierte Planungsspuren (1)"));
-    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Archiv" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wiederherstellen" }));
 
     await waitFor(() => expect(restore).toHaveBeenCalledWith("3"));
   });

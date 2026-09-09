@@ -1128,8 +1128,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Im `Betreuungsplan` einen Regeltermin anlegen.",
           "Beim Pflichtfeld `Kategorie` die Auswahl öffnen und ganz unten `+ Neue Kategorie anlegen` wählen.",
           "Name eintragen, optional Farbe und Beschreibung, dann `Anlegen und auswählen`. Die neue Kategorie ist sofort im Termin gesetzt.",
-          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann das Stiftsymbol der gewünschten Zeile.",
-          "Nicht mehr benötigte Kategorien im selben Dialog über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt `Wiederherstellen` sie zurück.",
+          "Bestehende Kategorien ändern: neben `Kategorie` auf `Verwalten` klicken, dann in der gewünschten Zeile das Menü mit den drei Punkten öffnen und `Bearbeiten` wählen.",
+          "Nicht mehr benötigte Kategorien im selben Menü über `Archivieren` aus der Auswahl nehmen; unter `Archiviert` holt das Menü der Zeile sie mit `Wiederherstellen` zurück.",
         ],
         callout: {
           title: "Archivieren löscht nichts",
@@ -1227,9 +1227,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
           "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
           "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
-          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben; `Wer hat bestätigt?` öffnet die Liste mit Namen und Zeitpunkt.",
+          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben; im Menü der Zeile (drei Punkte) öffnet `Wer hat bestätigt?` die Liste mit Namen und Zeitpunkt.",
           "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Team` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
-          "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
+          "Einen Hinweis, der vorübergehend nicht gelten soll, im Menü der Zeile über `Bearbeiten` öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden. `Löschen` steht im selben Menü.",
         ],
         callout: {
           title: "Ein Hinweis, nicht ein Eintrag pro Tag",
@@ -1237,7 +1237,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen mit Schaltfläche zur Namensliste) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
+          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen; Bearbeiten, Namensliste und Löschen im Menü der Zeile) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
         gallery: [
           {
             image: "/help/screens/tagesinformationen-anlegen.webp",

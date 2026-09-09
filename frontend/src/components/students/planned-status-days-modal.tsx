@@ -9,11 +9,12 @@ import {
   startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import {
@@ -1033,20 +1034,27 @@ export function PlannedStatusDaysModal({
                           ) : null}
                         </span>
                         {onDeleteStatusDay ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              void handleDeleteStatusDay(day.id);
-                            }}
-                            disabled={
-                              isSubmitting || deletingStatusDayId === day.id
-                            }
-                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
-                          >
-                            {deletingStatusDayId === day.id
-                              ? "Wird entfernt..."
-                              : "Entfernen"}
-                          </button>
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für ${formatDateLabel(day.date)}`}
+                            items={[
+                              {
+                                label:
+                                  deletingStatusDayId === day.id
+                                    ? "Wird entfernt…"
+                                    : "Entfernen",
+                                icon: (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                ),
+                                destructive: true,
+                                disabled:
+                                  isSubmitting ||
+                                  deletingStatusDayId === day.id,
+                                onClick: () => {
+                                  void handleDeleteStatusDay(day.id);
+                                },
+                              },
+                            ]}
+                          />
                         ) : null}
                       </div>
                     ))}
@@ -1091,32 +1099,43 @@ export function PlannedStatusDaysModal({
                             </span>
                           ) : null}
                         </span>
-                        <span className="flex flex-wrap gap-2 sm:shrink-0">
-                          <Button
-                            type="button"
-                            size="compact"
-                            variant="outline"
-                            onClick={() => handleEditPartialAbsence(absence)}
-                            disabled={isSubmitting}
-                            aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} bearbeiten`}
-                          >
-                            Bearbeiten
-                          </Button>
-                          {onDeletePartialAbsence && !absence.auto ? (
-                            <Button
-                              type="button"
-                              size="compact"
-                              variant="outline_danger"
-                              onClick={() => {
-                                setPartialAbsenceDeleteError("");
-                                setPartialAbsencePendingDeletion(absence);
-                              }}
-                              disabled={isSubmitting}
-                              aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} entfernen`}
-                            >
-                              Entfernen
-                            </Button>
-                          ) : null}
+                        <span className="flex justify-end sm:shrink-0">
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für Teilentschuldigung vom ${formatDateLabel(absence.date)}`}
+                            items={[
+                              {
+                                label: "Bearbeiten",
+                                icon: (
+                                  <Pencil className="h-4 w-4" aria-hidden />
+                                ),
+                                disabled: isSubmitting,
+                                onClick: () =>
+                                  handleEditPartialAbsence(absence),
+                              },
+                              ...(onDeletePartialAbsence && !absence.auto
+                                ? [
+                                    { kind: "separator" } as const,
+                                    {
+                                      label: "Entfernen",
+                                      icon: (
+                                        <Trash2
+                                          className="h-4 w-4"
+                                          aria-hidden
+                                        />
+                                      ),
+                                      destructive: true,
+                                      disabled: isSubmitting,
+                                      onClick: () => {
+                                        setPartialAbsenceDeleteError("");
+                                        setPartialAbsencePendingDeletion(
+                                          absence,
+                                        );
+                                      },
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                          />
                         </span>
                       </div>
                     ))}
