@@ -20,20 +20,30 @@ import (
 // request a real per-test tenant.
 const mockDeviceTenantID int64 = 987654
 
-// newConfigMock builds a configtest.Mock reproducing the behavior of the
-// former hand-rolled configMockSettings stub for testing getDeviceConfig:
-// string values take precedence over bool values in Resolve, and missing
-// keys return a "not found" error instead of a zero value.
+// newConfigMock supplies resolved settings for the handler tests.
+// Registry default behavior is verified by the settings service's own tests.
 func newConfigMock(boolValues map[string]bool, stringValues map[string]string) *configtest.Mock {
 	resolveString := func(_ context.Context, key string) (string, error) {
 		if v, ok := stringValues[key]; ok {
 			return v, nil
+		}
+		switch key {
+		case "operations.student_daily_checkout_time":
+			return "", nil
+		case "operations.presence_mode":
+			return "detailed", nil
 		}
 		return "", fmt.Errorf("not found: %s", key)
 	}
 	resolveBool := func(_ context.Context, key string) (bool, error) {
 		if v, ok := boolValues[key]; ok {
 			return v, nil
+		}
+		switch key {
+		case "checkout.raumwechsel_enabled", "checkout.schulhof_enabled", "checkout.wc_enabled":
+			return true, nil
+		case "feedback.enabled":
+			return false, nil
 		}
 		return false, fmt.Errorf("not found: %s", key)
 	}
@@ -208,17 +218,17 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	assert.Equal(t, "16:30", checkout["daily_checkout_time"])
 }
 
-func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
+func TestGetDeviceConfig_ExplicitEmptyCheckoutTime(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{ServiceDependencies: ServiceDependencies{DailyCheckoutFallback: "14:00", SettingsService: newConfigMock(
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: newConfigMock(
 		map[string]bool{
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
 			"checkout.wc_enabled":          true,
 			"feedback.enabled":             true,
 		},
-		map[string]string{},
+		map[string]string{"operations.student_daily_checkout_time": ""},
 	)},
 	}
 
@@ -236,17 +246,17 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 
 	data := response["data"].(map[string]any)
 	checkout := data["checkout"].(map[string]any)
-	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
+	assert.Nil(t, checkout["daily_checkout_time"], "an explicit empty setting permits checkout at any time")
 }
 
-func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
+func TestGetDeviceConfig_BatchFailure(t *testing.T) {
 	t.Parallel()
 
 	settings := newConfigMock(nil, nil)
 	settings.ResolveManyForTenantFn = func(context.Context, int64, []string) (*configSvc.SettingsSnapshot, error) {
 		return nil, fmt.Errorf("settings unavailable")
 	}
-	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings, DailyCheckoutFallback: "14:00"}}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
 	ctx := context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID})
@@ -255,14 +265,8 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 
 	rs.getDeviceConfig(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var response map[string]any
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-	data := response["data"].(map[string]any)
-	checkout := data["checkout"].(map[string]any)
-	assert.Equal(t, "14:00", checkout["daily_checkout_time"])
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to resolve device configuration")
 }
 
 func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
@@ -291,21 +295,46 @@ func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 
 	rs.getDeviceConfig(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to resolve device configuration")
+}
 
-	var response map[string]any
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-
-	data := response["data"].(map[string]any)
-	checkout := data["checkout"].(map[string]any)
-
-	// Checkout buttons default to true when no settings service
-	assert.Equal(t, true, checkout["raumwechsel_enabled"])
-	assert.Equal(t, true, checkout["schulhof_enabled"])
-	assert.Equal(t, true, checkout["wc_enabled"])
-	assert.Nil(t, checkout["daily_checkout_time"])
-
-	// Feedback defaults to false (opt-in / GDPR) when no settings service
-	feedback := data["feedback"].(map[string]any)
-	assert.Equal(t, false, feedback["enabled"])
+func TestGetDeviceConfig_ResolutionFailure(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{
+		"operations.student_daily_checkout_time",
+		"checkout.raumwechsel_enabled",
+		"checkout.schulhof_enabled",
+		"checkout.wc_enabled",
+		"feedback.enabled",
+		"operations.presence_mode",
+	} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			settings := newConfigMock(nil, nil)
+			strings := settings.ResolveStringForTenantFn
+			bools := settings.ResolveBoolForTenantFn
+			settings.ResolveStringForTenantFn = func(ctx context.Context, tenantID int64, requested string) (string, error) {
+				require.Equal(t, mockDeviceTenantID, tenantID)
+				if requested == key {
+					return "", fmt.Errorf("settings unavailable")
+				}
+				return strings(ctx, tenantID, requested)
+			}
+			settings.ResolveBoolForTenantFn = func(ctx context.Context, tenantID int64, requested string) (bool, error) {
+				require.Equal(t, mockDeviceTenantID, tenantID)
+				if requested == key {
+					return false, fmt.Errorf("settings unavailable")
+				}
+				return bools(ctx, tenantID, requested)
+			}
+			rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: settings}}
+			req := httptest.NewRequest("GET", "/api/iot/config", nil)
+			req = req.WithContext(context.WithValue(req.Context(), device.CtxDevice, &device.AuthenticatedDevice{TenantID: mockDeviceTenantID}))
+			w := httptest.NewRecorder()
+			rs.getDeviceConfig(w, req)
+			require.Equal(t, http.StatusInternalServerError, w.Code)
+			assert.Contains(t, w.Body.String(), "failed to resolve device configuration")
+		})
+	}
 }

@@ -7,7 +7,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // AttendanceStatusResponse represents the response for checking a student's attendance status
@@ -25,16 +25,16 @@ type AttendanceStudentInfo struct {
 }
 
 // AttendanceInfo represents attendance status and timing information.
-// Date is a calendar day and marshals as "YYYY-MM-DD" (not RFC3339) —
-// PyrePortal types the field as string and never reads it, so the wire
-// shape change is safe.
+// Date is a calendar day and marshals as "YYYY-MM-DD" or null when the
+// response carries no row (cancel, daily checkout). PyrePortal types the
+// field as string and never reads it.
 type AttendanceInfo struct {
-	Status       string        `json:"status"` // "not_checked_in", "checked_in", "checked_out"
-	Date         timezone.Date `json:"date"`
-	CheckInTime  *time.Time    `json:"check_in_time"`
-	CheckOutTime *time.Time    `json:"check_out_time"`
-	CheckedInBy  string        `json:"checked_in_by"`  // Formatted as "FirstName LastName"
-	CheckedOutBy string        `json:"checked_out_by"` // Formatted as "FirstName LastName"
+	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
+	Date         *string    `json:"date"`
+	CheckInTime  *time.Time `json:"check_in_time"`
+	CheckOutTime *time.Time `json:"check_out_time"`
+	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
+	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
 }
 
 // AttendanceGroupInfo represents group information from education.groups table
@@ -52,20 +52,21 @@ type AttendanceToggleRequest struct {
 
 // Bind validates the attendance toggle request
 func (req *AttendanceToggleRequest) Bind(_ *http.Request) error {
-	// Basic validation
 	if err := validation.ValidateStruct(req,
 		validation.Field(&req.RFID, validation.Required),
-		validation.Field(&req.Action, validation.Required, validation.In("confirm", "cancel", "confirm_daily_checkout")),
+		validation.Field(&req.Action, validation.Required, validation.In(
+			devicescan.AttendanceActionConfirm, devicescan.AttendanceActionCancel, devicescan.AttendanceActionDailyCheckout,
+		)),
 	); err != nil {
 		return err
 	}
 
 	// Conditional validation: destination required for confirm_daily_checkout
-	if req.Action == "confirm_daily_checkout" {
+	if req.Action == devicescan.AttendanceActionDailyCheckout {
 		if req.Destination == nil || *req.Destination == "" {
 			return errors.New("destination is required for confirm_daily_checkout")
 		}
-		if *req.Destination != "zuhause" && *req.Destination != "unterwegs" {
+		if *req.Destination != devicescan.DestinationHome && *req.Destination != devicescan.DestinationTransit {
 			return errors.New("destination must be 'zuhause' or 'unterwegs'")
 		}
 	}

@@ -17,12 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -40,8 +38,10 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService     iotSvc.Service
-	CheckinService *checkinSvc.CheckinService
+	IoTService iotSvc.Service
+	// DeviceScan is the public device-scan workflow the kiosk scans, pickup
+	// queries, heartbeats and attendance toggles go through (#2698).
+	DeviceScan devicescan.DeviceScan
 	// StaffClock is the public device-scan staff clock the kiosk stamps
 	// through (#2690).
 	StaffClock               devicescan.StaffClock
@@ -53,17 +53,14 @@ type ServiceDependencies struct {
 	EducationService         educationSvc.Service
 	FeedbackService          dataAPI.Feedback
 	FeedbackResponseObserver func(int, string)
-	PickupScheduleService    scheduleSvc.PickupScheduleService
 	SchoolService            platformSvc.SchoolService
 	TimetableDataService     *scheduleSvc.TimetableDataService
 	// SessionEnd is the application workflow behind POST /session/end
 	// (#2697): one UnitOfWork over the Presence and Timetable commands.
-	SessionEnd            sessionend.Command
-	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
-	Broadcaster           realtime.Broadcaster
-	Logger                *slog.Logger
-	DailyCheckoutFallback string
-	DB                    *bun.DB
+	SessionEnd  sessionend.Command
+	Broadcaster realtime.Broadcaster
+	Logger      *slog.Logger
+	DB          *bun.DB
 	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
 	// groups. The Device Fleet composition builds them over one shared
 	// last-seen debouncer; this resource only mounts them.
@@ -110,7 +107,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(common.TenantTxMiddleware)
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
-		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)
+		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")))
 		r.Mount("/teachers", dataResource.TeachersRouter())
 
 		// School name endpoint (device API key → school name)
@@ -129,27 +126,18 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
 
+		// Feedback endpoint (device-based feedback submission)
+		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
+		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
+
 		// Check-in endpoints (student RFID check-in/checkout workflow)
-		checkinResource := checkinAPI.NewResource(
-			rs.IoTService,
-			rs.UsersService,
-			rs.ActiveService,
-			rs.CheckinService,
-			rs.PickupScheduleService,
-			rs.SettingsService,
-			rs.getLogger().With(slog.String("sub", "checkin")),
-			rs.UnregisteredTagScans,
-		)
+		checkinResource := checkinAPI.NewResource(rs.DeviceScan, checkinRuntime(), rs.getLogger().With(slog.String("sub", "checkin")))
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
 		checkinHandler := delegateHandler(checkinResource.Router())
 		r.Post("/checkin", checkinHandler)
 		r.Post("/pickup-query", checkinHandler)
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
-
-		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
-		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Pure staff time tracking, independent of activities or groups.
 		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())
@@ -158,7 +146,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Data query endpoints (device + PIN auth)
-		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)
+		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")))
 		dataHandler := delegateHandler(dataResourceAuth.Router())
 		r.Get("/students", dataHandler)
 		r.Get("/activities", dataHandler)
@@ -166,7 +154,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := checkinAPI.NewAttendanceResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
+		attendanceResource := checkinAPI.NewAttendanceResource(rs.DeviceScan, checkinRuntime(), rs.getLogger().With(slog.String("sub", "attendance")))
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)
