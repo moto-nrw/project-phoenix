@@ -219,7 +219,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := repo.DeleteUpcomingByStaffID(ctx, staff.ID, cutoff)
+	affected, err := timetabletest.New(t, db).DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

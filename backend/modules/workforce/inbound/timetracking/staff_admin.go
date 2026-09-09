@@ -22,6 +22,7 @@ import (
 type StaffAdminResource struct {
 	PersonService        workforce.StaffDirectory
 	StaffDocumentService workforce.StaffDocuments
+	OffboardingCleanup   workforce.DocumentCleanupQueue
 	WorkSessionService   workforce.WorkSessions
 	StaffAbsenceService  workforce.StaffAbsences
 	WorkTimeMonthService workforce.WorkTimeMonths
@@ -45,6 +46,7 @@ type StaffAdminResource struct {
 type StaffAdminDependencies struct {
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
+	OffboardingCleanup workforce.DocumentCleanupQueue
 	WorkSessions       workforce.WorkSessions
 	StaffAbsences      workforce.StaffAbsences
 	WorkTimeMonth      workforce.WorkTimeMonths
@@ -62,7 +64,7 @@ type StaffAdminDependencies struct {
 
 // NewStaffAdminResource wires the workforce resource.
 func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
-	if deps.Staff == nil || deps.Documents == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil || deps.DB == nil {
+	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil || deps.DB == nil {
 		panic("staff admin resource: staff directory, documents, work sessions, absences, identity and db are required")
 	}
 	// Normalised once here so the handlers can log through rs.logger without
@@ -78,6 +80,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	return &StaffAdminResource{
 		PersonService:        deps.Staff,
 		StaffDocumentService: deps.Documents,
+		OffboardingCleanup:   deps.OffboardingCleanup,
 		WorkSessionService:   deps.WorkSessions,
 		StaffAbsenceService:  deps.StaffAbsences,
 		WorkTimeMonthService: deps.WorkTimeMonth,

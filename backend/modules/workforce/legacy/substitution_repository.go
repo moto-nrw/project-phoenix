@@ -159,14 +159,6 @@ func (r *groupSubstitutionRepository) FindOverlapping(ctx context.Context, staff
 	})
 }
 
-func (r *groupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
-	deleted, err := r.workforce.DeleteGroupSubstitutionsForStaff(ctx, staffID, from.String())
-	if err != nil {
-		return 0, writeError("delete active or future by staff id", err)
-	}
-	return deleted, nil
-}
-
 func (r *groupSubstitutionRepository) ListWithRelations(ctx context.Context, options *modelBase.QueryOptions) ([]*educationModels.GroupSubstitution, error) {
 	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {

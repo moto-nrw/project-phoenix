@@ -234,10 +234,6 @@ type SupervisorPlannedRepository interface {
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
 
-	// DeleteByStaffID removes all planned supervisions for a staff member
-	// (staff offboarding cleanup).
-	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
-
 	// CapActiveByGroup caps open supervision rows (valid_until IS NULL).
 	// Rows starting on/after the cap are deleted because they have no interval
 	// left; begun rows are ended at validUntil. Bounded rows are left to their

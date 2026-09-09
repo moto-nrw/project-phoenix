@@ -202,14 +202,6 @@ func (r workforceStaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context
 	return result, nil
 }
 
-func (r workforceStaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from scheduleModels.Date) (int64, error) {
-	deleted, err := r.workforce.DeleteUpcomingStaffShifts(ctx, staffID, from.String())
-	if err != nil {
-		return 0, shiftWriteError("delete upcoming staff shifts by staff ID", err)
-	}
-	return deleted, nil
-}
-
 func (r workforceStaffShiftRepository) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
 	if len(shifts) == 0 {
 		return nil
@@ -402,14 +394,6 @@ func (r workforceStaffShiftSeriesRepository) CapValidUntil(ctx context.Context, 
 		return shiftWriteError("cap staff shift series valid_until", err)
 	}
 	return nil
-}
-
-func (r workforceStaffShiftSeriesRepository) CapAllByStaffID(ctx context.Context, staffID int64, until scheduleModels.Date) (int64, error) {
-	capped, err := r.workforce.CapStaffShiftSeriesForStaff(ctx, staffID, until.String())
-	if err != nil {
-		return 0, shiftWriteError("cap staff shift series by staff", err)
-	}
-	return capped, nil
 }
 
 // FindOverlappingInLineage keeps the legacy "nil, nil" answer for a lineage

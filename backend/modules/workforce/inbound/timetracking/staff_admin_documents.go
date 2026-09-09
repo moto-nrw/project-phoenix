@@ -207,13 +207,21 @@ func (rs *StaffAdminResource) retryOffboardedStaffDocumentCleanups(ctx context.C
 		)
 		return
 	}
-	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
+	staffIDs := make(map[int64]bool)
 	for _, document := range documents {
-		staffID, docID, storedName := document.StaffID, document.ID, document.FilenameStored
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupStaffDocumentFile(cleanupCtx, staffID, docID, storedName, source)
-		})
+		if staffIDs[document.StaffID] {
+			continue
+		}
+		staffIDs[document.StaffID] = true
+		if err := rs.OffboardingCleanup.Enqueue(ctx, document.StaffID); err != nil {
+			rs.logger.Warn("offboarded staff document cleanup enqueue failed",
+				"staff_id", document.StaffID,
+				"source", source,
+				"error", err,
+			)
+		}
 	}
+	rs.wakeOffboardingDocumentCleanup(ctx)
 }
 
 // uploadStaffDocument serves POST /{id}/documents (multipart: file +
@@ -497,31 +505,16 @@ func (rs *StaffAdminResource) ResolveEditorStaffID(ctx context.Context) (int64, 
 	return rs.resolveEditorStaffID(ctx)
 }
 
-// QueueOffboardedStaffDocumentCleanup registers the after-commit file
-// removals for an offboarded staff member: every document whose bytes are
-// still stored and every queued upload intent. It runs inside the
-// offboarding transaction so a rolled-back offboarding queues nothing.
+// QueueOffboardedStaffDocumentCleanup persists the cleanup job in the same
+// transaction as retirement. The after-commit callback is only a wake-up hint;
+// the scheduler recovers lost hints through the same leased worker.
 func (rs *StaffAdminResource) QueueOffboardedStaffDocumentCleanup(ctx context.Context, staffID int64) error {
-	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
-	documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, staffID)
-	if err != nil {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("offboarding cleanup requires the retirement transaction")
+	}
+	if err := rs.OffboardingCleanup.Enqueue(ctx, staffID); err != nil {
 		return err
 	}
-	for _, document := range documents {
-		docID, storedName := document.ID, document.FilenameStored
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupStaffDocumentFile(cleanupCtx, staffID, docID, storedName, "offboarding")
-		})
-	}
-	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, staffID)
-	if err != nil {
-		return err
-	}
-	for _, cleanup := range cleanups {
-		cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupQueuedStaffDocumentFile(cleanupCtx, staffID, cleanupID, storedName, "offboarding")
-		})
-	}
+	rs.wakeOffboardingDocumentCleanup(ctx)
 	return nil
 }

@@ -2892,14 +2892,6 @@ func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, 
 	return 0, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) DeleteNonHistoricalByStaffID(context.Context, int64, timezone.Date) (int64, error) {
-	return 0, nil
-}
-
-func (m *wsMockStaffAbsenceRepository) ListNonHistoricalByStaffID(context.Context, int64, timezone.Date) ([]*activeModels.StaffAbsence, error) {
-	return nil, nil
-}
-
 func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
 	return nil, nil
 }

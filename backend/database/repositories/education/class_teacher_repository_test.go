@@ -73,7 +73,8 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ClassTeacher
+	dependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repo := repositories.NewFactory(db, dependencies).ClassTeacher
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "CTDelete", "Offboarded")
@@ -83,7 +84,7 @@ func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
 	testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
 	testpkg.CreateTestClassTeacher(t, db, other.ID, "1a")
 
-	affected, err := repo.DeleteByStaffID(ctx, staff.ID)
+	affected, err := dependencies.Membership.DeleteClassAssignmentsByStaff(ctx, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 

@@ -70,7 +70,12 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 			approvedCanonicalAddition := candidate.ModulePath == "github.com/moto-nrw/project-phoenix" &&
 				candidate.PolicyEpoch > base.PolicyEpoch && candidateOnlyOwner &&
 				(owner.Kind == "domain" || owner.Kind == "platform")
-			if (owner.Kind != "projection" || !candidateOnlyOwner) && !approvedCanonicalAddition {
+			// Workflows are non-owning coordinators. A reviewed epoch may add
+			// one only for new packages; all existing import/classification and
+			// data-ownership guards below still apply (#3130).
+			approvedWorkflowAddition := owner.Kind == "workflow" && candidateOnlyOwner &&
+				candidate.PolicyEpoch > base.PolicyEpoch
+			if (owner.Kind != "projection" || !candidateOnlyOwner) && !approvedCanonicalAddition && !approvedWorkflowAddition {
 				problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
 			}
 		}

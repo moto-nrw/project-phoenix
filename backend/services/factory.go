@@ -181,7 +181,6 @@ type Factory struct {
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          users.StudentDocumentService
 	FileStore                 filestore.Service
-	StaffOffboarding          users.StaffOffboardingService
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
@@ -1815,35 +1814,6 @@ func newFactory(
 		DB:                     db,
 	})
 
-	staffOffboardingService := users.NewStaffOffboardingService(users.StaffOffboardingServiceDependencies{
-		PersonRepo:             repos.Person,
-		StaffRepo:              repos.Staff,
-		TeacherRepo:            repos.Teacher,
-		GroupSupervisorRepo:    repos.GroupSupervisor,
-		GroupTeacherRepo:       repos.GroupTeacher,
-		ClassTeacherRepo:       repos.ClassTeacher,
-		GroupSubstitutionRepo:  repos.GroupSubstitution,
-		ActivitySupervisorRepo: repos.ActivitySupervisor,
-		InstanceStaffRepo:      repos.InstanceStaff,
-		StaffShiftRepo:         repos.StaffShift,
-		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
-		StaffAbsenceRepo:       repos.StaffAbsence,
-		AccountRepo:            repos.Account,
-		AccountTenantRepo:      repos.AccountTenant,
-		RoleRepo:               repos.Role,
-		AccountPermissionRepo:  repos.AccountPermission,
-		DataDeletionRepo:       repos.DataDeletion,
-		TimeTrackingDeleteRepo: repos.TimeTrackingDeletion,
-		AuthService:            authService,
-		DB:                     db,
-		Logger:                 logger.With("service", "staff_offboarding"),
-	})
-	if broadcastAware, ok := staffOffboardingService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
 		AccountRepo:        repos.Account,
@@ -3144,7 +3114,6 @@ func newFactory(
 		StaffDocuments:          staffDocumentService,
 		StudentDocuments:        studentDocumentService,
 		FileStore:               fileStoreService,
-		StaffOffboarding:        staffOffboardingService,
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
 		PeopleDirectory:         persons,

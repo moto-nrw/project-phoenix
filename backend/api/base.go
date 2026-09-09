@@ -255,6 +255,10 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	timetableCapability, err := timetableCompose.New(timetableCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
 		CarePlan: careQueries,
 		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db),
 		Observe: func(observation timetableCompose.Observation) {
@@ -269,6 +273,10 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
 		DB:                db,
 		AssignedStaffIDs:  repositories.WorkforceAssignedStaffIDs(membership),
 		RebaseStaffAnchor: membership.RebaseWorkTimeModelAnchor,
