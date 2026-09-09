@@ -463,11 +463,11 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    // Über die volle Breite passt die Karte nicht mehr neben die Kennzahl;
-    // in derselben Reihenfolge gepackt rückt sie unter sie.
+    // Über die volle Breite passt die Karte nur ab Spalte 1; die Kennzahl,
+    // die dort lag, rückt unter sie.
     expect(save.mock.calls[0]?.[1]).toEqual([
-      { key: "tile.students_present", span: 1, col: 0, row: 0 },
-      { key: "section.staff_notices", span: 4, col: 0, row: 1 },
+      { key: "section.staff_notices", span: 4, col: 0, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 
@@ -526,11 +526,10 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    // Die Karte rückt in der Reihenfolge vor die Kennzahl; die rutscht
-    // nach, das Brett bleibt lückenlos.
+    // Die Karte liegt jetzt auf der Zelle der Kennzahl; die rückt unter sie.
     expect(save.mock.calls[0]?.[1]).toEqual([
       { key: "section.staff_notices", span: 2, col: 0, row: 0 },
-      { key: "tile.students_present", span: 1, col: 2, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 
@@ -549,10 +548,11 @@ describe("Startseite anpassen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
-    // Pfeil links tauscht mit dem Nachbarn davor.
+    // Pfeil links tauscht mit dem Nachbarn davor; der findet neben der
+    // breiten Karte keinen Platz mehr und rückt unter sie.
     expect(save.mock.calls[0]?.[1]).toEqual([
       { key: "section.staff_notices", span: 2, col: 0, row: 0 },
-      { key: "tile.students_present", span: 1, col: 2, row: 0 },
+      { key: "tile.students_present", span: 1, col: 0, row: 2 },
     ]);
   });
 

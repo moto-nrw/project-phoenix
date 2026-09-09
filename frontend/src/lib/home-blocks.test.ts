@@ -513,9 +513,9 @@ describe("sanitize", () => {
     ]);
   });
 
-  // Gespeicherte Zellen sind nur die Reihenfolge: gepackt wird lückenlos,
-  // auch wenn eine ältere Anordnung noch Löcher hatte.
-  it("nimmt die Reihenfolge der gespeicherten Zellen und packt lückenlos", () => {
+  // Eine ältere Anordnung mit Löchern setzt sich beim Laden: alles rutscht
+  // nach oben und nach links, so weit Platz ist.
+  it("übernimmt gespeicherte Zellen und schließt Löcher", () => {
     const kept = sanitizeHomeBlockPlacements([
       { key: "tile.students_present", span: 1, col: 3, row: 2 },
       { key: "section.open_requests", span: 2, col: 0, row: 5 },
@@ -524,8 +524,8 @@ describe("sanitize", () => {
 
     expect(kept.map((entry) => [entry.col, entry.row])).toEqual([
       [0, 0],
-      [1, 0],
-      [0, 2],
+      [0, 1],
+      [2, 0],
     ]);
   });
 
@@ -545,10 +545,9 @@ describe("sanitize", () => {
   });
 });
 
-describe("Nahtloses Raster (#2180)", () => {
+describe("Raster mit Schwerkraft (#2180)", () => {
   // Zwei Kennzahlen, daneben die Anfragen, darunter das Personal, dann die
-  // Geburtstage über die volle Breite — so, wie das Raster diese Reihenfolge
-  // packt. Kein Loch.
+  // Geburtstage über die volle Breite. Kein Loch.
   const grid: HomeBlockPlacement[] = [
     { key: "tile.students_present", span: 1, col: 0, row: 0 },
     { key: "tile.students_sick", span: 1, col: 1, row: 0 },
@@ -564,32 +563,30 @@ describe("Nahtloses Raster (#2180)", () => {
     return [entry.col, entry.row];
   };
 
-  it("legt einen Baustein vor die Kachel, über der er losgelassen wird", () => {
-    const next = placePlacement(grid, "section.birthdays", { col: 0, row: 0 });
-
-    expect(cellOf(next, "section.birthdays")).toEqual([0, 0]);
-    // Alles, was vorher davor lag, rutscht dahinter — lückenlos.
-    expect(cellOf(next, "tile.students_present")).toEqual([0, 2]);
-    expect(cellOf(next, "tile.students_sick")).toEqual([1, 2]);
-    expect(cellOf(next, "section.open_requests")).toEqual([2, 2]);
-    expect(cellOf(next, "section.staff_today")).toEqual([0, 3]);
-  });
-
-  // Genau das Bild aus der Rückmeldung: keine Kachel hängt allein irgendwo,
-  // keine leere Zelle vor der letzten Kachel.
-  it("lässt keine Lücke, wenn ein Baustein ans Ende zieht", () => {
+  // Genau der Fall aus der Rückmeldung: eine Kennzahl links unter eine große
+  // Karte legen — sie bleibt dort, die rechte Seite bleibt, wie sie war.
+  it("legt eine Kennzahl unter eine Karte, ohne die andere Seite zu bewegen", () => {
     const next = placePlacement(grid, "tile.students_present", {
       col: 0,
-      row: 10,
+      row: 3,
     });
 
-    expect(cellOf(next, "tile.students_sick")).toEqual([0, 0]);
-    expect(cellOf(next, "section.open_requests")).toEqual([1, 0]);
-    // Die Kennzahl steht in der Reihenfolge zuletzt und füllt die Zelle,
-    // die dabei frei wird — statt allein in einer Zeile unter allem.
-    expect(cellOf(next, "tile.students_present")).toEqual([3, 0]);
-    expect(cellOf(next, "section.staff_today")).toEqual([0, 2]);
+    expect(cellOf(next, "tile.students_present")).toEqual([0, 3]);
+    expect(cellOf(next, "section.staff_today")).toEqual([0, 1]);
+    expect(cellOf(next, "section.open_requests")).toEqual([2, 0]);
+    // Was unter der abgelegten Kachel lag, rückt nach unten.
     expect(cellOf(next, "section.birthdays")).toEqual([0, 4]);
+    // Die Lücke, die die Kennzahl oben lässt, schließt der Nachbar.
+    expect(cellOf(next, "tile.students_sick")).toEqual([0, 0]);
+  });
+
+  // Schwerkraft: nach oben, so weit die Spalten frei sind, dann nach links.
+  it("lässt eine Kachel in die nächste freie Zelle rutschen", () => {
+    const next = placePlacement(grid, "tile.students_sick", { col: 3, row: 3 });
+
+    expect(cellOf(next, "tile.students_sick")).toEqual([2, 2]);
+    expect(cellOf(next, "section.birthdays")).toEqual([0, 3]);
+    expect(cellOf(next, "tile.students_present")).toEqual([0, 0]);
   });
 
   it("gibt dieselbe Anordnung zurück, wenn sich nichts ändert", () => {
@@ -600,24 +597,26 @@ describe("Nahtloses Raster (#2180)", () => {
     expect(movePlacementBy(grid, "tile.students_present", "left")).toBe(grid);
   });
 
-  it("packt nach einer Breitenänderung in derselben Reihenfolge neu", () => {
+  it("rückt bei einer breiteren Kachel nach links und schiebt darunter weg", () => {
     const next = placementWithSpan(grid, "section.open_requests", 4);
 
     expect(next.find((entry) => entry.key === "section.open_requests")).toEqual(
-      { key: "section.open_requests", span: 4, col: 0, row: 1 },
+      { key: "section.open_requests", span: 4, col: 0, row: 0 },
     );
+    expect(cellOf(next, "tile.students_present")).toEqual([0, 2]);
+    expect(cellOf(next, "tile.students_sick")).toEqual([1, 2]);
     expect(cellOf(next, "section.staff_today")).toEqual([0, 3]);
     expect(cellOf(next, "section.birthdays")).toEqual([0, 5]);
   });
 
-  it("rückt nach, wenn ein Baustein entfernt wird", () => {
+  it("schließt die Lücke, die ein entfernter Baustein hinterlässt", () => {
     const next = withoutPlacement(grid, "tile.students_present");
 
     expect(next).toHaveLength(4);
     expect(cellOf(next, "tile.students_sick")).toEqual([0, 0]);
-    expect(cellOf(next, "section.open_requests")).toEqual([1, 0]);
-    expect(cellOf(next, "section.staff_today")).toEqual([0, 2]);
-    expect(cellOf(next, "section.birthdays")).toEqual([0, 4]);
+    expect(cellOf(next, "section.open_requests")).toEqual([2, 0]);
+    expect(cellOf(next, "section.staff_today")).toEqual([0, 1]);
+    expect(cellOf(next, "section.birthdays")).toEqual([0, 3]);
   });
 
   it("hängt einen Baustein dort an, wo er als Nächstes passt", () => {
@@ -632,7 +631,8 @@ describe("Nahtloses Raster (#2180)", () => {
     ).toEqual({ key: "section.messages", span: 2, col: 2, row: 0 });
   });
 
-  it("rückt eine Kachel ohne Maus in der Reihenfolge", () => {
+  it("rückt eine Kachel ohne Maus", () => {
+    // Links und rechts: Platz tauschen mit dem Nachbarn.
     const left = movePlacementBy(grid, "tile.students_sick", "left");
     expect(cellOf(left, "tile.students_sick")).toEqual([0, 0]);
     expect(cellOf(left, "tile.students_present")).toEqual([1, 0]);
@@ -641,15 +641,15 @@ describe("Nahtloses Raster (#2180)", () => {
     expect(cellOf(right, "section.open_requests")).toEqual([1, 0]);
     expect(cellOf(right, "tile.students_sick")).toEqual([3, 0]);
 
-    // Oben: vor die Kachel, die in derselben Spalte darüber steht.
+    // Oben: auf die Kachel darüber; die weicht nach unten.
     const up = movePlacementBy(grid, "section.staff_today", "up");
     expect(cellOf(up, "section.staff_today")).toEqual([0, 0]);
-    expect(cellOf(up, "tile.students_present")).toEqual([2, 0]);
+    expect(cellOf(up, "tile.students_present")).toEqual([0, 2]);
 
-    // Unten: hinter die Kachel, die in derselben Spalte darunter steht.
+    // Unten: unter die Kachel darunter.
     const down = movePlacementBy(grid, "tile.students_present", "down");
+    expect(cellOf(down, "tile.students_present")).toEqual([0, 3]);
     expect(cellOf(down, "tile.students_sick")).toEqual([0, 0]);
-    expect(cellOf(down, "tile.students_present")).toEqual([3, 0]);
   });
 
   it("speichert in Lesereihenfolge", () => {
@@ -684,7 +684,7 @@ describe("Nahtloses Raster (#2180)", () => {
   });
 
   // Zwei Spalten: dieselbe Reihenfolge, schmaler gepackt.
-  it("packt auf einem schmalen Raster in derselben Reihenfolge", () => {
+  it("packt auf einem schmalen Raster in Lesereihenfolge", () => {
     const cells = computeBoardCells(grid, 2);
 
     expect(cells.get("section.open_requests")).toEqual({

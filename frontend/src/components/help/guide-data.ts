@@ -649,10 +649,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Jede Person stellt sich ihre Startseite selbst zusammen: welche Bausteine, an welcher Stelle, wie breit. Die Anordnung gilt auf allen Geräten.",
         steps: [
           "Auf der `Startseite` oben rechts `Anpassen` klicken. Statt der Inhalte zeigt die Fläche jetzt die Anordnung: jede Karte als Kachel mit Name und Breite.",
-          "Eine Kachel an ihren neuen Platz ziehen. Die Kachel rückt in der Reihenfolge vor die Kachel, über der Sie sie loslassen; alles dahinter rutscht nach, und die Fläche bleibt lückenlos wie ein Startbildschirm. Verschieben geht am großen Bildschirm; am Tablet und am Handy ändern Sie Breite und Auswahl.",
+          "Eine Kachel an ihren neuen Platz ziehen. Sie bleibt dort, wo Sie sie loslassen; was darunter lag, rückt nach unten, und alles andere rutscht nach oben und nach links in freie Zellen, wie auf einem Startbildschirm. Verschieben geht am großen Bildschirm; am Tablet und am Handy ändern Sie Breite und Auswahl.",
           "Eine Kachel anklicken, um sie auszuwählen. Über der Fläche erscheint eine Leiste mit Breite und `Entfernen`; sie bleibt beim Scrollen stehen.",
           "In der Leiste die `Breite` wählen: `Schmal`, `Breit` oder `Volle Breite`. Kennzahlen haben nur eine Breite, dann fehlt die Auswahl.",
-          "Ohne Maus: die Kachel mit der Tabulatortaste ansteuern. Pfeil links und rechts tauschen sie mit dem Nachbarn, Pfeil oben und unten rücken sie vor die Kachel darüber oder hinter die darunter. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
+          "Ohne Maus: die Kachel mit der Tabulatortaste ansteuern. Pfeil links und rechts tauschen sie mit dem Nachbarn, Pfeil oben setzt sie auf die Kachel darüber, Pfeil unten unter die Kachel darunter. `Entfernen` nimmt den Baustein von Ihrer Startseite.",
           "Über `Bausteine` in der Leiste holen Sie einen Baustein zurück oder einen neuen dazu; er erscheint am Ende.",
           "`Fertig` speichert die Anordnung. `Abbrechen` verwirft die Änderungen, `Standardansicht wiederherstellen` in der Leiste bringt die Ansicht Ihrer Rolle zurück.",
           "Zur Auswahl steht nur, was Sie auch sehen dürfen. Fehlt ein Baustein ganz, fehlt Ihnen das Recht für die Daten dahinter. Die Zeile mit Uhrzeit und laufendem Einsatz bleibt immer stehen; sie ist kein Baustein.",
