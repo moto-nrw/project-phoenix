@@ -249,6 +249,31 @@ describe("loadShellBootstrap", () => {
     );
   });
 
+  it("keeps a successful overview when the ownership request fails", async () => {
+    routeBackend({
+      "/api/students/ogs-group-navigation": { data: [] },
+      "/api/active/supervisors/all": {
+        data: [
+          { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+        ],
+      },
+      "/api/me/groups/supervised": new Error("500"),
+      "/api/active/schulhof/status": { data: { exists: false } },
+    });
+
+    const shell = await loadShellBootstrap(session(), tenant);
+
+    expect(shell.supervision).toEqual({
+      groups: [],
+      supervised: [
+        { id: 1, group_id: 1, room_id: 5, room: { id: 5, name: "Aula" } },
+      ],
+      ownSupervised: null,
+      schulhof: { exists: false },
+      overviewOk: true,
+    });
+  });
+
   it("leaves an incomplete navigation projection to the browser", async () => {
     routeBackend({});
     vi.mocked(loadUserContext).mockResolvedValueOnce({

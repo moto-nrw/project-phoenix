@@ -111,10 +111,11 @@ async function loadSupervision(
         ),
         loadOwn(),
       ]);
-      if (overview.status === "fulfilled" && own.status === "fulfilled") {
+      if (overview.status === "fulfilled") {
         return {
           supervised: overview.value.data ?? [],
-          ownSupervised: own.value.data ?? [],
+          ownSupervised:
+            own.status === "fulfilled" ? (own.value.data ?? []) : null,
           overviewOk: true,
         };
       }

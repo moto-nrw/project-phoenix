@@ -8,11 +8,13 @@ const {
   mockSignOut,
   mockClearSessionCache,
   mockEndStaffPreview,
+  mockSchoolPortalLoginUrl,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockSignOut: vi.fn(),
   mockClearSessionCache: vi.fn(),
   mockEndStaffPreview: vi.fn(),
+  mockSchoolPortalLoginUrl: vi.fn(),
 }));
 
 const mockProfile = {
@@ -50,7 +52,7 @@ vi.mock("~/lib/operator-url", () => ({
 vi.mock("~/lib/school-url", () => ({
   schoolAbsoluteUrl: (path: string) => path,
   schoolPath: (path: string) => path,
-  schoolPortalLoginUrl: () => "https://schule.example.test/login",
+  schoolPortalLoginUrl: mockSchoolPortalLoginUrl,
 }));
 
 vi.mock("~/lib/session-cache", () => ({
@@ -75,6 +77,9 @@ describe("TeacherShellProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSignOut.mockResolvedValue(undefined);
+    mockSchoolPortalLoginUrl.mockReturnValue(
+      "https://schule.example.test/login",
+    );
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -158,7 +163,29 @@ describe("TeacherShellProvider", () => {
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    expect(result.current.homeUrl).toBe("https://schule.example.test/login");
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps the school-only hand-off safe during server rendering", () => {
+    mockSchoolPortalLoginUrl.mockImplementation(() => {
+      throw new Error("schoolPortalLoginUrl() is client-only.");
+    });
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Lehrkraft",
+          email: "lehrkraft@example.com",
+          roles: ["lehrkraft"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/school/login");
+    expect(mockSchoolPortalLoginUrl).not.toHaveBeenCalled();
   });
 
   it("keeps dual-role lehrkraft accounts in the staff portal", () => {
