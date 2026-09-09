@@ -2769,6 +2769,7 @@ func newFactory(
 	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
 		Repo:    repos.StaffNotice,
 		Periods: repos.CalendarPeriod,
+		Names:   newStaffNoticeNameLookup(persons),
 		Logger:  logger.With("service", "staffnotice"),
 	})
 

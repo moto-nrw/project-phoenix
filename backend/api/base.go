@@ -1338,7 +1338,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, workfor
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
-	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
+	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 

@@ -62,6 +62,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	resource := schoolportal.NewResource(
 		services.Auth, services.MFA, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
+		nil,
 		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
 	)
 
@@ -80,7 +81,7 @@ func newSchoolRouter(resource *schoolportal.Resource, mfa authService.MFAService
 	if mfa == nil {
 		return resource.Router()
 	}
-	return schoolportal.NewResource(resource.AuthService, mfa, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.Notifications).Router()
+	return schoolportal.NewResource(resource.AuthService, mfa, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router()
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
@@ -145,7 +146,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, db, nil)
-	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil).Router()
+	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

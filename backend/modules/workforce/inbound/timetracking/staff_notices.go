@@ -1,12 +1,18 @@
 // Tagesinformationen (#2180) — HTTP-Fläche der Hinweise fürs Team:
 // interne Hinweise der Leitung an das Team. Eingehängt unter
-// /api/staff-notices.
+// /api/staff-notices (OGS-Portal) und /school/staff-notices (moto schule).
 //
-// Zwei Rechte, zwei Zwecke: LESEN darf jede Person mit users:read (das hält
-// jede Betreuungskraft), SCHREIBEN nur ein Admin. Der Zuschnitt steht bewusst
-// hier an der Route und nicht nur im Frontend — ein Baustein der Startseite,
-// den man ohne Recht trotzdem abrufen könnte, wäre kein Zuschnitt, sondern
-// eine Kulisse.
+// Zwei Rechte, zwei Zwecke: LESEN darf im OGS-Portal jede Person mit
+// users:read (das hält jede Betreuungskraft), in moto schule jede mit
+// staff_notices:read (das hält die Lehrkraft-Rolle, ohne dass users:read und
+// damit das Kinderverzeichnis mit aufgeht); SCHREIBEN nur ein Admin, nur im
+// OGS-Portal. Der Zuschnitt steht bewusst hier an der Route und nicht nur im
+// Frontend — ein Baustein der Startseite, den man ohne Recht trotzdem abrufen
+// könnte, wäre kein Zuschnitt, sondern eine Kulisse.
+//
+// Die Zielgruppe (#2208) entscheidet die Route, nicht die Person: wer über
+// /api liest, liest als Betreuung, wer über /school liest, als Lehrkraft. Ein
+// Konto mit beiden Rollen sieht in jedem Portal den Anteil, der dorthin gehört.
 package timetracking
 
 import (
@@ -41,25 +47,43 @@ func NewStaffNoticeResource(service scheduleSvc.StaffNoticeService, identity Ide
 	return &StaffNoticeResource{Service: service, identity: identity, db: db}
 }
 
-// Router liefert den Router unter /staff-notices.
+// Router liefert den Router unter /api/staff-notices: die Sicht der Betreuung
+// plus die Verwaltung der Leitung.
 func (rs *StaffNoticeResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.UsersRead)
-		// Schreiben ist adminexklusiv: ein Hinweis erreicht die ganze
-		// Einrichtung, es gibt also keine Zielgruppe, an der sich ein feinerer
-		// Zuschnitt festmachen ließe.
+		// Schreiben ist adminexklusiv: die Zielgruppe wählt die Leitung beim
+		// Anlegen, sie ist kein Recht, das jemand anderes halten könnte.
 		write := common.RequiresPermission(permissions.AdminWildcard)
 
-		r.With(read, withTx).Get("/today", rs.today)
-		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledge)
+		r.With(read, withTx).Get("/today", rs.todayFor(scheduleSvc.StaffNoticeReaderStaff))
+		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(scheduleSvc.StaffNoticeReaderStaff))
 
 		r.With(write, withTx).Get("/", rs.list)
 		r.With(write, withTx).Post("/", rs.create)
 		r.With(write, withTx).Put("/{noticeId}", rs.update)
 		r.With(write, withTx).Delete("/{noticeId}", rs.remove)
+		r.With(write, withTx).Get("/{noticeId}/acknowledgements", rs.acknowledgements)
+	})
+
+	return r
+}
+
+// SchoolRouter liefert den Router unter /school/staff-notices (#2208): die
+// Sicht einer Lehrkraft in moto schule — lesen und zur Kenntnis nehmen, mehr
+// nicht. Gleiche Handler, andere Leserart, eigenes Recht.
+func (rs *StaffNoticeResource) SchoolRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	common.ProtectedSchoolGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+		read := common.RequiresPermission(permissions.StaffNoticesRead)
+
+		r.With(read, withTx).Get("/today", rs.todayFor(scheduleSvc.StaffNoticeReaderLehrkraft))
+		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(scheduleSvc.StaffNoticeReaderLehrkraft))
 	})
 
 	return r
@@ -68,9 +92,11 @@ func (rs *StaffNoticeResource) Router() chi.Router {
 // --- Wire-Format (int64-Ids als String, wie im Frontend üblich) ---
 
 type noticeRequest struct {
-	Title                   string  `json:"title"`
-	Body                    string  `json:"body"`
-	Priority                string  `json:"priority"`
+	Title    string `json:"title"`
+	Body     string `json:"body"`
+	Priority string `json:"priority"`
+	// Audience: "all" | "staff" | "lehrkraft" (#2208); leer = "all".
+	Audience                string  `json:"audience"`
 	ValidFrom               string  `json:"valid_from"`
 	ValidUntil              *string `json:"valid_until,omitempty"`
 	Weekdays                []int16 `json:"weekdays"`
@@ -84,6 +110,7 @@ type noticeResponse struct {
 	Title                   string  `json:"title"`
 	Body                    string  `json:"body"`
 	Priority                string  `json:"priority"`
+	Audience                string  `json:"audience"`
 	ValidFrom               string  `json:"valid_from"`
 	ValidUntil              *string `json:"valid_until,omitempty"`
 	Weekdays                []int16 `json:"weekdays"`
@@ -104,6 +131,7 @@ type noticeFields struct {
 	Title                   string
 	Body                    string
 	Priority                string
+	Audience                string
 	ValidFrom               timezone.Date
 	ValidUntil              *timezone.Date
 	Weekdays                []int16
@@ -120,6 +148,7 @@ func toNoticeResponse(view noticeFields, includeAcknowledgedCount bool) noticeRe
 		Title:                   view.Title,
 		Body:                    view.Body,
 		Priority:                view.Priority,
+		Audience:                view.Audience,
 		ValidFrom:               view.ValidFrom.String(),
 		Weekdays:                view.Weekdays,
 		WeekPattern:             view.WeekPattern,
@@ -146,23 +175,28 @@ func toNoticeResponse(view noticeFields, includeAcknowledgedCount bool) noticeRe
 
 // --- Handler ---
 
-func (rs *StaffNoticeResource) today(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	views, err := rs.Service.Today(ctx, rs.noticeAccountID(ctx), timezone.TodayDate())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
+// todayFor liefert den Handler der heutigen Hinweise für eine Leserart. Die
+// Leserart ist an die Route gebunden, nicht an die Anfrage: keine Person kann
+// sich per Parameter in ein anderes Portal lesen.
+func (rs *StaffNoticeResource) todayFor(reader string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		views, err := rs.Service.Today(ctx, rs.noticeAccountID(ctx), timezone.TodayDate(), reader)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		out := make([]noticeResponse, 0, len(views))
+		for _, view := range views {
+			out = append(out, toNoticeResponse(noticeFields{
+				ID: view.ID, Title: view.Title, Body: view.Body, Priority: view.Priority, Audience: view.Audience,
+				ValidFrom: view.ValidFrom, ValidUntil: view.ValidUntil, Weekdays: view.Weekdays,
+				WeekPattern: view.WeekPattern, RequiresAcknowledgement: view.RequiresAcknowledgement,
+				Active: view.Active, AcknowledgedAt: view.AcknowledgedAt, AcknowledgedCount: view.AcknowledgedCount,
+			}, false))
+		}
+		render.JSON(w, r, map[string]any{"data": out})
 	}
-	out := make([]noticeResponse, 0, len(views))
-	for _, view := range views {
-		out = append(out, toNoticeResponse(noticeFields{
-			ID: view.ID, Title: view.Title, Body: view.Body, Priority: view.Priority,
-			ValidFrom: view.ValidFrom, ValidUntil: view.ValidUntil, Weekdays: view.Weekdays,
-			WeekPattern: view.WeekPattern, RequiresAcknowledgement: view.RequiresAcknowledgement,
-			Active: view.Active, AcknowledgedAt: view.AcknowledgedAt, AcknowledgedCount: view.AcknowledgedCount,
-		}, false))
-	}
-	render.JSON(w, r, map[string]any{"data": out})
 }
 
 func (rs *StaffNoticeResource) list(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +211,7 @@ func (rs *StaffNoticeResource) list(w http.ResponseWriter, r *http.Request) {
 	out := make([]noticeResponse, 0, len(views))
 	for _, view := range views {
 		out = append(out, toNoticeResponse(noticeFields{
-			ID: view.ID, Title: view.Title, Body: view.Body, Priority: view.Priority,
+			ID: view.ID, Title: view.Title, Body: view.Body, Priority: view.Priority, Audience: view.Audience,
 			ValidFrom: view.ValidFrom, ValidUntil: view.ValidUntil, Weekdays: view.Weekdays,
 			WeekPattern: view.WeekPattern, RequiresAcknowledgement: view.RequiresAcknowledgement,
 			Active: view.Active, AcknowledgedAt: view.AcknowledgedAt, AcknowledgedCount: view.AcknowledgedCount,
@@ -201,7 +235,7 @@ func (rs *StaffNoticeResource) create(w http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, map[string]any{
 		"data": toNoticeResponse(noticeFields{
-			ID: notice.ID, Title: notice.Title, Body: notice.Body, Priority: notice.Priority,
+			ID: notice.ID, Title: notice.Title, Body: notice.Body, Priority: notice.Priority, Audience: notice.Audience,
 			ValidFrom: notice.ValidFrom, ValidUntil: notice.ValidUntil, Weekdays: notice.Weekdays,
 			WeekPattern: notice.WeekPattern, RequiresAcknowledgement: notice.RequiresAcknowledgement,
 			Active: notice.Active,
@@ -228,7 +262,7 @@ func (rs *StaffNoticeResource) update(w http.ResponseWriter, r *http.Request) {
 	}
 	render.JSON(w, r, map[string]any{
 		"data": toNoticeResponse(noticeFields{
-			ID: notice.ID, Title: notice.Title, Body: notice.Body, Priority: notice.Priority,
+			ID: notice.ID, Title: notice.Title, Body: notice.Body, Priority: notice.Priority, Audience: notice.Audience,
 			ValidFrom: notice.ValidFrom, ValidUntil: notice.ValidUntil, Weekdays: notice.Weekdays,
 			WeekPattern: notice.WeekPattern, RequiresAcknowledgement: notice.RequiresAcknowledgement,
 			Active: notice.Active,
@@ -250,18 +284,54 @@ func (rs *StaffNoticeResource) remove(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, map[string]any{"status": "ok"})
 }
 
-func (rs *StaffNoticeResource) acknowledge(w http.ResponseWriter, r *http.Request) {
+// acknowledgeFor liefert den Kenntnisnahme-Handler für eine Leserart; ein
+// Hinweis, der dieses Portal nicht erreicht, ist dort auch nicht bestätigbar.
+func (rs *StaffNoticeResource) acknowledgeFor(reader string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		id, err := noticeIDFromURL(r)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		if err := rs.Service.Acknowledge(ctx, id, rs.noticeAccountID(ctx), reader); err != nil {
+			renderNoticeServiceError(w, r, err)
+			return
+		}
+		render.JSON(w, r, map[string]any{"status": "ok"})
+	}
+}
+
+// acknowledgerResponse ist eine Zeile der Bestätigungsliste (#2208).
+type acknowledgerResponse struct {
+	AccountID      string `json:"account_id"`
+	Name           string `json:"name"`
+	AcknowledgedAt string `json:"acknowledged_at"`
+}
+
+// acknowledgements gibt der Leitung, wer den Hinweis bestätigt hat — Namen,
+// nicht nur die Zahl. Adminexklusiv wie die Verwaltung selbst.
+func (rs *StaffNoticeResource) acknowledgements(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := noticeIDFromURL(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.Service.Acknowledge(ctx, id, rs.noticeAccountID(ctx)); err != nil {
+	rows, err := rs.Service.Acknowledgers(ctx, id)
+	if err != nil {
 		renderNoticeServiceError(w, r, err)
 		return
 	}
-	render.JSON(w, r, map[string]any{"status": "ok"})
+	out := make([]acknowledgerResponse, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, acknowledgerResponse{
+			AccountID:      strconv.FormatInt(row.AccountID, 10),
+			Name:           row.Name,
+			AcknowledgedAt: row.AcknowledgedAt.Format(time.RFC3339),
+		})
+	}
+	render.JSON(w, r, map[string]any{"data": out})
 }
 
 // --- Hilfen ---
@@ -294,6 +364,7 @@ func decodeNoticeInput(r *http.Request) (scheduleSvc.StaffNoticeInput, error) {
 		Title:                   req.Title,
 		Body:                    req.Body,
 		Priority:                req.Priority,
+		Audience:                req.Audience,
 		ValidFrom:               validFrom,
 		Weekdays:                req.Weekdays,
 		WeekPattern:             req.WeekPattern,

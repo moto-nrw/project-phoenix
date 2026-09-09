@@ -30,9 +30,12 @@ var ErrStaffNoticeInvalid = errors.New("staffnotice: invalid notice")
 
 // StaffNoticeInput ist die Schreibform eines Hinweises.
 type StaffNoticeInput struct {
-	Title                   string
-	Body                    string
-	Priority                string
+	Title    string
+	Body     string
+	Priority string
+	// Audience ist die Zielgruppe (all/staff/lehrkraft, #2208); leer heißt
+	// "all", wie vor der Zielgruppe jeder Hinweis war.
+	Audience                string
 	ValidFrom               timezone.Date
 	ValidUntil              *timezone.Date
 	Weekdays                []int16
@@ -46,15 +49,22 @@ type StaffNoticeService interface {
 	// List gibt alle Hinweise des Mandanten zurück (Leitungssicht), jeweils mit
 	// der Zahl der Kenntnisnahmen.
 	List(ctx context.Context, accountID int64, includeInactive bool) ([]*usersModels.StaffNoticeView, error)
-	// Today gibt die Hinweise zurück, die an diesem Kalendertag gelten — die
-	// Sicht des Teams auf der Startseite.
-	Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error)
+	// Today gibt die Hinweise zurück, die an diesem Kalendertag für diese
+	// Leserart gelten — die Sicht des Teams im jeweiligen Portal. reader ist
+	// StaffNoticeAudienceStaff (OGS-Portal) oder StaffNoticeAudienceLehrkraft
+	// (moto schule); der Aufrufer leitet ihn aus der Route ab, nicht aus der
+	// Eingabe der Person.
+	Today(ctx context.Context, accountID int64, date timezone.Date, reader string) ([]*usersModels.StaffNoticeView, error)
 	Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error)
 	Create(ctx context.Context, createdBy int64, in StaffNoticeInput) (*usersModels.StaffNotice, error)
 	Update(ctx context.Context, id int64, in StaffNoticeInput) (*usersModels.StaffNotice, error)
 	Delete(ctx context.Context, id int64) error
-	// Acknowledge nimmt die Kenntnisnahme einer Person entgegen.
-	Acknowledge(ctx context.Context, id, accountID int64) error
+	// Acknowledge nimmt die Kenntnisnahme einer Person entgegen. Sie gilt nur
+	// für Hinweise, die diese Leserart heute überhaupt erreichen.
+	Acknowledge(ctx context.Context, id, accountID int64, reader string) error
+	// Acknowledgers gibt der Leitung die Bestätigungsliste eines Hinweises:
+	// wer wann zur Kenntnis genommen hat, neueste zuerst (#2208).
+	Acknowledgers(ctx context.Context, id int64) ([]usersModels.StaffNoticeAcknowledger, error)
 }
 
 // StaffNoticePeriodLookup ist der Ausschnitt des Kalenderzeitraum-Repositories, den die
@@ -64,19 +74,45 @@ type StaffNoticePeriodLookup interface {
 	FindActiveByTenantID(ctx context.Context) ([]*scheduleModels.CalendarPeriod, error)
 }
 
+// StaffNoticeNameLookup ist der Ausschnitt des Personenverzeichnisses, den die
+// Bestätigungsliste braucht: Anzeigenamen zu Konto-Ids. Ein Port dieses
+// Dienstes, nicht das Verzeichnis selbst — die Kenntnisnahme kennt nur Konten,
+// und Namen sind nicht ihr Datenbesitz.
+type StaffNoticeNameLookup interface {
+	// ListPersonNamesByAccount gibt je Konto-Id den Anzeigenamen der aktiven
+	// Person des Mandanten zurück; Konten ohne Person fehlen in der Antwort.
+	ListPersonNamesByAccount(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+}
+
 // StaffNoticeServiceConfig ist das Abhängigkeitsbündel. Periods ist optional: ohne
 // Kalenderzeitraum lässt sich kein Wochenmuster auflösen, dann gilt ein Hinweis
-// in jeder Woche (dieselbe Richtung wie ShouldMaterializeWeekPattern).
+// in jeder Woche (dieselbe Richtung wie ShouldMaterializeWeekPattern). Names ist
+// optional: ohne Verzeichnis zeigt die Bestätigungsliste den Platzhalter.
 type StaffNoticeServiceConfig struct {
 	Repo        usersModels.StaffNoticeRepository
 	Periods     StaffNoticePeriodLookup
+	Names       StaffNoticeNameLookup
 	Logger      *slog.Logger
 	CurrentDate func() timezone.Date
 }
 
+// StaffNoticeUnknownAcknowledgerName steht in der Bestätigungsliste, wenn zum
+// Konto keine aktive Person mehr gehört (Konto entfernt, Person gelöscht).
+// Die Kenntnisnahme bleibt trotzdem sichtbar: sie ist passiert.
+const StaffNoticeUnknownAcknowledgerName = "Unbekannte Person"
+
+// Leserarten für Today und Acknowledge (#2208). Der HTTP-Adapter leitet sie aus
+// der Route ab und darf das Personenmodell nicht importieren; deshalb reicht
+// der Dienst die Werte des Modells hier durch.
+const (
+	StaffNoticeReaderStaff     = usersModels.StaffNoticeAudienceStaff
+	StaffNoticeReaderLehrkraft = usersModels.StaffNoticeAudienceLehrkraft
+)
+
 type staffNoticeService struct {
 	repo        usersModels.StaffNoticeRepository
 	periods     StaffNoticePeriodLookup
+	names       StaffNoticeNameLookup
 	logger      *slog.Logger
 	currentDate func() timezone.Date
 }
@@ -91,7 +127,7 @@ func NewStaffNoticeService(cfg StaffNoticeServiceConfig) StaffNoticeService {
 	if currentDate == nil {
 		currentDate = timezone.TodayDate
 	}
-	return &staffNoticeService{repo: cfg.Repo, periods: cfg.Periods, logger: logger, currentDate: currentDate}
+	return &staffNoticeService{repo: cfg.Repo, periods: cfg.Periods, names: cfg.Names, logger: logger, currentDate: currentDate}
 }
 
 func (s *staffNoticeService) Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error) {
@@ -113,15 +149,20 @@ func (s *staffNoticeService) List(ctx context.Context, accountID int64, includeI
 	return s.decorate(ctx, accountID, rows, true)
 }
 
-func (s *staffNoticeService) Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error) {
-	rows, err := s.repo.ListValidOn(ctx, date)
+func (s *staffNoticeService) Today(ctx context.Context, accountID int64, date timezone.Date, reader string) ([]*usersModels.StaffNoticeView, error) {
+	if !usersModels.ValidStaffNoticeReader(reader) {
+		// Kein Portal, keine Hinweise: eine unbekannte Leserart darf nicht
+		// den breitesten Verteiler bekommen.
+		return []*usersModels.StaffNoticeView{}, nil
+	}
+	rows, err := s.repo.ListValidOn(ctx, date, reader)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: today: %w", err)
 	}
 
 	matching := make([]*usersModels.StaffNotice, 0, len(rows))
 	for _, notice := range rows {
-		if !notice.AppliesOn(date) {
+		if !notice.AppliesOn(date) || !notice.AppliesTo(reader) {
 			continue
 		}
 		matching = append(matching, notice)
@@ -250,6 +291,7 @@ func (s *staffNoticeService) Create(ctx context.Context, createdBy int64, in Sta
 		slog.Int64("notice_id", notice.ID),
 		slog.Int64("created_by", createdBy),
 		slog.String("priority", notice.Priority),
+		slog.String("audience", notice.Audience),
 	)
 	return notice, nil
 }
@@ -281,10 +323,16 @@ func (s *staffNoticeService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *staffNoticeService) Acknowledge(ctx context.Context, id, accountID int64) error {
+func (s *staffNoticeService) Acknowledge(ctx context.Context, id, accountID int64, reader string) error {
 	notice, err := s.Get(ctx, id)
 	if err != nil {
 		return err
+	}
+	if !notice.AppliesTo(reader) {
+		// Ein Hinweis, der dieses Portal nicht erreicht, existiert für die
+		// Person dort nicht — dieselbe Antwort wie für einen fremden Hinweis,
+		// damit die Zielgruppe nicht über die Bestätigung erratbar wird.
+		return ErrStaffNoticeNotFound
 	}
 	if !notice.RequiresAcknowledgement {
 		// Ein Hinweis ohne angeforderte Kenntnisnahme hat keine zu speichern.
@@ -308,6 +356,49 @@ func (s *staffNoticeService) Acknowledge(ctx context.Context, id, accountID int6
 	return nil
 }
 
+// Acknowledgers löst die Kenntnisnahmen eines Hinweises zu Namen auf. Eine
+// Abfrage für die Liste, eine für die Namen — kein N+1. Wer im Verzeichnis
+// nicht mehr steht, bleibt als Platzhalter in der Liste: die Bestätigung war
+// echt, auch wenn das Konto inzwischen weg ist.
+func (s *staffNoticeService) Acknowledgers(ctx context.Context, id int64) ([]usersModels.StaffNoticeAcknowledger, error) {
+	if _, err := s.Get(ctx, id); err != nil {
+		return nil, err
+	}
+	acks, err := s.repo.Acknowledgements(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("staffnotice: acknowledgements: %w", err)
+	}
+	out := make([]usersModels.StaffNoticeAcknowledger, 0, len(acks))
+	if len(acks) == 0 {
+		return out, nil
+	}
+
+	names := map[int64]string{}
+	if s.names != nil {
+		ids := make([]int64, 0, len(acks))
+		for _, ack := range acks {
+			ids = append(ids, ack.AccountID)
+		}
+		names, err = s.names.ListPersonNamesByAccount(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("staffnotice: acknowledger names: %w", err)
+		}
+	}
+
+	for _, ack := range acks {
+		name := strings.TrimSpace(names[ack.AccountID])
+		if name == "" {
+			name = StaffNoticeUnknownAcknowledgerName
+		}
+		out = append(out, usersModels.StaffNoticeAcknowledger{
+			AccountID:      ack.AccountID,
+			Name:           name,
+			AcknowledgedAt: ack.AcknowledgedAt,
+		})
+	}
+	return out, nil
+}
+
 // apply überträgt die Eingabe auf die Zeile und prüft sie. Der Zuschnitt der
 // Wochentage passiert hier und nicht im Modell: doppelte Einträge sind eine
 // Eingabefrage, keine Eigenschaft des Hinweises.
@@ -317,6 +408,10 @@ func (s *staffNoticeService) apply(notice *usersModels.StaffNotice, in StaffNoti
 	notice.Priority = in.Priority
 	if notice.Priority == "" {
 		notice.Priority = usersModels.StaffNoticePriorityInfo
+	}
+	notice.Audience = in.Audience
+	if notice.Audience == "" {
+		notice.Audience = usersModels.StaffNoticeAudienceAll
 	}
 	notice.ValidFrom = in.ValidFrom
 	notice.ValidUntil = in.ValidUntil

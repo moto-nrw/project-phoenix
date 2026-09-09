@@ -1212,15 +1212,16 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Tagesinformationen",
         icon: Megaphone,
         summary:
-          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Team` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
+          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Team` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen. Lehrkräfte lesen sie in moto schule.",
         steps: [
           "In der Seitenleiste `Team` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
           "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
+          "Unter `Für wen` wählen, wer den Hinweis bekommt: `Alle`, `Nur Betreuung` oder `Nur Lehrkräfte`. Die Betreuung liest im OGS-Portal, Lehrkräfte lesen in moto schule unter `Tagesinformationen` (siehe `Lehrkraft liest Tagesinformationen`). In der Liste steht bei jedem Hinweis, für wen er gilt.",
           "Unter `Wichtigkeit` zwischen `Information` und `Wichtig` wählen. `Wichtig` setzt auf der Startseite ein farbiges Kennzeichen — sparsam einsetzen, sonst verliert es seine Wirkung.",
           "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
           "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
           "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
-          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben.",
+          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben; `Wer hat bestätigt?` öffnet die Liste mit Namen und Zeitpunkt.",
           "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Team` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
           "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
         ],
@@ -1230,7 +1231,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen) und dem Formular zum Anlegen mit Wochentagsauswahl.",
+          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Zielgruppe, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen mit Schaltfläche zur Namensliste) und dem Formular zum Anlegen mit Zielgruppe und Wochentagsauswahl.",
+        gallery: [
+          {
+            image: "/help/screens/tagesinformationen-anlegen.webp",
+            caption:
+              "Formular für eine neue Tagesinformation. Bei `Für wen` wählen Sie, wer den Hinweis sieht.",
+          },
+          {
+            image: "/help/screens/tagesinformationen-bestaetigungen.webp",
+            caption:
+              "Die Bestätigungsliste zeigt Namen und Zeitpunkt der Kenntnisnahme.",
+          },
+        ],
       },
       {
         id: "mitarbeiter-admin-profil",
@@ -1384,6 +1397,23 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Nachrichten in moto schule mit der Liste der Unterhaltungen, dem Zähler in der Navigation und der Einstellungsseite für Benachrichtigungen.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-tagesinformationen",
+        title: "Lehrkraft liest Tagesinformationen",
+        icon: Megaphone,
+        summary:
+          "Zeigt Lehrkräften in moto schule die Hinweise der OGS-Leitung, die für sie gelten: alles mit `Für wen` = `Alle` oder `Nur Lehrkräfte` (siehe `Tagesinformationen`).",
+        steps: [
+          "Die Lehrkraft öffnet in moto schule `Tagesinformationen`. Dort stehen die Hinweise, die heute gelten; Hinweise nur für die Betreuung sieht sie nicht.",
+          "Gilt heute ein Hinweis, steht er zusätzlich oben auf der `Klassenansicht`. Ohne Hinweis erscheint dort nichts.",
+          "Verlangt ein Hinweis eine Kenntnisnahme, tippt die Lehrkraft auf `Zur Kenntnis nehmen`. Eine Zahl neben `Tagesinformationen` zeigt, wie viele Kenntnisnahmen noch ausstehen.",
+          "Im OGS-Portal steht bei dem Hinweis, wie viele Personen bestätigt haben; `Wer hat bestätigt?` nennt die Namen, auch die der Lehrkräfte.",
+        ],
+        screenshot:
+          "Tagesinformationen in moto schule mit einem Hinweis der OGS-Leitung und der Schaltfläche zur Kenntnisnahme, daneben die Karte oben auf der Klassenansicht.",
+        image: "/help/screens/lehrkraft-tagesinformationen.webp",
         printCompact: true,
       },
       {

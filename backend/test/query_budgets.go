@@ -130,7 +130,14 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
-	"modules.careplan.request_feed.list":               {max: 1, exact: true},
+	// modules/workforce/inbound/timetracking — GET
+	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
+	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
+	// acknowledgement list and ONE batched People-Directory name lookup for the
+	// whole list. Flat at three acknowledgements — a per-row lookup would show
+	// as N+1 here.
+	"api.staff_notices.acknowledgements": {max: 7, exact: true},
+	"modules.careplan.request_feed.list": {max: 1, exact: true},
 	// services/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},

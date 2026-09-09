@@ -4,9 +4,11 @@ import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
+import { schoolNavBadge } from "./school-nav-badge";
 import {
   SCHOOL_PRIMARY_NAV,
   SCHOOL_SECONDARY_NAV,
@@ -30,8 +32,11 @@ const ICON =
  */
 export function SchoolSidebar({
   teamChat,
+  notices,
 }: {
   readonly teamChat: SchoolTeamChatUnread;
+  /** Offene Tagesinformationen (#2208); ohne Wert steht keine Zahl. */
+  readonly notices?: SchoolStaffNoticesPending;
 }) {
   const pathname = usePathname();
 
@@ -42,6 +47,7 @@ export function SchoolSidebar({
       return null;
     }
     const active = isSchoolNavActive(item.href, pathname);
+    const badge = schoolNavBadge(item, { teamChat, notices });
     return (
       <li key={item.key}>
         <NavLink
@@ -61,11 +67,11 @@ export function SchoolSidebar({
           />
           <span className="flex flex-1 items-center">
             {item.label}
-            {item.badge === "teamChat" && (
+            {badge && (
               <NotificationBadge
-                count={teamChat.unreadCount}
+                count={badge.count}
                 tone="staff"
-                ariaLabel={`${teamChat.unreadCount} ungelesene Nachrichten`}
+                ariaLabel={badge.ariaLabel}
                 className="ml-2"
               />
             )}

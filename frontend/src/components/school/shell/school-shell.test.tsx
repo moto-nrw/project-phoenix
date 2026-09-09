@@ -23,6 +23,12 @@ vi.mock("~/lib/hooks/use-school-team-chat-unread", () => ({
   useSchoolTeamChatUnread: mockUseSchoolTeamChatUnread,
 }));
 
+// Der Zähler der Tagesinformationen (#2208) liest die Sitzung; die Hülle
+// wird hier ohne Provider gerendert, also bleibt der Hook eine Attrappe.
+vi.mock("~/lib/hooks/use-school-staff-notices-pending", () => ({
+  useSchoolStaffNoticesPending: () => ({ pendingCount: 0 }),
+}));
+
 beforeEach(() => {
   mockUseSchoolTeamChatUnread.mockClear();
 });

@@ -36,7 +36,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.
 	classDay := classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
 		Reports: services.EnrollmentReport, Caller: services.UserContext, ArrivalExceptions: services.ClassDayArrivalExceptions,
 	}), db, nil)
-	return db, schoolportal.NewResource(services.Auth, services.MFA, classDay, nil, nil, nil)
+	return db, schoolportal.NewResource(services.Auth, services.MFA, classDay, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {

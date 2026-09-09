@@ -32,7 +32,7 @@ export interface SchoolNavItem {
    * Welcher Zähler neben dem Eintrag steht. Die Leisten holen den Wert aus
    * dem passenden Hook; die Liste selbst kennt keine Zahlen.
    */
-  readonly badge?: "teamChat";
+  readonly badge?: "teamChat" | "notices";
   /**
    * `true` für Ziele, die es nur gibt, wenn die Schule die Funktion
    * eingeschaltet hat. Die Leisten blenden den Eintrag aus, solange das
@@ -44,10 +44,12 @@ export interface SchoolNavItem {
 
 /**
  * Die Alltagsziele: der heutige Tag einer Klasse, die Aufsichten, die diese
- * Lehrkraft heute selbst führt, und die Nachrichten an die OGS (#2208).
- * Getrennte Namen mit getrennten Aufgaben — die Klassenansicht ist die
- * Übergabe nach Unterricht, die Aufsichten sind der eigene Dienst danach,
- * die Nachrichten der kurze Draht zur OGS dazwischen.
+ * Lehrkraft heute selbst führt, die Nachrichten an die OGS (#2208) und die
+ * Tagesinformationen der OGS-Leitung (#2208). Getrennte Namen mit getrennten
+ * Aufgaben — die Klassenansicht ist die Übergabe nach Unterricht, die
+ * Aufsichten sind der eigene Dienst danach, die Nachrichten der kurze Draht
+ * zur OGS dazwischen, die Tagesinformationen das, was die OGS-Leitung allen
+ * Lehrkräften mitteilt.
  */
 export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
   {
@@ -72,6 +74,14 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     portalPath: true,
     badge: "teamChat",
     optional: "teamChat",
+  },
+  {
+    key: "notices",
+    href: "/school/tagesinformationen",
+    label: "Tagesinformationen",
+    concept: "announcements",
+    portalPath: true,
+    badge: "notices",
   },
 ];
 

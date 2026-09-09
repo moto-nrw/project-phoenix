@@ -89,6 +89,13 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/einstellungen" || pathname === "/school/einstellungen") {
     return "Einstellungen";
   }
+  // Tagesinformationen der OGS-Leitung (#2208).
+  if (
+    pathname === "/tagesinformationen" ||
+    pathname === "/school/tagesinformationen"
+  ) {
+    return "Tagesinformationen";
+  }
   return null;
 }
 
