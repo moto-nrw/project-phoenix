@@ -14,9 +14,9 @@ func TestCandidateWorkflowRequiresNewPackages(t *testing.T) {
 
 	base := &Policy{ModulePath: "example.test/project", Owners: []Owner{{ID: "module", Kind: "domain"}}}
 	candidate := &Policy{
-		ModulePath: "example.test/project",
+		ModulePath:  "example.test/project",
 		PolicyEpoch: 1,
-		Owners:     []Owner{{ID: "module", Kind: "domain"}, {ID: "flow", Kind: "workflow"}},
+		Owners:      []Owner{{ID: "module", Kind: "domain"}, {ID: "flow", Kind: "workflow"}},
 		Packages: []Package{
 			{
 				Path: "workflows/flow", Owner: "flow", Role: "public",

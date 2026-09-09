@@ -1370,6 +1370,16 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 			// closed for them.
 			return nil, &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 		}
+		// Match Complete and kiosk session end: group before attendance.
+		// Taking assignment locks first would deadlock with a kiosk close
+		// holding this group while it stamps the same check-outs.
+		group, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "cancel instance: lock group", Err: err}
+		}
+		if group == nil || group.EndTime != nil {
+			return nil, fmt.Errorf("%w: active group is not open", ErrInvalidInstanceTransition)
+		}
 	}
 	// Same attendance row locks the PATCH path takes. Without them a PATCH
 	// can observe active, wait on its UPDATE, then commit after this cancel
