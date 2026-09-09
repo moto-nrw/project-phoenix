@@ -1,6 +1,6 @@
 # Staff owner storage Expand (#2715)
 
-Migration `1.15.375` creates empty target storage. `users.staff` remains the
+Migration `1.15.376` creates empty target storage. `users.staff` remains the
 only application authority. There is no backfill, caller switch, compatibility
 view, or synchronization trigger.
 

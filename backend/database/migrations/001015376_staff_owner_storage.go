@@ -10,7 +10,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.375",
+		Version:     "1.15.376",
 		Description: "Expand empty School Membership and Workforce staff storage (#2715)",
 		DependsOn:   []string{compositePKIndexesVersion, createTenantRolesVersion, "1.15.109", "1.15.374"},
 	})
