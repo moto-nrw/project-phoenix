@@ -10,8 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -31,7 +30,7 @@ type StaffExcusedRequestResponse struct {
 	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
 }
 
-func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem) StaffExcusedRequestResponse {
+func toStaffExcusedRequestResponse(item *excusedrequests.ReviewItem) StaffExcusedRequestResponse {
 	r := item.Request
 	dates := make([]string, 0, len(r.Dates))
 	for _, d := range r.Dates {
@@ -63,19 +62,19 @@ type DecideExcusedRequestBody struct {
 }
 
 var excusedDecideErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "change_request_not_pending")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "guardian_access_revoked")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "excused_request_status_conflict")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonTooLong, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestRejectReasonTooLong, Render: common.ErrorInvalidRequest},
 ), common.ErrorInternalServer)
 
 // decideExcusedAbsenceRequest approves (writes the requested status days) or
@@ -100,7 +99,7 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	item, err := rs.ExcusedRequestService.Decide(r.Context(), absenceService.ExcusedRequestDecideInput{
+	item, err := rs.ExcusedRequestService.Decide(r.Context(), excusedrequests.DecideInput{
 		RequestID:       requestID,
 		Approve:         *body.Approve,
 		Reason:          body.Reason,

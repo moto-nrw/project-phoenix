@@ -62,7 +62,7 @@ path-scoped rules automatically.
 | Env vars, Docker, SOPS, deployment | [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md) and [docs/agents/operations.md](docs/agents/operations.md) |
 | User-visible UI, emails, kiosk, help | [.claude/rules/verstaendlichkeit.md](.claude/rules/verstaendlichkeit.md); load `moto-einfache-sprache` before German copy, [.claude/rules/frontend-ui-kit.md](.claude/rules/frontend-ui-kit.md) before frontend UI |
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
-| Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md) |
+| Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend test clock](docs/agents/frontend-testing.md) for date- or timer-sensitive Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
 | Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md), [docs/agents/github-labels.md](docs/agents/github-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |

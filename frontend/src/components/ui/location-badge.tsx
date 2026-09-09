@@ -120,17 +120,14 @@ const SIZE_MAP = {
   sm: {
     modern: "px-2 py-0.5 text-[11px]",
     simple: "px-2 py-0.5 text-[11px]",
-    dot: "mr-1.5 h-1 w-1",
   },
   md: {
     modern: "px-3 py-1.5 text-xs",
     simple: "px-2.5 py-0.5 text-xs",
-    dot: "mr-2 h-1.5 w-1.5",
   },
   lg: {
     modern: "px-4 py-2 text-sm",
     simple: "px-3 py-1 text-sm",
-    dot: "mr-2.5 h-2 w-2",
   },
 } as const;
 
@@ -270,10 +267,6 @@ export function LocationBadge({
       }}
       data-sick-indicator="true"
     >
-      <span
-        className={`${sizeConfig.dot} rounded-full`}
-        style={{ backgroundColor: sickTone.dotColor }}
-      />
       {LOCATION_STATUSES.SICK}
     </span>
   );
@@ -287,10 +280,6 @@ export function LocationBadge({
       }}
       data-excused-indicator="true"
     >
-      <span
-        className={`${sizeConfig.dot} rounded-full`}
-        style={{ backgroundColor: excusedTone.dotColor }}
-      />
       {LOCATION_STATUSES.EXCUSED}
     </span>
   );
@@ -304,10 +293,6 @@ export function LocationBadge({
       }}
       data-class-trip-indicator="true"
     >
-      <span
-        className={`${sizeConfig.dot} rounded-full`}
-        style={{ backgroundColor: classTripTone.dotColor }}
-      />
       {LOCATION_STATUSES.CLASS_TRIP}
     </span>
   );
@@ -322,10 +307,6 @@ export function LocationBadge({
       data-not-arrival-indicator="true"
       title={student.not_arrival_reason ?? undefined}
     >
-      <span
-        className={`${sizeConfig.dot} rounded-full`}
-        style={{ backgroundColor: notArrivalTone.dotColor }}
-      />
       {LOCATION_STATUSES.UNPLANNED_PRESENT}
     </span>
   );
@@ -376,10 +357,6 @@ export function LocationBadge({
             : undefined
         }
       >
-        <span
-          className={`${sizeConfig.dot} rounded-full`}
-          style={{ backgroundColor: locationTone.dotColor }}
-        />
         {label}
       </span>
       {showSinceTime && (

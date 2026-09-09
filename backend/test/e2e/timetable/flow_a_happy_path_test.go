@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/assert"
@@ -234,8 +235,8 @@ func checkInStudent(t *testing.T, s *scenario, studentID, activeGroupID int64, s
 	// the visit to. Matches what the web check-in path does.
 	dev := testpkg.EnsureWebManualDevice(t, s.db)
 
-	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, dev)
-	ctx = context.WithValue(ctx, device.CtxStaff, staff)
+	ctx := context.WithValue(s.tenantCtx(), device.CtxDevice, testutil.DevicePrincipal(dev))
+	ctx = context.WithValue(ctx, device.CtxStaff, testutil.StaffPrincipal(staff))
 
 	visit := &studentpresence.Visit{
 		StudentID:     studentID,

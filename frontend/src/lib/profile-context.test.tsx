@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ProfileProvider, useProfile } from "./profile-context";
@@ -50,7 +51,6 @@ describe("ProfileContext", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers(); // Use real timers by default
 
     // Default mock implementations
     vi.mocked(nextAuthReact.useSession).mockReturnValue({
@@ -234,7 +234,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
     });
@@ -267,7 +267,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).not.toHaveBeenCalled();
     });
@@ -301,7 +301,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
     });
@@ -325,7 +325,7 @@ describe("ProfileContext", () => {
         void result.current.refreshProfile(false);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Should show loading state
       expect(result.current.isLoading).toBe(true);
@@ -354,7 +354,7 @@ describe("ProfileContext", () => {
         void result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Should NOT show loading state
       expect(result.current.isLoading).toBe(false);
@@ -402,7 +402,7 @@ describe("ProfileContext", () => {
         resolveFirstFetch();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(result.current.profile).toEqual(mockProfile);
@@ -511,7 +511,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(profileApi.fetchProfile).toHaveBeenCalled();
@@ -543,7 +543,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(result.current.profile?.firstName).toBe("Jane");

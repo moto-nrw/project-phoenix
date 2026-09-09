@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -80,7 +81,7 @@ func TestProcessBinaryModeCheckinAllowsDeviceAttributionWithoutStaffContext(t *t
 			LastName:  "Mustermann",
 		},
 	}
-	kiosk := &iot.Device{Model: base.Model{ID: 7}}
+	kiosk := testutil.DevicePrincipal(&iot.Device{ID: 7})
 	request := httptest.NewRequest(http.MethodPost, "/checkin", nil)
 	response := httptest.NewRecorder()
 

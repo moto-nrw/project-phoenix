@@ -1100,8 +1100,8 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Create visits for students using context with device/staff
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(iotDevice.ID, iotDevice.TenantID))
 
 		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
@@ -1273,8 +1273,8 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a visit to session1
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, device1)
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(device1.ID, device1.TenantID))
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,
@@ -1298,4 +1298,36 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		assert.NotNil(t, ended1.EndTime)
 		assert.NotNil(t, ended2.EndTime)
 	})
+}
+
+// Deviceless claiming is limited to rooms named "Schulhof"; the filter moved
+// from the former INNER JOIN into the owner-backed read.
+func TestFindUnclaimedKeepsOnlySchulhofGroups(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	service := createActiveService(t, db)
+
+	var schulhofID int64
+	err := db.NewRaw("INSERT INTO facilities.rooms (tenant_id, name) VALUES (?, ?) RETURNING id", tenantID, "Schulhof").Scan(testpkg.Ctx(t), &schulhofID)
+	require.NoError(t, err)
+	other := testpkg.CreateTestRoom(t, db, "Igelraum")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Unclaimed Activity")
+	yard := testpkg.CreateTestActiveGroup(t, db, activity.ID, schulhofID)
+	testpkg.CreateTestActiveGroup(t, db, activity.ID, other.ID)
+
+	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		groups, err := service.GetUnclaimedActiveGroups(ctx)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		assert.Equal(t, yard.ID, groups[0].ID)
+		require.NotNil(t, groups[0].Room)
+		assert.Equal(t, "Schulhof", groups[0].Room.Name)
+		require.NotNil(t, groups[0].ActualGroup)
+		assert.Equal(t, activity.ID, groups[0].ActualGroup.ID)
+		assert.Equal(t, activity.Name, groups[0].ActualGroup.Name)
+		assert.Nil(t, groups[0].ActualGroup.Category, "preserve the endpoint's template relation shape")
+		return nil
+	})
+	require.NoError(t, err)
 }

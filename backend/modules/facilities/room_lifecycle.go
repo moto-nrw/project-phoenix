@@ -36,6 +36,13 @@ var reservedRoomColors = map[string]struct{}{
 	"#4F46E5": {},
 }
 
+// IsToiletRoomName reports whether name is one of the accepted canonical
+// toilet-room names. Matching is exact-case, matching the rest of the
+// system-room contract.
+func IsToiletRoomName(name string) bool {
+	return name == WCRoomName || name == WCRoomAliasName
+}
+
 func IsReservedRoomColor(color string) bool {
 	normalized := strings.TrimSpace(color)
 	if normalized == "" {
@@ -61,6 +68,11 @@ type CreateRoom struct {
 	Category *string
 	Color    *string
 	IsSystem bool
+	// IsOpenRoom releases the room permanently on creation. Ordinary rooms
+	// start unreleased; the auto-provisioned Schulhof is the one place that
+	// sets this, so existing schools keep the yard they already rely on
+	// without a new daily step (#3064).
+	IsOpenRoom bool
 }
 
 type UpdateRoom struct {
@@ -71,6 +83,10 @@ type UpdateRoom struct {
 	Capacity *int
 	Category *string
 	Color    *string
+	// IsOpenRoom is nil when the caller expressed no opinion, leaving the
+	// stored release untouched. Releasing a room is an explicit
+	// administrative decision; an unrelated edit must not silently revoke it.
+	IsOpenRoom *bool
 }
 
 // RoomFilter is the closed set of filters supported by the owner. Pointers

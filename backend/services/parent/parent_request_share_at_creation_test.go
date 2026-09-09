@@ -12,7 +12,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,18 +25,10 @@ func buildSharingAtCreationServices(t *testing.T) (parentService.Service, parent
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, nil, nil,
-		testpkg.AbsenceRequestReviewPolicy{},
-		usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent),
-		slog.Default(),
-		db,
-	)
+	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent), Logger: slog.Default(),
+	})
+	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:              repos.ParentChild,
 		StatusDayRepo:          repos.StudentStatusDay,

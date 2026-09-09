@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -44,7 +45,7 @@ func endSessionRequest(t *testing.T) *http.Request {
 	dev := &iot.Device{}
 	dev.ID = 9
 	req := httptest.NewRequest(http.MethodPost, "/end", nil)
-	return req.WithContext(context.WithValue(req.Context(), device.CtxDevice, dev))
+	return req.WithContext(context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(dev)))
 }
 
 // The timetable half of the close runs BEFORE the session end (#1747 review).

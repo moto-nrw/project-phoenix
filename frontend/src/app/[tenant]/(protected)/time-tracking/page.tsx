@@ -42,7 +42,7 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -250,7 +250,7 @@ function PlannedShiftsInfo({
             // Schichtart pill: the color is tenant-defined data the backend
             // embeds (#1844), not a brand hue; without one the pill falls
             // back to the neutral HOME gray.
-            <StatusDotBadge
+            <StatusColorBadge
               label={shift.shiftTypeName}
               color={shift.shiftTypeColor ?? LOCATION_COLORS.HOME}
             />

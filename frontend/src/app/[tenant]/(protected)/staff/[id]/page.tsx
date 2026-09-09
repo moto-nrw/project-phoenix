@@ -15,7 +15,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Avatar } from "~/components/ui/avatar";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
@@ -257,9 +257,9 @@ export default function StaffDetailContent() {
           {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
               Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
               (LOCATION_COLORS über getStaffLocationStatus), deshalb
-              StatusDotBadge und nicht StatusBadge. */}
+              StatusColorBadge und nicht StatusBadge. */}
           {staff && !staff.isLimitedProfile && locationStatus ? (
-            <StatusDotBadge
+            <StatusColorBadge
               label={locationStatus.label}
               color={locationStatus.customBgColor}
             />

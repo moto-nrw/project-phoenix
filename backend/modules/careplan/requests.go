@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 )
 
 var (
-	ErrExcusedRequestNotFound        = errors.New("excused absence request not found")
-	ErrExcusedRequestNotPending      = errors.New("excused absence request is not pending")
-	ErrExcusedRequestNotDecided      = errors.New("excused absence request is not decided")
+	ErrExcusedRequestNotFound        = excusedrequests.ErrExcusedRequestNotFound
+	ErrExcusedRequestNotPending      = excusedrequests.ErrExcusedRequestNotPending
+	ErrExcusedRequestNotDecided      = excusedrequests.ErrExcusedRequestNotDecided
 	ErrCareScheduleRequestNotFound   = errors.New("care schedule change request not found")
 	ErrCareScheduleRequestNotPending = errors.New("care schedule change request is not pending")
 	ErrCareScheduleRequestNotDecided = errors.New("care schedule change request is not decided")
@@ -21,35 +23,14 @@ var (
 
 // RequestQueueFilter is the owner-neutral paging contract shared by the
 // immediate-notice and approval-request queues.
-type RequestQueueFilter struct {
-	UrgentOnly    *bool
-	UrgentDate    string
-	StudentIDs    []int64
-	StudentID     int64
-	Search        string
-	BeforeInstant time.Time
-	BeforeID      int64
-	Limit         int
-}
+type RequestQueueFilter = excusedrequests.QueueFilter
 
-type ExcusedAbsenceRequest struct {
-	ID             int64
-	TenantID       int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	StudentID      int64
-	SubmittedBy    int64
-	Dates          []Date
-	Note           string
-	AbsenceStatus  string
-	Status         string
-	DecisionReason *string
-	ReviewedBy     *int64
-	ReviewedAt     *time.Time
-	AppliedAt      *time.Time
-}
+// ExcusedAbsenceRequest is one excused-absence request row.
+type ExcusedAbsenceRequest = excusedrequests.Request
 
 type ExcusedAbsenceRequestFilter struct {
+	// IDs restricts the listing to exact rows. Nil means no ID filter.
+	IDs         []int64
 	StudentID   int64
 	Statuses    []string
 	RecentSince time.Time
@@ -177,6 +158,7 @@ func (m *Module) FindPendingExcusedAbsenceRequest(ctx context.Context, id int64)
 	return m.engine.FindPendingExcusedAbsenceRequest(ctx, id)
 }
 func (m *Module) ListExcusedAbsenceRequests(ctx context.Context, filter ExcusedAbsenceRequestFilter) ([]ExcusedAbsenceRequest, error) {
+	filter.IDs = uniquePositive(filter.IDs)
 	filter.Statuses = uniqueStrings(filter.Statuses)
 	return m.engine.ListExcusedAbsenceRequests(ctx, filter)
 }

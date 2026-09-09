@@ -26,7 +26,6 @@ func (f *Factory) RouteAuditWrites(command audit.Command) {
 	f.DataImport = dataImportCommand{f.DataImport, command}
 	f.WorkSessionEdit = workSessionEditCommand{f.WorkSessionEdit, command}
 	f.StudentFieldEdit = studentFieldEditCommand{f.StudentFieldEdit, command}
-	f.UnregisteredTagScan = unregisteredTagScanCommand{f.UnregisteredTagScan, command}
 	f.TimeTrackingDeletion = timeTrackingDeletionCommand{command}
 	f.PersonnelNumberChange = personnelNumberChangeCommand{command}
 	f.StaffMasterDataChange = staffMasterDataChangeCommand{command}
@@ -182,15 +181,6 @@ func (r studentFieldEditCommand) CreateBatch(ctx context.Context, events []*audi
 		}
 	}
 	return nil
-}
-
-type unregisteredTagScanCommand struct {
-	audit.UnregisteredTagScanRepository
-	command audit.Command
-}
-
-func (r unregisteredTagScanCommand) Create(ctx context.Context, event *audit.UnregisteredTagScan) error {
-	return r.command.Append(ctx, event)
 }
 
 type timeTrackingDeletionCommand struct{ command audit.Command }

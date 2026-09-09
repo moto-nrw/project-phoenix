@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
@@ -144,8 +146,21 @@ func (routerFeedback) Submit(context.Context, feedbackModule.CreateEntry) (feedb
 	return feedbackModule.Entry{}, nil
 }
 
+// routerStaffClock satisfies the kiosk staff clock contract during route
+// composition; the routes are never exercised here.
+type routerStaffClock struct{}
+
+func (routerStaffClock) StaffClockState(context.Context, string) (*devicescan.StaffClockState, error) {
+	return &devicescan.StaffClockState{}, nil
+}
+
+func (routerStaffClock) ExecuteStaffClock(context.Context, devicescan.StaffClockCommand) (*devicescan.StaffClockState, error) {
+	return &devicescan.StaffClockState{}, nil
+}
+
 func newRouterTestResource() *Resource {
 	return &Resource{ServiceDependencies: ServiceDependencies{
+		StaffClock:               routerStaffClock{},
 		UsersService:             &userstest.PersonServiceMock{},
 		FeedbackService:          routerFeedback{},
 		FeedbackResponseObserver: func(int, string) {},
@@ -325,7 +340,7 @@ func TestResource_Router_SchoolNameRoute(t *testing.T) {
 
 // withDeviceCtx injects a device model into the request context.
 func withDeviceCtx(req *http.Request, d *iotModel.Device) *http.Request {
-	ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+	ctx := context.WithValue(req.Context(), device.CtxDevice, testutil.DevicePrincipal(d))
 	return req.WithContext(ctx)
 }
 

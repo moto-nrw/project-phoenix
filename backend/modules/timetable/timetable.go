@@ -180,6 +180,7 @@ type Query interface {
 	ActivityInstanceQuery
 	InstanceStaffQuery
 	InstanceStudentQuery
+	ConflictAckQuery
 	FindCategory(context.Context, int64) (Category, error)
 	FindCategoryForAssignment(context.Context, int64) (Category, error)
 	FindCategoryForShare(context.Context, int64) (Category, error)
@@ -213,6 +214,7 @@ type Command interface {
 	ActivityInstanceCommand
 	InstanceStaffCommand
 	InstanceStudentCommand
+	ConflictAckCommand
 	CreateCategory(context.Context, CreateCategory) (Category, error)
 	UpdateCategory(context.Context, UpdateCategory) (Category, error)
 	ArchiveCategory(context.Context, int64) (Category, error)

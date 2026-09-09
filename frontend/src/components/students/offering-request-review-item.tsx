@@ -436,18 +436,10 @@ export function OfferingRequestReviewItem({
                 {/* Eine Kursanfrage sieht sonst aus wie jede andere
                     Angebotsänderung (#3075). */}
                 {entry.is_course && (
-                  <StatusBadge
-                    tone="green"
-                    label={t("courses.title")}
-                    showDot={false}
-                  />
+                  <StatusBadge tone="green" label={t("courses.title")} />
                 )}
                 {entry.automatic && (
-                  <StatusBadge
-                    tone="blue"
-                    label="Automatisch mitgebucht"
-                    showDot={false}
-                  />
+                  <StatusBadge tone="blue" label="Automatisch mitgebucht" />
                 )}
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="text-gray-400 line-through">

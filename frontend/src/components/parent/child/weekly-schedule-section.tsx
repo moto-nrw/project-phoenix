@@ -144,11 +144,7 @@ function ScheduleDay({
     <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
         <span>{t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`)}</span>
-        <StatusBadge
-          label={status}
-          tone={scheduled ? "green" : "gray"}
-          showDot={false}
-        />
+        <StatusBadge label={status} tone={scheduled ? "green" : "gray"} />
       </dt>
       <dd className="mt-4 space-y-4">
         {scheduled && (

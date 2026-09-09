@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { FormEvent } from "react";
 import { flushSync } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { CustomSelect } from "./custom-select";
 
 const options = [
@@ -330,7 +331,7 @@ describe("CustomSelect", () => {
           screen.getByRole("option", { name: "Anna Becker" }),
         ).toHaveFocus();
       } finally {
-        vi.useRealTimers();
+        releaseFakeTimers();
       }
     });
 

@@ -59,3 +59,65 @@ func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentI
 	require.NoError(tb, err, "Failed to create test attendance record")
 	return &attendance
 }
+
+// EndedActiveGroup is an active group and one supervisor whose session
+// already ended, as an activity completion snapshot leaves them.
+type EndedActiveGroup struct {
+	GroupID      int64
+	SupervisorID int64
+}
+
+// EndTestActiveGroup ends the group and supervisor rows outside any measured
+// or tenant-scoped context so recovery tests can restore them.
+func EndTestActiveGroup(tb testing.TB, db *bun.DB, ended EndedActiveGroup) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewUpdate().Table("active.groups").Set("end_time = now()").Where("id = ?", ended.GroupID).Exec(ctx)
+	require.NoError(tb, err, "Failed to end test active group")
+	_, err = db.NewUpdate().Table("active.group_supervisors").Set("end_date = CURRENT_DATE").Where("id = ?", ended.SupervisorID).Exec(ctx)
+	require.NoError(tb, err, "Failed to end test group supervisor")
+}
+
+// CreateTestEndedActiveGroup creates staff, activity, room, an active group
+// with one supervisor, and ends both rows.
+func CreateTestEndedActiveGroup(tb testing.TB, db *bun.DB, label string) EndedActiveGroup {
+	tb.Helper()
+	staff := CreateTestStaff(tb, db, "Recovery", label)
+	activity := CreateTestActivityGroup(tb, db, "Recovery "+label)
+	room := CreateTestRoom(tb, db, "Recovery "+label)
+	group := CreateTestActiveGroup(tb, db, activity.ID, room.ID)
+	supervisor := CreateTestGroupSupervisor(tb, db, staff.ID, group.ID, "supervisor")
+	ended := EndedActiveGroup{GroupID: group.ID, SupervisorID: supervisor.ID}
+	EndTestActiveGroup(tb, db, ended)
+	return ended
+}
+
+// ActiveGroupEnded reports whether the group and supervisor rows are ended.
+func ActiveGroupEnded(tb testing.TB, db *bun.DB, ended EndedActiveGroup) (groupEnded, supervisorEnded bool) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	require.NoError(tb, db.NewSelect().TableExpr("active.groups").ColumnExpr("end_time IS NOT NULL").Where("id = ?", ended.GroupID).Scan(ctx, &groupEnded))
+	require.NoError(tb, db.NewSelect().TableExpr("active.group_supervisors").ColumnExpr("end_date IS NOT NULL").Where("id = ?", ended.SupervisorID).Scan(ctx, &supervisorEnded))
+	return groupEnded, supervisorEnded
+}
+
+// CreateTestScheduledCheckout records one pending scheduled checkout for the
+// fixture tenant and returns its row ID. The presence capability has no write
+// operation for this table, so the row is inserted directly with the tenant
+// column set. A student can hold only one pending checkout (partial unique
+// index), so call it at most once per student.
+func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID int64, scheduledFor time.Time) int64 {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO active.scheduled_checkouts (tenant_id, student_id, scheduled_by, scheduled_for, status)
+		VALUES (?, ?, ?, ?, 'pending')
+		RETURNING id
+	`, Tenant(tb), studentID, staffID, scheduledFor).Scan(ctx, &id)
+	require.NoError(tb, err, "Failed to create test scheduled checkout")
+	return id
+}

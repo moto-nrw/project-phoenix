@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -249,7 +250,7 @@ describe("ParentLoginPage i18n", () => {
       expect(screen.getByText("Login error. Please try again.")).toBeVisible();
       expect(mocks.push).not.toHaveBeenCalled();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

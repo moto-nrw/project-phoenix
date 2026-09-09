@@ -36,6 +36,17 @@ type systemSpace struct {
 	// an activity-category attribute, not a room badge.
 	roomColorless bool
 
+	// releaseRoomOnCreate marks the auto-created room as a permanently
+	// released open room. Set for the Schulhof only (#3064): a newly
+	// provisioned school then starts with the same usable yard the migration
+	// gives existing ones. The toilets never carry it — they are short-stay
+	// infrastructure, not a destination a child chooses.
+	//
+	// Applied on the create path alone. An existing room is returned untouched
+	// above, so an administrator's explicit deactivation survives every later
+	// provisioning run.
+	releaseRoomOnCreate bool
+
 	activityName    string
 	maxParticipants int
 	selectActivity  func(groups []*activities.Group, room *facilities.Room) *activities.Group
@@ -63,10 +74,11 @@ func (s *CheckinService) ensureSystemRoom(ctx context.Context, sp systemSpace) (
 	category := sp.categoryName
 
 	newRoom := &facilities.Room{
-		Name:     sp.roomName,
-		Capacity: &capacity,
-		Category: &category,
-		IsSystem: true,
+		Name:       sp.roomName,
+		Capacity:   &capacity,
+		Category:   &category,
+		IsSystem:   true,
+		IsOpenRoom: sp.releaseRoomOnCreate,
 	}
 	if !sp.roomColorless {
 		color := sp.color

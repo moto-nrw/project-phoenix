@@ -21,7 +21,7 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 
 	group, err := tc.svc.WCActivityGroupForTest(ctx)
 
@@ -41,7 +41,7 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 
 	group1, err := tc.svc.WCActivityGroupForTest(ctx)
 	require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 
 	group, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 
@@ -83,7 +83,7 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staff)
+	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
 
 	group1, err := tc.svc.SchulhofActivityGroupForTest(ctx)
 	require.NoError(t, err)

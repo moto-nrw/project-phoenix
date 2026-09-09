@@ -1076,7 +1076,7 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 // LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
 // that guards the Ganztag pickup-cutoff pair. Both the pair validator on the
 // write path (validateSlotListCutoffPair) and the slot-list reader on the read
-// path (services/slotlists pickupBuckets) take it, so a concurrent lowering of
+// path (the class-day projection, modules/classday) take it, so a concurrent lowering of
 // both cutoffs cannot interleave with a read and expose an inverted short/long
 // pair under READ COMMITTED (#1565 review). Best-effort: without an ambient
 // transaction the xact lock is meaningless — the settings read/write paths always
@@ -1108,7 +1108,7 @@ func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
 }
 
 // LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
-// lock for read paths (services/slotlists pickupBuckets). Shared holders never
+// lock for read paths (the class-day projection, modules/classday). Shared holders never
 // block one another, so concurrent /options, pickup-preview and export requests
 // no longer serialize behind a single exclusive lock — a slow export scanning
 // rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.

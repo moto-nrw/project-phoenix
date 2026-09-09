@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -155,9 +155,9 @@ type StaffExcusedRequestHistoryResponse struct {
 
 // toStaffExcusedHistoryResponse maps one decided excused-absence request for
 // the aggregated list (#2432).
-func toStaffExcusedHistoryResponse(item *absenceService.ExcusedRequestHistoryItem) StaffExcusedRequestHistoryResponse {
+func toStaffExcusedHistoryResponse(item *excusedrequests.HistoryItem) StaffExcusedRequestHistoryResponse {
 	return StaffExcusedRequestHistoryResponse{
-		StaffExcusedRequestResponse: toStaffExcusedRequestResponse(&absenceService.ExcusedRequestReviewItem{
+		StaffExcusedRequestResponse: toStaffExcusedRequestResponse(&excusedrequests.ReviewItem{
 			Request:   item.Request,
 			FirstName: item.FirstName,
 			LastName:  item.LastName,

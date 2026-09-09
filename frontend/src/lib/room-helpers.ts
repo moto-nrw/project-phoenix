@@ -45,6 +45,10 @@ export interface BackendRoom {
   color?: string | null; // Optional (nullable in DB)
   device_id?: string;
   is_occupied: boolean;
+  is_system?: boolean;
+  // Whether the OGS administration has permanently released this room for use
+  // ("offener Raum"). Owned by the backend's Facilities module (#3064).
+  is_open_room?: boolean;
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string; // Legacy singular field
@@ -65,6 +69,9 @@ export interface Room {
   color?: string; // Optional (nullable in DB)
   deviceId?: string;
   isOccupied: boolean;
+  isSystem?: boolean;
+  /** Permanently released for use ("offener Raum"), set by the administration. */
+  isOpenRoom?: boolean;
   activityName?: string;
   groupName?: string;
   supervisorName?: string;
@@ -94,7 +101,19 @@ export function isSystemRoom(room: Room | null | undefined): boolean {
 // color-code rooms and tablets and need the yard to take part, so it keeps
 // only the rename/delete protection. The WC has no badge of its own, so a
 // color picker there would configure nothing.
-const COLOR_LOCKED_ROOM_NAMES = ["WC", "Toilette"] as const;
+const TOILET_ROOM_NAMES = ["WC", "Toilette"] as const;
+
+/**
+ * Returns true if the room is one of the canonical toilet rooms. They are
+ * kiosk infrastructure for short stays and can never be released as an open
+ * room — the backend refuses that with ErrToiletRoomNotReleasable.
+ */
+export function isToiletRoom(room: Room | null | undefined): boolean {
+  if (!room) return false;
+  return TOILET_ROOM_NAMES.includes(
+    room.name as (typeof TOILET_ROOM_NAMES)[number],
+  );
+}
 
 /**
  * Returns true if the room's color is fixed by the system and must not be
@@ -103,10 +122,7 @@ const COLOR_LOCKED_ROOM_NAMES = ["WC", "Toilette"] as const;
  * these rooms.
  */
 export function isColorLockedRoom(room: Room | null | undefined): boolean {
-  if (!room) return false;
-  return COLOR_LOCKED_ROOM_NAMES.includes(
-    room.name as (typeof COLOR_LOCKED_ROOM_NAMES)[number],
-  );
+  return isToiletRoom(room);
 }
 
 /** Returns true if the room is the canonical Schulhof (schoolyard). */
@@ -132,6 +148,8 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     color: backendRoom.color ?? undefined,
     deviceId: backendRoom.device_id,
     isOccupied: backendRoom.is_occupied,
+    isSystem: backendRoom.is_system,
+    isOpenRoom: backendRoom.is_open_room,
     activityName: backendRoom.activity_name,
     groupName: backendRoom.group_name,
     supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,
@@ -205,6 +223,13 @@ export function prepareRoomForBackend(
   }
   if (room.deviceId !== undefined && room.deviceId !== "") {
     backendRoom.device_id = room.deviceId;
+  }
+  // Sent only when the form actually carries a value. The backend treats an
+  // omitted is_open_room as "leave the release as it is", which is what keeps
+  // an unrelated edit from revoking a standing release (#3064). false is a
+  // real answer here and must survive the check.
+  if (typeof room.isOpenRoom === "boolean") {
+    backendRoom.is_open_room = room.isOpenRoom;
   }
 
   return backendRoom;

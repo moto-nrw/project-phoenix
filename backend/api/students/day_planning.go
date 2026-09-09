@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -323,12 +323,12 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // the request. Only enrich when the caller actually holds a permission that
 // gates the queue itself — users:update, or users:absence for the staff who
 // decide exactly these requests in a school without fixed groups (#2232).
-func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
+func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*excusedrequests.Request, error) {
 	if rs.ExcusedRequestService == nil ||
 		!authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
-		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
+		return map[int64]*excusedrequests.Request{}, nil
 	}
-	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, date)
+	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, excusedrequests.Date(date))
 }
 
 func applyDayPlanning(

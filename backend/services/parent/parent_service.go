@@ -26,10 +26,10 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -140,13 +140,13 @@ type Service interface {
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
-	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error)
 
 	// EditExcusedRequest rewrites the caller's own pending sick or excused
 	// absence request instead of withdrawing and refiling it (#2267). The
 	// existing share is kept. Authorization: the account must be the
 	// submitting guardian.
-	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*activeModels.ExcusedAbsenceRequest, error)
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*careplan.ExcusedAbsenceRequest, error)
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
@@ -472,6 +472,25 @@ type Profile struct {
 	Explicit  bool
 }
 
+// ConversationCore is the consumer-owned port for Communication's shared
+// parent-OGS conversation rules. Both portals mark reads, stamp receipts, and
+// fan out over the SAME implementation, so the two chats' unread counts and
+// receipts cannot drift; Communication supplies it at the composition seam.
+type ConversationCore interface {
+	// AppendMessage serializes the thread, persists the message, and advances
+	// the thread preview off the row's DB-stamped created_at.
+	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
+	// MarkReadToNewest advances the reader's cursor to the newest counterpart
+	// message in the snapshot and reports whether it moved.
+	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
+	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
+	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
+	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
+	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
+	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
+	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
+}
+
 // ServiceConfig is the dependency-injection bundle.
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
@@ -503,7 +522,7 @@ type ServiceConfig struct {
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.
-	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
+	ExcusedRequests careplan.ExcusedAbsenceRequests
 
 	// AbsenceNotifier informs the child's group and the office that an absence
 	// was reported. Optional and best-effort, after-commit only.
@@ -533,6 +552,10 @@ type ServiceConfig struct {
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
+	// Conversations applies Communication's shared conversation rules (append,
+	// mark-to-newest, receipts, fan-out) to the stores above, so the parent and
+	// staff chats can never drift apart.
+	Conversations ConversationCore
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository

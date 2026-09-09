@@ -30,6 +30,7 @@ interface TenantResolveResponse {
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  caldav_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
@@ -78,6 +79,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     messagingEnabled: data.parent_messaging_enabled === true,
     staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,
+    caldavEnabled: data.caldav_enabled === true,
     careOfferingsEnabled: data.care_offerings_enabled !== false,
     attendanceWebEnabled: data.attendance_web_enabled === true,
     attendanceLogEnabled: data.attendance_log_enabled === true,

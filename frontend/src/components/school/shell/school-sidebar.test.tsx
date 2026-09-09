@@ -16,14 +16,26 @@ vi.mock("~/lib/school-url", () => ({
 }));
 
 describe("SchoolSidebar", () => {
-  it("führt genau die drei erreichbaren Ziele", () => {
+  it("führt genau die vier erreichbaren Ziele", () => {
     render(<SchoolSidebar teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
     // Seit #2527 führt eine Lehrkraft auch ihre eigenen Aufsichten.
     expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
+    // Seit #2208 liest sie die Tagesinformationen der OGS-Leitung.
+    expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
     expect(screen.getByText("Hilfe")).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(3);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(4);
+  });
+
+  it("zählt offene Tagesinformationen am Eintrag (#2208)", () => {
+    render(<SchoolSidebar teamChat={teamChat} notices={{ pendingCount: 2 }} />);
+
+    const item = document.querySelector('[data-school-nav-item="notices"]');
+    expect(item).toHaveAttribute("href", "/tagesinformationen");
+    expect(
+      screen.getByLabelText("2 offene Tagesinformationen"),
+    ).toBeInTheDocument();
   });
 
   it("markiert die Aufsichten auf ihrer Seite des Schul-Hosts (#2527)", () => {

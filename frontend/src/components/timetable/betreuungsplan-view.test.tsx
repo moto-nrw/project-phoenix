@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 
 const {
@@ -851,8 +852,7 @@ let realReplaceState: typeof window.history.replaceState;
 describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-05-06T12:00:00"));
+    setTestClock(new Date("2026-05-06T12:00:00"));
     // Leseansicht (#2283): Editier-Kontrollen hängen jetzt an
     // schedules:manage, die Kinderliste an users:read. Die Bestands-Tests
     // beschreiben Planer-Flows, also ist die Default-Session ein Admin;
@@ -1283,7 +1283,7 @@ describe("BetreuungsplanView", () => {
   });
 
   it("führt Heute in der Tagesansicht am Wochenende auf den nächsten Schultag", () => {
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("view=tag&d=2026-05-04");
     render(<BetreuungsplanView />);
 
@@ -1323,7 +1323,7 @@ describe("BetreuungsplanView", () => {
     );
 
     unmount();
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("d=2026-05-06");
     render(<BetreuungsplanView />);
     fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
@@ -1331,7 +1331,7 @@ describe("BetreuungsplanView", () => {
   });
 
   it("does not query gaps for a finished Friday workweek on Saturday", () => {
-    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setTestClock(new Date("2026-05-09T12:00:00Z"));
     setUrl("view=woche&d=2026-05-04");
     render(<BetreuungsplanView />);
 
@@ -1543,7 +1543,7 @@ describe("BetreuungsplanView", () => {
   it("ends following instances from the slide-over", async () => {
     // Der Regeltermin lässt sich nur ab heute beenden, also muss der Termin
     // der Fixture (2026-05-04) hier "heute" sein.
-    vi.setSystemTime(new Date("2026-05-04T08:00:00"));
+    setTestClock(new Date("2026-05-04T08:00:00"));
     setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -42,7 +43,7 @@ func TestProcessBinaryModeCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 		response,
 		httptest.NewRequest(http.MethodPost, "/checkin", nil),
 		student,
-		&iot.Device{Model: base.Model{ID: 7}},
+		testutil.DevicePrincipal(&iot.Device{ID: 7}),
 		time.Now(),
 	)
 	require.Equal(t, http.StatusOK, response.Code)

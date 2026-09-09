@@ -9,10 +9,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
@@ -20,7 +23,7 @@ import (
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
 // the School Membership HTTP adapter owns the directory and membership
-// routes, the workforce admin resource in api/time-tracking owns everything
+// routes, the workforce admin resource of the Workforce module owns everything
 // about working time, Stammdaten and documents. Both register on one
 // protected router so the URL surface stays exactly what the frontend calls.
 
@@ -104,18 +107,55 @@ func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRole
 }
 
 // newStaffComposition builds both halves of the /api/staff surface: the
-// workforce admin resource from api/time-tracking and the School Membership
+// workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingAPI.StaffAdminResource) {
-	staffAdmin := timeTrackingAPI.NewStaffAdminResource(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, logger)
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Query, svc *services.Factory, db *bun.DB, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(svc, db, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
+		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, exportTransfer, db, logger)
 	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
-	}, staffAdmin, db, logger), staffAdmin
+	}, staffAdmin, db, logger), staffAdmin, nil
+}
+
+// newExportTransferModule wires the Export Transfer capability (#3050) over
+// the tenant settings. It is composed HERE rather than alongside the other
+// modules because it needs the settings service, which only exists once the
+// service factory is built.
+func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Logger) (*exportTransferModule.Module, error) {
+	// The setting keys stay in the settings layer next to their registry
+	// definitions; the root only passes the binding on.
+	resolvers, keys := svc.SFTPExportSettings()
+	return exportTransferCompose.New(exportTransferCompose.Dependencies{
+		DB: db,
+		Settings: exportTransferCompose.Settings{
+			Enabled:            resolvers.Enabled,
+			Host:               resolvers.Host,
+			Port:               resolvers.Port,
+			Username:           resolvers.Username,
+			Password:           resolvers.Password,
+			RemoteDirectory:    resolvers.RemoteDirectory,
+			HostKeyFingerprint: resolvers.HostKeyFingerprint,
+		},
+		Keys: exportTransferCompose.SettingKeys{
+			Host:               keys.Host,
+			Port:               keys.Port,
+			Username:           keys.Username,
+			Password:           keys.Password,
+			RemoteDirectory:    keys.RemoteDirectory,
+			HostKeyFingerprint: keys.HostKeyFingerprint,
+		},
+		Logger: logger,
+	})
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
 // renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingAPI.StaffAdminResource, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
+func newStaffResource(module schoolMembershipModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
 	runtime := buildRuntime(services.StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
@@ -123,7 +163,7 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 	return staffHTTP.NewResource(module, staffHTTP.Runtime{
 		// Protected composes the shared /api/staff router: the membership
 		// routes register first, then the workforce admin routes from
-		// api/time-tracking, both inside one protected tenant group.
+		// the Workforce module, both inside one protected tenant group.
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
 			apiCommon.ProtectedTenantGroup(router, db, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)

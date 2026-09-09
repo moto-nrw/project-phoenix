@@ -75,6 +75,8 @@ export interface TenantInfo {
    * admin page must stay hidden until a school explicitly enables it.
    */
   displayEnabled: boolean;
+  /** Whether staff may connect their personal calendar through CalDAV. */
+  caldavEnabled?: boolean;
   /**
    * Whether staff may correct care offerings on approved enrollments. Missing
    * metadata is treated as enabled for compatibility with older backends.
@@ -151,6 +153,7 @@ interface TenantResolveResponse {
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  caldav_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
@@ -243,6 +246,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       messagingEnabled: data.parent_messaging_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
+      caldavEnabled: data.caldav_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,
       attendanceLogEnabled: data.attendance_log_enabled === true,

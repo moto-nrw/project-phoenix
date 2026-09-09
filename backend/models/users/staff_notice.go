@@ -23,9 +23,35 @@ func ValidStaffNoticePriority(p string) bool {
 	return p == StaffNoticePriorityInfo || p == StaffNoticePriorityImportant
 }
 
+// Zielgruppe einer Tagesinformation (spiegelt chk_staff_notices_audience,
+// #2208). Drei feste Werte, kein Freitext-Verteiler: die ganze Einrichtung,
+// nur die Betreuung im OGS-Portal oder nur die Lehrkräfte in moto schule.
+//
+// Dieselben Werte beschreiben die LESERART: über welches Portal jemand liest.
+// Eine Betreuungskraft liest als StaffNoticeAudienceStaff, eine Lehrkraft als
+// StaffNoticeAudienceLehrkraft; ein Konto mit beiden Rollen liest im jeweiligen
+// Portal mit dem jeweiligen Hut. StaffNoticeAudienceAll ist als Leserart
+// unzulässig — es gibt kein Portal "alle".
+const (
+	StaffNoticeAudienceAll       = "all"
+	StaffNoticeAudienceStaff     = "staff"
+	StaffNoticeAudienceLehrkraft = "lehrkraft"
+)
+
+// ValidStaffNoticeAudience meldet, ob a eine bekannte Zielgruppe ist.
+func ValidStaffNoticeAudience(a string) bool {
+	return a == StaffNoticeAudienceAll || a == StaffNoticeAudienceStaff || a == StaffNoticeAudienceLehrkraft
+}
+
+// ValidStaffNoticeReader meldet, ob r eine Leserart ist, mit der ein Portal
+// Hinweise abruft (Betreuung oder Lehrkraft, nie "alle").
+func ValidStaffNoticeReader(r string) bool {
+	return r == StaffNoticeAudienceStaff || r == StaffNoticeAudienceLehrkraft
+}
+
 // StaffNotice ist ein interner Hinweis der Leitung an das Team
-// (Tagesinformation, #2180): schulweit sichtbar für alle Mitarbeitenden,
-// geschrieben mit Adminrecht.
+// (Tagesinformation, #2180): sichtbar für die gewählte Zielgruppe der
+// Einrichtung, geschrieben mit Adminrecht.
 //
 // Der Hinweis existiert EINMAL, nicht als Zeile pro Tag. Wann er gilt, sagen
 // drei Felder, deren Bedeutung aus Stundenplan und Dienstplan übernommen ist:
@@ -38,6 +64,9 @@ type StaffNotice struct {
 	Title    string `bun:"title,notnull" json:"title"`
 	Body     string `bun:"body,notnull" json:"body"`
 	Priority string `bun:"priority,notnull" json:"priority"`
+	// Audience ist die Zielgruppe (all/staff/lehrkraft, #2208). Sie entscheidet,
+	// in welchem Portal der Hinweis erscheint — siehe AppliesTo.
+	Audience string `bun:"audience,notnull,default:'all'" json:"audience"`
 	// ValidFrom/ValidUntil sind Kalendertage, keine Zeitpunkte. ValidUntil nil
 	// heißt unbefristet.
 	ValidFrom  timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
@@ -87,6 +116,18 @@ func (n *StaffNotice) AppliesOn(date timezone.Date) bool {
 	return n.ContainsWeekday(ISOWeekday(date))
 }
 
+// AppliesTo meldet, ob der Hinweis eine Person erreicht, die mit dieser
+// Leserart liest (StaffNoticeAudienceStaff im OGS-Portal,
+// StaffNoticeAudienceLehrkraft in moto schule). "all" erreicht beide; eine
+// unbekannte Leserart erreicht nichts — fail-closed, damit ein Tippfehler
+// nie zu einem breiteren Verteiler wird.
+func (n *StaffNotice) AppliesTo(reader string) bool {
+	if !ValidStaffNoticeReader(reader) {
+		return false
+	}
+	return n.Audience == StaffNoticeAudienceAll || n.Audience == reader
+}
+
 // ISOWeekday übersetzt einen Kalendertag in den ISO-Wochentag (1=Montag …
 // 7=Sonntag). Go zählt Sonntag als 0, die Wochentagslisten in Stundenplan und
 // Dienstplan zählen ihn als 7.
@@ -108,6 +149,9 @@ func (n *StaffNotice) Validate() error {
 	}
 	if !ValidStaffNoticePriority(n.Priority) {
 		return errors.New("priority must be info or important")
+	}
+	if !ValidStaffNoticeAudience(n.Audience) {
+		return errors.New("audience must be all, staff or lehrkraft")
 	}
 	if n.WeekPattern < 0 || n.WeekPattern > 2 {
 		return errors.New("week pattern must be 0, 1 or 2")
@@ -143,6 +187,16 @@ type StaffNoticeView struct {
 	AcknowledgedCount int        `json:"acknowledged_count"`
 }
 
+// StaffNoticeAcknowledger ist eine Zeile der Bestätigungsliste, die die
+// Leitung sieht (#2208): wer den Hinweis wann zur Kenntnis genommen hat. Der
+// Name kommt aus dem Personenverzeichnis, nicht aus dieser Tabelle — die
+// Kenntnisnahme kennt nur das Konto.
+type StaffNoticeAcknowledger struct {
+	AccountID      int64     `json:"account_id"`
+	Name           string    `json:"name"`
+	AcknowledgedAt time.Time `json:"acknowledged_at"`
+}
+
 // StaffNoticeRepository ist der mandantengebundene Datenzugriff für
 // Tagesinformationen. Alle Methoden laufen in einer Mandanten-Transaktion.
 type StaffNoticeRepository interface {
@@ -154,9 +208,9 @@ type StaffNoticeRepository interface {
 	// includeInactive steuert, ob abgeschaltete Zeilen erscheinen.
 	List(ctx context.Context, includeInactive bool) ([]*StaffNotice, error)
 	// ListValidOn gibt die aktiven Hinweise zurück, deren Zeitraum den Tag
-	// enthält. Wochentag und Wochenmuster prüft der Service — die Datenbank
-	// grenzt nur grob ein.
-	ListValidOn(ctx context.Context, date timezone.Date) ([]*StaffNotice, error)
+	// enthält und deren Zielgruppe die Leserart einschließt. Wochentag und
+	// Wochenmuster prüft der Service — die Datenbank grenzt nur grob ein.
+	ListValidOn(ctx context.Context, date timezone.Date, reader string) ([]*StaffNotice, error)
 	// Acknowledge stempelt die Kenntnisnahme einer Person; ein zweiter Aufruf
 	// ändert nichts.
 	Acknowledge(ctx context.Context, noticeID, accountID int64) error
@@ -165,4 +219,7 @@ type StaffNoticeRepository interface {
 	AcknowledgedAtFor(ctx context.Context, accountID int64, noticeIDs []int64) (map[int64]time.Time, error)
 	// AcknowledgedCounts gibt je Hinweis-Id die Zahl der Kenntnisnahmen zurück.
 	AcknowledgedCounts(ctx context.Context, noticeIDs []int64) (map[int64]int, error)
+	// Acknowledgements gibt alle Kenntnisnahmen eines Hinweises zurück,
+	// neueste zuerst — ohne Namen, die löst der Service auf.
+	Acknowledgements(ctx context.Context, noticeID int64) ([]*StaffNoticeAck, error)
 }

@@ -18,6 +18,11 @@ type Room struct {
 	Category  *string   `bun:"category" json:"category,omitempty"`
 	Color     *string   `bun:"color" json:"color,omitempty"`
 	IsSystem  bool      `bun:"is_system,notnull,default:false" json:"is_system"`
+	// IsOpenRoom reports whether the OGS administration has permanently
+	// released this room for use ("offener Raum", #3062). Facilities owns the
+	// value; this row only carries it for the legacy relations and fixtures
+	// that have not moved onto the module's public capability yet.
+	IsOpenRoom bool `bun:"is_open_room,notnull,default:false" json:"is_open_room"`
 }
 
 func (r *Room) SetTenantID(id int64) { r.TenantID = id }

@@ -11,13 +11,13 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -265,11 +265,11 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Queue", "Staff")
 
 	day := timezone.TodayDate().AddDays(3)
-	var pending *activeModels.ExcusedAbsenceRequest
+	var pending *excusedrequests.Request
 	require.NoError(t, testpkg.WithTenantTx(t, adminTenantCtx(chain.TenantID), tc.db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			var err error
-			pending, err = tc.resource.ExcusedRequestService.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Familienfeier")
+			pending, err = tc.resource.ExcusedRequestService.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []excusedrequests.Date{excusedrequests.Date(day)}, "Familienfeier")
 			return err
 		}))
 	require.NotNil(t, pending)
@@ -326,7 +326,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
-			[]timezone.Date{timezone.TodayDate()}, note,
+			[]excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}, note,
 		)
 		return err
 	}))

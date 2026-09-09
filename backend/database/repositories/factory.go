@@ -8,14 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
-	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
-	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
@@ -23,7 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -34,15 +34,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -154,8 +153,6 @@ type Factory struct {
 	FileEvent              auditModels.FileEventRepository
 	SubstitutionChange     auditModels.SubstitutionChangeCreator
 
-	NotificationPreference userModels.NotificationPreferenceRepository
-
 	// Facilities domain
 	Room facilityModels.RoomRepository
 
@@ -185,7 +182,6 @@ type Factory struct {
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	PlanningTrack             scheduleModels.PlanningTrackRepository
-	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
@@ -231,7 +227,7 @@ type Factory struct {
 	// IoT domain
 	Device             iotModels.DeviceRepository
 	PushSubscription   deliveryModels.PushSubscriptionRepository
-	PWAStandaloneUsage *iot.PWAStandaloneUsageRepository
+	PWAStandaloneUsage *pwausage.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -285,9 +281,6 @@ type Factory struct {
 	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
 	SubmissionRateLimit   *enrollmentCapability.Module
 
-	// Display domain (info-point dashboards, issue #1325)
-	Display displayModels.Repository
-
 	// Parent domain (cross-tenant guardian portal — PR 9+)
 	ParentChild             parentModels.ChildRepository
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
@@ -307,7 +300,7 @@ type Factory struct {
 	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
-	CalendarStaffFeedTombstone calendarModels.StaffFeedTombstoneRepository
+	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
@@ -351,7 +344,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.DataImport = audit.NewDataImportRepository(runtime)
 	f.WorkSessionEdit = audit.NewWorkSessionEditRepository(runtime)
 	f.StudentFieldEdit = audit.NewStudentFieldEditRepository(runtime)
-	f.UnregisteredTagScan = audit.NewUnregisteredTagScanRepository(runtime)
+	f.UnregisteredTagScan = NewUnregisteredTagScanRepository(mustNewDeviceFleet(f.db))
 	f.TimeTrackingDeletion = audit.NewTimeTrackingDeletionRepository(runtime)
 	f.PersonnelNumberChange = audit.NewPersonnelNumberChangeRepository(runtime)
 	f.StaffMasterDataChange = audit.NewStaffMasterDataChangeRepository(runtime)
@@ -361,7 +354,7 @@ func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
 	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, enrollmentCompose.New())
 	f.bindAuditStudentDirectory()
 	f.bindCarePlanAuditDirectory()
-	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, newStudentPresence(f.db).CountAttendanceRecords)
+	f.StudentDeletion = users.NewStudentDeletionRepository(f.db, f.StudentDeletionAudit.CountStudentReferences, f.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, f.InstanceStudent.(timetableInstanceStudentRepository).timetable, parentStore.NewStudentConversations(f.db), newStudentPresence(f.db).CountAttendanceRecords)
 	if repository, ok := f.StudentDeletion.(*users.StudentDeletionRepository); ok && f.carePlan != nil {
 		repository.BindCarePlan(studentDeletionCarePlanDirectory{capability: f.carePlan})
 	}
@@ -524,9 +517,10 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
+	deviceFleet := mustNewDeviceFleet(db)
 	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
 	enrollmentModule := enrollmentCompose.New()
-	parentAnnouncement := users.NewParentAnnouncementRepository(db, enrollmentModule, now)
+	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
 		tenantID := auditModels.TenantIDFromContext(ctx)
 		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
@@ -542,11 +536,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		return db, tenantID
 	}
 	parentRuntime := carePlanLegacy.NewParentRuntime(db)
-	schoolCalendarRuntime := schoolCalendarCompose.PersistenceRuntimeFor(db)
-	calendarRuntime := calendarRepo.Runtime{
-		Database: schoolCalendarRuntime.Database,
-		TenantID: schoolCalendarRuntime.TenantID,
-	}
 	appointmentsModule, err := NewAppointments(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
@@ -603,10 +592,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
 
-		// Staff Stammdaten (#1423)
-		StaffMasterData:    users.NewStaffMasterDataRepository(db),
-		StaffQualification: users.NewStaffQualificationRepository(db),
-		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+		// Staff Stammdaten (#1423) belong to Workforce (#2690): the retained
+		// contracts are served by the adapters over the one facade.
+		StaffMasterData:    workforceLegacy.NewStaffMasterDataRepository(timetableDependencies.Workforce),
+		StaffQualification: workforceLegacy.NewStaffQualificationRepository(timetableDependencies.Workforce),
+		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(timetableDependencies.Workforce),
 
 		// Guardian payment data (#2608)
 		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
@@ -622,8 +612,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		FileEvent:              audit.NewFileEventRepository(auditRepositoryRuntime),
 		SubstitutionChange:     audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
 
-		NotificationPreference: users.NewNotificationPreferenceRepository(db),
-
 		// Facilities repositories
 		Room: facilitiesRepositoryAdapter.New(),
 
@@ -631,7 +619,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
-		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
+		GroupSubstitution:     nil, // bound to Workforce below
 		GradeTransition:       education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
@@ -645,12 +633,13 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentArrivalException:   nil, // bound to Care Plan below
 		StudentArrivalNote:        nil, // bound to Care Plan below
 		CareScheduleChangeRequest: nil, // bound to Care Plan below
-		StaffShift:                schedule.NewStaffShiftRepository(db),
-		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
-		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
-		ShiftType:                 schedule.NewShiftTypeRepository(db),
+		// Dienstplan rows belong to Workforce (#2689): the retained contracts
+		// are served by the adapters over the one facade.
+		StaffShift:                newWorkforceStaffShiftRepository(timetableDependencies.Workforce),
+		StaffShiftSeries:          newWorkforceStaffShiftSeriesRepository(timetableDependencies.Workforce),
+		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(timetableDependencies.Workforce),
+		ShiftType:                 newWorkforceShiftTypeRepository(timetableDependencies.Workforce),
 		PlanningTrack:             nil, // bound to Timetable below
-		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		ActivityInstance:          nil, // bound to Timetable below
 		InstanceIdempotency:       nil, // bound to Timetable below
 		InstanceStaff:             nil, // bound to Timetable below
@@ -665,33 +654,35 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:                     active.NewGroupRepository(db),
-		GroupSupervisor:                 groupSupervisor,
-		CrossTenant:                     active.NewCrossTenantRepository(db),
-		CombinedGroup:                   active.NewCombinedGroupRepository(db),
-		GroupMapping:                    active.NewGroupMappingRepository(db),
-		StudentStatusDay:                nil, // bound to Care Plan below
-		Statistics:                      active.NewStatisticsRepository(db),
-		CourseStatistics:                timetableCourseStatisticsRepository{timetable: timetableCapability},
-		ExcusedAbsenceRequest:           nil, // bound to Care Plan below
-		WorkSession:                     active.NewWorkSessionRepository(db, now),
-		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:               active.NewStaffAbsenceAuditRepository(db),
-		StaffAbsenceType:                active.NewStaffAbsenceTypeRepository(db),
+		ActiveGroup:           active.NewGroupRepository(db, activeDeviceDirectory{devices: deviceFleet}),
+		GroupSupervisor:       groupSupervisor,
+		CrossTenant:           active.NewCrossTenantRepository(db),
+		CombinedGroup:         active.NewCombinedGroupRepository(db),
+		GroupMapping:          active.NewGroupMappingRepository(db),
+		StudentStatusDay:      nil, // bound to Care Plan below
+		Statistics:            active.NewStatisticsRepository(db),
+		CourseStatistics:      timetableCourseStatisticsRepository{timetable: timetableCapability},
+		ExcusedAbsenceRequest: nil, // bound to Care Plan below
+		// Work sessions, breaks, balances and vacation rows belong to
+		// Workforce (#2690); the facade carries its own clock.
+		WorkSession:                     workforceLegacy.NewWorkSessionRepository(timetableDependencies.Workforce),
+		WorkSessionBreak:                workforceLegacy.NewWorkSessionBreakRepository(timetableDependencies.Workforce),
+		StaffAbsence:                    workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
+		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
+		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(timetableDependencies.Workforce),
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db),
-		StaffVacationOpening:            active.NewStaffVacationOpeningRepository(db),
-		StaffBalanceAdjust:              active.NewStaffBalanceAdjustmentRepository(db),
+		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(timetableDependencies.Workforce),
+		StaffVacationOpening:            workforceLegacy.NewStaffVacationOpeningRepository(timetableDependencies.Workforce),
+		StaffBalanceAdjust:              workforceLegacy.NewStaffBalanceAdjustmentRepository(timetableDependencies.Workforce),
 		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		SessionStartLock: active.NewSessionStartLocker(db),
 
 		// IoT repositories
-		Device:             iot.NewDeviceRepository(db),
+		Device:             devicefleetRepositoryAdapter.NewDeviceRepository(deviceFleet),
 		PushSubscription:   deliveryCompose.NewPushSubscriptionRepository(db),
-		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
+		PWAStandaloneUsage: pwausage.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
@@ -713,7 +704,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(auditRepositoryRuntime),
 		StudentFieldEdit:             audit.NewStudentFieldEditRepository(auditRepositoryRuntime),
-		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(auditRepositoryRuntime),
+		UnregisteredTagScan:          NewUnregisteredTagScanRepository(deviceFleet),
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(auditRepositoryRuntime),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(auditRepositoryRuntime),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(auditRepositoryRuntime),
@@ -740,9 +731,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,
 
-		// Display (info-point dashboards, issue #1325)
-		Display: displayRepo.NewDisplayRepository(db),
-
 		// Parent (cross-tenant guardian portal — PR 9+)
 		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
@@ -752,8 +740,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: users.NewParentMessageThreadRepository(db),
-		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db)),
+		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
@@ -761,11 +749,17 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffMessage:       users.NewStaffMessageRepository(db),
 
 		// Calendar repositories
-		CalendarStaffFeedTombstone: calendarRepo.NewStaffFeedTombstoneRepository(calendarRuntime),
+		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
 		ParentAnnouncement:         parentAnnouncement,
 		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}
 	factory.appointments = appointmentsModule
+	// iot.devices belongs to the Device Fleet owner (#2676): the operator
+	// dashboard reads its counts and device rows through that capability
+	// instead of joining the table from platform SQL.
+	factory.OperatorSummaries = deviceOperatorSummariesRepository{
+		OperatorSummariesRepository: factory.OperatorSummaries, devices: deviceFleet,
+	}
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
@@ -803,7 +797,16 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return result, nil
 	})
-	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, presenceCapability.CountAttendanceRecords)
+	// Group substitutions belong to Workforce (#2688): the retained contract
+	// is served by the adapter, which resolves groups through School
+	// Structure and staff through School Membership.
+	factory.GroupSubstitution = workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce,
+		func(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+			return factory.Group.FindByIDs(ctx, ids)
+		},
+		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
+	)
+	factory.StudentDeletion = users.NewStudentDeletionRepository(db, studentDeletionAudit.CountStudentReferences, factory.countPrivacyConsents, enrollmentModule.CountStudentReferences, timetableCapability, parentStore.NewStudentConversations(db), presenceCapability.CountAttendanceRecords)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
@@ -836,13 +839,13 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// The decorators are wired once, innermost: they read the capability
 	// lazily so a later BindSchoolMembership swap reaches them too, and they
 	// stay under the school/person/group wrappers bound afterwards.
-	factory.bindStaffMembershipDecorators()
+	factory.bindStaffMembershipDecorators(timetableDependencies.Workforce)
 	// Same lazy capability for the repositories that used to join users.staff
 	// or users.teachers themselves; wired here so they sit inside the person,
 	// school and group wrappers bound afterwards (#2667, agent A2).
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
-	})
+	}, timetableDependencies.Workforce)
 	adapters := newTimetableRepositories(timetableCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, factory.ShiftType)
 	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor

@@ -13,7 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -45,22 +46,14 @@ func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64,
 	return "", nil
 }
 
-func buildReasonPolicyServices(t *testing.T, policy string) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *bun.DB) {
+func buildReasonPolicyServices(t *testing.T, policy string) (parentService.Service, careplan.ExcusedAbsenceRequests, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
-		repos.ExcusedAbsenceRequest,
-		repos.StudentStatusDay,
-		repos.StudentPickupException,
-		repos.Student,
-		repos.Person,
-		nil, nil, nil,
-		testpkg.AbsenceRequestReviewPolicy{},
-		usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent),
-		slog.Default(),
-		db,
-	)
+	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
+		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: usersSvc.NewParentRequestEventRecorder(repos.ParentRequestEvent), Logger: slog.Default(),
+	})
+	require.NoError(t, err)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -137,7 +130,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 			require.NoError(t, err)
 
 			decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-				_, err := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+				_, err := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 					RequestID:      res.PendingRequest.ID,
 					Approve:        true,
 					ReviewedBy:     chain.AccountID,
@@ -146,7 +139,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 				return err
 			})
 			if tc.wantRefusal {
-				require.ErrorIs(t, decideErr, usersSvc.ErrParentRequestReasonRequired)
+				require.ErrorIs(t, decideErr, careplan.ErrParentRequestReasonRequired)
 				return
 			}
 			require.NoError(t, decideErr)
@@ -169,11 +162,11 @@ func TestStaffRejectionAlwaysNeedsAReason(t *testing.T) {
 	require.NoError(t, err)
 
 	decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, err := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+		_, err := requests.Decide(txCtx, careplan.ExcusedRequestDecideInput{
 			RequestID: res.PendingRequest.ID, Approve: false, ReviewedBy: chain.AccountID,
 			ReasonRequired: false,
 		})
 		return err
 	})
-	require.ErrorIs(t, decideErr, absenceSvc.ErrExcusedRequestRejectReasonRequired)
+	require.ErrorIs(t, decideErr, careplan.ErrExcusedRequestRejectReasonRequired)
 }

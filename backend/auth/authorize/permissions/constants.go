@@ -324,3 +324,15 @@ const (
 
 	SupervisionOwn = ResourceSupervision + ":own"
 )
+
+// Tagesinformationen in the school portal (#2208). staff_notices:read gates the
+// Lehrkraft's read-and-acknowledge surface under /school/staff-notices. It is
+// deliberately NOT users:read: that permission also opens the tenant-wide
+// student directory, which the lehrkraft role must never hold. The OGS portal
+// keeps reading notices through users:read, which every Betreuungskraft has;
+// writing stays admin-only in both portals.
+const (
+	ResourceStaffNotices = "staff_notices"
+
+	StaffNoticesRead = ResourceStaffNotices + ":read"
+)

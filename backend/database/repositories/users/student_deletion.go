@@ -32,6 +32,16 @@ type StudentDeletionRepository struct {
 	appointments interface {
 		CountAppointmentRecipientStudents(context.Context, int64) (int, error)
 	}
+	// conversations is served by the Communication owner (#2675); the preview
+	// must not join users.parent_message* itself.
+	conversations StudentConversationDeletion
+}
+
+// StudentConversationDeletion is the Communication owner seam used by permanent
+// student deletion. It shares the caller's tenant transaction.
+type StudentConversationDeletion interface {
+	CountStudentConversationRecords(context.Context, int64) (int, error)
+	LockStudentMessageThreads(context.Context, int64) error
 }
 
 // StudentAssignmentDeletion is the Timetable owner seam used by permanent
@@ -74,6 +84,7 @@ func NewStudentDeletionRepository(
 	countConsents func(context.Context, int64) (int, error),
 	countEnrollmentReferences func(context.Context, int64) (int, error),
 	assignments StudentAssignmentDeletion,
+	conversations StudentConversationDeletion,
 	countAttendanceRecords func(context.Context, int64) (int, error),
 ) userModels.StudentDeletionRepository {
 	if countEnrollmentReferences == nil {
@@ -82,10 +93,17 @@ func NewStudentDeletionRepository(
 	if assignments == nil {
 		panic("student deletion repository: timetable assignments are required")
 	}
+	if conversations == nil {
+		panic("student deletion repository: communication conversations are required")
+	}
 	if countAttendanceRecords == nil {
 		panic("student deletion repository: presence query is required")
 	}
-	return &StudentDeletionRepository{db: db, countAuditReferences: countAuditReferences, countConsents: countConsents, countEnrollmentReferences: countEnrollmentReferences, assignments: assignments, countAttendanceRecords: countAttendanceRecords}
+	return &StudentDeletionRepository{
+		db: db, countAuditReferences: countAuditReferences, countConsents: countConsents,
+		countEnrollmentReferences: countEnrollmentReferences, assignments: assignments,
+		conversations: conversations, countAttendanceRecords: countAttendanceRecords,
+	}
 }
 
 func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
@@ -99,10 +117,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 		SELECT
 			0::int AS timetable_assignments,
 			0::int AS activity_enrollments,
-			(
-				active.count_student_visits_for_deletion(?, ?) +
-				(SELECT COUNT(*) FROM active.scheduled_checkouts WHERE tenant_id = ? AND student_id = ?)
-			)::int AS attendance_records,
+			active.count_student_visits_for_deletion(?, ?)::int AS attendance_records,
 			0::int AS care_schedules,
 			(
 				(SELECT COUNT(*) FROM users.students_guardians WHERE tenant_id = ? AND student_id = ?) +
@@ -110,17 +125,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 			)::int AS guardian_links,
 			0::int AS companion_links,
 			(
-				(SELECT COUNT(*) FROM users.parent_message_threads WHERE tenant_id = ? AND student_id = ?) +
-				(SELECT COUNT(*) FROM users.parent_messages WHERE tenant_id = ? AND student_id = ?) +
-				(
-					SELECT COUNT(*)
-					FROM users.parent_message_reads AS "parent_message_read"
-					JOIN users.parent_message_threads AS "parent_message_thread"
-						ON "parent_message_thread".id = "parent_message_read".thread_id
-						AND "parent_message_thread".tenant_id = "parent_message_read".tenant_id
-					WHERE "parent_message_read".tenant_id = ? AND "parent_message_thread".student_id = ?
-				) +
-				(SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?)
+				SELECT COUNT(*) FROM auth.guardian_invitations WHERE tenant_id = ? AND student_id = ?
 			)::int AS communications,
 			0::int AS enrollment_references,
 			(
@@ -128,14 +133,19 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 				(SELECT COUNT(*) FROM education.grade_transition_history WHERE tenant_id = ? AND student_id = ? AND person_name <> 'Gelöschtes Kind')
 			)::int AS other_records
 	`,
-		tenantID, studentID, tenantID, studentID,
+		tenantID, studentID,
 		tenantID, studentID, tenantID, tenantID, studentID,
-		tenantID, studentID, tenantID, studentID, tenantID, studentID, tenantID, studentID,
+		tenantID, studentID,
 		tenantID, studentID, tenantID, studentID,
 	).Scan(ctx, counts)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
 	}
+	conversations, err := r.conversations.CountStudentConversationRecords(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("preview student deletion: count conversations: %w", err)
+	}
+	counts.Communications += conversations
 	attendanceCount, err := r.countAttendanceRecords(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("preview student deletion: %w", err)
@@ -198,24 +208,7 @@ func (r *StudentDeletionRepository) Preview(ctx context.Context, studentID int64
 // FOR UPDATE lock serializes their FK checks until the deletion commits or
 // rolls back.
 func (r *StudentDeletionRepository) LockMessageThreads(ctx context.Context, studentID int64) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return fmt.Errorf("lock student message threads: tenant context is required")
-	}
-
-	var threadIDs []int64
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.parent_message_threads AS "parent_message_thread"`).
-		ColumnExpr(`"parent_message_thread".id`).
-		Where(`"parent_message_thread".tenant_id = ?`, tenantID).
-		Where(`"parent_message_thread".student_id = ?`, studentID).
-		OrderExpr(`"parent_message_thread".id ASC`).
-		For("UPDATE").
-		Scan(ctx, &threadIDs)
-	if err != nil {
-		return fmt.Errorf("lock student message threads: %w", err)
-	}
-	return nil
+	return r.conversations.LockStudentMessageThreads(ctx, studentID)
 }
 
 // DeleteLegacyGuardianLinks removes relationships from the superseded

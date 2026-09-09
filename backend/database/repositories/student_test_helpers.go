@@ -10,12 +10,17 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
 type StudentTestRepositories struct {
+	// CarePlan is the owner capability the legacy adapters below delegate to;
+	// Care Plan workflows composed by the test root share the same instance.
+	CarePlan           careplan.Capability
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
@@ -81,13 +86,14 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable, newStudentPresence(db).CountAttendanceRecords)
+	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable, parentStore.NewStudentConversations(db), newStudentPresence(db).CountAttendanceRecords)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
 	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
+		CarePlan:                     care,
 		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(db),
 		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,
@@ -104,6 +110,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition, PrivacyConsent: r.PrivacyConsent,
 		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
-		ParentMessageThread: usersRepo.NewParentMessageThreadRepository(db), ParentMessage: usersRepo.NewParentMessageRepository(db),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
+		ParentMessage:       parentStore.NewParentMessageRepository(db),
 	}, nil
 }

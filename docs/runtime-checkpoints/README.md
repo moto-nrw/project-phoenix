@@ -31,6 +31,47 @@ Raw measurements, interpretation, and acceptance belong in the issue, not here.
      "$checkpoint_dir/raw.json" "$checkpoint_dir"
    ```
 
+The helper's Delivery scenarios require the production mock mailer. Unset
+`EMAIL_SMTP_HOST` (and the other `EMAIL_SMTP_*` values) in the shell that runs
+the command; a development shell that exports the Mailpit host fails the run
+before the worker scenarios.
+
+## Compare a later checkpoint with the baseline (`checkpoint-1-v1`)
+
+Checkpoint [#3020](https://github.com/moto-nrw/project-phoenix/issues/3020)
+repeats `checkpoint-1-v1` unchanged after the core-module migrations. Regenerate
+the baseline summary from the lossless raw evidence in #3019 with the current
+reporter, so both summaries carry the same metric set, then compare:
+
+```bash
+python3 scripts/runtime-checkpoint-report.py baseline/raw.json baseline
+python3 scripts/runtime-checkpoint-report.py "$checkpoint_dir/raw.json" "$checkpoint_dir"
+python3 scripts/runtime-checkpoint-compare.py \
+  baseline/summary.json "$checkpoint_dir/summary.json" "$checkpoint_dir/comparison"
+```
+
+The comparison writes `comparison.json` and `comparison.md`. It refuses a
+different workload version or scenario set; those need an old/new bridge run on
+the same commit instead. For every metric present in both summaries it
+classifies the median and the worst run separately: any change to an
+exact-invariant metric (queries, rows, waits, deadlocks, retries, rollbacks,
+job counters, HTTP outcomes) is `material`; a latency metric is `material` only
+beyond both the relative tolerance (default 20%) and the absolute tolerance
+(default 0.5 ms), otherwise `within-tolerance`; observer coverage (lock sample
+count and gap) is `coverage`, never a verdict. A changed stable-error contract
+is material. Metrics measured on one side only, such as
+`executed_write_rows_affected` for samples recorded before that field existed,
+are listed as unmeasured, not compared. The tolerances are CLI options and are
+recorded in the output; they mark what needs an explanation, they do not
+explain it. Run the checks with
+`python3 -m unittest discover -s scripts -p 'runtime_checkpoint_*_test.py'`.
+
+Harness changes since the #3019 commit that keep `checkpoint-1-v1` equivalent:
+warmup responses are asserted against the expected status (outside timing),
+`write_rows_affected` is recorded per sample, and the environment inventory
+lists the two Enrollment change-request tables. Scenario definitions, order,
+warmups, sample counts, fixtures, and worker scenarios are unchanged.
+
 The opt-in helper runs before the existing route/auth goldens. It uses their
 `api.WithRuntime` instance and `Runtime.Handler`, including production module
 wiring and the `phoenix_auth` pool. It adds no composition root. Ordinary test
@@ -166,6 +207,86 @@ This workload covers authenticated new-child submission, not parent login,
 refresh, existing-child re-enrollment permissions, or captcha-provider behavior.
 The fresh tenant still has captcha disabled. The route resolves a school from
 its subdomain; the anonymous routes retain their separate slug contract.
+
+### Enrollment change-request workload (`enrollment-2696-change-requests-v1`)
+
+For #2696, add `-runtime-checkpoint-enrollment-change-requests` to the
+command above instead of the read or write option. It measures the enrollment
+change-request capability and the parent/OGS dialogue on
+`enrollment.change_requests` and `enrollment.change_request_messages` through
+the production router: the family's public list, the admin list, detail,
+open and history review lists, the pending count, a staff question, a parent
+reply, a parent reply in the wrong state (400), filing a change request,
+rejecting one, approving one, an unknown change request (404), and an unknown
+status token (404). Three runs, five warmups, 30 measured requests per
+scenario, concurrency one, as in the baseline.
+
+Setup enables Enrollment, submits two public enrollments, and moves both
+children onto the waitlist through the admin decision route, because only a
+decided child moves a request into change-request mode. The dialogue request
+keeps exactly one change request open for the whole run; the decision request
+is filed and decided repeatedly. Stateful scenarios prepare their state outside
+the timed window: a question first replies when the family is still asked, a
+reply first asks when nothing is pending, a create first rejects the still-open
+proposal, and reject/approve first file a proposal when none is open. Each
+proposal changes the guardian last name to a unique value, so approval always
+applies a real diff against the current data. Preparation requests are outside
+latency and query counts but inside the lock-sampling window.
+
+Scenario definitions keep `{{open_change_request}}` and
+`{{decision_change_request}}` placeholders; the resolved IDs vary per request
+while the recorded operation stays identical across runs. The final database
+check compares every persisted change request, terminal status, dialogue
+message, and the applied guardian name against the counts the workload tracked
+from successful responses. No worker runs are part of this workload.
+
+This is not evidence for parent-portal authentication, e-mail delivery of the
+dialogue notifications, concurrent decisions on one change request, or an
+injected database failure; the module integration tests cover rollback and
+failure propagation separately.
+
+### Enrollment acceptance workload (`enrollment-2699-acceptance-v1`)
+
+For #2699, add `-runtime-checkpoint-enrollment-acceptance` to the command
+above instead of the read, write, or change-request option. It measures the
+acceptance workflow on `enrollment.requests`, `enrollment.request_children`,
+`users.students`, `auth.account_tenants`, and `auth.account_roles` through the
+production admin decision route: approving an anonymous submission, approving
+a submission the authenticated parent filed (the approval attaches the
+existing platform account through the Identity & Access capability instead
+of queueing an invitation), rejecting, waitlisting, approving an already
+rejected child (400), an unknown status (400), and an unknown child on a real
+request (404). Three runs, five warmups, 30 measured requests per scenario,
+concurrency one, as in the baseline.
+
+Setup enables Enrollment, creates the parent fixture (platform account, active
+school mapping, guardian role, guardian profile) and mints a parent-scoped
+JWT. Every decision scenario consumes a fresh child: preparation submits one
+request per measured and warmup request outside timing, through the anonymous
+route with a unique e-mail and client address, or through the authenticated
+parent route for the parent-account scenario. The terminal scenario rejects
+its child outside timing before the measured approval. Preparation requests
+are outside latency and query counts but inside the lock-sampling window.
+The phase fixture keeps the optional care-offering selection mode, so
+approvals materialize no bookings; the decision e-mail rows and the
+post-commit invitation for anonymous approvals are part of the measured
+request as in production.
+
+Scenario definitions keep the `{{pending_child}}` placeholder; the resolved
+path varies per request while the recorded operation stays identical across
+runs. The final database check compares every child status, one created
+student per approval, the parent account's active school mapping and single
+guardian role assignment, the primary guardian link of every parent-account
+approval, and the absence of invitations for the linked account against the
+counts the workload tracked from successful responses. No worker runs are part
+of this workload. The environment inventory now also lists
+`enrollment.requests`, `enrollment.request_children`, `auth.account_tenants`
+and `auth.account_roles`; existing workload versions are unchanged.
+
+This is not evidence for parent login, e-mail delivery, care-offering
+materialization, concurrent decisions on one request, or an injected
+database failure; the Identity & Access and Enrollment integration tests
+cover rollback and failure propagation separately.
 
 ### Checkpoint baseline
 

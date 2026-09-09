@@ -60,6 +60,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	require.Equal(t, "^TestFullProductionRouterGolden$", flag.Lookup("test.run").Value.String(), "checkpoint requires a dedicated test process")
 	require.False(t, *runtimeCheckpointEnrollment && *runtimeCheckpointEnrollmentWrites, "select exactly one Enrollment workload")
 	require.True(t, !*runtimeCheckpointEnrollmentParents || *runtimeCheckpointEnrollmentWrites, "parent workload requires the Enrollment writes option")
+	require.False(t, *runtimeCheckpointEnrollmentChangeRequests && (*runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites), "select exactly one Enrollment workload")
+	require.False(t, *runtimeCheckpointEnrollmentAcceptance && (*runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || *runtimeCheckpointEnrollmentChangeRequests), "select exactly one Enrollment workload")
 	output, err := os.OpenFile(*runtimeCheckpointOutput, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	require.NoError(t, err, "use a new output path for each checkpoint execution")
 	defer func() { _ = output.Close() }()
@@ -210,6 +212,36 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			}
 		}
 	}
+	var changeRequests *changeRequestWorkload
+	if *runtimeCheckpointEnrollmentChangeRequests {
+		enabled := checkpointRequest(production.Handler(), checkpointScenario{
+			Method: "PUT", Path: "/api/settings/values/enrollment.enabled", Authenticated: true, Body: `{"value":true}`,
+		}, token)
+		require.Equal(t, http.StatusOK, enabled.Code, enabled.Body.String())
+		var schoolSlug string
+		require.NoError(t, db.NewRaw("SELECT slug FROM platform.schools WHERE id = ?", testpkg.Tenant(t)).Scan(context.Background(), &schoolSlug))
+		changeRequests = newChangeRequestWorkload(t, production.Handler(), token, phase.ID, schoolSlug)
+		workloadVersion = changeRequestWorkloadVersion
+		scenarios = changeRequests.scenarios()
+	}
+	var acceptance *acceptanceWorkload
+	if *runtimeCheckpointEnrollmentAcceptance {
+		enabled := checkpointRequest(production.Handler(), checkpointScenario{
+			Method: "PUT", Path: "/api/settings/values/enrollment.enabled", Authenticated: true, Body: `{"value":true}`,
+		}, token)
+		require.Equal(t, http.StatusOK, enabled.Code, enabled.Body.String())
+		var schoolSlug, schoolSubdomain string
+		require.NoError(t, db.NewRaw("SELECT slug, subdomain FROM platform.schools WHERE id = ?", testpkg.Tenant(t)).Scan(context.Background(), &schoolSlug, &schoolSubdomain))
+		// The parent fixture already holds a platform account, an active school
+		// mapping and the guardian role: approvals must keep that state and
+		// never queue an invitation for it.
+		parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+		parentAccountID = parentChain.AccountID
+		parentToken = testutil.MintTestJWT(t, jwt.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}})
+		acceptance = newAcceptanceWorkload(t, production.Handler(), token, parentToken, parentAccountID, phase.ID, schoolSlug, schoolSubdomain)
+		workloadVersion = acceptanceWorkloadVersion
+		scenarios = acceptance.scenarios()
+	}
 	counter := testpkg.CaptureQueries(t, api.db)
 	counter.Stop()
 	var postgresVersion string
@@ -224,7 +256,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	}
 	require.NoError(t, db.NewRaw("SELECT name, setting, COALESCE(unit, '') AS unit FROM pg_settings WHERE name IN ('server_version_num', 'max_connections', 'shared_buffers', 'work_mem', 'effective_cache_size', 'fsync', 'synchronous_commit', 'track_activities', 'track_counts', 'TimeZone') ORDER BY name").Scan(context.Background(), &databaseSettings))
 	volumes := map[string]int64{}
-	for _, table := range []string{"users.students", "users.guardian_profiles", "users.staff", "facilities.rooms", "education.groups", "activities.groups", "activities.categories", "enrollment.phases", "enrollment.care_offerings", "schedule.calendar_periods"} {
+	for _, table := range []string{"users.students", "users.guardian_profiles", "users.staff", "facilities.rooms", "education.groups", "activities.groups", "activities.categories", "enrollment.phases", "enrollment.care_offerings", "enrollment.change_requests", "enrollment.change_request_messages", "enrollment.requests", "enrollment.request_children", "auth.account_tenants", "auth.account_roles", "schedule.calendar_periods"} {
 		var count int64
 		require.NoError(t, db.NewRaw("SELECT count(*) FROM "+table+" WHERE tenant_id = ?", testpkg.Tenant(t)).Scan(context.Background(), &count))
 		volumes[table] = count
@@ -239,7 +271,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	var workerRuns [][]testpkg.RuntimeCheckpointWorkerResult
 	requestSequence := 0
 	var preparedDuplicates []int
-	runRequest := func(scenario checkpointScenario) *httptest.ResponseRecorder {
+	// prepareRequest resolves the request outside the timed window: the
+	// sequence, the token, and any state a stateful workload needs first.
+	prepareRequest := func(scenario checkpointScenario) (checkpointScenario, string, int) {
 		sequence := 0
 		if scenario.Name == "enrollment.public-submit-duplicate" {
 			require.NotEmpty(t, preparedDuplicates)
@@ -252,11 +286,29 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if scenario.Name == "enrollment.parent-submit" {
 			requestToken = parentToken
 		}
+		if changeRequests != nil {
+			scenario, requestToken = changeRequests.prepare(t, scenario, sequence)
+		}
+		if acceptance != nil {
+			scenario, requestToken = acceptance.prepare(t, scenario)
+		}
+		return scenario, requestToken, sequence
+	}
+	sendRequest := func(scenario checkpointScenario, requestToken string, sequence int) *httptest.ResponseRecorder {
 		response := checkpointSequencedRequest(production.Handler(), scenario, requestToken, sequence)
 		if scenario.ExpectedStatus == http.StatusTooManyRequests {
 			require.Equal(t, "3600", response.Header().Get("Retry-After"))
 		}
+		if changeRequests != nil {
+			changeRequests.observe(t, scenario, response)
+		}
+		if acceptance != nil {
+			acceptance.observe(scenario, response)
+		}
 		return response
+	}
+	runRequest := func(scenario checkpointScenario) *httptest.ResponseRecorder {
+		return sendRequest(prepareRequest(scenario))
 	}
 	for range 3 {
 		var results []checkpointResult
@@ -289,11 +341,12 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			})
 			t.Cleanup(func() { _ = stopSampling() })
 			for range 30 {
+				resolved, requestToken, sequence := prepareRequest(scenario)
 				counter.Reset()
 				before := api.db.Stats()
 				counter.Start()
 				started := time.Now()
-				response := runRequest(scenario)
+				response := sendRequest(resolved, requestToken, sequence)
 				elapsed := time.Since(started)
 				counter.Stop()
 				after := api.db.Stats()
@@ -329,7 +382,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			results = append(results, result)
 		}
 		runs = append(runs, results)
-		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites {
+		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
 		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db, db, api.Services.EmailOutboxWorker, api.tenantRuntime, counter, func() string { return checkpointMetrics(t) })
@@ -377,6 +430,12 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		finalState = map[string]int{"schema_versions": versions, "latest_schema_version": latestVersion,
 			"requests": submittedRequests, "children": submittedChildren, "parent_requests": parentRequests,
 			"throttled_ip_attempts": ipAttempts, "throttled_email_attempts": emailAttempts}
+	}
+	if changeRequests != nil {
+		finalState = changeRequests.finalState(t)
+	}
+	if acceptance != nil {
+		finalState = acceptance.finalState(t)
 	}
 	report := struct {
 		WorkloadVersion    string                                    `json:"workload_version"`

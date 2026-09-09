@@ -367,6 +367,10 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
       SCHOOL_URL: http://schule.localhost:3000
+      # services.NewFactory refuses to build without it: the personal CalDAV
+      # calendar derives its public server address from this value. Matches
+      # the PORT above so the seeded links point at this job's own server.
+      NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000

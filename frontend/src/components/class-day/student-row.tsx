@@ -7,7 +7,7 @@
 // dieselbe Zeile; die Zeile ist der einzige Ort, an dem eine Abweichung vom
 // üblichen Plan sichtbar wird.
 
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { ClassDayRow } from "~/lib/class-day-api";
 import { reportedTodayLabel } from "./day-changes";
@@ -88,7 +88,7 @@ export function StudentRow({
           </span>
         ) : null}
         {showPickupBadge ? (
-          <StatusDotBadge
+          <StatusColorBadge
             label="Andere Abholzeit"
             color={LOCATION_COLORS.WARNING}
           />
@@ -96,13 +96,13 @@ export function StudentRow({
         {/* Klassenlisteneintrag (#2382): Kind ohne OGS-Datensatz — eindeutig
             als "Keine Betreuung" gekennzeichnet, unabhängig von Anmeldephasen. */}
         {row.list_entry ? (
-          <StatusDotBadge
+          <StatusColorBadge
             label="Keine Betreuung"
             color={LOCATION_COLORS.HOME}
           />
         ) : null}
         {row.status ? (
-          <StatusDotBadge
+          <StatusColorBadge
             label={statusLabel(row.status)}
             color={statusColor(row.status)}
           />

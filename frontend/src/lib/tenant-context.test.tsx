@@ -32,6 +32,7 @@ import {
   TenantProvider,
   useAttendanceLogEnabled,
   useAttendanceWebEnabled,
+  useCalDAVEnabled,
   useCareOfferingsEnabled,
   useDisplayEnabled,
   useEmergencyHealthInfoEnabled,
@@ -670,6 +671,24 @@ describe("useAttendanceLogEnabled", () => {
       </TenantProvider>
     );
     const { result } = renderHook(() => useAttendanceLogEnabled(), { wrapper });
+    expect(result.current).toBe(false);
+  });
+});
+
+describe("useCalDAVEnabled", () => {
+  it("returns true when the school enables calendar program access", () => {
+    const calDAVTenant: TenantInfo = { ...mockTenant, caldavEnabled: true };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={calDAVTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useCalDAVEnabled(), { wrapper });
+    expect(result.current).toBe(true);
+  });
+
+  it("fails closed outside a resolved tenant", () => {
+    const { result } = renderHook(() => useCalDAVEnabled());
     expect(result.current).toBe(false);
   });
 });

@@ -2,6 +2,10 @@
 // (Dienstplan, #1376 core slice). Shifts carry the concrete wall-clock times
 // the auto-checkout job (#1798) closes forgotten work sessions against.
 // Staff members read their own shifts via /api/time-tracking/shifts.
+//
+// Authentication, transaction scoping, permission names, rendering, actor
+// resolution and the rollback marker are supplied by the composition root
+// through Runtime; the handlers call the public Workforce planning contract.
 package staffshifts
 
 import (
@@ -9,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -17,33 +20,74 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services/planexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
+
+// Middleware is the HTTP middleware shape the composition root supplies.
+type Middleware = func(http.Handler) http.Handler
+
+// FailureKind classifies a handler failure so the composition root can render
+// it with the project's shared error envelope.
+type FailureKind string
+
+const (
+	FailureInvalid      FailureKind = "invalid"
+	FailureNotFound     FailureKind = "not_found"
+	FailureConflict     FailureKind = "conflict"
+	FailureUnauthorized FailureKind = "unauthorized"
+	FailureForbidden    FailureKind = "forbidden"
+	FailureInternal     FailureKind = "internal"
+)
+
+// ClientMessageError is an internal failure whose cause must not reach the
+// client: the envelope renders Message and logs the cause.
+type ClientMessageError struct {
+	Message string
+	Cause   error
+}
+
+func (e *ClientMessageError) Error() string { return e.Message }
+func (e *ClientMessageError) Unwrap() error { return e.Cause }
+
+// Actor is the acting admin behind a write: the staff record every plan
+// change is attributed to and the account an audit entry names.
+type Actor struct {
+	StaffID   int64
+	AccountID *int64
+}
+
+// Runtime carries the HTTP-platform behavior this adapter must not own. Every
+// field is required, so missing production wiring fails at startup.
+type Runtime struct {
+	Protected  func(chi.Router, func(chi.Router, Middleware))
+	Permission func(string) Middleware
+	ParseID    func(*http.Request) (int64, error)
+	Success    func(http.ResponseWriter, *http.Request, int, any, string)
+	Failure    func(http.ResponseWriter, *http.Request, FailureKind, error)
+	// ResolveActor identifies the acting admin; a request without a staff
+	// record behind it is unauthorized.
+	ResolveActor func(context.Context) (Actor, error)
+	// MarkRollback discards the request's tenant transaction so a
+	// client-facing 4xx never commits a half-applied plan change.
+	MarkRollback func(context.Context)
+	// CanExportInternalPlan reports whether the caller may receive the
+	// internal plan variant with reasons and gaps.
+	CanExportInternalPlan func(context.Context) bool
+	// Permission names.
+	TimeTrackingManage string
+	SchedulesRead      string
+	UsersRead          string
+}
 
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
-	Service       scheduleSvc.StaffShiftService
-	SeriesService scheduleSvc.StaffShiftSeriesService
-	Overview      scheduleSvc.StaffScheduleOverviewGetter
-	PersonService usersSvc.PersonService
-	// PlanExport renders the printable Dienstplan week (#2079).
-	PlanExport planexport.Service
-	db         *bun.DB
-	logger     *slog.Logger
+	planning workforce.StaffShiftPlanning
+	runtime  Runtime
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, planExport planexport.Service, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, PlanExport: planExport, db: db, logger: logger}
+func NewResource(planning workforce.StaffShiftPlanning, runtime Runtime) *Resource {
+	return &Resource{planning: planning, runtime: runtime}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -51,33 +95,33 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
-		r.With(
-			common.RequiresPermission(permissions.TimeTrackingManage),
-			common.RequiresPermission(permissions.SchedulesRead),
-			common.RequiresPermission(permissions.UsersRead),
-			withTx,
-		).Get("/overview", rs.overview)
-		// Printable Dienstplan week (#2079). The wall-sheet variant uses the
-		// same permission triple as /overview; export.go additionally requires
+	rs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {
+		manage := rs.runtime.Permission(rs.runtime.TimeTrackingManage)
+		r.With(manage, withTx).Get("/", rs.list)
+		// The overview and the printable week read the same projection, so
+		// both need the permission triple; export.go additionally requires
 		// schedules:manage for the sensitive internal variant.
 		r.With(
-			common.RequiresPermission(permissions.TimeTrackingManage),
-			common.RequiresPermission(permissions.SchedulesRead),
-			common.RequiresPermission(permissions.UsersRead),
+			manage,
+			rs.runtime.Permission(rs.runtime.SchedulesRead),
+			rs.runtime.Permission(rs.runtime.UsersRead),
+			withTx,
+		).Get("/overview", rs.overview)
+		r.With(
+			manage,
+			rs.runtime.Permission(rs.runtime.SchedulesRead),
+			rs.runtime.Permission(rs.runtime.UsersRead),
 			withTx,
 		).Post("/export", rs.exportPlan)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/series/{id}", rs.getSeries)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
-		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
+		r.With(manage, withTx).Post("/", rs.create)
+		r.With(manage, withTx).Put("/{id}", rs.update)
+		r.With(manage, withTx).Put("/{id}/move", rs.move)
+		r.With(manage, withTx).Put("/{id}/cancellation", rs.cancellation)
+		r.With(manage, withTx).Delete("/{id}", rs.delete)
+		r.With(manage, withTx).Post("/series", rs.createSeries)
+		r.With(manage, withTx).Get("/series/{id}", rs.getSeries)
+		r.With(manage, withTx).Put("/series/{id}/split", rs.splitSeries)
+		r.With(manage, withTx).Delete("/series/{id}", rs.endSeries)
 	})
 
 	return r
@@ -238,13 +282,13 @@ type ShiftResponse struct {
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
 // time-tracking self endpoint, which serves the same shape.
-func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
+func ToShiftResponse(s workforce.PlannedShift) ShiftResponse {
 	resp := ShiftResponse{
 		ID:            s.ID,
 		StaffID:       s.StaffID,
-		Date:          s.Date.String(),
-		StartTime:     timezone.NormalizeWallClock(s.StartTime).Format("15:04"),
-		EndTime:       timezone.NormalizeWallClock(s.EndTime).Format("15:04"),
+		Date:          s.Date,
+		StartTime:     FormatWallClock(s.StartTime),
+		EndTime:       FormatWallClock(s.EndTime),
 		BreakMinutes:  s.BreakMinutes,
 		ShiftTypeID:   s.ShiftTypeID,
 		Notes:         s.Notes,
@@ -254,8 +298,8 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		ChangeReason:  s.ChangeReason,
 		OriginShiftID: s.OriginShiftID,
 	}
-	if s.SeriesOccurrenceDate != nil {
-		occurrenceDate := s.SeriesOccurrenceDate.String()
+	if s.SeriesOccurrenceDate != "" {
+		occurrenceDate := s.SeriesOccurrenceDate
 		resp.SeriesOccurrenceDate = &occurrenceDate
 	}
 	if s.ShiftType != nil {
@@ -268,7 +312,7 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 }
 
 // ToShiftResponses maps a slice of shifts onto the wire format.
-func ToShiftResponses(shifts []*scheduleModels.StaffShift) []ShiftResponse {
+func ToShiftResponses(shifts []workforce.PlannedShift) []ShiftResponse {
 	out := make([]ShiftResponse, 0, len(shifts))
 	for _, s := range shifts {
 		out = append(out, ToShiftResponse(s))
@@ -276,35 +320,55 @@ func ToShiftResponses(shifts []*scheduleModels.StaffShift) []ShiftResponse {
 	return out
 }
 
-// ParseShiftTimes parses "HH:MM" start/end strings into wall-clock times.
-func ParseShiftTimes(startStr, endStr string) (start, end time.Time, err error) {
-	start, err = time.Parse("15:04", startStr)
+// FormatWallClock renders a ClockLayout wall clock as the "HH:MM" the
+// clients read. Exported for the time-tracking self endpoint.
+func FormatWallClock(value string) string {
+	parsed, err := time.Parse(workforce.ClockLayout, value)
 	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("start_time must be HH:MM")
+		return value
 	}
-	end, err = time.Parse("15:04", endStr)
-	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("end_time must be HH:MM")
-	}
-	return timezone.NormalizeWallClock(start), timezone.NormalizeWallClock(end), nil
+	return parsed.Format("15:04")
 }
 
-func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, error) {
-	date, err := timezone.ParseDate(req.Date)
+// parseShiftTimes parses "HH:MM" start/end strings into ClockLayout wall
+// clocks.
+func parseShiftTimes(startStr, endStr string) (start, end string, err error) {
+	startClock, err := time.Parse("15:04", startStr)
 	if err != nil {
-		return nil, errors.New("date must be YYYY-MM-DD")
+		return "", "", errors.New("start_time must be HH:MM")
 	}
-	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+	endClock, err := time.Parse("15:04", endStr)
 	if err != nil {
-		return nil, err
+		return "", "", errors.New("end_time must be HH:MM")
+	}
+	return startClock.Format(workforce.ClockLayout), endClock.Format(workforce.ClockLayout), nil
+}
+
+// parseDate accepts a strict calendar day.
+func parseDate(value string) (string, bool) {
+	parsed, err := time.Parse(workforce.DateLayout, value)
+	if err != nil || parsed.Format(workforce.DateLayout) != value {
+		return "", false
+	}
+	return value, true
+}
+
+func buildShift(req ShiftRequest) (workforce.StaffShiftInput, error) {
+	date, ok := parseDate(req.Date)
+	if !ok {
+		return workforce.StaffShiftInput{}, errors.New("date must be YYYY-MM-DD")
+	}
+	start, end, err := parseShiftTimes(req.StartTime, req.EndTime)
+	if err != nil {
+		return workforce.StaffShiftInput{}, err
 	}
 	notes := ""
 	if req.Notes != nil {
 		notes = *req.Notes
 	}
-	return &scheduleModels.StaffShift{
+	return workforce.StaffShiftInput{
 		StaffID:       req.StaffID,
-		Date:          scheduleModels.Date(date),
+		Date:          date,
 		StartTime:     start,
 		EndTime:       end,
 		BreakMinutes:  req.BreakMinutes,
@@ -316,156 +380,161 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 	}, nil
 }
 
-// editorStaffID resolves the acting admin's staff record from the JWT claims.
-func (rs *Resource) editorStaffID(ctx context.Context) (int64, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID == 0 {
-		return 0, errors.New("invalid token")
-	}
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
-	if err != nil {
-		return 0, errors.New("person not found for account")
-	}
-	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
-	if err != nil {
-		return 0, errors.New("staff record not found")
-	}
-	return staff.ID, nil
+// failureRule pairs a capability error with the failure kind the envelope
+// renders for it. The table is the declarative form of the error
+// classification; anything not listed is an internal failure.
+type failureRule struct {
+	Target error
+	Kind   FailureKind
 }
 
-func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, scheduleSvc.ErrShiftOverlap), errors.Is(err, scheduleSvc.ErrShiftConflict):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, scheduleSvc.ErrShiftNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge), errors.Is(err, scheduleSvc.ErrShiftInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrShiftTypeNotFound), errors.Is(err, scheduleSvc.ErrShiftTypeInactive):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+var failureRules = []failureRule{
+	{Target: workforce.ErrStaffShiftOverlap, Kind: FailureConflict},
+	{Target: workforce.ErrStaffShiftConflict, Kind: FailureConflict},
+	{Target: workforce.ErrStaffShiftNotFound, Kind: FailureNotFound},
+	{Target: workforce.ErrStaffShiftRangeTooLarge, Kind: FailureInvalid},
+	{Target: workforce.ErrInvalidStaffShift, Kind: FailureInvalid},
+	{Target: workforce.ErrShiftTypeNotFound, Kind: FailureInvalid},
+	{Target: workforce.ErrShiftTypeInactive, Kind: FailureInvalid},
+	{Target: workforce.ErrShiftSeriesNotFound, Kind: FailureNotFound},
+	{Target: workforce.ErrInvalidShiftSeries, Kind: FailureInvalid},
+	{Target: workforce.ErrPlanExportInvalid, Kind: FailureInvalid},
+	{Target: workforce.ErrPlanExportForbidden, Kind: FailureForbidden},
+}
+
+// classify maps a capability error to its failure kind through failureRules.
+func classify(err error) FailureKind {
+	for _, rule := range failureRules {
+		if errors.Is(err, rule.Target) {
+			return rule.Kind
+		}
 	}
+	return FailureInternal
+}
+
+func (rs *Resource) renderError(w http.ResponseWriter, r *http.Request, err error) {
+	rs.runtime.Failure(w, r, classify(err), err)
+}
+
+func (rs *Resource) invalid(w http.ResponseWriter, r *http.Request, err error) {
+	rs.runtime.Failure(w, r, FailureInvalid, err)
 }
 
 // parseDateRange extracts "from" and "to" query parameters as calendar dates.
-func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
+func (rs *Resource) parseDateRange(w http.ResponseWriter, r *http.Request) (from, to string, ok bool) {
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 	if fromStr == "" || toStr == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return timezone.Date(""), timezone.Date(""), false
+		rs.invalid(w, r, errors.New("from and to query parameters are required"))
+		return "", "", false
 	}
-	from, err := timezone.ParseDate(fromStr)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+	from, ok = parseDate(fromStr)
+	if !ok {
+		rs.invalid(w, r, errors.New("invalid from date format, expected YYYY-MM-DD"))
+		return "", "", false
 	}
-	to, err = timezone.ParseDate(toStr)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+	to, ok = parseDate(toStr)
+	if !ok {
+		rs.invalid(w, r, errors.New("invalid to date format, expected YYYY-MM-DD"))
+		return "", "", false
 	}
 	return from, to, true
 }
 
+// actor resolves the acting admin or renders the unauthorized failure.
+func (rs *Resource) actor(w http.ResponseWriter, r *http.Request) (Actor, bool) {
+	actor, err := rs.runtime.ResolveActor(r.Context())
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureUnauthorized, err)
+		return Actor{}, false
+	}
+	return actor, true
+}
+
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
-	from, to, ok := parseDateRange(w, r)
+	from, to, ok := rs.parseDateRange(w, r)
 	if !ok {
 		return
 	}
 	// Optional staff_id narrows the week grid to one staff member — the admin
 	// staff-detail Plan|Ist view needs exactly that person's planned shifts
 	// (#1844) rather than the whole tenant's. A filter param, not a second route.
-	shifts, err := rs.listShifts(r, from, to)
-	if err != nil {
-		renderServiceError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, ToShiftResponses(shifts), "Staff shifts retrieved")
-}
-
-// listShifts dispatches to the per-staff or all-staff service read depending on
-// the optional staff_id query parameter.
-func (rs *Resource) listShifts(r *http.Request, from, to timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	query := workforce.ShiftRange{From: from, To: to}
 	if staffStr := r.URL.Query().Get("staff_id"); staffStr != "" {
 		staffID, err := strconv.ParseInt(staffStr, 10, 64)
 		if err != nil || staffID <= 0 {
-			return nil, fmt.Errorf("%w: staff_id must be a positive integer", scheduleSvc.ErrShiftInvalid)
+			rs.invalid(w, r, fmt.Errorf("%w: staff_id must be a positive integer", workforce.ErrInvalidStaffShift))
+			return
 		}
-		return rs.Service.ListShiftsForStaff(r.Context(), staffID, from, to)
+		query.StaffID = staffID
 	}
-	return rs.Service.ListShifts(r.Context(), from, to)
+	shifts, err := rs.planning.ListShifts(r.Context(), query)
+	if err != nil {
+		rs.renderError(w, r, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, ToShiftResponses(shifts), "Staff shifts retrieved")
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var req ShiftRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	shift, err := rs.buildShift(req)
+	input, err := buildShift(req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	editorID, err := rs.editorStaffID(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+	actor, ok := rs.actor(w, r)
+	if !ok {
 		return
 	}
-	shift.CreatedBy = editorID
+	input.ActorStaffID = actor.StaffID
 
-	saved, err := rs.Service.CreateShift(r.Context(), shift)
+	saved, err := rs.planning.CreateShift(r.Context(), workforce.CreateStaffShift{StaffShiftInput: input})
 	if err != nil {
-		renderServiceError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, ToShiftResponse(saved), "Staff shift created")
+	rs.runtime.Success(w, r, http.StatusCreated, ToShiftResponse(saved), "Staff shift created")
 }
 
 func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
 	var req ShiftRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	shift, err := rs.buildShift(req)
+	input, err := buildShift(req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	editorID, err := rs.editorStaffID(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+	actor, ok := rs.actor(w, r)
+	if !ok {
 		return
 	}
-	shift.ID = id
-	shift.UpdatedBy = &editorID
+	input.ActorStaffID = actor.StaffID
 
-	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
+	saved, err := rs.planning.UpdateShift(r.Context(), workforce.UpdateStaffShift{
+		ID:                           id,
+		StaffShiftInput:              input,
 		PreserveExistingNotes:        req.Notes == nil,
 		PreserveExistingShiftType:    !req.ShiftTypeID.Present,
 		PreserveExistingChangeReason: !req.ChangeReason.Present,
-		// The ordinary update never flips the cancellation state: doing so would
-		// change the origin flag without maintaining its replacement set — a
-		// reactivation would leave other people's covers active (double-counting
-		// the plan) and a cancel could target a replacement row. Cancel /
-		// reactivate always goes through PUT /{id}/cancellation, which rebuilds
-		// the cover set atomically (#1841). Any cancelled key on a plain PUT is
-		// ignored here.
-		PreserveExistingCancelled: true,
 	})
 	if err != nil {
-		renderServiceError(w, r, err)
+		rs.renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift updated")
+	rs.runtime.Success(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift updated")
 }
 
 // MoveShiftRequest is the complete desired slot for PUT /{id}/move. The
@@ -481,57 +550,62 @@ type MoveShiftRequest struct {
 }
 
 func (rs *Resource) move(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
 	var req MoveShiftRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	if !req.ShiftTypeID.Present {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("shift_type_id is required")))
-		return
-	}
-	date, err := timezone.ParseDate(req.Date)
+	input, err := buildMove(id, req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
+		rs.invalid(w, r, err)
 		return
 	}
-	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	actor, ok := rs.actor(w, r)
+	if !ok {
 		return
 	}
-	editorID, err := rs.editorStaffID(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
-		return
-	}
+	input.ActorStaffID = actor.StaffID
+	input.ActorAccountID = actor.AccountID
 
-	saved, err := rs.Service.MoveShift(r.Context(), scheduleSvc.MoveShiftInput{
-		ShiftID:        id,
-		SourceStaffID:  req.SourceStaffID,
-		TargetStaffID:  req.TargetStaffID,
-		Date:           date,
-		StartTime:      start,
-		EndTime:        end,
-		BreakMinutes:   req.BreakMinutes,
-		ShiftTypeID:    req.ShiftTypeID.Value,
-		ActorStaffID:   editorID,
-		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
-	})
+	saved, err := rs.planning.MoveShift(r.Context(), input)
 	if err != nil {
 		// A series exception may already have been written before a later
 		// validation/persistence failure. Roll back every part of the move even
 		// when the client-facing result is a 4xx.
-		tenant.MarkRollback(r.Context())
-		renderServiceError(w, r, err)
+		rs.runtime.MarkRollback(r.Context())
+		rs.renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift moved")
+	rs.runtime.Success(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift moved")
+}
+
+func buildMove(id int64, req MoveShiftRequest) (workforce.MoveStaffShift, error) {
+	if !req.ShiftTypeID.Present {
+		return workforce.MoveStaffShift{}, errors.New("shift_type_id is required")
+	}
+	date, ok := parseDate(req.Date)
+	if !ok {
+		return workforce.MoveStaffShift{}, errors.New("date must be YYYY-MM-DD")
+	}
+	start, end, err := parseShiftTimes(req.StartTime, req.EndTime)
+	if err != nil {
+		return workforce.MoveStaffShift{}, err
+	}
+	return workforce.MoveStaffShift{
+		ShiftID:       id,
+		SourceStaffID: req.SourceStaffID,
+		TargetStaffID: req.TargetStaffID,
+		Date:          date,
+		StartTime:     start,
+		EndTime:       end,
+		BreakMinutes:  req.BreakMinutes,
+		ShiftTypeID:   req.ShiftTypeID.Value,
+	}, nil
 }
 
 // CancellationRequest is the payload for PUT /{id}/cancellation: flip the
@@ -580,34 +654,56 @@ type CancellationResponse struct {
 // non-5xx result (overlap conflict, invalid input) still discards the partial
 // writes instead of committing a half-applied change.
 func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
 	var req CancellationRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
 	// The cancelled flag drives a destructive operation (a reactivation removes
 	// every replacement), so it must be explicit — never inferred as false from
 	// an omitted key.
 	if !req.Cancelled.Present {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("cancelled is required")))
+		rs.invalid(w, r, errors.New("cancelled is required"))
 		return
 	}
-	editorID, err := rs.editorStaffID(r.Context())
+	actor, ok := rs.actor(w, r)
+	if !ok {
+		return
+	}
+	input, err := buildCancellation(id, req)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		rs.invalid(w, r, err)
 		return
 	}
+	input.ActorStaffID = actor.StaffID
 
-	input := scheduleSvc.CancelShiftInput{
+	result, err := rs.planning.ApplyCancellation(r.Context(), input)
+	if err != nil {
+		// Roll back the enclosing tenant transaction so an overlap/invalid error
+		// mid-operation does not commit the writes that already succeeded.
+		rs.runtime.MarkRollback(r.Context())
+		rs.renderError(w, r, err)
+		return
+	}
+	rs.runtime.Success(w, r, http.StatusOK, CancellationResponse{
+		Shift:        ToShiftResponse(result.Shift),
+		Replacements: ToShiftResponses(result.Replacements),
+	}, "Staff shift cancellation applied")
+}
+
+func buildCancellation(id int64, req CancellationRequest) (workforce.CancelStaffShift, error) {
+	if !req.Cancelled.Present {
+		return workforce.CancelStaffShift{}, errors.New("cancelled is required")
+	}
+	input := workforce.CancelStaffShift{
 		ShiftID:      id,
 		Cancelled:    req.Cancelled.Value,
 		ChangeReason: req.ChangeReason,
-		ActorStaffID: editorID,
 	}
 	// Apply the origin's own edited window/type when the client supplies it (the
 	// admin modal always sends the full set), so a time/type change made alongside
@@ -620,14 +716,12 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 		req.BreakMinutes.Present || req.ShiftTypeID.Present
 	if originEditIntended {
 		if req.StartTime == "" || req.EndTime == "" || !req.BreakMinutes.Present || !req.ShiftTypeID.Present {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(
-				"origin shift edits require start_time, end_time, break_minutes and shift_type_id together")))
-			return
+			return workforce.CancelStaffShift{}, errors.New(
+				"origin shift edits require start_time, end_time, break_minutes and shift_type_id together")
 		}
-		start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+		start, end, err := parseShiftTimes(req.StartTime, req.EndTime)
 		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
+			return workforce.CancelStaffShift{}, err
 		}
 		input.ApplyOriginEdits = true
 		input.StartTime = start
@@ -636,12 +730,11 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 		input.ShiftTypeID = req.ShiftTypeID.Value
 	}
 	for _, rep := range req.Replacements {
-		start, end, err := ParseShiftTimes(rep.StartTime, rep.EndTime)
+		start, end, err := parseShiftTimes(rep.StartTime, rep.EndTime)
 		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
+			return workforce.CancelStaffShift{}, err
 		}
-		input.Replacements = append(input.Replacements, scheduleSvc.ShiftReplacementInput{
+		input.Replacements = append(input.Replacements, workforce.ShiftReplacement{
 			StaffID:      rep.StaffID,
 			StartTime:    start,
 			EndTime:      end,
@@ -649,30 +742,18 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 			ShiftTypeID:  rep.ShiftTypeID,
 		})
 	}
-
-	result, err := rs.Service.ApplyCancellation(r.Context(), input)
-	if err != nil {
-		// Roll back the enclosing tenant transaction so an overlap/invalid error
-		// mid-operation does not commit the writes that already succeeded.
-		tenant.MarkRollback(r.Context())
-		renderServiceError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, CancellationResponse{
-		Shift:        ToShiftResponse(result.Shift),
-		Replacements: ToShiftResponses(result.Replacements),
-	}, "Staff shift cancellation applied")
+	return input, nil
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := common.ParseID(r)
+	id, err := rs.runtime.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.invalid(w, r, err)
 		return
 	}
-	if err := rs.Service.DeleteShift(r.Context(), id); err != nil {
-		renderServiceError(w, r, err)
+	if err := rs.planning.DeleteShift(r.Context(), id); err != nil {
+		rs.renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]any{"id": id}, "Staff shift deleted")
+	rs.runtime.Success(w, r, http.StatusOK, map[string]any{"id": id}, "Staff shift deleted")
 }

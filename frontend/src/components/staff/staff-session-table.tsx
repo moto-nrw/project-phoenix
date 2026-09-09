@@ -11,7 +11,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
@@ -1235,7 +1235,7 @@ function computeRowStatus(
 }
 
 // Every fixed-outcome pill is the kit StatusBadge; only the absence pill stays
-// StatusDotBadge because its colour is data (ABSENCE_TYPE_HEX), not one of the
+// StatusColorBadge because its colour is data (ABSENCE_TYPE_HEX), not one of the
 // five semantic tones. `title` lives on a wrapper — StatusBadge takes no
 // tooltip prop and does not need one.
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
@@ -1246,7 +1246,7 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
     // this very column. #0EA5E9 is the hue staff-helpers already uses for
     // Homeoffice.
     return (
-      <StatusDotBadge
+      <StatusColorBadge
         label="Homeoffice"
         color={MOTO_COLOR_PALETTE.timeTracking.base}
       />
@@ -1270,7 +1270,7 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
       : absenceLabel;
     const color =
       ABSENCE_TYPE_HEX[status.absenceType] ?? ABSENCE_TYPE_HEX.other!;
-    return <StatusDotBadge label={label} color={color} />;
+    return <StatusColorBadge label={label} color={color} />;
   }
   return <StatusBadge label="Nicht erfasst" tone="gray" />;
 }

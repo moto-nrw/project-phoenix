@@ -29,6 +29,7 @@ type roomRow struct {
 	Category      *string   `bun:"category"`
 	Color         *string   `bun:"color"`
 	IsSystem      bool      `bun:"is_system,notnull,default:false"`
+	IsOpenRoom    bool      `bun:"is_open_room,notnull,default:false"`
 }
 
 func New(database Database) *Store {
@@ -49,6 +50,7 @@ func (s *Store) Create(ctx context.Context, input domain.CreateRoom) (domain.Roo
 	row := roomRow{
 		TenantID: tenantID, Name: input.Name, Building: input.Building, Floor: input.Floor,
 		Capacity: input.Capacity, Category: input.Category, Color: input.Color, IsSystem: input.IsSystem,
+		IsOpenRoom: input.IsOpenRoom,
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -70,9 +72,18 @@ func (s *Store) Update(ctx context.Context, input domain.UpdateRoom) (domain.Roo
 		ID: input.ID, TenantID: tenantID, Name: input.Name, Building: input.Building,
 		Floor: input.Floor, Capacity: input.Capacity, Category: input.Category, Color: input.Color,
 	}
+	// The release column joins the SET list only when the caller expressed an
+	// opinion. Writing it unconditionally would let any room edit that omits
+	// the field revoke a standing release — the room form posts a partial
+	// payload, so that would happen on the first colour change.
+	columns := []string{"name", "building", "floor", "capacity", "category", "color"}
+	if input.IsOpenRoom != nil {
+		row.IsOpenRoom = *input.IsOpenRoom
+		columns = append(columns, "is_open_room")
+	}
 	query := db.NewUpdate().Model(&row).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Column("name", "building", "floor", "capacity", "category", "color").
+		Column(columns...).
 		Where(`"room".id = ?`, input.ID).
 		Where(`"room".tenant_id = ?`, tenantID)
 	stats := domain.OperationStats{Queries: 1}
@@ -292,7 +303,12 @@ func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun
 		query = query.Where(`("room".name ILIKE ? OR "room".building ILIKE ? OR "room".category ILIKE ?)`, pattern, pattern, pattern)
 	}
 	if filter.ExcludeSystem {
-		query = query.Where(`"room".name NOT IN (?, ?) AND (NOT "room".is_system OR "room".name = ?)`, domain.WCRoomName, domain.WCRoomAliasName, domain.SchulhofRoomName)
+		// Toilet rooms are never staff-visible: they are kiosk infrastructure
+		// with no planning meaning. Any other system room stays visible while
+		// it is released — this used to name the Schulhof directly, and now
+		// reads the stored release so a deactivated yard disappears here too
+		// and any future released system room is treated alike (#3064).
+		query = query.Where(`"room".name NOT IN (?, ?) AND (NOT "room".is_system OR "room".is_open_room)`, domain.WCRoomName, domain.WCRoomAliasName)
 	}
 	return query, false
 }
@@ -345,6 +361,7 @@ func toDomain(row roomRow) domain.Room {
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Building: row.Building, Floor: row.Floor, Capacity: row.Capacity,
 		Category: row.Category, Color: row.Color, IsSystem: row.IsSystem,
+		IsOpenRoom: row.IsOpenRoom,
 	}
 }
 

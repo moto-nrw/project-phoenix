@@ -15,7 +15,7 @@ load its references only when their task trigger matches.
 | Domain and decisions | `CONTEXT.md`, `docs/adr/`; conventions in `docs/agents/domain.md` |
 | Task workflows | Root `.agents/skills/` is canonical; `.claude/skills/` contains directory symlinks. Preserve area-local canonical directions |
 | Backend detail | `docs/agents/backend-testing.md` for fixtures; `docs/agents/backend-data.md` for BUN and migrations |
-| Frontend detail | `docs/agents/frontend-api.md` for server/API boundaries; `docs/agents/frontend-performance.md` for budgets |
+| Frontend detail | `docs/agents/frontend-api.md` for server/API boundaries; `docs/agents/frontend-performance.md` for budgets; `docs/agents/frontend-testing.md` for the deterministic test clock |
 | Real-time contract | `docs/agents/realtime.md` for producers, streaming, and client refetches |
 
 Codex instruction discovery uses `AGENTS.md`; a `.codex/rules` symlink alone

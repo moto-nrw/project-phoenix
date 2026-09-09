@@ -12,7 +12,6 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -25,7 +24,7 @@ import (
 // preserving the PyrePortal wire contract byte-for-byte.
 
 // validateDeviceContext validates the device context and returns an error response if invalid
-func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
+func validateDeviceContext(w http.ResponseWriter, r *http.Request) *device.AuthenticatedDevice {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
 		common.RenderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
@@ -177,7 +176,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 
 // handleStaffScan checks if person is staff and handles supervisor authentication
 // Returns true if the request was handled (either successfully or with error)
-func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, person *users.Person) bool {
+func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, deviceCtx *device.AuthenticatedDevice, person *users.Person) bool {
 	rs.getLogger().DebugContext(r.Context(), "person is not a student, checking if staff",
 		slog.Int64("person_id", person.ID),
 	)
@@ -211,7 +210,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 // handleSupervisorScan processes RFID-based supervisor authentication for staff.
 // The business core (session lookup + supervisor add) lives in the CheckinService;
 // this shell builds the 200 response, preserving the exact wire body.
-func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, staff *users.Staff, person *users.Person) {
+func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *device.AuthenticatedDevice, staff *users.Staff, person *users.Person) {
 	ctx := r.Context()
 
 	result, err := rs.Checkin.AddStaffAsSupervisor(ctx, deviceCtx.ID, deviceCtx.DeviceID, staff.ID)

@@ -5,11 +5,11 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { getApiErrorMessage } from "~/lib/api-error-message";
-import { STAFF_NOTICES_REFRESH_EVENT } from "~/lib/hooks/use-staff-notices-pending";
 import { createLogger } from "~/lib/logger";
 import {
   acknowledgeStaffNotice,
   describeRecurrence,
+  STAFF_NOTICES_REFRESH_EVENT,
 } from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 
@@ -20,13 +20,18 @@ const logger = createLogger({ component: "TodayNoticeList" });
  * der Hinweis IST der Inhalt. Wichtige stehen zuerst (Sortierung kommt aus dem
  * Backend) und tragen ein Kennzeichen. Bestätigt wird der Hinweis, nicht der
  * Tag: ein wiederkehrender Hinweis fragt nicht jeden Dienstag erneut.
+ *
+ * Dieselbe Liste steht in moto schule (#2208); dort reicht die Seite die
+ * Kenntnisnahme über ihre eigene Sitzung herein (`acknowledge`).
  */
 export function TodayNoticeList({
   notices,
   onChanged,
+  acknowledge = acknowledgeStaffNotice,
 }: {
   readonly notices: readonly StaffNotice[];
   readonly onChanged: () => Promise<unknown>;
+  readonly acknowledge?: (id: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +40,7 @@ export function TodayNoticeList({
     setPending(notice.id);
     setError(null);
     try {
-      await acknowledgeStaffNotice(notice.id);
+      await acknowledge(notice.id);
       await onChanged();
       window.dispatchEvent(new Event(STAFF_NOTICES_REFRESH_EVENT));
     } catch (err) {

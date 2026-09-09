@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // lifecycleExcusedFake records the arguments the route forwards and returns a
 // canned error, so the tests pin the wire contract rather than the domain.
 type lifecycleExcusedFake struct {
-	absenceService.ExcusedAbsenceRequestService
+	excusedrequests.Service
 	markDoneErr     error
 	correctErr      error
 	gotRequestID    int64

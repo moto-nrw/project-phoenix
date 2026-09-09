@@ -12,19 +12,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -52,7 +51,6 @@ type ResourceConfig struct {
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
-	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
 	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
@@ -81,7 +79,7 @@ type ResourceConfig struct {
 	// (#1665).
 	OfferingChangeService    enrollmentService.OfferingChangeRequestService
 	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
-	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
+	ExcusedRequestService    excusedrequests.Service
 	ParentRequestBulkService userService.ParentRequestBulkService
 	// ParentRequestConflictService resolves a whole conflict group at once
 	// (#2267). Optional: a bare test Resource answers 500 rather than
@@ -96,7 +94,7 @@ type ResourceConfig struct {
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService
-	OGSGroupLiveService     ogsGroupLiveService.Getter
+	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
@@ -121,13 +119,14 @@ type ResourceConfig struct {
 	StudentPhotos      userService.StudentPhotoService
 	StudentConsents    userService.StudentConsentService
 	// StudentDocumentService backs the child's Dokumente tab (#777).
-	StudentDocumentService  userService.StudentDocumentService
-	ListExportService       *listexport.RendererService
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	DB                      *bun.DB
-	DevicePINFallback       string
-	DeviceLastSeenDebouncer *device.LastSeenDebouncer
+	StudentDocumentService userService.StudentDocumentService
+	ListExportService      *listexport.RendererService
+	Logger                 *slog.Logger
+	Now                    func() time.Time
+	DB                     *bun.DB
+	// DeviceAuthenticator guards the RFID routes. The Device Fleet
+	// composition builds it; this resource only mounts it.
+	DeviceAuthenticator common.Middleware
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -164,7 +163,7 @@ func (rs *Resource) Router() chi.Router {
 		// users:read retain their personal-group navigation; groups:read only
 		// controls whether the service includes further tenant groups.
 		r.With(withTx).Get("/ogs-group-navigation",
-			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+			common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {
 				if rs.OGSGroupLiveService == nil {
 					return nil, errors.New("OGS group live service is not configured")
 				}
@@ -411,7 +410,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil, rs.DevicePINFallback, rs.DeviceLastSeenDebouncer))
+		r.Use(device.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
 		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint

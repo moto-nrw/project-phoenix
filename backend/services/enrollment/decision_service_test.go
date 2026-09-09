@@ -131,8 +131,13 @@ func newDecisionServiceForTestWithDependencies(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal enrollmentService.CareWithdrawalReconciler,
 	studentConsents enrollmentService.StudentConsentAuditor,
+	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentService.DecisionService {
 	repoFactory := env.repos
+	var outbox platformModels.OutboxEnqueuer = env.outbox
+	if len(outboxes) > 0 {
+		outbox = outboxes[0]
+	}
 	if careWithdrawal == nil {
 		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
@@ -166,25 +171,25 @@ func newDecisionServiceForTestWithDependencies(
 			approvedOfferingTestProjection(repoFactory),
 			repoFactory.CareOffering,
 		),
-		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
-		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,
-		ActivityGroupRepo:      repoFactory.ActivityGroup,
-		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
-		CalendarPeriodRepo:     repoFactory.CalendarPeriod,
-		TimeframeRepo:          repoFactory.Timeframe,
-		ActivityExceptionRepo:  repoFactory.ActivityException,
-		AccountRepo:            repoFactory.Account,
-		AccountTenantRepo:      repoFactory.AccountTenant,
-		AccountRoleRepo:        repoFactory.AccountRole,
-		RoleRepo:               repoFactory.Role,
-		OutboxEnqueuer:         env.outbox,
-		StudentAudit:           usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
-		StudentConsents:        studentConsents,
-		CareWithdrawal:         careWithdrawal,
-		FrontendURL:            "http://localhost:3000",
-		ParentsURL:             "http://parents.localhost:3000",
-		Settings:               settings,
-		LockTemplateRecurrence: lockTemplateRecurrence,
+		ArrivalScheduleRepo:       repoFactory.StudentArrivalSchedule,
+		StudentEnrollmentRepo:     repoFactory.StudentEnrollment,
+		ActivityGroupRepo:         repoFactory.ActivityGroup,
+		ActivityScheduleRepo:      repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:        repoFactory.CalendarPeriod,
+		TimeframeRepo:             repoFactory.Timeframe,
+		ActivityExceptionRepo:     repoFactory.ActivityException,
+		GuardianAccess:            testGuardianAccess(env.db),
+		StudentEnrollment:         testStudentEnrollment(env.db),
+		DepartureCompanions:       repoFactory.StudentCompanion,
+		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
+		OutboxEnqueuer:            outbox,
+		StudentAudit:              usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentConsents:           studentConsents,
+		CareWithdrawal:            careWithdrawal,
+		FrontendURL:               "http://localhost:3000",
+		ParentsURL:                "http://parents.localhost:3000",
+		Settings:                  settings,
+		LockTemplateRecurrence:    lockTemplateRecurrence,
 		InstanceRosters: scheduleService.NewRosterReconciler(
 			repoFactory.ActivityInstance,
 			repoFactory.InstanceStudent,

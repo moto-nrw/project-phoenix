@@ -737,7 +737,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 
 		// Create IoT device context using device package constants
 		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
 
 		// ACT: Toggle attendance (check-in)
 		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -755,7 +755,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 
 		// Create IoT device context using device package constants
 		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx = context.WithValue(ctx, device.CtxDevice, devicePrincipal(testDevice.ID, testDevice.TenantID))
 
 		// ACT: Toggle attendance
 		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -1019,7 +1019,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = context.WithValue(ctx, device.CtxStaff, authenticatedStaff)
+	ctx = context.WithValue(ctx, device.CtxStaff, staffPrincipal(authenticatedStaff))
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 

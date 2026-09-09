@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // pendingChangeRequestCount returns the combined number of pending parent
@@ -40,7 +41,7 @@ func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Req
 	}
 
 	// The badge counts the whole queue, so the filters stay at their zero value.
-	excused, _, err := rs.ExcusedRequestService.ListPending(ctx, modelBase.RequestQueueFilters{})
+	excused, _, err := rs.ExcusedRequestService.ListPending(ctx, excusedrequests.QueueFilter{})
 	if err != nil {
 		renderError(w, r, parentRequestQueueErrorRenderer(err))
 		return

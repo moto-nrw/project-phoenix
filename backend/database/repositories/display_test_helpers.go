@@ -2,21 +2,22 @@ package repositories
 
 import (
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
-	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
 )
 
+// DisplayTestRepositories bundles the readers the info-point dashboard
+// aggregates. The screens themselves live behind the Device Fleet owner
+// (#2676), so no display repository is part of this bundle.
 type DisplayTestRepositories struct {
 	TimetableTestRepositories
 	SettingsTestRepositories
-	Display           displayModels.Repository
 	School            platformModels.SchoolRepository
 	StudentPickupNote scheduleModels.StudentPickupNoteRepository
 }
 
+// NewDisplayTestRepositories composes the dashboard's read dependencies.
 func NewDisplayTestRepositories(db *bun.DB, runtime configRepo.Runtime) (DisplayTestRepositories, error) {
 	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
@@ -36,7 +37,7 @@ func NewDisplayTestRepositories(db *bun.DB, runtime configRepo.Runtime) (Display
 	}
 	return DisplayTestRepositories{
 		TimetableTestRepositories: r, SettingsTestRepositories: NewSettingsTestRepositories(db, runtime),
-		Display: displayRepo.NewDisplayRepository(db), School: NewSchoolCapabilityAdapter(organizations, nil),
+		School:            NewSchoolCapabilityAdapter(organizations, nil),
 		StudentPickupNote: NewPickupNoteRepository(care),
 	}, nil
 }

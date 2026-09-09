@@ -2,63 +2,58 @@ package staffclock
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
-	"strings"
 
-	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
-func classifyError(err error) render.Renderer {
+// The codes below are a cross-repo contract: PyrePortal maps them to German
+// UI text (docs/agents/contracts.md, Ecosystem and IoT).
+const (
+	codeInvalidRequest         = "invalid_staff_clock_request"
+	codeInvalidRFIDTag         = "invalid_rfid_tag"
+	codeRFIDTagNotFound        = "rfid_tag_not_found"
+	codeRFIDTagInactive        = "rfid_tag_inactive"
+	codeRFIDTagNotStaff        = "rfid_tag_not_staff"
+	codeInvalidState           = "invalid_staff_clock_state"
+	codePlannedStartNotReached = "planned_start_not_reached"
+	codeDeviationReason        = "deviation_reason_required"
+	messageOperationFailed     = "staff clock operation failed"
+)
+
+func classifyError(err error) Failure {
 	switch {
-	case errors.Is(err, staffclockSvc.ErrInvalidRFIDTag):
-		return common.ErrorInvalidRequestWithCode(err, "invalid_rfid_tag")
-	case errors.Is(err, staffclockSvc.ErrRFIDTagNotFound):
-		return common.ErrorNotFoundWithCode(err, "rfid_tag_not_found")
-	case errors.Is(err, staffclockSvc.ErrRFIDTagInactive):
-		return common.ErrorConflictWithCode(err, "rfid_tag_inactive")
-	case errors.Is(err, staffclockSvc.ErrRFIDTagNotStaff):
-		return common.ErrorConflictWithCode(err, "rfid_tag_not_staff")
-	case errors.Is(err, staffclockSvc.ErrInvalidAction), errors.Is(err, staffclockSvc.ErrStatusRequired):
-		return common.ErrorInvalidRequestWithCode(err, "invalid_staff_clock_request")
-	case errors.Is(err, staffclockSvc.ErrCheckInRaced):
-		// A concurrent scan won the insert: the same state conflict the kiosk
-		// already knows how to recover from, not a server fault.
-		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
+	case errors.Is(err, devicescan.ErrInvalidRFIDTag):
+		return Failure{Status: http.StatusBadRequest, Code: codeInvalidRFIDTag, Err: err}
+	case errors.Is(err, devicescan.ErrRFIDTagNotFound):
+		return Failure{Status: http.StatusNotFound, Code: codeRFIDTagNotFound, Err: err}
+	case errors.Is(err, devicescan.ErrRFIDTagInactive):
+		return Failure{Status: http.StatusConflict, Code: codeRFIDTagInactive, Err: err}
+	case errors.Is(err, devicescan.ErrRFIDTagNotStaff):
+		return Failure{Status: http.StatusConflict, Code: codeRFIDTagNotStaff, Err: err}
+	case errors.Is(err, devicescan.ErrInvalidAction), errors.Is(err, devicescan.ErrStatusRequired), errors.Is(err, devicescan.ErrStaffClockInvalid):
+		return Failure{Status: http.StatusBadRequest, Code: codeInvalidRequest, Err: err}
+	case errors.Is(err, devicescan.ErrStaffClockRaced), errors.Is(err, devicescan.ErrStaffClockState):
+		// A concurrent scan or a stamp that does not fit the current state is
+		// the same state conflict the kiosk already knows how to recover from,
+		// not a server fault.
+		return Failure{Status: http.StatusConflict, Code: codeInvalidState, Err: err}
 	}
 
-	var plannedStart *activeSvc.PlannedStartNotReachedError
-	if errors.As(err, &plannedStart) {
-		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{
+	if plannedStart, ok := errors.AsType[*devicescan.PlannedStartNotReachedError](err); ok {
+		return Failure{Status: http.StatusConflict, Code: codePlannedStartNotReached, Err: err, Details: map[string]string{
 			"planned_start_time": plannedStart.PlannedStartTime,
 			"current_time":       plannedStart.CurrentTime,
-		})
+		}}
 	}
-	var deviation *activeSvc.DeviationReasonRequiredError
-	if errors.As(err, &deviation) {
-		return common.ErrorConflictWithDetails(err, "deviation_reason_required", map[string]any{
+	if deviation, ok := errors.AsType[*devicescan.DeviationReasonRequiredError](err); ok {
+		return Failure{Status: http.StatusConflict, Code: codeDeviationReason, Err: err, Details: map[string]string{
 			"action":            deviation.Action,
 			"planned_time":      deviation.PlannedTime,
 			"actual_time":       deviation.ActualTime,
 			"deviation_minutes": strconv.Itoa(deviation.DeviationMinutes),
-		})
+		}}
 	}
-
-	switch err.Error() {
-	case "already checked in", "already checked out today", "break already active",
-		"no active session found", "no session found for today", "no active break found":
-		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
-	}
-	if strings.HasPrefix(err.Error(), "work session overlaps an existing block") {
-		// The shared check-in body rejects a stamp that falls inside a closed
-		// block (e.g. an admin Nachtrag reaching past "now") — a state
-		// conflict the kiosk already knows how to recover from.
-		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
-	}
-	if strings.HasPrefix(err.Error(), "planned_duration_minutes must be") {
-		return common.ErrorInvalidRequestWithCode(err, "invalid_staff_clock_request")
-	}
-	return common.ErrorInternalServerWrap("staff clock operation failed", err)
+	return Failure{Status: http.StatusInternalServerError, Err: err, ClientMessage: messageOperationFailed}
 }

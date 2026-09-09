@@ -120,8 +120,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
-| Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill + dot, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
-| Data-driven status pill (raw hex) | `StatusDotBadge` | `~/components/ui/status-dot-badge` |
+| Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
+| Data-driven status pill (raw hex) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |

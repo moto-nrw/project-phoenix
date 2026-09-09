@@ -8,6 +8,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import {
   bulkCreateStudentStatusDays,
@@ -113,7 +114,7 @@ describe("ClassTripBulkStatusModal", () => {
     expect(screen.getByLabelText("Von")).toHaveValue("2026-05-27");
     expect(screen.getByLabelText("Bis")).toHaveValue("2026-05-27");
 
-    vi.useRealTimers();
+    releaseFakeTimers();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Für 1 Schüler speichern" }),

@@ -19,7 +19,7 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	device, err := repositories.NewDeviceTestRepository(db)
+	device, err := repositories.NewDeviceRepository(db)
 	if err != nil {
 		return nil, err
 	}

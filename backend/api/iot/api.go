@@ -2,7 +2,6 @@ package iot
 
 import (
 	"cmp"
-	"context"
 	"log/slog"
 	"net/http"
 
@@ -14,18 +13,16 @@ import (
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
-	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -42,10 +39,11 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService               iotSvc.Service
-	StaffPINAuthenticator    authSvc.StaffPINAuthenticator
-	CheckinService           *checkinSvc.CheckinService
-	StaffClockService        *staffclockSvc.Service
+	IoTService     iotSvc.Service
+	CheckinService *checkinSvc.CheckinService
+	// StaffClock is the public device-scan staff clock the kiosk stamps
+	// through (#2690).
+	StaffClock               devicescan.StaffClock
 	UsersService             usersSvc.PersonService
 	ActiveService            activeSvc.Service
 	ActivitiesService        activitiesSvc.ActivityService
@@ -62,9 +60,12 @@ type ServiceDependencies struct {
 	Broadcaster              realtime.Broadcaster
 	Logger                   *slog.Logger
 	DailyCheckoutFallback    string
-	DevicePINFallback        string
 	DB                       *bun.DB
-	DeviceLastSeenDebouncer  *device.LastSeenDebouncer
+	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
+	// groups. The Device Fleet composition builds them over one shared
+	// last-seen debouncer; this resource only mounts them.
+	DeviceAuthenticator     common.Middleware
+	DeviceOnlyAuthenticator common.Middleware
 }
 
 // Resource defines the IoT API resource
@@ -72,34 +73,9 @@ type Resource struct {
 	ServiceDependencies
 }
 
-// NewDeviceLastSeenDebouncer creates the shared debounce state for device
-// routes mounted by the API composition root.
-func NewDeviceLastSeenDebouncer() *device.LastSeenDebouncer {
-	return device.NewLastSeenDebouncer()
-}
-
 // NewResource creates a new IoT resource
 func NewResource(deps ServiceDependencies) *Resource {
 	return &Resource{ServiceDependencies: deps}
-}
-
-// pinResolver returns a PINResolver that reads from the settings service.
-// Returns nil if no settings service is available (falls back to env var in device auth).
-func (rs *Resource) pinResolver() device.PINResolver {
-	if rs.SettingsService == nil {
-		return nil
-	}
-	return func(ctx context.Context, tenantID int64) string {
-		pin, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyOGSDevicePIN)
-		if err != nil {
-			slog.Error("failed to resolve tenant PIN from settings, falling back to env var",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return ""
-		}
-		return pin
-	}
 }
 
 // getLogger returns the resource's logger, falling back to slog.Default() if nil.
@@ -126,7 +102,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticatorWithDebouncer(rs.IoTService, rs.SchoolService, rs.DeviceLastSeenDebouncer))
+		r.Use(device.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
 
@@ -146,14 +122,7 @@ func (rs *Resource) Router() chi.Router {
 	// binds staff identity to a verified account PIN. TenantTxMiddleware then
 	// wraps each handler in a tenant-scoped transaction.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticatorWithDebouncer(
-			rs.IoTService,
-			rs.SchoolService,
-			rs.StaffPINAuthenticator,
-			rs.pinResolver(),
-			rs.DevicePINFallback,
-			rs.DeviceLastSeenDebouncer,
-		))
+		r.Use(device.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
 		r.Use(iotMetricsMiddleware)
 		r.Use(common.TenantTxMiddleware)
 
@@ -175,15 +144,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
 
-		// Pure staff time tracking, independent of activities or groups.
-		staffClockResource := staffclockAPI.NewResource(rs.StaffClockService)
-		staffClockHandler := delegateHandler(staffClockResource.Router())
-		r.Post("/staff-clock", staffClockHandler)
-		r.Post("/staff-clock/state", staffClockHandler)
-
 		// Feedback endpoint (device-based feedback submission)
 		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
+
+		// Pure staff time tracking, independent of activities or groups.
+		staffClockResource := staffclockAPI.NewResource(rs.StaffClock, staffClockRuntime())
+		staffClockHandler := delegateHandler(staffClockResource.Router())
+		r.Post("/staff-clock", staffClockHandler)
+		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Data query endpoints (device + PIN auth)
 		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)

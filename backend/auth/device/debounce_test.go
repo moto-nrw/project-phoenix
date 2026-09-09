@@ -3,14 +3,10 @@ package device
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +17,7 @@ import (
 
 func TestGetOrCreateLastSeenState_CreatesNewState(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
 	state := debouncer.getOrCreateLastSeenState(int64(1001))
 	require.NotNil(t, state)
@@ -32,7 +28,7 @@ func TestGetOrCreateLastSeenState_CreatesNewState(t *testing.T) {
 
 func TestGetOrCreateLastSeenState_ReturnsSameState(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
 	state1 := debouncer.getOrCreateLastSeenState(int64(2001))
 	state2 := debouncer.getOrCreateLastSeenState(int64(2001))
@@ -42,7 +38,7 @@ func TestGetOrCreateLastSeenState_ReturnsSameState(t *testing.T) {
 
 func TestGetOrCreateLastSeenState_DifferentDevices(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
 	stateA := debouncer.getOrCreateLastSeenState(int64(3001))
 	stateB := debouncer.getOrCreateLastSeenState(int64(3002))
@@ -52,7 +48,7 @@ func TestGetOrCreateLastSeenState_DifferentDevices(t *testing.T) {
 
 func TestGetOrCreateLastSeenState_ConcurrentAccess(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
 	var wg sync.WaitGroup
 	states := make([]*lastSeenDebounceState, 10)
@@ -78,45 +74,45 @@ func TestGetOrCreateLastSeenState_ConcurrentAccess(t *testing.T) {
 
 func TestPersistLastSeen_Success(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	state := &lastSeenDebounceState{}
 	observedAt := time.Now().Add(-5 * time.Second)
 
-	debouncer.persistLastSeen(context.Background(), mockService, int64(5001), observedAt, state)
+	debouncer.persistLastSeen(context.Background(), directory, int64(5001), observedAt, state)
 
-	assert.True(t, mockService.updateCalled, "Should call UpdateDeviceLastSeen")
+	assert.True(t, directory.wasUpdated(), "Should call RecordLastSeen")
 	assert.Equal(t, observedAt, state.lastPersisted, "Should persist the observed timestamp")
 }
 
 func TestPersistLastSeen_Error(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	mockService.updateError = errors.New("db connection failed")
+	directory := newMockDeviceDirectory()
+	directory.updateError = errors.New("db connection failed")
 	state := &lastSeenDebounceState{}
 	observedAt := time.Now()
 
-	debouncer.persistLastSeen(context.Background(), mockService, int64(5002), observedAt, state)
+	debouncer.persistLastSeen(context.Background(), directory, int64(5002), observedAt, state)
 
-	assert.True(t, mockService.updateCalled, "Should attempt UpdateDeviceLastSeen")
+	assert.True(t, directory.wasUpdated(), "Should attempt RecordLastSeen")
 	assert.True(t, state.lastPersisted.IsZero(), "Should NOT update lastPersisted on error")
 }
 
 func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	mockService.updateError = errors.New("db connection failed")
+	directory := newMockDeviceDirectory()
+	directory.updateError = errors.New("db connection failed")
 	observedAt := time.Now()
 	state := &lastSeenDebounceState{
 		latestSeen: observedAt.Add(30 * time.Second),
 	}
 
-	debouncer.persistLastSeen(context.Background(), mockService, int64(5003), observedAt, state)
+	debouncer.persistLastSeen(context.Background(), directory, int64(5003), observedAt, state)
 
 	state.mu.Lock()
 	defer state.mu.Unlock()
@@ -134,57 +130,57 @@ func TestPersistLastSeen_ErrorPreservesQueuedObservation(t *testing.T) {
 
 func TestFlushDeferredLastSeen_NoopWhenLatestSeenIsZero(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	state := &lastSeenDebounceState{
 		// latestSeen is zero value
 		lastPersisted: time.Now(),
 	}
 
-	debouncer.flushDeferredLastSeen(mockService, int64(6001), state)
+	debouncer.flushDeferredLastSeen(directory, int64(6001), state)
 
-	assert.False(t, mockService.updateCalled, "Should not write when latestSeen is zero")
+	assert.False(t, directory.wasUpdated(), "Should not write when latestSeen is zero")
 }
 
 func TestFlushDeferredLastSeen_NoopWhenLatestSeenNotAfterLastPersisted(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	now := time.Now()
 	state := &lastSeenDebounceState{
 		latestSeen:    now,
 		lastPersisted: now.Add(1 * time.Second), // persisted after latest seen
 	}
 
-	debouncer.flushDeferredLastSeen(mockService, int64(6002), state)
+	debouncer.flushDeferredLastSeen(directory, int64(6002), state)
 
-	assert.False(t, mockService.updateCalled, "Should not write when latestSeen is not after lastPersisted")
+	assert.False(t, directory.wasUpdated(), "Should not write when latestSeen is not after lastPersisted")
 }
 
 func TestFlushDeferredLastSeen_WritesWhenLatestSeenAfterLastPersisted(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	now := time.Now()
 	state := &lastSeenDebounceState{
 		latestSeen:    now,
 		lastPersisted: now.Add(-2 * time.Minute),
 	}
 
-	debouncer.flushDeferredLastSeen(mockService, int64(6003), state)
+	debouncer.flushDeferredLastSeen(directory, int64(6003), state)
 
-	assert.True(t, mockService.updateCalled, "Should write when latestSeen is after lastPersisted")
+	assert.True(t, directory.wasUpdated(), "Should write when latestSeen is after lastPersisted")
 	assert.Equal(t, now, state.lastPersisted, "Should persist the latest observed timestamp")
 }
 
 func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
+	directory := newMockDeviceDirectory()
 	now := time.Now()
 	timer := time.NewTimer(1 * time.Hour) // dummy timer
 	defer timer.Stop()
@@ -195,11 +191,11 @@ func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
 		flushTimer:    timer,
 	}
 
-	debouncer.flushDeferredLastSeen(mockService, int64(6004), state)
+	debouncer.flushDeferredLastSeen(directory, int64(6004), state)
 
 	// flushTimer is set to nil at the start of the function
 	// It may be re-set if there are new updates, but the original timer should be cleared
-	assert.True(t, mockService.updateCalled)
+	assert.True(t, directory.wasUpdated())
 }
 
 // =============================================================================
@@ -208,39 +204,35 @@ func TestFlushDeferredLastSeen_ClearsFlushTimer(t *testing.T) {
 
 func TestUpdateDeviceLastSeen_FirstCallWritesImmediately(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	device := &iot.Device{Model: base.Model{ID: 7001}, DeviceID: "device-first-write"}
+	directory := newMockDeviceDirectory()
+	device := &AuthenticatedDevice{ID: 7001, DeviceID: "device-first-write"}
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
 
-	debouncer.updateDeviceLastSeen(req, mockService, device)
-
-	assert.True(t, mockService.updateCalled, "First call should write immediately")
+	assert.True(t, directory.wasUpdated(), "First call should write immediately")
 	assert.NotNil(t, device.LastSeen, "Should set LastSeen on device")
 }
 
 func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	device := &iot.Device{Model: base.Model{ID: 7002}, DeviceID: "device-debounce-timer"}
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	directory := newMockDeviceDirectory()
+	device := &AuthenticatedDevice{ID: 7002, DeviceID: "device-debounce-timer"}
 
 	// First call - writes immediately
-	debouncer.updateDeviceLastSeen(req, mockService, device)
-	assert.True(t, mockService.updateCalled)
+	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
+	assert.True(t, directory.wasUpdated())
 
-	mockService.updateCalled = false
+	directory.resetUpdated()
 
 	// Second call within debounce window - should schedule timer instead
-	debouncer.updateDeviceLastSeen(req, mockService, device)
-	assert.False(t, mockService.updateCalled, "Second call within window should not write immediately")
+	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
+	assert.False(t, directory.wasUpdated(), "Second call within window should not write immediately")
 
-	// Verify timer was scheduled (cache key is now int64 PK)
+	// Verify timer was scheduled (cache key is the int64 PK)
 	rawState, ok := debouncer.cache.Load(int64(7002))
 	require.True(t, ok)
 	state, ok := rawState.(*lastSeenDebounceState)
@@ -258,58 +250,53 @@ func TestUpdateDeviceLastSeen_SecondCallWithinWindowSchedulesTimer(t *testing.T)
 
 func TestUpdateDeviceLastSeen_ConcurrentFirstCallsOnlyWriteOnce(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	mockService.updateStarted = make(chan struct{}, 2)
-	mockService.updateBlock = make(chan struct{})
-	device := &iot.Device{Model: base.Model{ID: 7003}, DeviceID: "device-concurrent-first-write"}
-
-	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	directory := newMockDeviceDirectory()
+	directory.updateStarted = make(chan struct{}, 2)
+	directory.updateBlock = make(chan struct{})
+	device := &AuthenticatedDevice{ID: 7003, DeviceID: "device-concurrent-first-write"}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		debouncer.updateDeviceLastSeen(req1, mockService, device)
+		debouncer.updateDeviceLastSeen(context.Background(), directory, device)
 	}()
 
-	<-mockService.updateStarted
+	<-directory.updateStarted
 
 	go func() {
 		defer wg.Done()
-		debouncer.updateDeviceLastSeen(req2, mockService, device)
+		debouncer.updateDeviceLastSeen(context.Background(), directory, device)
 	}()
 
-	close(mockService.updateBlock)
+	close(directory.updateBlock)
 	wg.Wait()
 
-	mockService.mu.Lock()
-	updateCount := mockService.updateCount
-	mockService.mu.Unlock()
+	directory.mu.Lock()
+	updateCount := directory.updateCount
+	directory.mu.Unlock()
 
 	assert.Equal(t, 1, updateCount, "Concurrent first requests should reserve the write and avoid duplicate DB updates")
 }
 
 func TestUpdateDeviceLastSeen_ErrorDoesNotPreventSubsequentCalls(t *testing.T) {
 	t.Parallel()
-	debouncer := newLastSeenDebouncer()
+	debouncer := NewLastSeenDebouncer()
 
-	mockService := newMockIoTService()
-	mockService.updateError = errors.New("temporary db error")
-	device := &iot.Device{Model: base.Model{ID: 7004}, DeviceID: "device-error-recovery"}
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	directory := newMockDeviceDirectory()
+	directory.updateError = errors.New("temporary db error")
+	device := &AuthenticatedDevice{ID: 7004, DeviceID: "device-error-recovery"}
 
 	// First call - fails
-	debouncer.updateDeviceLastSeen(req, mockService, device)
-	assert.True(t, mockService.updateCalled)
+	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
+	assert.True(t, directory.wasUpdated())
 
 	// Reset - next call should still try since lastPersisted was never set
-	mockService.updateCalled = false
-	mockService.updateError = nil
+	directory.resetUpdated()
+	directory.updateError = nil
 
-	debouncer.updateDeviceLastSeen(req, mockService, device)
-	assert.True(t, mockService.updateCalled, "Should retry write after previous error since lastPersisted is zero")
+	debouncer.updateDeviceLastSeen(context.Background(), directory, device)
+	assert.True(t, directory.wasUpdated(), "Should retry write after previous error since lastPersisted is zero")
 }

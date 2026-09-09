@@ -10,7 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -931,61 +933,90 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 // GetUnclaimedActiveGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
 func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	groups, err := s.GroupRepo.FindUnclaimed(ctx)
+	rows, err := s.SchoolPresence.UnclaimedGroups(ctx, s.todayDate().String())
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-
+	groups := make([]*active.Group, 0, len(rows))
+	if len(rows) == 0 {
+		return groups, nil
+	}
+	roomIDs, templateIDs := make([]int64, 0, len(rows)), make([]int64, 0, len(rows))
+	for _, row := range rows {
+		roomIDs = append(roomIDs, row.RoomID)
+		if row.GroupID != nil {
+			templateIDs = append(templateIDs, *row.GroupID)
+		}
+	}
+	rooms, err := s.RoomRepo.FindByIDs(ctx, roomIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+	}
+	templates, err := s.ActivityGroupRepo.FindByIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+	}
+	roomsByID := make(map[int64]*facilities.Room, len(rooms))
+	for _, room := range rooms {
+		roomsByID[room.ID] = room
+	}
+	templatesByID := make(map[int64]*activities.Group, len(templates))
+	for _, template := range templates {
+		// This endpoint historically includes the template without its category relation.
+		copy := *template
+		copy.Category = nil
+		templatesByID[copy.ID] = &copy
+	}
+	for _, row := range rows {
+		group := &active.Group{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity, TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}
+		group.SetTenantID(row.TenantID)
+		group.Room = roomsByID[row.RoomID]
+		if group.Room == nil || group.Room.Name != "Schulhof" {
+			continue
+		}
+		if row.GroupID != nil {
+			group.ActualGroup = templatesByID[*row.GroupID]
+		}
+		groups = append(groups, group)
+	}
 	return groups, nil
 }
 
 // ClaimActiveGroup allows a staff member to claim supervision of an active group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
-	// Lock the group while checking its lifecycle and creating the supervisor.
-	// Planned-session absorption takes the same lock before deciding that an
-	// open, unsupervised group can be folded into the new session. This prevents
-	// a claim from committing on a group that absorption ended while the claim
-	// was in flight.
-	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
-	}
-	if group == nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
-	}
-
-	if group.EndTime != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("cannot claim ended group")}
-	}
-
-	// Check if staff is already supervising this group (only check active supervisors)
-	existingSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
-	if err == nil {
-		for _, sup := range existingSupervisors {
-			if sup.StaffID == staffID {
-				return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrStaffAlreadySupervising}
-			}
-		}
-	}
-
-	// Create supervisor assignment
 	if role == "" {
 		role = "supervisor"
 	}
-
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   groupID,
-		Role:      role,
-		StartDate: s.todayDate(),
-		// EndDate is nil (active supervision)
+	var result *active.GroupSupervisor
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.validateStaffExists(txCtx, staffID); err != nil {
+			return err
+		}
+		row, err := s.SchoolPresence.ClaimGroup(txCtx, studentpresence.GroupClaim{GroupID: groupID, StaffID: staffID, Role: role, Date: s.todayDate().String()})
+		switch {
+		case errors.Is(err, studentpresence.ErrAlreadySupervising):
+			return ErrStaffAlreadySupervising
+		case errors.Is(err, studentpresence.ErrGroupNotFound), errors.Is(err, studentpresence.ErrGroupEnded):
+			return err
+		case err != nil:
+			return ErrDatabaseOperation
+		}
+		date, err := timezone.ParseDate(row.StartDate)
+		if err != nil {
+			return err
+		}
+		result = &active.GroupSupervisor{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
+		result.SetTenantID(row.TenantID)
+		source := active.WorkSessionSourceApp
+		if device.IsIoTDeviceRequest(txCtx) {
+			source = active.WorkSessionSourceNFC
+		}
+		s.ensureStaffPresence(txCtx, staffID, source)
+		return nil
+	})
+	if err != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: err}
 	}
-
-	// Use existing CreateGroupSupervisor method for validation and creation
-	if err := s.CreateGroupSupervisor(ctx, supervisor); err != nil {
-		return nil, err
-	}
-
-	return supervisor, nil
+	return result, nil
 }

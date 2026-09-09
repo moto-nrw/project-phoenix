@@ -54,8 +54,8 @@ Frontend: `app/operator/organizations/page.tsx`, `[slug]/page.tsx`, `[slug]/scho
 
 | Datei | Rolle |
 |---|---|
-| `backend/api/school/api.go` | Portal-Resource, eigener chi-Router unter `/school`; Public-Gruppe (login, password-reset, mfa/verify, mfa/resend) mit Rate-Limiter, MFA-Enrollment-Gruppe, geschützte Gruppe mit `jwt.SchoolMiddleware`, switch-school |
-| `backend/api/school/auth_handlers.go`, `password_handlers.go` | Login, Switch, MFA, Reset |
+| `backend/modules/schoolportal/api.go` | Portal-Resource, eigener chi-Router unter `/school`; Public-Gruppe (login, password-reset, mfa/verify, mfa/resend) mit Rate-Limiter, MFA-Enrollment-Gruppe, geschützte Gruppe mit `jwt.SchoolMiddleware`, switch-school |
+| `backend/modules/schoolportal/auth_handlers.go`, `password_handlers.go` | Login, Switch, MFA, Reset |
 | `backend/auth/jwt/school_middleware.go` | Scope-Prüfung, setzt WithTenant/WithOrgID/WithScope |
 | `backend/auth/jwt/tenant_middleware.go:37-42` | Gegen-Guard |
 | `backend/api/common/router.go:40-56` | `ProtectedSchoolGroup` (gleiche Kette wie Tenant, dann `TenantTxMiddleware`) |

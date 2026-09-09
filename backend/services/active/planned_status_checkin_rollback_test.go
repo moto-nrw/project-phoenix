@@ -111,7 +111,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	ctx := testpkg.Ctx(t)
 	repos, err := repositories.NewActiveTestRepositories(db)
 	require.NoError(t, err)
-	devices, err := repositories.NewDeviceTestRepository(db)
+	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)
 	deviceFault := activeService.NewCheckinDeviceFault(devices)
 	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}
@@ -151,8 +151,8 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	})
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
-	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, device)
-	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staff)
+	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
+	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	var groupID int64
 	if mode == "visit" {
@@ -189,10 +189,10 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		checkinCtx, deviceID := ctx, device.ID
 		if stage == "device lookup" {
 			deviceID = 0
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staff)
+			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staffPrincipal(staff))
 		}
 		if stage == "staff attribution" {
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, device)
+			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
 		}
 		if mode == "visit" {
 			return svc.CreateVisit(checkinCtx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: groupID, EntryTime: time.Now()})

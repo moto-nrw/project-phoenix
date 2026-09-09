@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { act, renderHook } from "@testing-library/react";
 import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refresh";
 import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
@@ -186,7 +187,7 @@ describe("useCompanionRemoteRefresh", () => {
       expect(onRefresh).not.toHaveBeenCalled();
       expect(result.current.companionsStale).toBe(false);
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 

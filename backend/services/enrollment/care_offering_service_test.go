@@ -14,6 +14,8 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/peopletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
@@ -33,6 +35,24 @@ func testRepositories(t *testing.T, db *bun.DB) *repositories.Factory {
 	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	return factory
+}
+
+// testGuardianAccess composes the production Identity & Access capability the
+// decision service grants parent portal access through.
+func testGuardianAccess(db *bun.DB) enrollmentService.DecisionGuardianAccess {
+	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	if err != nil {
+		panic(err)
+	}
+	return module
+}
+
+func testStudentEnrollment(db *bun.DB) enrollmentService.DecisionStudentEnrollment {
+	module, err := peopletest.NewEnrollment(db)
+	if err != nil {
+		panic(err)
+	}
+	return module
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {

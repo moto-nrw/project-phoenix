@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -21,7 +21,7 @@ import (
 )
 
 // startSession starts an activity session with proper validation and logging
-func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
+func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *device.AuthenticatedDevice) (*active.Group, error) {
 	slog.Default().InfoContext(ctx, "session start request",
 		slog.Int64("activity_id", req.ActivityID),
 		slog.Int("supervisor_count", len(req.SupervisorIDs)),
@@ -85,7 +85,7 @@ func (rs *Resource) handleSessionConflictError(w http.ResponseWriter, r *http.Re
 // ActivityID is *int64 after WP-B6 — for today's IoT session start, the
 // activeGroup always carries a template id, but we propagate the pointer as-is
 // so spontaneous sessions (WP-B9+) surface cleanly as null.
-func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *active.Group, deviceCtx *iot.Device) SessionStartResponse {
+func (rs *Resource) buildSessionStartResponse(ctx context.Context, activeGroup *active.Group, deviceCtx *device.AuthenticatedDevice) SessionStartResponse {
 	response := SessionStartResponse{
 		ActiveGroupID: activeGroup.ID,
 		ActivityID:    activeGroup.GroupID,

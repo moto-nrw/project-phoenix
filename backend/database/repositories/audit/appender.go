@@ -120,8 +120,6 @@ func appendQuery(db bun.IDB, event any) (string, *bun.InsertQuery, error) {
 		table, query = "audit.substitution_changes", db.NewInsert().Model(value).ModelTableExpr("audit.substitution_changes")
 	case *auditModels.TimeTrackingDeletion:
 		table, query = "audit.time_tracking_deletions", db.NewInsert().Model(value).ModelTableExpr("audit.time_tracking_deletions")
-	case *auditModels.UnregisteredTagScan:
-		table, query = "audit.unregistered_tag_scans", db.NewInsert().Model(value).ModelTableExpr("audit.unregistered_tag_scans")
 	case *auditModels.WorkSessionEdit:
 		table, query = "audit.work_session_edits", db.NewInsert().Model(value).ModelTableExpr("audit.work_session_edits")
 	default:

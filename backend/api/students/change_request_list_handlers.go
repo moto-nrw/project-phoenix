@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -601,11 +601,11 @@ func offeringPendingRow(item *enrollmentService.OfferingChangeView) aggregatedRo
 	return row
 }
 
-func excusedPendingRow(item *absenceService.ExcusedRequestReviewItem) aggregatedRow {
+func excusedPendingRow(item *excusedrequests.ReviewItem) aggregatedRow {
 	today := timezone.TodayDate()
 	urgent := false
 	for _, date := range item.Request.Dates {
-		urgent = urgent || date == today
+		urgent = urgent || timezone.Date(date) == today
 	}
 	row := aggregatedRow{
 		typ:                  requestTypeExcused,
@@ -841,6 +841,29 @@ func aggregatedNextCursor(sources []*aggregatedSource) string {
 	return encodeAggregatedCursor(next)
 }
 
+// excusedQueue adapts the Care Plan excused-absence queue (#3093), which
+// speaks the owner's filter and cursor vocabulary, to the shared list shape
+// the aggregated queue drives. Field for field the two filters are the same
+// contract.
+func excusedQueue[T any](
+	list func(context.Context, excusedrequests.QueueFilter) ([]T, *excusedrequests.Cursor, error),
+) func(context.Context, modelBase.RequestQueueFilters) ([]T, *userService.HistoryCursor, error) {
+	return func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]T, *userService.HistoryCursor, error) {
+		items, next, err := list(ctx, excusedrequests.QueueFilter{
+			UrgentOnly: filters.UrgentOnly, UrgentDate: filters.UrgentDate,
+			StudentIDs: filters.StudentIDs, StudentID: filters.StudentID, Search: filters.Search,
+			BeforeInstant: filters.BeforeInstant, BeforeID: filters.BeforeID, Limit: filters.Limit,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if next == nil {
+			return items, nil, nil
+		}
+		return items, &userService.HistoryCursor{UpdatedAt: next.UpdatedAt, ID: next.ID}, nil
+	}
+}
+
 // queueFetch adapts one typed queue call to the shared source shape.
 func queueFetch[T any](
 	list func(ctx context.Context, filters modelBase.RequestQueueFilters) ([]T, *userService.HistoryCursor, error),
@@ -878,9 +901,9 @@ func (rs *Resource) sourceFor(typ string, history bool) *aggregatedSource {
 		}
 	case requestTypeExcused:
 		if history {
-			source.fetch = queueFetch(rs.ExcusedRequestService.ListHistory, excusedHistoryRow)
+			source.fetch = queueFetch(excusedQueue(rs.ExcusedRequestService.ListHistory), excusedHistoryRow)
 		} else {
-			source.fetch = queueFetch(rs.ExcusedRequestService.ListPending, excusedPendingRow)
+			source.fetch = queueFetch(excusedQueue(rs.ExcusedRequestService.ListPending), excusedPendingRow)
 		}
 	case requestTypeDirectCorrection:
 		// History only — a correction has no open state. parseAggregatedListQuery
@@ -936,7 +959,7 @@ func offeringHistoryRow(item *enrollmentService.OfferingChangeHistoryItem) aggre
 	}
 }
 
-func excusedHistoryRow(item *absenceService.ExcusedRequestHistoryItem) aggregatedRow {
+func excusedHistoryRow(item *excusedrequests.HistoryItem) aggregatedRow {
 	return aggregatedRow{
 		typ:         requestTypeExcused,
 		sortTime:    item.Request.UpdatedAt,
@@ -968,14 +991,14 @@ func (rs *Resource) reviewAccessLevel(ctx context.Context) (string, error) {
 // Only the types with an effective scope can be past: the weekly care plan and
 // a Stammdaten change apply from the decision onwards and have no end.
 
-func excusedScopeEnd(dates []timezone.Date) timezone.Date {
-	var last timezone.Date
+func excusedScopeEnd(dates []excusedrequests.Date) timezone.Date {
+	var last excusedrequests.Date
 	for _, date := range dates {
 		if last.IsZero() || date.After(last) {
 			last = date
 		}
 	}
-	return last
+	return timezone.Date(last)
 }
 
 func careScopeEnd(item *scheduleService.CareRequestReviewItem) timezone.Date {
@@ -1072,7 +1095,7 @@ func offeringConflictKeys(item *enrollmentService.OfferingChangeView) []string {
 	return keys
 }
 
-func excusedConflictKeys(dates []timezone.Date) []string {
+func excusedConflictKeys(dates []excusedrequests.Date) []string {
 	days := make([]string, 0, len(dates))
 	for _, date := range dates {
 		days = append(days, date.String())
@@ -1180,8 +1203,8 @@ func (rs *Resource) scanOpenConflicts(
 		},
 		func() error {
 			return scanQueueConflicts(ctx, types, requestTypeExcused, filters, report,
-				rs.ExcusedRequestService.ListPending,
-				func(item *absenceService.ExcusedRequestReviewItem) (int64, []string) {
+				excusedQueue(rs.ExcusedRequestService.ListPending),
+				func(item *excusedrequests.ReviewItem) (int64, []string) {
 					return item.Request.StudentID, excusedConflictKeys(item.Request.Dates)
 				})
 		},

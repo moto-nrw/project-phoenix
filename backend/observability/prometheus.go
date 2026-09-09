@@ -273,6 +273,26 @@ var (
 		prometheus.HistogramOpts{Name: "phoenix_people_directory_statement_duration_seconds", Help: "Cumulative People Directory database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
+	identityAccessOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_operations_total", Help: "Identity & Access operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	identityAccessDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_identity_access_operation_duration_seconds", Help: "Identity & Access operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	identityAccessQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_queries_total", Help: "Persistence queries issued by Identity & Access operations."},
+		[]string{"operation"},
+	)
+	identityAccessRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_rows_changed_total", Help: "Rows changed by Identity & Access commands."},
+		[]string{"operation"},
+	)
+	identityAccessStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_identity_access_statement_duration_seconds", Help: "Cumulative Identity & Access database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
 	peopleDirectoryHTTPResponses = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
 		[]string{"status_class", "code"},
@@ -319,6 +339,26 @@ var (
 	)
 	facilitiesStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	deviceFleetOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_operations_total", Help: "Device Fleet operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	deviceFleetDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_operation_duration_seconds", Help: "Device Fleet operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	deviceFleetQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_queries_total", Help: "Persistence queries issued by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_rows_total", Help: "Rows returned or changed by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_statement_duration_seconds", Help: "Cumulative Device Fleet database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
 		[]string{"operation"},
 	)
 	timetableActivitiesOperations = prometheus.NewCounterVec(
@@ -709,6 +749,11 @@ func init() {
 		peopleDirectoryQueries,
 		peopleDirectoryRowsChanged,
 		peopleDirectoryStatementDuration,
+		identityAccessOperations,
+		identityAccessDuration,
+		identityAccessQueries,
+		identityAccessRowsChanged,
+		identityAccessStatementDuration,
 		peopleDirectoryHTTPResponses,
 		guardianDirectoryHTTPResponses,
 		schoolStructureOperations,
@@ -721,6 +766,11 @@ func init() {
 		facilitiesQueries,
 		facilitiesRows,
 		facilitiesStatementDuration,
+		deviceFleetOperations,
+		deviceFleetDuration,
+		deviceFleetQueries,
+		deviceFleetRows,
+		deviceFleetStatementDuration,
 		timetableActivitiesOperations,
 		timetableActivitiesDuration,
 		timetableActivitiesQueries,
@@ -923,6 +973,30 @@ func ObservePeopleDirectoryOperation(operation string, duration time.Duration, q
 	}
 }
 
+// ObserveIdentityAccessOperation records the runtime evidence of one Identity
+// & Access capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObserveIdentityAccessOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	identityAccessOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	identityAccessDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		identityAccessQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		identityAccessRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		identityAccessStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 // ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
 // status class actually written and the stable outcome code.
 func ObservePeopleDirectoryHTTPResponse(status int, code string) {
@@ -1008,6 +1082,29 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 	}
 	if statementDuration > 0 {
 		facilitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveDeviceFleetOperation records one Device Fleet operation: its
+// outcome, duration, statement count, affected rows, and statement duration.
+func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	deviceFleetOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	deviceFleetDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		deviceFleetQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		deviceFleetRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		deviceFleetStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

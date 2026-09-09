@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -29,6 +30,9 @@ type Dependencies struct {
 	AssignedStaffIDs  func(ctx context.Context, workTimeModelID int64) ([]int64, error)
 	RebaseStaffAnchor func(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error)
 	Observe           func(Observation)
+	// Now is the clock the live work-session window and the calendar day
+	// are measured against; nil means the wall clock. Tests pin it.
+	Now func() time.Time
 }
 
 // New composes the Workforce work-time module. Every operation runs on the
@@ -45,11 +49,15 @@ func New(dependencies Dependencies) (*workforce.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
+	now := dependencies.Now
+	if now == nil {
+		now = time.Now
+	}
 	service := application.New(
 		store,
-		transaction{},
+		transaction{lock: store.AcquireXactLock},
 		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
-		clock{},
+		clock{now: now},
 		observe,
 	)
 	return workforce.NewModule(engine{service: service}), nil
@@ -76,7 +84,11 @@ func databaseRuntime(db *bun.DB) postgres.Database {
 	}
 }
 
-type transaction struct{}
+// transaction runs units of work on the tenant runtime. lock is the Postgres
+// adapter's advisory-lock statement, used when no runtime is bound.
+type transaction struct {
+	lock func(context.Context, string) error
+}
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
@@ -88,7 +100,7 @@ func (transaction) RunWrite(ctx context.Context, callback func(context.Context) 
 // LockStaffBalance serializes every writer that changes one staff member's
 // target working time, so a template refresh and a manual schedule change
 // cannot interleave into a half-closed version history.
-func (transaction) LockStaffBalance(ctx context.Context, staffID int64) error {
+func (t transaction) LockStaffBalance(ctx context.Context, staffID int64) error {
 	if staffID <= 0 {
 		return errors.New("workforce compose: staff id is required")
 	}
@@ -96,15 +108,33 @@ func (transaction) LockStaffBalance(ctx context.Context, staffID int64) error {
 	if tenantID <= 0 {
 		return errors.New("workforce compose: tenant id is required")
 	}
-	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID), false); err != nil {
+	if err := t.acquireXactLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID)); err != nil {
 		return fmt.Errorf("lock staff balance writes: %w", err)
 	}
 	return nil
 }
 
-type clock struct{}
+// acquireXactLock takes the transaction-scoped advisory lock through the
+// tenant runtime. Without a runtime, or without a transaction at all, the
+// Postgres adapter issues the statement itself, which is what the legacy
+// repositories did: outside a transaction the lock releases at statement
+// end, so a caller that never opened one keeps its behavior.
+func (t transaction) acquireXactLock(ctx context.Context, key string) error {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); inTransaction {
+		err := tenant.AcquireLock(ctx, key, false)
+		if err == nil || !errors.Is(err, tenant.ErrRuntimeRequired) {
+			return err
+		}
+	}
+	return t.lock(ctx, key)
+}
 
-func (clock) Today() string { return timezone.TodayDate().String() }
+// clock derives the calendar day from the same instant the live windows use,
+// so a pinned test clock cannot disagree with itself across midnight.
+type clock struct{ now func() time.Time }
+
+func (c clock) Now() time.Time { return c.now() }
+func (c clock) Today() string  { return timezone.DateFromTime(c.now()).String() }
 
 type assignments struct {
 	ids    func(context.Context, int64) ([]int64, error)
@@ -256,7 +286,32 @@ func mapError(err error) error {
 		return workforce.ErrWorkTimeModelAssigned
 	case errors.Is(err, domain.ErrInvalidWorkTime):
 		return &workforce.InvalidWorkTimeError{Reason: err.Error()}
+	case errors.Is(err, domain.ErrStaffAbsenceNotFound):
+		return workforce.ErrStaffAbsenceNotFound
+	case errors.Is(err, domain.ErrAbsenceTypeNotFound):
+		return workforce.ErrAbsenceTypeNotFound
+	case errors.Is(err, domain.ErrGroupSubstitutionNotFound):
+		return workforce.ErrGroupSubstitutionNotFound
+	case errors.Is(err, domain.ErrInvalidStaffAbsence):
+		return &workforce.InvalidStaffAbsenceError{Reason: err.Error()}
+	case errors.Is(err, domain.ErrInvalidGroupSubstitution):
+		return &workforce.InvalidGroupSubstitutionError{Reason: err.Error()}
+	case errors.Is(err, domain.ErrAbsenceTypeInvalid):
+		return &workforce.InvalidAbsenceTypeError{Reason: err.Error()}
+	case errors.Is(err, domain.ErrAbsenceTypeNameTaken):
+		return &workforce.ConflictError{Kind: workforce.ErrAbsenceTypeNameTaken, Cause: conflictCause(err)}
+	case errors.Is(err, domain.ErrGroupSubstitutionExists):
+		return &workforce.ConflictError{Kind: workforce.ErrGroupSubstitutionExists, Cause: conflictCause(err)}
 	default:
 		return err
 	}
+}
+
+// conflictCause keeps the driver error of a duplicate reachable through the
+// public error, so a caller inspecting the violated constraint still can.
+func conflictCause(err error) error {
+	if conflict, ok := errors.AsType[*domain.ConflictError](err); ok {
+		return conflict.Cause
+	}
+	return err
 }

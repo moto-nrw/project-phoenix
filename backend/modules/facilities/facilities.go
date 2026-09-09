@@ -27,6 +27,11 @@ var (
 	ErrRoomDeletionGuardUnavailable       = errors.New("room deletion guard is unavailable")
 	ErrSystemRoomProtected                = errors.New("Systemraum kann nicht gelöscht oder umbenannt werden")      //nolint:staticcheck // ST1005: stable user-facing contract
 	ErrSystemRoomNameReserved             = errors.New("Der Raumname „Schulhof“ ist für den Systemraum reserviert") //nolint:staticcheck // ST1005: stable user-facing contract
+	// ErrToiletRoomNotReleasable rejects releasing a toilet room. The toilets
+	// are infrastructure the kiosk drives through its own short-stay flow; a
+	// released WC would offer children a permanent destination the product
+	// never intended and that no school asked for.
+	ErrToiletRoomNotReleasable = errors.New("Toilettenräume können nicht als offener Raum freigegeben werden") //nolint:staticcheck // ST1005: stable user-facing contract
 )
 
 // Room is the facilities view of one physical room.
@@ -42,6 +47,11 @@ type Room struct {
 	Category  *string   `json:"category,omitempty"`
 	Color     *string   `json:"color,omitempty"`
 	IsSystem  bool      `json:"is_system"`
+	// IsOpenRoom reports whether the OGS administration has permanently
+	// released this room for use ("offener Raum", #3062). The release says
+	// nothing about who supervises the room and grants no home-checkout
+	// rights — those stay separate decisions.
+	IsOpenRoom bool `json:"is_open_room"`
 }
 
 type Query interface {
@@ -237,6 +247,11 @@ func (m *Module) CreateRoom(ctx context.Context, input CreateRoom) (Room, error)
 		m.engine.ObserveRejection("create_room", time.Since(started), err)
 		return Room{}, err
 	}
+	if input.IsOpenRoom && IsToiletRoomName(input.Name) {
+		err := ErrToiletRoomNotReleasable
+		m.engine.ObserveRejection("create_room", time.Since(started), err)
+		return Room{}, err
+	}
 	return m.engine.CreateRoom(ctx, input)
 }
 
@@ -251,6 +266,14 @@ func (m *Module) UpdateRoom(ctx context.Context, input UpdateRoom) (Room, error)
 		return Room{}, err
 	}
 	if err := normalizeAndValidateRoom(&input.Name, input.Capacity, &input.Color); err != nil {
+		m.engine.ObserveRejection("update_room", time.Since(started), err)
+		return Room{}, err
+	}
+	// Checked against the submitted name: a toilet room cannot be renamed
+	// (ErrSystemRoomProtected covers that), so the name reaching this point
+	// is the room's real one.
+	if input.IsOpenRoom != nil && *input.IsOpenRoom && IsToiletRoomName(input.Name) {
+		err := ErrToiletRoomNotReleasable
 		m.engine.ObserveRejection("update_room", time.Since(started), err)
 		return Room{}, err
 	}
@@ -295,6 +318,8 @@ func ErrorCode(err error) string {
 		return "system_name_reserved"
 	case errors.Is(err, ErrSystemRoomProtected):
 		return "system_room_protected"
+	case errors.Is(err, ErrToiletRoomNotReleasable):
+		return "toilet_room_not_releasable"
 	default:
 		return "internal_error"
 	}

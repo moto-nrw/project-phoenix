@@ -38,7 +38,6 @@ type TimetableTestRepositories struct {
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	PlanningTrack             scheduleModels.PlanningTrackRepository
-	TimetableConflictAck      scheduleModels.TimetableConflictAckRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
@@ -98,17 +97,20 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
 		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}, newStudentPresence(db)),
-		StaffShift:      scheduleRepo.NewStaffShiftRepository(db), StaffShiftSeries: scheduleRepo.NewStaffShiftSeriesRepository(db),
-		StaffShiftSeriesException: scheduleRepo.NewStaffShiftSeriesExceptionRepository(db),
-		ShiftType:                 scheduleRepo.NewShiftTypeRepository(db),
-		TimetableConflictAck:      scheduleRepo.NewTimetableConflictAckRepository(db),
+		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
+		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
+		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               activeRepo.NewGroupRepository(db),
+		ActiveGroup:               activeRepo.NewGroupRepository(db, nil),
 		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(db, now),
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
@@ -125,7 +127,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	}
 	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)
 	rooms, err := NewFacilities(db)
@@ -150,7 +152,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		ActivityGroup: r.ActivityGroup, ActivityCategory: r.ActivityCategory, ActivitySchedule: r.ActivitySchedule,
 		ActivitySupervisor: r.ActivitySupervisor, StudentEnrollment: r.StudentEnrollment,
 		StaffShift: r.StaffShift, StaffShiftSeries: r.StaffShiftSeries, StaffShiftSeriesException: r.StaffShiftSeriesException,
-		ShiftType: r.ShiftType, PlanningTrack: r.PlanningTrack, TimetableConflictAck: r.TimetableConflictAck,
+		ShiftType: r.ShiftType, PlanningTrack: r.PlanningTrack,
 		ActivityInstance: r.ActivityInstance, InstanceIdempotency: r.InstanceIdempotency,
 		InstanceStaff: r.InstanceStaff, InstanceStudent: r.InstanceStudent, ActivityException: r.ActivityException,
 		Timeframe: r.Timeframe, RecurrenceRule: r.RecurrenceRule, CalendarPeriod: r.CalendarPeriod,

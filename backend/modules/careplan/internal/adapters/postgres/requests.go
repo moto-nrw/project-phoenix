@@ -295,6 +295,12 @@ func (s *requestStore) ListExcusedAbsenceRequests(ctx context.Context, filter ca
 	rows := []excusedAbsenceRequestRow{}
 	query := withTenant(db.NewSelect().Model(&rows).
 		ModelTableExpr(`active.excused_absence_requests AS "excused_absence_request"`), "excused_absence_request", tenantID)
+	if filter.IDs != nil {
+		if len(filter.IDs) == 0 {
+			return []careplan.ExcusedAbsenceRequest{}, carePlanCompose.RequestStoreStats{}, nil
+		}
+		query = query.Where(`"excused_absence_request".id IN (?)`, bun.List(filter.IDs))
+	}
 	if filter.StudentID > 0 {
 		query = query.Where(`"excused_absence_request".student_id = ?`, filter.StudentID)
 	}

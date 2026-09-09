@@ -264,6 +264,11 @@ export function getStaffAppointmentOverview(appointmentId: string) {
 export interface CalendarFeedInfo {
   readonly url: string;
   readonly webcal_url: string;
+  readonly caldav?: {
+    readonly server_url: string;
+    readonly username: string;
+    readonly app_password: string;
+  } | null;
 }
 
 export function getParentCalendarFeed() {

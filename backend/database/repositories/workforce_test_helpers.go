@@ -5,12 +5,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -49,24 +49,32 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}
+	var now func() time.Time
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	workTime, err := NewWorkforceWithClock(db, membership, now)
+	if err != nil {
+		return WorkforceTestRepositories{}, err
+	}
 	r := &Factory{db: db,
-		StaffAbsenceType:                active.NewStaffAbsenceTypeRepository(db),
+		StaffAbsenceType:                workforceLegacy.NewStaffAbsenceTypeRepository(workTime),
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db), StaffVacationOpening: active.NewStaffVacationOpeningRepository(db),
-		StaffBalanceAdjust: active.NewStaffBalanceAdjustmentRepository(db), StaffMonthSnapshot: active.NewStaffMonthBalanceSnapshotRepository(db),
-		StaffAbsenceAudit: active.NewStaffAbsenceAuditRepository(db), TimeTrackingDeletion: audit.NewTimeTrackingDeletionRepository(newTestAuditRuntime(db)),
+		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(workTime), StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(workTime),
+		StaffBalanceAdjust: workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime), StaffMonthSnapshot: active.NewStaffMonthBalanceSnapshotRepository(db),
+		StaffAbsenceAudit: workforceLegacy.NewStaffAbsenceAuditRepository(workTime), TimeTrackingDeletion: audit.NewTimeTrackingDeletionRepository(newTestAuditRuntime(db)),
 		TimeTrackingAuditLog: audit.NewTimeTrackingAuditLogRepository(newTestAuditRuntime(db)),
-		StaffMasterData:      users.NewStaffMasterDataRepository(db), StaffQualification: users.NewStaffQualificationRepository(db),
-		StaffFinancialData: users.NewStaffFinancialDataRepository(db), PersonnelNumberChange: audit.NewPersonnelNumberChangeRepository(newTestAuditRuntime(db)),
+		StaffMasterData:      workforceLegacy.NewStaffMasterDataRepository(workTime), StaffQualification: workforceLegacy.NewStaffQualificationRepository(workTime),
+		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(workTime), PersonnelNumberChange: audit.NewPersonnelNumberChangeRepository(newTestAuditRuntime(db)),
 		StaffMasterDataChange: audit.NewStaffMasterDataChangeRepository(newTestAuditRuntime(db)), DataAccessLog: audit.NewDataAccessLogRepository(newTestAuditRuntime(db)),
 		DataDeletion: audit.NewDataDeletionRepository(newTestAuditRuntime(db)),
 	}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
+	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	r.RouteAuditWrites(command)
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
-		StaffDocument:    staffDocumentMembershipRepository{StaffDocumentRepository: users.NewStaffDocumentRepository(db), membership: func() schoolmembership.Capability { return membership }},
+		StaffDocument:    staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
 		StaffAbsenceType: r.StaffAbsenceType, StaffAbsenceTypeAllowance: r.StaffAbsenceTypeAllowance, StaffAbsenceTypeAllowanceChange: r.StaffAbsenceTypeAllowanceChange,
 		StaffVacationQuota: r.StaffVacationQuota, StaffVacationOpening: r.StaffVacationOpening, StaffBalanceAdjust: r.StaffBalanceAdjust, StaffMonthSnapshot: r.StaffMonthSnapshot,
 		StaffAbsenceAudit: r.StaffAbsenceAudit, TimeTrackingDeletion: r.TimeTrackingDeletion, TimeTrackingAuditLog: r.TimeTrackingAuditLog,

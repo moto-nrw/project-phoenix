@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
@@ -470,7 +471,7 @@ describe("CarePlanEditorModal", () => {
       }),
     ).toBeDisabled();
     expect(onSubmitWeekly).toHaveBeenCalledTimes(3);
-    vi.useRealTimers();
+    releaseFakeTimers();
   });
 
   it("shows all exact matches and requires confirmation before changing the offering", async () => {

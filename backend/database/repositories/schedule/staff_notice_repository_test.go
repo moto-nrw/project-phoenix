@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
@@ -35,13 +36,18 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	important := testpkg.NewTestStaffNotice(t, "Wichtiger Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Important: true})
 	expired := testpkg.NewTestStaffNotice(t, "Abgelaufen", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{ValidUntil: &ended})
 	future := testpkg.NewTestStaffNotice(t, "Beginnt später", day("2026-09-01"), account.ID, testpkg.StaffNoticeOpts{})
+	inactive.Audience = "all"
+	info.Audience = "all"
+	important.Audience = "all"
+	expired.Audience = "all"
+	future.Audience = "all"
 	require.NoError(t, repo.Create(ctx, inactive))
 	require.NoError(t, repo.Create(ctx, info))
 	require.NoError(t, repo.Create(ctx, important))
 	require.NoError(t, repo.Create(ctx, expired))
 	require.NoError(t, repo.Create(ctx, future))
 
-	rows, err := repo.ListValidOn(ctx, day("2026-08-06"))
+	rows, err := repo.ListValidOn(ctx, day("2026-08-06"), "staff") // Leserart "staff" = OGS-Portal; Behavior-Test ohne Modell-Import
 	require.NoError(t, err)
 
 	titles := make([]string, 0, len(rows))
@@ -75,7 +81,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffNotice
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")
@@ -90,6 +96,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 		Important:               true,
 		RequiresAcknowledgement: true,
 	})
+	notice.Audience = "all"
 	require.NoError(t, repo.Create(ctx, notice))
 
 	require.NoError(t, repo.Acknowledge(ctx, notice.ID, account.ID))
@@ -144,4 +151,91 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	counts, err = repo.AcknowledgedCounts(ctx, []int64{notice.ID})
 	require.NoError(t, err)
 	assert.Equal(t, 1, counts[notice.ID], "eine Person aus dem Team hat bestätigt")
+}
+
+// Zielgruppe (#2208): die Datenbank grenzt auf "alle" plus die Leserart ein.
+// Leserarten stehen hier als Zeichenketten ("staff" = OGS-Portal, "lehrkraft"
+// = moto schule), weil dieser Behavior-Test die Modelle nicht importiert.
+func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
+	ctx := testpkg.Ctx(t)
+
+	account := testpkg.CreateTestAccount(t, db, "notice-audience@test.local")
+	from, err := timezone.ParseDate("2026-08-01")
+	require.NoError(t, err)
+
+	forAll := testpkg.NewTestStaffNotice(t, "Für alle", from, account.ID, testpkg.StaffNoticeOpts{})
+	forStaff := testpkg.NewTestStaffNotice(t, "Nur Betreuung", from, account.ID, testpkg.StaffNoticeOpts{})
+	forTeachers := testpkg.NewTestStaffNotice(t, "Nur Lehrkräfte", from, account.ID, testpkg.StaffNoticeOpts{})
+	forAll.Audience = "all"
+	forStaff.Audience = "staff"
+	forTeachers.Audience = "lehrkraft"
+	require.NoError(t, repo.Create(ctx, forAll))
+	require.NoError(t, repo.Create(ctx, forStaff))
+	require.NoError(t, repo.Create(ctx, forTeachers))
+
+	titles := func(reader string) []string {
+		rows, err := repo.ListValidOn(ctx, from, reader)
+		require.NoError(t, err)
+		out := make([]string, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, row.Title)
+		}
+		return out
+	}
+
+	staffView := titles("staff")
+	assert.Contains(t, staffView, forAll.Title)
+	assert.Contains(t, staffView, forStaff.Title)
+	assert.NotContains(t, staffView, forTeachers.Title, "die Betreuung sieht keinen Hinweis nur für Lehrkräfte")
+
+	teacherView := titles("lehrkraft")
+	assert.Contains(t, teacherView, forAll.Title)
+	assert.Contains(t, teacherView, forTeachers.Title)
+	assert.NotContains(t, teacherView, forStaff.Title, "eine Lehrkraft sieht keinen Hinweis nur für die Betreuung")
+
+	// Fail-closed: weder "all" noch Unsinn ist eine Leserart.
+	assert.Empty(t, titles("all"))
+	assert.Empty(t, titles(""))
+}
+
+// Bestätigungsliste (#2208): alle Kenntnisnahmen eines Hinweises, neueste
+// zuerst, nur aus dem eigenen Mandanten.
+func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+
+	repo := scheduleRepo.NewStaffNoticeRepository(db)
+	ctx := testpkg.Ctx(t)
+
+	author := testpkg.CreateTestAccount(t, db, "notice-ack-author@test.local")
+	first := testpkg.CreateTestAccount(t, db, "notice-ack-first@test.local")
+	second := testpkg.CreateTestAccount(t, db, "notice-ack-second@test.local")
+
+	from, err := timezone.ParseDate("2026-08-01")
+	require.NoError(t, err)
+	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
+	other := testpkg.NewTestStaffNotice(t, "Anderer Hinweis", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
+	notice.Audience = "all"
+	other.Audience = "all"
+	require.NoError(t, repo.Create(ctx, notice))
+	require.NoError(t, repo.Create(ctx, other))
+
+	rows, err := repo.Acknowledgements(ctx, notice.ID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "ohne Kenntnisnahme ist die Liste leer, nicht nil")
+
+	require.NoError(t, repo.Acknowledge(ctx, notice.ID, first.ID))
+	require.NoError(t, repo.Acknowledge(ctx, notice.ID, second.ID))
+	require.NoError(t, repo.Acknowledge(ctx, other.ID, first.ID))
+
+	rows, err = repo.Acknowledgements(ctx, notice.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "die Kenntnisnahme des anderen Hinweises zählt nicht mit")
+	assert.False(t, rows[0].AcknowledgedAt.Before(rows[1].AcknowledgedAt), "neueste zuerst")
+	got := []int64{rows[0].AccountID, rows[1].AccountID}
+	assert.ElementsMatch(t, []int64{first.ID, second.ID}, got)
 }
