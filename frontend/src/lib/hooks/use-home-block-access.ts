@@ -32,7 +32,10 @@ export function useHomeBlockAccess(): HomeBlockAccess {
   const requestsPage = canOpenRequestsPage(session);
   const adminScope = hasEffectiveAdminScope(session);
   const caresForGroups = isCaregiver(session);
-  const { hasGroups } = useOptionalSupervision();
+  const { groups } = useOptionalSupervision();
+  // Die Übersicht kann auch fremde Gruppen der Schule enthalten. Nur das
+  // personengebundene Kennzeichen öffnet die Karte „Meine Gruppe“.
+  const hasOwnGroups = groups.some((group) => group.is_personal === true);
 
   return useMemo(
     () => ({
@@ -43,8 +46,8 @@ export function useHomeBlockAccess(): HomeBlockAccess {
         adminScope || hasPermission(session, permission),
       canOpenRequestsPage: requestsPage,
       caresForGroups,
-      hasOwnGroups: hasGroups,
+      hasOwnGroups,
     }),
-    [session, adminScope, requestsPage, caresForGroups, hasGroups],
+    [session, adminScope, requestsPage, caresForGroups, hasOwnGroups],
   );
 }
