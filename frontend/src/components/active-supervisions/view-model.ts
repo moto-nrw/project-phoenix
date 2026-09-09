@@ -98,6 +98,11 @@ export function resolveSupervisionSelection(options: {
   const sessionTarget = (
     session: ActiveSupervisionRoom,
   ): SupervisionSelectionTarget => {
+    if (session.room_id && openRoomIds.has(session.room_id)) {
+      return session.room_id === currentOpenRoomId
+        ? { kind: "none" }
+        : { kind: "open-room", roomId: session.room_id };
+    }
     if (session.id === currentSessionId) return { kind: "none" };
     return { kind: "session", sessionId: session.id };
   };

@@ -237,6 +237,7 @@ function MeinRaumPageContent() {
     status === "loading" ||
     dashboard.isInitialLoading ||
     dashboard.isSwitchingSession ||
+    dashboard.isWaitingForUrlRoomSelection ||
     dashboard.hasAccess === null;
   const hasNoAccess = !isPageLoading && !dashboard.hasAccess;
 

@@ -127,6 +127,25 @@ export interface SupervisionDashboardOptions {
   readonly roomParam: string | null;
 }
 
+/**
+ * The shared room a URL addresses, if it names either the room directly or a
+ * session that runs in it. The session form is retained only for old links;
+ * its destination is still the room's merged occupancy.
+ */
+export function releasedRoomTargetedByUrl(options: {
+  readonly sessionParam: string | null;
+  readonly roomParam: string | null;
+  readonly rooms: readonly Pick<ActiveSupervisionRoom, "id" | "room_id">[];
+  readonly openRoomIds: ReadonlySet<string>;
+}): string | null {
+  const { sessionParam, roomParam, rooms, openRoomIds } = options;
+  if (sessionParam) {
+    const roomId = rooms.find((room) => room.id === sessionParam)?.room_id;
+    return roomId && openRoomIds.has(roomId) ? roomId : null;
+  }
+  return roomParam && openRoomIds.has(roomParam) ? roomParam : null;
+}
+
 export interface SupervisionDashboard {
   // Fetch surface
   readonly dashboardError: Error | undefined;
@@ -504,14 +523,25 @@ export function useSupervisionDashboard(
   // effect below is still switching (#2096).
   const isUrlTargetingDifferentRoom = useMemo(() => {
     const firstRoom = allRoomsBase[0];
-    return sessionParam
-      ? allRoomsBase.some((room) => room.id === sessionParam) &&
-          firstRoom?.id !== sessionParam
-      : !!roomParam &&
-          !openRoomIds.has(roomParam) &&
-          allRoomsBase.some((room) => room.room_id === roomParam) &&
-          firstRoom?.room_id !== roomParam;
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds]);
+    const releasedRoomId = releasedRoomTargetedByUrl({
+      sessionParam,
+      roomParam,
+      rooms: allRoomsBase,
+      openRoomIds,
+    });
+    if (releasedRoomId) return selectedOpenRoomId !== releasedRoomId;
+    if (sessionParam) {
+      return (
+        allRoomsBase.some((room) => room.id === sessionParam) &&
+        firstRoom?.id !== sessionParam
+      );
+    }
+    if (!roomParam) return false;
+    return (
+      allRoomsBase.some((room) => room.room_id === roomParam) &&
+      firstRoom?.room_id !== roomParam
+    );
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, selectedOpenRoomId]);
 
   // The visits of the selected session, derived instead of copied: shown
   // only when the aggregate's resolved session IS the one the user is
@@ -594,17 +624,28 @@ export function useSupervisionDashboard(
 
   const isInitialLoading = !snapshot && !dashboardError;
 
-  const isWaitingForUrlRoomSelection = sessionParam
-    ? allRooms.some((room) => room.id === sessionParam) &&
-      currentRoom?.id !== sessionParam
-    : !!roomParam &&
-      // A released room needs no wait at all: its occupancy is already in the
-      // response, so the only thing left is the state flip.
-      !openRoomIds.has(roomParam) &&
+  const isWaitingForUrlRoomSelection = (() => {
+    const releasedRoomId = releasedRoomTargetedByUrl({
+      sessionParam,
+      roomParam,
+      rooms: allRooms,
+      openRoomIds,
+    });
+    if (releasedRoomId) return selectedOpenRoomId !== releasedRoomId;
+    if (sessionParam) {
+      return (
+        allRooms.some((room) => room.id === sessionParam) &&
+        currentRoom?.id !== sessionParam
+      );
+    }
+    if (!roomParam) return false;
+    return (
       allRooms.some((room) => room.room_id === roomParam) &&
       // A selected session inside the named room settles a room-keyed URL —
       // parallel sessions share the room, so never wait for a "better" match.
-      currentRoom?.room_id !== roomParam;
+      currentRoom?.room_id !== roomParam
+    );
+  })();
 
   // ---- Selection adjustments (state follows the refreshed aggregate) ----
 

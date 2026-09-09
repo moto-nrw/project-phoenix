@@ -1603,6 +1603,40 @@ describe("Sidebar", () => {
       );
     });
 
+    it("navigates to the shared view for a saved session in a released room", () => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === "supervision-last-session") return "active-open";
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "sporthalle",
+            name: "Sporthalle",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-open"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Aktuelle Aufsicht"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?room=sporthalle",
+      );
+    });
+
     it("falls back to first group when saved group not found", () => {
       const mockGetItem = vi.fn((key: string) => {
         if (key === "sidebar-last-group") return "999";

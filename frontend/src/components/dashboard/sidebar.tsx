@@ -1212,28 +1212,20 @@ function SidebarContent({
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
     if (!pathname.startsWith("/active-supervisions")) {
-      // Prefer the precise session key (#2265); the room key is the legacy
-      // fallback for state written before session tracking existed.
+      // Own supervisions use their session key (#2265). A saved session that
+      // belongs to a released room instead identifies that room's shared view.
       const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
-      const savedSessionRoom = savedSessionId
-        ? supervisedRooms.find((room) =>
-            room.sessionIds?.includes(savedSessionId),
-          )
-        : undefined;
       const targetRoom =
         (savedSessionId
-          ? supervisedRooms.find(
-              (r) => !r.isOpenRoom && r.groupId === savedSessionId,
-            )
+          ? (supervisedRooms.find((r) => r.groupId === savedSessionId) ??
+            supervisedRooms.find((r) => r.sessionIds?.includes(savedSessionId)))
           : undefined) ??
         (savedRoomId
           ? supervisedRooms.find((r) => r.id === savedRoomId)
           : undefined) ??
         supervisedRooms[0];
-      if (savedSessionId && savedSessionRoom) {
-        router.push(`/active-supervisions?session=${savedSessionId}`);
-      } else if (targetRoom) {
+      if (targetRoom) {
         router.push(supervisionHref(targetRoom));
       } else {
         router.push("/active-supervisions");
