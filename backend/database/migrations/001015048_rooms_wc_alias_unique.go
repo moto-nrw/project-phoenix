@@ -39,7 +39,7 @@ func init() {
 // requests, one creating "WC" and one creating "Toilette", both passing the
 // FindToiletRoom-then-Insert sequence and both succeeding. The fix is a
 // partial unique index keyed by tenant where the name is one of the
-// canonical toilet aliases (matching IsWCRoomName: exact case, "WC" or
+// canonical toilet aliases (matching facilities.IsToiletRoomName: exact case, "WC" or
 // "Toilette" only).
 //
 // CREATE UNIQUE INDEX would fail outright on any tenant where the bug has

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // Common error variables
@@ -180,7 +180,7 @@ type StudentAlreadyActiveError struct {
 // must emit byte-identical text; referencing the sentinel makes that a
 // compile-time fact instead of comment discipline.
 func (e *StudentAlreadyActiveError) Error() string {
-	return activeSvc.ErrStudentAlreadyActive.Error()
+	return devicescan.MessageStudentAlreadyActive
 }
 
 // StudentAlreadyActiveErrorResponse is the structured 409 body returned
@@ -209,7 +209,7 @@ func (e *StudentAlreadyActiveErrorResponse) Render(_ http.ResponseWriter, r *htt
 func ErrorStudentAlreadyActive(studentID, existingVisitID int64, entryTime *time.Time, roomID *int64, roomName string) render.Renderer {
 	return &StudentAlreadyActiveErrorResponse{
 		Status:  "error",
-		Message: activeSvc.ErrStudentAlreadyActive.Error(),
+		Message: devicescan.MessageStudentAlreadyActive,
 		Code:    "STUDENT_ALREADY_ACTIVE",
 		Details: &StudentAlreadyActiveError{
 			StudentID:       studentID,

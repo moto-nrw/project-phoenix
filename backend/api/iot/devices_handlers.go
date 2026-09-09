@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -78,7 +78,7 @@ func (rs *DevicesResource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -97,7 +97,7 @@ func (rs *DevicesResource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Re
 	// Get device
 	device, err := rs.IoTService.GetDeviceByDeviceID(r.Context(), deviceID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -130,13 +130,13 @@ func (rs *DevicesResource) createDevice(w http.ResponseWriter, r *http.Request) 
 
 	// Create device
 	if err := rs.IoTService.CreateDevice(r.Context(), device); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
 	createdDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -162,7 +162,7 @@ func (rs *DevicesResource) updateDevice(w http.ResponseWriter, r *http.Request) 
 	// Get existing device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -178,13 +178,13 @@ func (rs *DevicesResource) updateDevice(w http.ResponseWriter, r *http.Request) 
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
 	updatedDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -206,7 +206,7 @@ func (rs *DevicesResource) deleteDevice(w http.ResponseWriter, r *http.Request) 
 			common.RenderError(w, r, common.ErrorConflictMessage("Gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet"))
 			return
 		}
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -231,7 +231,7 @@ func (rs *DevicesResource) updateDeviceStatus(w http.ResponseWriter, r *http.Req
 
 	// Update device status
 	if err := rs.IoTService.UpdateDeviceStatus(r.Context(), deviceID, iot.DeviceStatus(req.Status)); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -249,7 +249,7 @@ func (rs *DevicesResource) pingDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Ping device
 	if err := rs.IoTService.PingDevice(r.Context(), deviceID); err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -268,7 +268,7 @@ func (rs *DevicesResource) getDevicesByType(w http.ResponseWriter, r *http.Reque
 	// Get devices by type
 	devices, err := rs.IoTService.GetDevicesByType(r.Context(), deviceType)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -297,7 +297,7 @@ func (rs *DevicesResource) getDevicesByStatus(w http.ResponseWriter, r *http.Req
 	// Get devices by status
 	devices, err := rs.IoTService.GetDevicesByStatus(r.Context(), deviceStatus)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -319,7 +319,7 @@ func (rs *DevicesResource) getDevicesByRegisteredBy(w http.ResponseWriter, r *ht
 	// Get devices
 	devices, err := rs.IoTService.GetDevicesByRegisteredBy(r.Context(), personID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -334,7 +334,7 @@ func (rs *DevicesResource) getActiveDevices(w http.ResponseWriter, r *http.Reque
 	// Get active devices
 	devices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -349,7 +349,7 @@ func (rs *DevicesResource) getDevicesRequiringMaintenance(w http.ResponseWriter,
 	// Get devices requiring maintenance
 	devices, err := rs.IoTService.GetDevicesRequiringMaintenance(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -374,7 +374,7 @@ func (rs *DevicesResource) getOfflineDevices(w http.ResponseWriter, r *http.Requ
 	// Get offline devices
 	devices, err := rs.IoTService.GetOfflineDevices(r.Context(), duration)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -389,14 +389,14 @@ func (rs *DevicesResource) getDeviceStatistics(w http.ResponseWriter, r *http.Re
 	// Get device type statistics
 	typeStats, err := rs.IoTService.GetDeviceTypeStatistics(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
 	// Get active devices count
 	activeDevices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -404,7 +404,7 @@ func (rs *DevicesResource) getDeviceStatistics(w http.ResponseWriter, r *http.Re
 	// used by per-device is_online responses.
 	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), rs.IoTService.DeviceOnlineWindow(r.Context()))
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -431,7 +431,7 @@ func (rs *DevicesResource) detectNewDevices(w http.ResponseWriter, r *http.Reque
 	// Detect new devices
 	devices, err := rs.IoTService.DetectNewDevices(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
@@ -446,7 +446,7 @@ func (rs *DevicesResource) scanNetwork(w http.ResponseWriter, r *http.Request) {
 	// Scan network
 	scanResults, err := rs.IoTService.ScanNetwork(r.Context())
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		common.RenderError(w, r, sessionsAPI.ErrorRenderer(err))
 		return
 	}
 
