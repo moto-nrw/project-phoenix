@@ -205,25 +205,27 @@ function MeinRaumPageContent() {
     [dashboard, openRooms, router],
   );
 
-  const handleTabChange = (tabId: string) => {
-    if (openRoomIds.has(tabId)) {
-      handleOpenRoom(tabId);
+  const handleTabChange = (tabValue: string) => {
+    if (tabValue.startsWith("room:")) {
+      handleOpenRoom(tabValue.slice("room:".length));
       return;
     }
     // Switch to the chosen session (keyed by active group, not by room —
     // parallel sessions can share one room, #2265)
+    if (!tabValue.startsWith("session:")) return;
+    const sessionId = tabValue.slice("session:".length);
     dashboard.clearOpenRoom();
-    const room = allRooms.find((r) => r.id === tabId);
+    const room = allRooms.find((r) => r.id === sessionId);
     if (room) {
-      router.push(`/active-supervisions?session=${tabId}`);
-      localStorage.setItem("supervision-last-session", tabId);
+      router.push(`/active-supervisions?session=${sessionId}`);
+      localStorage.setItem("supervision-last-session", sessionId);
       if (room.room_id) {
         localStorage.setItem("sidebar-last-room", room.room_id);
       }
       if (room.room_name) {
         localStorage.setItem("sidebar-last-room-name", room.room_name);
       }
-      void dashboard.switchToRoom(tabId);
+      void dashboard.switchToRoom(sessionId);
     }
   };
 
@@ -263,21 +265,25 @@ function MeinRaumPageContent() {
   const totalSupervisions = ownSessions.length + openRooms.length;
   const supervisionTabItems = [
     ...ownSessions.map((room) => ({
-      value: room.id,
+      value: `session:${room.id}`,
       label: supervisionTabLabel(
         room,
         dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
       ),
     })),
     ...openRooms.map((room) => ({
-      value: room.roomId,
+      value: `room:${room.roomId}`,
       label: room.name,
     })),
   ];
   const supervisionTabs =
     totalSupervisions >= 2 && !isDesktop
       ? {
-          value: currentOpenRoom?.roomId ?? currentRoom?.id ?? "",
+          value: currentOpenRoom
+            ? `room:${currentOpenRoom.roomId}`
+            : currentRoom
+              ? `session:${currentRoom.id}`
+              : "",
           onChange: handleTabChange,
           items: supervisionTabItems,
           label: "Aufsichten und offene Räume",

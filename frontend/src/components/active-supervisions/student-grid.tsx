@@ -119,6 +119,11 @@ export function SupervisionStudentGrid({
                       Gruppe: {student.group_name}
                     </StudentInfoRow>
                   )}
+                  {student.activity_name && (
+                    <StudentInfoRow icon={<GroupIcon />}>
+                      Angebot: {student.activity_name}
+                    </StudentInfoRow>
+                  )}
                   {student.pending_excused_note !== undefined && (
                     <StudentPendingExcusedRow
                       note={student.pending_excused_note}

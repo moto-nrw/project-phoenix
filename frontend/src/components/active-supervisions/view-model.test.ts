@@ -122,6 +122,7 @@ describe("active-supervisions view model", () => {
           studentName: "Max Mustermann",
           schoolClass: "2a",
           groupName: "Gruppe Rot",
+          activityName: "Fußball",
           activeGroupId: "active-1",
           checkInTime: "2026-01-15T10:00:00.000Z",
           isActive: true,
@@ -149,6 +150,7 @@ describe("active-supervisions view model", () => {
       group_id: "g1",
       current_location: "Anwesend - Atelier",
       current_room_color: "#83CD2D",
+      activity_name: "Fußball",
     });
     expect(result[0]?.checkInTime).toBeInstanceOf(Date);
   });
@@ -298,6 +300,16 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "open-room", roomId: "54" });
   });
 
+  it("normalizes a session URL in a released room to its shared view", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        sessionParam: "group-b",
+        openRoomIds: new Set(["54"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "54" });
+  });
+
   it("keeps the current selection when the shared room is already open", () => {
     expect(
       resolveSupervisionSelection({
@@ -345,6 +357,16 @@ describe("resolveSupervisionSelection (#2265)", () => {
     expect(
       resolveSupervisionSelection({ ...base, savedSessionId: "group-c" }),
     ).toEqual({ kind: "session", sessionId: "group-c" });
+  });
+
+  it("restores a saved session in a released room as its shared view", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        savedSessionId: "group-b",
+        openRoomIds: new Set(["54"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "54" });
   });
 
   it("falls back to the saved legacy room without switching within the room", () => {

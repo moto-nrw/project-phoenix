@@ -21,6 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
+  sessionParam: null as string | null,
 }));
 
 const defaultSupervisionState = vi.hoisted(() => ({
@@ -66,7 +67,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => ({
     get: (key: string) =>
-      key === "room" ? navigationMockState.roomParam : null,
+      key === "room"
+        ? navigationMockState.roomParam
+        : key === "session"
+          ? navigationMockState.sessionParam
+          : null,
   }),
   redirect: (url: string) => mockRedirect(url),
 }));
@@ -313,6 +318,7 @@ const defaultPageHeader = vi
   .getMockImplementation()!;
 
 beforeEach(() => {
+  navigationMockState.sessionParam = null;
   vi.mocked(useSession)
     .mockReset()
     .mockReturnValue({
@@ -813,6 +819,136 @@ describe("open-room tab onTabChange callback", () => {
             typeof key === "string" && key.startsWith("supervision-visits-"),
         ),
     ).toBe(false);
+  });
+
+  it("keeps an own session distinct when its id matches a released room id", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "1",
+          name: "Eigene Aufsicht",
+          room_id: "eigener-raum",
+          room: { id: "eigener-raum", name: "Klassenraum" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "1",
+      selectedGroupId: "1",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "1",
+          name: "Schulhof",
+          isUserSupervising: false,
+          activeGroupIds: [],
+          studentCount: 0,
+          students: [],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : ({
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("tab", { name: /Eigene Aufsicht/ }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: /Eigene Aufsicht/ }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=1",
+      );
+    });
+  });
+
+  it("opens a session URL in a released room as the shared view", async () => {
+    navigationMockState.sessionParam = "active-open";
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "active-open",
+          name: "Fußball",
+          room_id: "sporthalle",
+          room: { id: "sporthalle", name: "Sporthalle" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "active-open",
+      selectedGroupId: "active-open",
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: null,
+      openRooms: [
+        {
+          roomId: "sporthalle",
+          name: "Sporthalle",
+          isUserSupervising: true,
+          activeGroupIds: ["active-open"],
+          studentCount: 1,
+          students: [
+            {
+              studentId: "student-1",
+              studentName: "Max Muster",
+              schoolClass: "2a",
+              activeGroupId: "active-open",
+              activityName: "Fußball",
+              checkInTime: "2026-09-09T10:00:00.000Z",
+              isActive: true,
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : ({
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Muster")).toBeInTheDocument();
+      expect(screen.getByText("Angebot: Fußball")).toBeInTheDocument();
+    });
   });
 
   it("shows a released room the caller does not supervise", async () => {

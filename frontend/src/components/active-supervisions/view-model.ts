@@ -10,6 +10,7 @@ export interface MinimalActiveGroup {
 export interface ActiveSupervisionStudent extends Student {
   activeGroupId: string;
   checkInTime: Date;
+  activity_name?: string;
 }
 
 export interface ActiveSupervisionRoom {
@@ -59,12 +60,7 @@ export interface OpenRoomView {
   readonly isUserSupervising: boolean;
   readonly activeGroupIds: readonly string[];
   readonly studentCount: number;
-  readonly students: readonly OpenRoomVisit[];
-}
-
-/** One child in a released room, with the offering they are recorded under. */
-interface OpenRoomVisit extends VisitDisplayLike {
-  readonly activityName?: string;
+  readonly students: readonly VisitDisplayLike[];
 }
 
 export type SupervisionSelectionTarget =
@@ -99,9 +95,16 @@ export function resolveSupervisionSelection(options: {
 }): SupervisionSelectionTarget {
   const { rooms, currentSessionId, currentOpenRoomId, openRoomIds } = options;
 
-  const sessionTarget = (sessionId: string): SupervisionSelectionTarget => {
-    if (sessionId === currentSessionId) return { kind: "none" };
-    return { kind: "session", sessionId };
+  const sessionTarget = (
+    session: ActiveSupervisionRoom,
+  ): SupervisionSelectionTarget => {
+    if (session.room_id && openRoomIds.has(session.room_id)) {
+      return session.room_id === currentOpenRoomId
+        ? { kind: "none" }
+        : { kind: "open-room", roomId: session.room_id };
+    }
+    if (session.id === currentSessionId) return { kind: "none" };
+    return { kind: "session", sessionId: session.id };
   };
   const roomTarget = (roomId: string): SupervisionSelectionTarget | null => {
     // A released room is answered by its shared view, never by one of the
@@ -125,7 +128,7 @@ export function resolveSupervisionSelection(options: {
 
   if (options.sessionParam) {
     const found = rooms.find((room) => room.id === options.sessionParam);
-    if (found) return sessionTarget(found.id);
+    if (found) return sessionTarget(found);
     // A stale session must not block the saved-room fallback below. This is
     // common when returning from a detail page after that session ended.
   }
@@ -134,7 +137,7 @@ export function resolveSupervisionSelection(options: {
   }
   if (options.savedSessionId) {
     const found = rooms.find((room) => room.id === options.savedSessionId);
-    if (found) return sessionTarget(found.id);
+    if (found) return sessionTarget(found);
   }
   if (options.savedRoomId) {
     const target = roomTarget(options.savedRoomId);
@@ -183,6 +186,7 @@ export interface VisitDisplayLike {
   studentName?: string;
   schoolClass?: string;
   groupName?: string;
+  activityName?: string;
   activeGroupId: string;
   checkInTime: string | Date;
   actualArrivalTime?: string;
@@ -329,6 +333,7 @@ function mapVisitToSupervisionStudent(
     current_room_color: options.roomColor ?? null,
     group_name: visit.groupName,
     group_id: groupId,
+    activity_name: visit.activityName,
     sick: visit.sick,
     sick_since: visit.sickSince,
     excused: visit.excused,

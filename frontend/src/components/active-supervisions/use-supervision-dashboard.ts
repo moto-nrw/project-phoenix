@@ -592,8 +592,15 @@ export function useSupervisionDashboard(
 
   const isInitialLoading = !snapshot && !dashboardError;
 
+  const sessionParamTargetsOpenRoom = sessionParam
+    ? (allRooms.find((room) => room.id === sessionParam)?.room_id ?? null)
+    : null;
+  const isSessionParamOpenRoom =
+    !!sessionParamTargetsOpenRoom &&
+    openRoomIds.has(sessionParamTargetsOpenRoom);
   const isWaitingForUrlRoomSelection = sessionParam
-    ? allRooms.some((room) => room.id === sessionParam) &&
+    ? !isSessionParamOpenRoom &&
+      allRooms.some((room) => room.id === sessionParam) &&
       currentRoom?.id !== sessionParam
     : !!roomParam &&
       // A released room needs no wait at all: its occupancy is already in the
