@@ -116,10 +116,13 @@ func newModule(tb TB, db *bun.DB, students timetableCompose.StudentDirectory, ro
 		roomDirectory = rooms[0]
 	}
 	capability, err := timetableCompose.New(timetableCompose.Dependencies{
-		DB:       db,
-		CarePlan: unusedCarePlanQueries{},
-		Students: students,
-		Rooms:    roomDirectory,
+		// This owner-only harness stubs foreign capabilities, like CareDays
+		// below. Lifecycle integration tests compose the Membership locker.
+		LockStaffAssignment: func(context.Context, int64) error { return nil },
+		DB:                  db,
+		CarePlan:            unusedCarePlanQueries{},
+		Students:            students,
+		Rooms:               roomDirectory,
 		CareDays: timetable.NewCareDayLocker(
 			func(context.Context, int64, string) error { return nil },
 			func(context.Context, int64, string) error { return nil },

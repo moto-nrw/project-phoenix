@@ -88,8 +88,11 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	db, svc := testutil.SetupWorkforceModule(t, clocks...)
 	capabilities := testCapabilities(svc)
+	cleanup, err := repositories.NewStaffDocumentCleanup(db, nil)
+	require.NoError(t, err)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
+		OffboardingCleanup: cleanup,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,

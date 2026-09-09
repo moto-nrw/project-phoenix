@@ -51,10 +51,6 @@ func (m *seriesMockRepo) CapValidUntil(ctx context.Context, id int64, until sche
 	return nil
 }
 
-func (m *seriesMockRepo) CapAllByStaffID(context.Context, int64, scheduleModels.Date) (int64, error) {
-	return 0, nil
-}
-
 func (m *seriesMockRepo) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from scheduleModels.Date) (*scheduleModels.StaffShiftSeries, error) {
 	if m.findOverlappingFn != nil {
 		return m.findOverlappingFn(ctx, rootID, excludeID, from)

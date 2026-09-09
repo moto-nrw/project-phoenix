@@ -26,11 +26,14 @@ type Dependencies struct {
 	Rooms    timetable.RoomDirectory
 	CareDays timetable.CareDayLocker
 	CarePlan timetable.CarePlanDirectory
-	Observe  func(Observation)
+	// LockStaffAssignment locks and validates live Membership staff in the
+	// ambient transaction before creating or reassigning an operational link.
+	LockStaffAssignment func(context.Context, int64) error
+	Observe             func(Observation)
 }
 
 func New(dependencies Dependencies) (*timetable.Module, error) {
-	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.CareDays == nil || dependencies.CarePlan == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.CareDays == nil || dependencies.CarePlan == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -39,7 +42,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		dependencies.Observe(observation)
 	}
 	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.CareDays, carePlanDirectory{query: dependencies.CarePlan},
-		func() string { return timezone.TodayDate().String() }, observe)
+		dependencies.LockStaffAssignment, func() string { return timezone.TodayDate().String() }, observe)
 	return timetable.NewModule(engine{service: service, observe: observe}), nil
 }
 
@@ -1331,6 +1334,9 @@ func domainStudentInstanceRefs(refs []timetable.StudentInstanceRef) []domain.Stu
 }
 
 func mapError(err error) error {
+	if errors.Is(err, domain.ErrOffboardingConflict) {
+		return timetable.ErrOffboardingConflict
+	}
 	if errors.Is(err, domain.ErrInvalidRecurrenceRange) {
 		return timetable.ErrInvalidRecurrenceRange
 	}

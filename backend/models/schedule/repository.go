@@ -75,10 +75,6 @@ type StaffShiftRepository interface {
 	// least one tenant shift in the inclusive range.
 	FindUsedCalendarWeeks(ctx context.Context, start, end Date) ([]Date, error)
 
-	// DeleteUpcomingByStaffID removes planned shifts on or after from. Past
-	// shifts stay as history. Used by staff offboarding.
-	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from Date) (int64, error)
-
 	// BulkCreate inserts all shifts in one multi-row statement (series
 	// materialization, #1889).
 	BulkCreate(ctx context.Context, shifts []*StaffShift) error
@@ -104,10 +100,6 @@ type StaffShiftSeriesRepository interface {
 	// CapValidUntil bounds a series segment at the exclusive date (split /
 	// end / offboarding).
 	CapValidUntil(ctx context.Context, id int64, until Date) error
-
-	// CapAllByStaffID bounds every series segment of one staff member at the
-	// exclusive date (staff offboarding).
-	CapAllByStaffID(ctx context.Context, staffID int64, until Date) (int64, error)
 
 	// FindOverlappingInLineage returns another segment of a split lineage that
 	// is active on or after the given date. A superseded predecessor must not be
