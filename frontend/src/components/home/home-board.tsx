@@ -238,7 +238,6 @@ export function HomeBoard({
   // Die aktuelle Reihenfolge für Ereignisse zwischen zwei Renderings: der
   // Index der gezogenen Kachel wandert mit jedem Umsortieren.
   const order = useRef(placements);
-  order.current = placements;
 
   const register = useCallback(
     (key: HomeBlockKey, handle: ItemHandle | null) => {
@@ -373,9 +372,13 @@ export function HomeBoard({
   // anderen Zelle. Der Versatz wird noch im selben Bild nachgezogen, nicht
   // erst beim nächsten Zeigerereignis — sonst springt sie für ein Bild.
   useLayoutEffect(() => {
+    // Ereignis-Handler lesen nur einen bereits übernommenen Stand. Ein
+    // Rendern kann verworfen werden; dessen Anordnung darf nie in den
+    // laufenden Zug gelangen.
+    order.current = placements;
     const current = session.current;
     if (current?.active) place(current);
-  });
+  }, [placements]);
 
   const beginDrag = (
     event: ReactPointerEvent<HTMLLIElement>,
