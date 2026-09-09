@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	homeLayoutBlocksVersion     = "1.15.376"
+	homeLayoutBlocksVersion     = "1.15.380"
 	homeLayoutBlocksDescription = "Store the personal arrangement of start page blocks: order and width (#2180)"
 )
 

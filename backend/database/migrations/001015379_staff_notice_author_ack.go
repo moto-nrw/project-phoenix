@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffNoticeAuthorAckVersion     = "1.15.375"
+	staffNoticeAuthorAckVersion     = "1.15.379"
 	staffNoticeAuthorAckDescription = "Record the author's own acknowledgement for existing staff notices (#2180)"
 )
 
