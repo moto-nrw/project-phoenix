@@ -358,3 +358,58 @@ describe("ConfirmDeleteModal scope slot", () => {
     ).toBeDisabled();
   });
 });
+
+// #3109: the dialog also serves the localized parents portal, so every
+// visible label is a prop and the sheet presentation follows the modal it
+// opens from.
+describe("ConfirmDeleteModal localized labels", () => {
+  it("renders translated cancel, close, step and confirm labels", () => {
+    render(
+      <ConfirmDeleteModal
+        isOpen
+        title="Undo the change?"
+        description="The pick-up time will be removed."
+        gate={{ mode: "twoStep", firstStepLabel: "Yes, undo" }}
+        confirmLabel="Undo permanently"
+        loadingLabel="Undoing…"
+        cancelLabel="Cancel"
+        closeLabel="Close"
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+        loading={false}
+        error=""
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, undo" }));
+    expect(
+      screen.getByRole("button", { name: "Undo permanently" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Abbrechen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the cancel button on narrow screens in sheet mode", () => {
+    render(
+      <ConfirmDeleteModal
+        isOpen
+        title="Änderung zurücknehmen?"
+        description="Weg damit."
+        gate={{ mode: "twoStep" }}
+        mobileSheet
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+        loading={false}
+        error=""
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
+      "hidden",
+      "sm:inline-flex",
+    );
+  });
+});

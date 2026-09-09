@@ -33,12 +33,26 @@ vi.mock("./class-arrival-exception-panel", () => ({
   ClassArrivalExceptionPanel: ({
     schoolClass,
     classLabel,
+    onConfirmationVisibilityChange,
   }: {
     schoolClass: string;
     classLabel: string;
+    onConfirmationVisibilityChange?: (visible: boolean) => void;
   }) => (
     <div data-testid="class-arrival-exception-panel">
       {schoolClass} / {classLabel}
+      <button
+        type="button"
+        onClick={() => onConfirmationVisibilityChange?.(true)}
+      >
+        Bestätigung öffnen
+      </button>
+      <button
+        type="button"
+        onClick={() => onConfirmationVisibilityChange?.(false)}
+      >
+        Bestätigung schließen
+      </button>
     </div>
   ),
 }));
@@ -46,17 +60,19 @@ vi.mock("./class-arrival-exception-panel", () => ({
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
     isOpen,
+    suspended = false,
     title,
     children,
     footer,
   }: {
     isOpen: boolean;
+    suspended?: boolean;
     title: string;
     children: React.ReactNode;
     footer: React.ReactNode;
   }) =>
     isOpen ? (
-      <div role="dialog" aria-label={title}>
+      <div role="dialog" aria-label={title} data-suspended={suspended}>
         <div>{children}</div>
         <div>{footer}</div>
       </div>
@@ -132,6 +148,37 @@ describe("FilteredBulkArrivalModal day view", () => {
     expect(
       screen.queryByTestId("class-arrival-exception-panel"),
     ).not.toBeInTheDocument();
+  });
+
+  it("suspends the day dialog while its removal confirmation is open", async () => {
+    render(
+      <FilteredBulkArrivalModal
+        isOpen
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "4a" }}
+        filterLabel="4a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "An einem Tag abweichend" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigung öffnen" }));
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeit an einem Tag für Klasse 4a",
+      }),
+    ).toHaveAttribute("data-suspended", "true");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bestätigung schließen" }),
+    );
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ankunftszeit an einem Tag für Klasse 4a",
+      }),
+    ).toHaveAttribute("data-suspended", "false");
   });
 
   it("offers no day view for a group", async () => {

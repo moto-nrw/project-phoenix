@@ -54,6 +54,8 @@ import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
 import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { formatDate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -121,6 +123,11 @@ function StudentsPageContent() {
   );
   const [resumeTarget, setResumeTarget] = useState<Student | null>(null);
   const [cancellingExit, setCancellingExit] = useState(false);
+  // Stornieren läuft nicht aus dem Klick, sondern erst nach der Rückfrage
+  // (BAUARTEN-SPEC Bauart 2 Regel 6, #3109).
+  const [cancelExitTarget, setCancelExitTarget] = useState<Student | null>(
+    null,
+  );
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
@@ -562,9 +569,8 @@ function StudentsPageContent() {
                 type="button"
                 variant="ghost"
                 size="compact"
-                isLoading={cancellingExit}
-                loadingText="Wird storniert…"
-                onClick={() => void cancelPlannedExit(selectedStudent)}
+                disabled={cancellingExit}
+                onClick={() => setCancelExitTarget(selectedStudent)}
               >
                 Ende stornieren
               </Button>
@@ -655,6 +661,34 @@ function StudentsPageContent() {
               }}
             />
           ) : null}
+
+          <ConfirmationModal
+            isOpen={cancelExitTarget !== null}
+            title="Betreuungsende stornieren?"
+            confirmText="Ende stornieren"
+            cancelText="Abbrechen"
+            isConfirmLoading={cancellingExit}
+            isDismissDisabled={cancellingExit}
+            onConfirm={async () => {
+              if (!cancelExitTarget) return;
+              await cancelPlannedExit(cancelExitTarget);
+              setCancelExitTarget(null);
+            }}
+            onClose={() => setCancelExitTarget(null)}
+          >
+            <p className="text-sm text-gray-700">
+              Das geplante Betreuungsende von{" "}
+              <strong>
+                {cancelExitTarget
+                  ? studentsConfig.list.item.title(cancelExitTarget)
+                  : ""}
+              </strong>
+              {cancelExitTarget?.care_ends_on
+                ? ` am ${formatDate(cancelExitTarget.care_ends_on)}`
+                : ""}{" "}
+              wird storniert. Termine und Angebote gelten wieder.
+            </p>
+          </ConfirmationModal>
 
           {resumeTarget ? (
             <CareResumeModal

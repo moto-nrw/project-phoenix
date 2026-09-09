@@ -22,6 +22,7 @@ import { Button } from "~/components/ui/button";
 import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -59,6 +60,7 @@ export function PlanningTrackSelect({
   const toast = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const manageRef = useRef<HTMLButtonElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("select");
@@ -69,6 +71,14 @@ export function PlanningTrackSelect({
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Archivieren ist umkehrbar, aber die Spur verschwindet mitten im
+  // Termin-Formular aus der Auswahl: der Klick öffnet erst die Rückfrage
+  // (BAUARTEN-SPEC Bauart 2 Regel 6, #3109). Das Popover liegt über jedem
+  // Modal (z 10000), darum schließt es für die Dauer der Rückfrage und
+  // öffnet danach wieder in der Verwaltung.
+  const [archiveTarget, setArchiveTarget] = useState<PlanningTrack | null>(
+    null,
+  );
 
   useEffect(() => setItems([...tracks]), [tracks]);
 
@@ -218,12 +228,27 @@ export function PlanningTrackSelect({
     toast.success(`Planungsspur „${track.name}“ wiederhergestellt`);
   };
 
+  const beginArchive = (track: PlanningTrack) => {
+    setError(null);
+    setArchiveTarget(track);
+    setOpen(false);
+  };
+
+  const closeArchiveDialog = () => {
+    setArchiveTarget(null);
+    setView("manage");
+    setOpen(true);
+  };
+
   const archiveTrack = async (track: PlanningTrack) => {
     const result = await executeMutation(async () => {
       await planningTrackService.archive(track.id);
       await onTracksChanged();
       return new Date().toISOString();
     });
+    // Zurück in die Verwaltung: bei Erfolg steht die Spur dort unter
+    // „Archivierte Planungsspuren“, bei einem Fehler zeigt sie den Alert.
+    closeArchiveDialog();
     if (!result.ok) return;
     setItems((current) =>
       current.map((item) =>
@@ -391,6 +416,7 @@ export function PlanningTrackSelect({
         </h3>
         <div className="flex shrink-0 items-center gap-2">
           <Button
+            ref={manageRef}
             type="button"
             variant="outline"
             size="compact"
@@ -465,7 +491,7 @@ export function PlanningTrackSelect({
                 size="compact"
                 aria-label={`${track.name} archivieren`}
                 disabled={busy}
-                onClick={() => void archiveTrack(track)}
+                onClick={() => beginArchive(track)}
               >
                 Archivieren
               </Button>
@@ -564,58 +590,78 @@ export function PlanningTrackSelect({
   );
 
   return (
-    <AnchoredPopover
-      open={open}
-      onOpenChange={handleOpenChange}
-      ariaLabel="Planungsspur auswählen und verwalten"
-      initialFocusRef={view === "form" ? nameRef : searchRef}
-      renderTrigger={({ ref, open: isOpen, panelId, toggle }) => (
-        <button
-          ref={ref}
-          id="event_planning_track"
-          type="button"
-          role="combobox"
-          aria-label="Planungsspur"
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          aria-controls={isOpen ? panelId : undefined}
-          disabled={disabled}
-          onClick={toggle}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape" || !isOpen) return;
-            event.preventDefault();
-            event.stopPropagation();
-            event.nativeEvent.stopImmediatePropagation();
-            handleOpenChange(false);
-          }}
-          className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80"
-        >
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            {selected && (
-              <span
-                className="size-4 shrink-0 rounded-full border border-black/10"
-                style={{ backgroundColor: selected.color }}
-                aria-hidden="true"
-              />
-            )}
-            <span className="truncate text-gray-900">
-              {selected
-                ? `${selected.name}${selected.archivedAt ? " (archiviert)" : ""}`
-                : "Keine Planungsspur"}
+    <>
+      <AnchoredPopover
+        open={open}
+        onOpenChange={handleOpenChange}
+        ariaLabel="Planungsspur auswählen und verwalten"
+        initialFocusRef={
+          view === "form" ? nameRef : view === "manage" ? manageRef : searchRef
+        }
+        renderTrigger={({ ref, open: isOpen, panelId, toggle }) => (
+          <button
+            ref={ref}
+            id="event_planning_track"
+            type="button"
+            role="combobox"
+            aria-label="Planungsspur"
+            aria-haspopup="dialog"
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? panelId : undefined}
+            disabled={disabled}
+            onClick={toggle}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || !isOpen) return;
+              event.preventDefault();
+              event.stopPropagation();
+              event.nativeEvent.stopImmediatePropagation();
+              handleOpenChange(false);
+            }}
+            className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80"
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              {selected && (
+                <span
+                  className="size-4 shrink-0 rounded-full border border-black/10"
+                  style={{ backgroundColor: selected.color }}
+                  aria-hidden="true"
+                />
+              )}
+              <span className="truncate text-gray-900">
+                {selected
+                  ? `${selected.name}${selected.archivedAt ? " (archiviert)" : ""}`
+                  : "Keine Planungsspur"}
+              </span>
             </span>
-          </span>
-          <ChevronDown
-            className={`size-4 shrink-0 text-gray-400 ${isOpen ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-      )}
-    >
-      {({ close }) => {
-        if (view === "manage") return renderManageView();
-        if (view === "form") return renderFormView();
-        return renderSelectView(close);
-      }}
-    </AnchoredPopover>
+            <ChevronDown
+              className={`size-4 shrink-0 text-gray-400 ${isOpen ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+      >
+        {({ close }) => {
+          if (view === "manage") return renderManageView();
+          if (view === "form") return renderFormView();
+          return renderSelectView(close);
+        }}
+      </AnchoredPopover>
+      <ConfirmationModal
+        isOpen={archiveTarget !== null}
+        title="Planungsspur archivieren?"
+        confirmText="Archivieren"
+        cancelText="Abbrechen"
+        isConfirmLoading={busy}
+        isDismissDisabled={busy}
+        onConfirm={() => archiveTarget && void archiveTrack(archiveTarget)}
+        onClose={closeArchiveDialog}
+      >
+        <p className="text-sm text-gray-700">
+          Die Planungsspur <strong>{archiveTarget?.name}</strong> wird für neue
+          Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie
+          können die Spur jederzeit wiederherstellen.
+        </p>
+      </ConfirmationModal>
+    </>
   );
 }

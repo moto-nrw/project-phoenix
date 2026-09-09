@@ -14,6 +14,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   RequestSharingControl,
   RequestSharingSelector,
@@ -966,6 +967,10 @@ export function PickupTimeModal({
   const [error, setError] = useState<string | null>(null);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
+  // „Änderung zurücknehmen“ löscht die eigene Abholzeit des Tages: der Klick
+  // im Footer öffnet erst die Rückfrage, entfernt wird im Dialog (#3109).
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [invalidField, setInvalidField] = useState<
     "pickupTime" | "reason" | null
   >(null);
@@ -1114,16 +1119,42 @@ export function PickupTimeModal({
 
   const handleRemove = async () => {
     setSubmitting(true);
-    setError(null);
+    setResetError(null);
     try {
       await onRemove(date);
       onClose();
     } catch (err) {
-      setError(resolveError(err));
+      setResetError(resolveError(err));
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (confirmingReset) {
+    return (
+      <ConfirmDeleteModal
+        isOpen
+        title={t("pickup.resetTitle")}
+        description={t("pickup.resetDescription", {
+          date: formatLocaleDate(date, locale),
+        })}
+        gate={{ mode: "twoStep", firstStepLabel: t("pickup.resetFirstStep") }}
+        confirmLabel={t("pickup.resetConfirm")}
+        loadingLabel={t("pickup.resetLoading")}
+        cancelLabel={t("cancel")}
+        closeLabel={t("close")}
+        backdropLabel={t("close")}
+        mobileSheet
+        loading={submitting}
+        error={resetError ?? ""}
+        onConfirm={() => void handleRemove()}
+        onClose={() => {
+          setConfirmingReset(false);
+          setResetError(null);
+        }}
+      />
+    );
+  }
 
   return (
     <Modal
@@ -1140,7 +1171,10 @@ export function PickupTimeModal({
               variant="ghost"
               size="md"
               className="w-full gap-2 whitespace-nowrap sm:w-auto"
-              onClick={() => void handleRemove()}
+              onClick={() => {
+                setResetError(null);
+                setConfirmingReset(true);
+              }}
               disabled={submitting || alreadyHome}
             >
               <Trash2 className="size-4" aria-hidden="true" />

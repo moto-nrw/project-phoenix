@@ -2915,6 +2915,14 @@
   ],
   "data_objects": [
     {
+      "name": "active.activity_session_attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.activity_sessions",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.attendance",
       "write_owner": "student-presence"
     },
@@ -3319,6 +3327,10 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "enrollment.care_offering_bookings",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "enrollment.care_offerings",
       "write_owner": "care-plan"
     },
@@ -3344,6 +3356,10 @@
     },
     {
       "name": "enrollment.phases",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_child_offering_selections",
       "write_owner": "enrollment"
     },
     {
@@ -3661,6 +3677,14 @@
     {
       "name": "users.staff",
       "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_employment_profiles",
+      "write_owner": "workforce"
     },
     {
       "name": "users.staff_document_file_cleanup",

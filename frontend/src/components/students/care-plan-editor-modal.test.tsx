@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
@@ -57,6 +63,25 @@ vi.mock("~/components/ui/slide-over", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
+  // ConfirmDeleteModal (Hinweis löschen, #3109) renders through the kit Modal.
+  Modal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        {children}
+        {footer}
+      </div>
+    ) : null,
   ConfirmationModal: ({
     isOpen,
     title,
@@ -1076,6 +1101,101 @@ describe("CarePlanEditorModal", () => {
       "Hinweis konnte nicht gespeichert werden",
     );
     expect(draft).toHaveValue("Bitte klingeln");
+  });
+
+  it("keeps new note drafts scoped to their date", async () => {
+    const onCreateArrivalNote = vi.fn().mockResolvedValue(undefined);
+    const { rerender, renderModal } = renderEditor({ onCreateArrivalNote });
+    const tuesday = new Date("2026-05-26T00:00:00");
+    const tuesdayArrivalDay: ArrivalDayData = {
+      ...baseArrivalDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...baseArrivalDay.baseSchedule!,
+        weekday: 2,
+        weekday_name: "Dienstag",
+      },
+      notes: [],
+    };
+    const tuesdayPickupDay: PickupDayData = {
+      ...basePickupDay,
+      date: tuesday,
+      weekday: 2,
+      baseSchedule: {
+        ...basePickupDay.baseSchedule!,
+        weekday: 2,
+        weekdayName: "Dienstag",
+      },
+      notes: [],
+    };
+
+    fireEvent.change(screen.getByLabelText("Ankunft Hinweis hinzufügen"), {
+      target: { value: "Montagsentwurf" },
+    });
+    rerender(
+      renderModal({
+        date: tuesday,
+        arrivalDay: tuesdayArrivalDay,
+        pickupDay: tuesdayPickupDay,
+      }),
+    );
+
+    const tuesdayDraft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
+    expect(tuesdayDraft).toHaveValue("");
+    fireEvent.change(tuesdayDraft, { target: { value: "Dienstagsentwurf" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Hinzufügen" })[0]!);
+
+    await waitFor(() => {
+      expect(onCreateArrivalNote).toHaveBeenCalledWith(
+        "2026-05-26",
+        "Dienstagsentwurf",
+      );
+    });
+
+    rerender(renderModal());
+    expect(screen.getByLabelText("Ankunft Hinweis hinzufügen")).toHaveValue(
+      "Montagsentwurf",
+    );
+  });
+
+  it("suspends the editor for a note deletion and restores unsaved drafts", async () => {
+    const onDeleteArrivalNote = vi.fn().mockResolvedValue(undefined);
+    renderEditor({ onDeleteArrivalNote });
+
+    fireEvent.change(screen.getByLabelText("Abholung Hinweis"), {
+      target: { value: "Eigener Entwurf" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+
+    await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    expect(onDeleteArrivalNote).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("Ausnahme für Montag, 25.05."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(screen.getByLabelText("Abholung Hinweis")).toHaveValue(
+      "Eigener Entwurf",
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+    const reopenedDialog = await screen.findByRole("dialog", {
+      name: "Hinweis löschen?",
+    });
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      within(reopenedDialog).getByRole("button", {
+        name: "Endgültig löschen",
+      }),
+    );
+
+    await waitFor(() => expect(onDeleteArrivalNote).toHaveBeenCalledWith(11));
   });
 
   it("shows an error when resetting to the offering pickup time fails", async () => {
