@@ -178,6 +178,7 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
   useHomeLayout: () => ({
     state: { ...layoutState, canManagePolicies: true },
     isLoading: false,
+    isReady: true,
     save,
     reset,
   }),
