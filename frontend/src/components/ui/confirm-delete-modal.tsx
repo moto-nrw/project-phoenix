@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "./button";
 import { ChoiceTile } from "./choice-tile";
 import { Modal } from "./modal";
@@ -105,6 +111,10 @@ export function ConfirmDeleteModal({
 }: ConfirmDeleteModalProps) {
   const [confirmed, setConfirmed] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const previousScopeValue = useRef(scope?.value);
+  const textConfirmExpected =
+    gate.mode === "textConfirm" ? gate.expected : null;
+  const previousTextConfirmExpected = useRef(textConfirmExpected);
 
   // Reset internal gate state whenever the modal is closed externally so the
   // next open is always a fresh confirmation flow.
@@ -114,6 +124,21 @@ export function ConfirmDeleteModal({
       setTextInput("");
     }
   }, [isOpen]);
+
+  // Scope changes can turn an ordinary unlink into an irreversible deletion.
+  // A typed confirmation belongs to the scope and gate in which it was
+  // entered, so it must not carry over when either changes externally.
+  useEffect(() => {
+    const scopeChanged = previousScopeValue.current !== scope?.value;
+    const textConfirmChanged =
+      previousTextConfirmExpected.current !== textConfirmExpected;
+    if (scopeChanged || textConfirmChanged) {
+      setConfirmed(false);
+      setTextInput("");
+    }
+    previousScopeValue.current = scope?.value;
+    previousTextConfirmExpected.current = textConfirmExpected;
+  }, [scope?.value, textConfirmExpected]);
 
   const close = useCallback(() => {
     setConfirmed(false);
@@ -216,7 +241,15 @@ export function ConfirmDeleteModal({
                     value={option.value}
                     checked={scope.value === option.value}
                     disabled={disabled}
-                    onChange={() => scope.onChange(option.value)}
+                    onChange={() => {
+                      // Reset eagerly as well as in the effect above: the
+                      // parent owns the selected scope and rerenders this
+                      // dialog, but an already typed confirmation may never
+                      // authorize a different scope.
+                      setConfirmed(false);
+                      setTextInput("");
+                      scope.onChange(option.value);
+                    }}
                     className="mt-0.5"
                   />
                   <span className="min-w-0 flex-1">

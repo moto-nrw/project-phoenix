@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 
@@ -276,6 +277,59 @@ describe("ConfirmDeleteModal scope slot", () => {
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
     expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("clears a typed confirmation when the scope changes", () => {
+    function Harness() {
+      const [value, setValue] = useState<string | null>("series");
+
+      return (
+        <ModalProvider>
+          <ConfirmDeleteModal
+            isOpen
+            title="Termin löschen"
+            description="Der Termin gehört zu einer Reihe."
+            gate={{
+              mode: "textConfirm",
+              expected: "Reihe",
+              inputId: "scope-reset-confirm",
+              label: "Zum Bestätigen Reihe eingeben",
+            }}
+            scope={{
+              label: "Was soll gelöscht werden?",
+              name: "scope-reset",
+              value,
+              onChange: setValue,
+              options: [
+                { value: "occurrence", label: "Nur dieser Termin" },
+                { value: "series", label: "Ganze Reihe" },
+              ],
+            }}
+            onConfirm={vi.fn()}
+            onClose={vi.fn()}
+            loading={false}
+            error=""
+          />
+        </ModalProvider>
+      );
+    }
+
+    render(<Harness />);
+
+    const input = screen.getByLabelText("Zum Bestätigen Reihe eingeben");
+    const confirm = screen.getByRole("button", {
+      name: "Endgültig löschen",
+    });
+    fireEvent.change(input, { target: { value: "Reihe" } });
+    expect(confirm).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Nur dieser Termin/ }));
+    expect(input).toHaveValue("");
+    expect(confirm).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ganze Reihe/ }));
+    expect(input).toHaveValue("");
+    expect(confirm).toBeDisabled();
   });
 
   it("never opens the typed gate while the expected value is still empty", () => {
