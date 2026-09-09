@@ -110,6 +110,42 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.queryByText(/Noch \d+ Einsä?tz/)).not.toBeInTheDocument();
   });
 
+  it("zeigt nach Tagesende die letzten Einsätze", () => {
+    swr.data = [
+      assignment({
+        instanceId: "1",
+        startTime: "05:00",
+        endTime: "05:15",
+        title: "Frühdienst",
+      }),
+      assignment({
+        instanceId: "2",
+        startTime: "05:15",
+        endTime: "05:30",
+        title: "Mittagessen",
+      }),
+      assignment({
+        instanceId: "3",
+        startTime: "05:30",
+        endTime: "05:45",
+        title: "Lernzeit",
+      }),
+      assignment({
+        instanceId: "4",
+        startTime: "05:45",
+        endTime: "06:00",
+        title: "Freispiel",
+      }),
+    ];
+
+    render(<BetreuungsplanHeuteCard maxRows={3} />);
+
+    expect(screen.queryByText("Frühdienst")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+    expect(screen.getByText("Lernzeit")).toBeInTheDocument();
+    expect(screen.getByText("Freispiel")).toBeInTheDocument();
+  });
+
   // Auf der Startseite trägt jede Zeile ihren Zustand relativ zur Uhr (07:00):
   // „Läuft" für den Moment, die Zeit bis zum Beginn für das Kommende.
   it("zeigt auf der Startseite den Zustand jeder Zeile", () => {

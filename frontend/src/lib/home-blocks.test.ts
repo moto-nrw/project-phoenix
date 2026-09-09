@@ -269,6 +269,11 @@ describe("resolveHomeLayout — eigene Anordnung", () => {
     );
 
     expect(placements[0]?.key).toBe("section.staff_notices");
+    expect(placements[1]).toMatchObject({
+      key: "tile.students_present",
+      col: 0,
+      row: 2,
+    });
     expect(keysOf(placements)).toContain("section.open_requests");
   });
 
@@ -619,7 +624,7 @@ describe("Raster mit Schwerkraft (#2180)", () => {
     expect(cellOf(next, "section.birthdays")).toEqual([0, 3]);
   });
 
-  it("hängt einen Baustein dort an, wo er als Nächstes passt", () => {
+  it("hängt einen Baustein unter die bestehende Anordnung", () => {
     expect(appendPlacement(grid, "section.messages", 2).at(-1)).toEqual({
       key: "section.messages",
       span: 2,
@@ -628,7 +633,7 @@ describe("Raster mit Schwerkraft (#2180)", () => {
     });
     expect(
       appendPlacement(grid.slice(0, 2), "section.messages", 2).at(-1),
-    ).toEqual({ key: "section.messages", span: 2, col: 2, row: 0 });
+    ).toEqual({ key: "section.messages", span: 2, col: 0, row: 1 });
   });
 
   it("rückt eine Kachel ohne Maus", () => {

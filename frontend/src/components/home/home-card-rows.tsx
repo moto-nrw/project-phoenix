@@ -75,9 +75,12 @@ export function upcomingFirst<T>(
   items: readonly T[],
   endTimeOf: (item: T) => string,
   now: string,
+  /** Wie viele vergangene Einträge die aufrufende Karte zeigen kann. */
+  pastItemCount = items.length,
 ): readonly T[] {
   const firstRelevant = items.findIndex((item) => endTimeOf(item) > now);
-  if (firstRelevant <= 0) return items;
+  if (firstRelevant === -1) return items.slice(-pastItemCount);
+  if (firstRelevant === 0) return items;
   return items.slice(firstRelevant);
 }
 

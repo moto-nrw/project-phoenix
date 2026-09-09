@@ -142,7 +142,12 @@ export function BetreuungsplanHeuteCard({
   // der Frühdienst in der Karte. Auf der Zeiterfassung bleibt der ganze Tag
   // stehen, dort ist die Vergangenheit Teil der Antwort.
   const relevant = onHome
-    ? upcomingFirst(blocks, (block) => block.endTime, now)
+    ? upcomingFirst(
+        blocks,
+        (block) => block.endTime,
+        now,
+        rowLimit === undefined ? blocks.length : Math.max(rowLimit - 1, 1),
+      )
     : blocks;
   // Der Hinweis auf den Rest kostet selbst eine Zeile Platz: passt nicht
   // alles, steht eine Zeile weniger da, statt dass der Hinweis herausragt.

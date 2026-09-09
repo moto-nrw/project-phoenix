@@ -881,13 +881,17 @@ export function placementWithSpan(
   return settle(pushApart(resized, key));
 }
 
-/** Hängt einen Baustein an die erste freie Stelle; unter dem Brett ist immer Platz. */
+/** Hängt einen Baustein unter die bestehende Anordnung; unter dem Brett ist immer Platz. */
 export function appendPlacement(
   placements: readonly HomeBlockPlacement[],
   key: HomeBlockKey,
   span: HomeBlockSpan,
 ): HomeBlockPlacement[] {
-  return [...placements, firstFit(placements, key, span)];
+  const nextRow = placements.reduce(
+    (bottom, entry) => Math.max(bottom, entry.row + homeBlockHeight(entry.key)),
+    0,
+  );
+  return [...placements, { key, span, col: 0, row: nextRow }];
 }
 
 /** Entfernt einen Baustein; was seine Zelle brauchen kann, rückt nach. */

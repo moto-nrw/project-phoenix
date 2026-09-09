@@ -61,6 +61,7 @@ export function DayFlowBlock() {
     blocks,
     (block) => (block.status === "active" ? "24:00" : block.endTime),
     now,
+    MAX_BLOCKS - 1,
   );
   const { shown, hidden } = useHomeCardRows(relevant, MAX_BLOCKS);
 

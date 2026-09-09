@@ -121,7 +121,7 @@ describe("DayFlowBlock (#2180)", () => {
 
   // Ist der Tag vorbei, bleibt der Tag stehen: „heute war das" ist eine
   // Antwort, eine leere Karte ist keine.
-  it("lässt einen vergangenen Tag stehen, statt zu leeren", () => {
+  it("zeigt nach Tagesende die letzten Blöcke", () => {
     swr.data = [
       block({
         id: "1",
@@ -135,12 +135,26 @@ describe("DayFlowBlock (#2180)", () => {
         startTime: "05:45",
         endTime: "06:30",
       }),
+      block({
+        id: "3",
+        title: "Lernzeit",
+        startTime: "06:30",
+        endTime: "06:45",
+      }),
+      block({
+        id: "4",
+        title: "Freispiel",
+        startTime: "06:45",
+        endTime: "07:00",
+      }),
     ];
 
     render(<DayFlowBlock />);
 
-    expect(screen.getByText("Frühdienst")).toBeInTheDocument();
-    expect(screen.getByText("Mittagessen")).toBeInTheDocument();
+    expect(screen.queryByText("Frühdienst")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+    expect(screen.getByText("Lernzeit")).toBeInTheDocument();
+    expect(screen.getByText("Freispiel")).toBeInTheDocument();
   });
 
   // Dieselben Wörter wie im Tagesplan; für das Kommende die Zeit bis zum
