@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,7 +60,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		if rs.handleSessionConflictError(w, r, err, req.ActivityID, deviceCtx.ID) {
 			return
 		}
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 	rs.mirrorSessionToTimetable(r.Context(), activeGroup, req.SupervisorIDs)
@@ -92,7 +91,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no active session to end")))
 			return
 		}
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -163,7 +162,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 			common.Respond(w, r, http.StatusOK, response, "No active session")
 			return
 		}
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -254,7 +253,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 	// Update supervisors
 	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 
@@ -296,7 +295,7 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	// Check for conflicts
 	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
 	if err != nil {
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderError(w, r, err)
 		return
 	}
 

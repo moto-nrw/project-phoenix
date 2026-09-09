@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -136,7 +135,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		rs.getLogger().ErrorContext(r.Context(), "failed to create feedback entry",
 			slog.String("error", err.Error()),
 		)
-		renderer := shared.ErrorRenderer(err)
+		renderer := feedbackErrorRenderer(err)
 		status := http.StatusInternalServerError
 		if response, ok := renderer.(*common.ErrResponse); ok {
 			status = response.HTTPStatusCode

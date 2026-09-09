@@ -61,11 +61,3 @@ const (
 	// WCMaxParticipants is the default max participants for the WC activity.
 	WCMaxParticipants = 20
 )
-
-// IsWCRoomName returns true if the given room name is one of the accepted
-// canonical toilet-room aliases ("WC" or "Toilette"). Matching is exact-case
-// to match the existing system-room contract, which has always compared
-// SchulhofRoomName and WCRoomName by `==`. See issue #1184.
-func IsWCRoomName(name string) bool {
-	return name == WCRoomName || name == WCRoomAliasName
-}

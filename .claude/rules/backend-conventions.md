@@ -164,7 +164,7 @@ gocognit -over 15 backend/api/
 Two shapes that keep handlers under the threshold without hiding logic:
 
 - **Pure pass-through handlers** (parse → one service call → respond) should not exist as named functions at all — register them with the `api/common` handler builders (`IDAction`, `TwoIDAction`, `IDFetch`, `BindAction`) directly in `Router()`. Cutoff: a handler with per-request branching, multi-service reads, or response shaping keeps a named function; do not grow option-struct builder variants to force-fit those.
-- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The one sanctioned hand-written renderer is `api/iot/internal/shared.ErrorRenderer` (multi-domain dispatch + PyrePortal wire contract).
+- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The retained IoT session and device routes keep their multi-domain PyrePortal mapping as a rule table in `api/iot/sessions/errors.go`; the kiosk scan routes classify through the public `modules/devicescan` contract instead.
 
 ---
 

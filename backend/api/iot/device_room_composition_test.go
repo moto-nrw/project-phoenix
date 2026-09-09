@@ -27,6 +27,7 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 		FacilityService:          data.Facilities,
 		FeedbackService:          feedback.Feedback,
 		FeedbackResponseObserver: func(int, string) {},
+		DeviceScan:               routerDeviceScan{},
 		StaffClock:               routerStaffClock{},
 		SchoolService:            auth.Schools,
 		DB:                       db,
