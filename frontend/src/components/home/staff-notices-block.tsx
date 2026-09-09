@@ -1,5 +1,7 @@
 "use client";
 
+import { useSession } from "next-auth/react";
+
 import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -30,14 +32,18 @@ const MAX_NOTICES = 1;
 
 export function StaffNoticesBlock() {
   const tenantPath = useTenantAwarePath();
+  const { data: session } = useSession();
+  const accountId = session?.user?.id ?? "";
   const {
     data: notices,
     error,
     isLoading,
     mutate,
-  } = useSWRAuth<StaffNotice[]>("staff-notices-today", fetchTodaysNotices, {
-    revalidateOnFocus: false,
-  });
+  } = useSWRAuth<StaffNotice[]>(
+    `staff-notices-today:${accountId}`,
+    fetchTodaysNotices,
+    { revalidateOnFocus: false },
+  );
   const { shown, hidden } = useHomeCardRows(notices ?? [], MAX_NOTICES);
 
   return (

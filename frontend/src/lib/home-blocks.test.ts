@@ -518,9 +518,7 @@ describe("sanitize", () => {
     ]);
   });
 
-  // Eine ältere Anordnung mit Löchern setzt sich beim Laden: alles rutscht
-  // nach oben und nach links, so weit Platz ist.
-  it("übernimmt gespeicherte Zellen und schließt Löcher", () => {
+  it("übernimmt gespeicherte Zellen einschließlich freier Lücken", () => {
     const kept = sanitizeHomeBlockPlacements([
       { key: "tile.students_present", span: 1, col: 3, row: 2 },
       { key: "section.open_requests", span: 2, col: 0, row: 5 },
@@ -528,9 +526,9 @@ describe("sanitize", () => {
     ]);
 
     expect(kept.map((entry) => [entry.col, entry.row])).toEqual([
-      [0, 0],
-      [0, 1],
-      [2, 0],
+      [3, 2],
+      [0, 5],
+      [2, 5],
     ]);
   });
 
@@ -539,7 +537,7 @@ describe("sanitize", () => {
       sanitizeHomeBlockPlacements([
         { key: "section.open_requests", span: 2, col: 3, row: 0 },
       ]),
-    ).toEqual([{ key: "section.open_requests", span: 2, col: 0, row: 0 }]);
+    ).toEqual([{ key: "section.open_requests", span: 2, col: 2, row: 0 }]);
   });
 
   it("verträgt null und Nicht-Objekte", () => {

@@ -168,7 +168,11 @@ function HomeContent() {
   );
 
   const wantsBirthdayData = placedKeys.has("section.birthdays");
-  const needsAnalytics = ANALYTICS_BLOCKS.some((key) => placedKeys.has(key));
+  // Das Analytics-Endpunkt verlangt groups:read. „Personal heute" bleibt
+  // ohne dieses Recht sichtbar, erhält dann aber nur seine eigene Quelle.
+  const needsAnalytics =
+    access.has("groups:read") &&
+    ANALYTICS_BLOCKS.some((key) => placedKeys.has(key));
 
   // Geburtstage leben auf ihrem eigenen Schlüssel: sie ändern sich einmal am
   // Tag, während die Betriebszahlen bei jedem Check-in über SSE neu geladen

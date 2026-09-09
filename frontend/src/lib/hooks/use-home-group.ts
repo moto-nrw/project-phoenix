@@ -194,9 +194,10 @@ export function useHomeGroup(
 ): HomeGroupSnapshot {
   const { data: session } = useSession();
   const token = session?.user?.token;
+  const accountId = session?.user?.id;
 
   const { data, error, isLoading } = useSWRAuth<OgsLiveViewData>(
-    enabled ? "home-own-group" : null,
+    enabled && accountId ? `home-own-group:${accountId}` : null,
     () => fetchOgsGroupLive(token, null),
     { revalidateOnFocus: false, errorRetryCount: 1 },
   );

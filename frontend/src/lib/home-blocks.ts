@@ -749,7 +749,8 @@ function unlessSame(
 
 /**
  * Bringt eine Anordnung in Form: Spalten im Raster, Zeilen ganze Zahlen,
- * keine zwei Bausteine auf derselben Zelle, kein Loch.
+ * keine zwei Bausteine auf derselben Zelle. Bewusst ohne Schwerkraft: Lücken
+ * sind Teil einer persönlichen freien Anordnung und müssen beim Laden bleiben.
  */
 function normalizePlacements(
   placements: readonly HomeBlockPlacement[],
@@ -759,7 +760,7 @@ function normalizePlacements(
     col: clampCol(entry.col, entry.span),
     row: Math.max(0, Math.floor(entry.row)),
   }));
-  return settle(pushApart(inGrid, null));
+  return pushApart(inGrid, null);
 }
 
 /**

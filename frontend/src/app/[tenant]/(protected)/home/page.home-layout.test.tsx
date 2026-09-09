@@ -140,6 +140,7 @@ vi.mock("~/lib/hooks/use-home-layout", () => ({
   }),
 }));
 
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 
 /** Die SWR-Schlüssel, mit denen die Seite in diesem Rendern gefragt hat. */
@@ -150,6 +151,8 @@ function requestedKeys(): (string | null)[] {
 describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+    vi.mocked(hasPermission).mockReturnValue(true);
     layoutState.blocks = [];
     layoutState.overrides = {};
     layoutState.policies = {};
@@ -189,6 +192,23 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
       "section.staff_today": false,
       "section.messages": false,
     };
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
+    );
+    expect(requestedKeys()).not.toContain("dashboard-analytics");
+  });
+
+  it("fragt die Betriebszahlen ohne groups:read nicht für Personal heute", async () => {
+    layoutState.blocks = [
+      { key: "section.staff_today", span: 2, col: 0, row: 0 },
+    ];
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
+    vi.mocked(hasPermission).mockImplementation(
+      (_session, permission) => permission === "users:read",
+    );
 
     render(<HomePage />);
 
